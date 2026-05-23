@@ -79,7 +79,7 @@ sequenceDiagram
     participant Vault as 💾 Vault
 
     User->>Agent: Pergunta sobre projeto
-    Agent->>Hook: pre_prompt_build / SessionStart
+    Agent->>Hook: pre_gateway_dispatch / SessionStart
     
     Hook->>Engine: _query_vault_knowledge(query)
     
@@ -122,7 +122,7 @@ sequenceDiagram
     User->>Agent: "Decidi migrar o servidor"
     Agent->>Agent: tool: memory_add(title, content)
     
-    Agent->>Hook: post_tool_use / PostToolUse
+    Agent->>Hook: post_tool_call / PostToolUse
     
     Hook->>Writer: detecta DECISION_TOOLS
     Writer->>Writer: _sanitize_slug(title)
@@ -137,7 +137,7 @@ sequenceDiagram
     
     Note over Agent,Vault: ... sessão continua ...
     
-    Agent->>Hook: post_session_end / Stop hook
+    Agent->>Hook: on_session_end / Stop hook
     Hook->>Writer: _update_current_state(decisions, learnings, summary)
     Writer->>Vault: atualiza brain/Current State.md
     
@@ -212,8 +212,8 @@ graph LR
 ```mermaid
 graph TB
     subgraph HERMES["Hermes Agent (Plugin Nativo)"]
-        H1[pre_prompt_build] --> H2[post_tool_use]
-        H2 --> H3[post_session_end]
+        H1[pre_gateway_dispatch] --> H2[post_tool_call]
+        H2 --> H3[on_session_end]
     end
     
     subgraph CLAUDE["Claude Code (MCP + Hooks)"]

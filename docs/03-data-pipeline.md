@@ -26,9 +26,9 @@
 
 | Fonte | Formato | Gatilho | Destino |
 |-------|---------|---------|---------|
-| Agente (decisão) | `memory_add` tool call | `post_tool_use` hook | `work/active/YYYY-MM-DD-slug.md` |
-| Agente (aprendizado) | `memory_add` com learning signals | `post_tool_use` hook | `brain/Patterns.md` (append) |
-| Agente (sessão) | `session_summary` | `post_session_end` hook | `brain/Current State.md` |
+| Agente (decisão) | `memory_add` tool call | `post_tool_call` hook | `work/active/YYYY-MM-DD-slug.md` |
+| Agente (aprendizado) | `memory_add` com learning signals | `post_tool_call` hook | `brain/Patterns.md` (append) |
+| Agente (sessão) | `session_summary` | `on_session_end` hook | `brain/Current State.md` |
 | claude-mem (observações) | SQLite rows | sync via HTTP API | `work/active/` (export) |
 | Humano (Obsidian) | Editor Markdown | salvamento manual | Qualquer `.md` no vault |
 
@@ -245,9 +245,9 @@ def _query_vault_knowledge(query: str) -> Optional[Dict]:
 
 | Pipeline | Frequência | Gatilho |
 |----------|-----------|---------|
-| Escrita de decisões | Tempo real | `post_tool_use` hook |
-| Escrita de aprendizados | Tempo real | `post_tool_use` hook |
-| Update Current State | Fim de sessão | `post_session_end` / Stop hook |
+| Escrita de decisões | Tempo real | `post_tool_call` hook |
+| Escrita de aprendizados | Tempo real | `post_tool_call` hook |
+| Update Current State | Fim de sessão | `on_session_end` / Stop hook |
 | Sync claude-mem → vault | Manual/cron | `sync_claude_mem_to_vault()` |
 | Rebuild graph.json | A cada 6h | Cron `build-graph.sh` |
 | Rebuild completo | Domingo 2am | Cron `sync-diario.sh --force` |

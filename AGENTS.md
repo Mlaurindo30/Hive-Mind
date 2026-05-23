@@ -71,7 +71,7 @@ Agente decide                  Cron (6h)                    Usuário pergunta
      │                             │                            │
      ▼                             ▼                            ▼
 sinapse-memory                build-graph.sh              sinapse-memory
-(post_tool_use)                   │                       (pre_prompt_build)
+(post_tool_call)                   │                       (pre_gateway_dispatch)
      │                             ▼                            │
      ├──► work/active/         graphify update             ├──► 1. nmem recall
      ├──► brain/Patterns.md    cerebro/                    │    (spreading activation)
@@ -130,7 +130,7 @@ O Sinapse Agent conecta-se a agentes via 3 métodos:
 
 | Método | Agentes | Como funciona |
 |--------|---------|--------------|
-| **Plugin nativo** | Hermes | `register(ctx)` → hooks `pre_prompt_build`, `post_tool_use`, `post_session_end` |
+| **Plugin nativo** | Hermes | `register(ctx)` → hooks `pre_gateway_dispatch`, `post_tool_call`, `on_session_end` |
 | **MCP server** | Claude Code, Codex CLI, Kilo Code, OpenClaw, Copilot, Gemini CLI, ZooCode | `scripts/sinapse-mcp.py` → 5 tools via stdio JSON-RPC |
 | **CLI standalone** | Qualquer agente com shell | `scripts/sinapse-write.py` → subcomandos `decision`, `learning`, `query`, `health`, `session-end` |
 
