@@ -1,0 +1,96 @@
+# sinapse.yaml — Configuração central do Sinapse Agent
+# Camada de memória universal para qualquer agente (Hermes, Claude Code, Codex, OpenCode, Cursor)
+
+# =============================================================================
+# PROJETO
+# =============================================================================
+project:
+  name: sinapse_agent
+  version: 1.0.0
+  description: >
+    Camada de memória universal para agentes de IA. Indexa um vault Obsidian
+    (cerebro/) em um knowledge graph queryable via Graphify, complementado por
+    tracking granular de eventos (claude-mem) e otimização de execução (RTK).
+    Um clone, um ./install.sh, todos os agentes conectados.
+
+# =============================================================================
+# VAULT (fonte única de verdade)
+# =============================================================================
+vault:
+  path: cerebro/                          # relativo à raiz do projeto
+  format: obsidian                        # vault Obsidian com frontmatter YAML
+  language: pt-BR                         # idioma do vault
+  indexer: graphify                       # ferramenta que indexa o vault
+  watch: true                             # reindexa automaticamente ao detectar mudanças
+
+# =============================================================================
+# GRAPHIFY (camada 1 — estrutural: O QUE existe)
+# =============================================================================
+graphify:
+  package: graphifyy                      # nome do pacote PyPI (double-y)
+  install_method: uv                      # uv | pipx | pip
+  extras: [all]                           # pdf, office, video, mcp, neo4j, ollama, etc
+  output_dir: graphify/graphify-out/      # output do knowledge graph
+  mcp_port: 0                             # 0 = stdio, ou porta para HTTP
+  watch: true                             # --watch flag
+  obsidian_export: true                   # --obsidian flag
+  global_graph: false                     # --global (ativar quando multi-projeto)
+
+# =============================================================================
+# CLAUDE-MEM (camada 2 — temporal: QUEM/QUANDO)
+# =============================================================================
+claude_mem:
+  port: 37700                             # porta padrão do worker
+  install_method: npx                     # npx claude-mem install
+  worker_autostart: true                  # inicia worker junto
+
+# =============================================================================
+# RTK (camada 3 — execução: COMO otimizar)
+# =============================================================================
+rtk:
+  plugin_dir: rtk/hermes-plugin/          # plugin Hermes
+  install_path: ~/.hermes/plugins/rtk-rewrite/  # destino no Hermes
+
+# =============================================================================
+# AGENTES SUPORTADOS
+# =============================================================================
+agents:
+  supported:
+    - hermes
+    - claude-code
+    - codex
+    - opencode
+    - cursor
+    - aider
+    - gemini-cli
+    - copilot
+  install_methods:
+    hermes: "graphify install --platform hermes"
+    claude-code: "graphify install --platform claude"
+    codex: "graphify install --platform codex"
+    opencode: "graphify install --platform opencode"
+    cursor: "graphify cursor install"
+    aider: "graphify install --platform aider"
+    gemini-cli: "graphify install --platform gemini"
+    copilot: "graphify install --platform copilot"
+
+# =============================================================================
+# MCP SERVERS
+# =============================================================================
+mcp_servers:
+  graphify:
+    command: "python -m graphify.serve graphify/graphify-out/graph.json"
+    transport: stdio
+    enabled: true
+  claude_mem:
+    command: "node claude-mem/mcp-server.js"
+    transport: stdio
+    port: 37700
+    enabled: true
+
+# =============================================================================
+# CRON
+# =============================================================================
+cron:
+  sync_schedule: "0 */6 * * *"            # a cada 6 horas
+  rebuild_schedule: "0 2 * * 0"           # domingo 2am rebuild completo

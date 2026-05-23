@@ -1,0 +1,10 @@
+{
+    "mcpServers": {
+        "graphify": {
+            "command": "PROJECT_ROOT_PLACEHOLDER/scripts/mcp-server.sh",
+            "transport": "stdio",
+            "enabled": true,
+            "description": "Sinapse Agent — Knowledge Graph (Graphify). Tools: query_graph, get_node, get_neighbors, shortest_path."
+        }
+    }
+}

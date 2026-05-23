@@ -1,0 +1,47 @@
+# Sinapse Agent — .gitignore
+
+# ── Vault Obsidian ─────────────────────────────────────────────────
+cerebro/.obsidian/workspace.json
+cerebro/.obsidian/workspace-mobile.json
+cerebro/.trash/
+cerebro.backup*
+
+# ── Graphify output ────────────────────────────────────────────────
+cerebro/graphify-out/cache/
+cerebro/graphify-out/converted/
+
+# ── Dependências ───────────────────────────────────────────────────
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# ── Sistema ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# ── Logs ───────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Runtime data ───────────────────────────────────────────────────
+claude-mem/data/
+rtk/target/
+
+# ── Hermes agent local ────────────────────────────────────────────
+.hermes/
+
+# ── Embedded repos ─────────────────────────────────────────────────
+claude-mem/
+graphify/
+rtk/
+
+# ── Secrets ─────────────────────────────────────────────────────────
+.env
+*.secret

@@ -1,0 +1,10 @@
+{
+    "mcpServers": {
+        "claude-mem": {
+            "command": "PROJECT_ROOT_PLACEHOLDER/scripts/start-claude-mem.sh",
+            "transport": "stdio",
+            "enabled": true,
+            "description": "Sinapse Agent — Event Tracking (claude-mem). Tools: search, timeline, get_observations, build_corpus, query_corpus."
+        }
+    }
+}
