@@ -1,12 +1,12 @@
 {
   "/home/michel/Documentos/Projects/sinapse_agent/cerebro/AGENTS.md": {
-    "mtime": 1779482948.2323008,
-    "ast_hash": "48a4ca6312e8b9685eed57eba6d2f67a",
+    "mtime": 1779486484.3291945,
+    "ast_hash": "caff7e8ab3586b26539f876944184e05",
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/sinapse_agent/cerebro/vault-manifest.json": {
-    "mtime": 1779482268.4826875,
-    "ast_hash": "a9dacef7d42968483533f0f44c54c6b0",
+    "mtime": 1779548563.3481388,
+    "ast_hash": "da1cc57209366598e39ee3c7922954a6",
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.mcp.json": {
@@ -265,8 +265,8 @@
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/sinapse_agent/cerebro/CLAUDE.md": {
-    "mtime": 1779483046.4623857,
-    "ast_hash": "22e06b9cc04471c30cd5b58438c29f04",
+    "mtime": 1779548524.2411802,
+    "ast_hash": "ea1ee8317bb5e778050c5b055b79c308",
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/sinapse_agent/cerebro/templates/Competency Note.md": {
@@ -585,8 +585,8 @@
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/sinapse_agent/cerebro/brain/Current State.md": {
-    "mtime": 1779483024.6603668,
-    "ast_hash": "b1b736151ebf30292b115babe1d35a1a",
+    "mtime": 1779486535.2222223,
+    "ast_hash": "9e8411f357b277ade5c3fba0dd63d423",
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/sinapse_agent/cerebro/thinking/README.md": {
@@ -615,8 +615,8 @@
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/sinapse_agent/cerebro/work/active/2026-05-22-migrar-obsidian-mind.md": {
-    "mtime": 1779483040.0373802,
-    "ast_hash": "69e7d73622021c9bd1fa20f6b68212bc",
+    "mtime": 1779548524.2501802,
+    "ast_hash": "dcc3d85749db61ee783b4b8ad7c46167",
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.openclaw/instructions.md": {
@@ -642,6 +642,11 @@
   "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.roo/instructions.md": {
     "mtime": 1779483308.7646124,
     "ast_hash": "15e320a0829e7200443ac8864b25c8dd",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/work/active/2026-05-22-sintese-vault-estrutura.md": {
+    "mtime": 1779486552.4872317,
+    "ast_hash": "4b7353561f8976b7d46612ad834b589f",
     "semantic_hash": ""
   }
 }

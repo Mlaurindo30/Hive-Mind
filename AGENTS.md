@@ -24,7 +24,7 @@ Camada de memória universal para agentes de IA. Três componentes:
 | Estrutural | **Graphify** | Knowledge graph do vault (Leiden clustering) | `graphify/` (safishamsi/graphify) |
 | Temporal | **claude-mem** | Tracking de eventos e observações (FTS5 + Chroma) | `claude-mem/` (thedotmack/claude-mem) |
 | Execução | **RTK** | Otimização de comandos shell | `rtk/` (rtk-ai/rtk) |
-| Associativa | **NeuralMemory** | Spreading activation, 24 tipos de relações | `pipx install neural-memory` |
+| Associativa | **NeuralMemory** | Spreading activation, 24 tipos de relações | `neural-memory/` (nhadaututtheky/neural-memory) |
 
 Vault: `cerebro/` (Obsidian, template obsidian-mind). Fonte única de verdade.
 
@@ -43,6 +43,7 @@ Vault: `cerebro/` (Obsidian, template obsidian-mind). Fonte única de verdade.
 - **Graphify**: Python. `pip install -e graphify/[all]` para instalar do source.
 - **claude-mem**: TypeScript/Node. `cd claude-mem && npm install && npm run build`.
 - **RTK**: Rust. `cd rtk && cargo build --release`.
+- **NeuralMemory**: Python. `pip install -e neural-memory/` para instalar do source.
 
 ### Ao modificar o vault
 
