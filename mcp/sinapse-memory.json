@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+        "sinapse-memory": {
+            "command": "python3",
+            "args": ["PROJECT_ROOT_PLACEHOLDER/scripts/sinapse-mcp.py"],
+            "cwd": "PROJECT_ROOT_PLACEHOLDER",
+            "transport": "stdio",
+            "enabled": true,
+            "description": "Sinapse Agent — Universal Memory Layer. Tools: sinapse_query, sinapse_save_decision, sinapse_save_learning, sinapse_health, sinapse_session_end."
+        }
+    }
+}

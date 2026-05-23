@@ -493,3 +493,10 @@ Operational patterns accumulated from GBrain, GStack, and Superpowers methodolog
     43|    43|- [[methodology]] — metodologia da THOTH AI
     44|    44|- [[CLAUDE]] — SOUL do Claude Code
     45|    45|
+
+
+---
+
+## MCP Pattern (2026-05-23)
+
+Learning from MCP

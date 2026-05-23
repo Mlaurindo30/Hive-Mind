@@ -17,6 +17,20 @@ This vault is the single source of truth. Three complementary systems layer on t
 **Read path:** sinapse-memory plugin → claude-mem (semantic) → graph.json (structural) → agent prompt injection
 **Write path:** agent decision → vault file → graphify reindex (cron 6h) → claude-mem memory_add
 
+### Sinapse Agent — Universal Memory Layer (MCP)
+
+When the `sinapse-memory` MCP server is configured, use these tools proactively:
+
+| Tool | When to use |
+|------|------------|
+| `sinapse_query` | Before answering any question that might benefit from vault context. Searches across all memory backends: NeuralMemory (associative/spreading activation), claude-mem (semantic/Chroma + FTS5), and Graphify (structural/Leiden clustering). |
+| `sinapse_save_decision` | After making a decision. Saves to `work/active/YYYY-MM-DD-title.md` with YAML frontmatter. |
+| `sinapse_save_learning` | After discovering a pattern, insight, or lesson. Appends to `brain/Patterns.md`. Automatically deduplicates. |
+| `sinapse_health` | Verify all backends are operational at session start. |
+| `sinapse_session_end` | At end of substantial session. Updates `brain/Current State.md` with session summary and decisions/learnings. |
+
+**Proactive use:** Call `sinapse_query` at the start of every substantial conversation about projects, architecture, or decisions stored in this vault. Call `sinapse_save_decision` after every significant choice. Call `sinapse_session_end` when wrapping up a work session.
+
 **Verification (before every session):**
 ```bash
 ls graphify-out/graph.json                          # graph must exist

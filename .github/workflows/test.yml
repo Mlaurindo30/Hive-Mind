@@ -1,0 +1,69 @@
+name: Sinapse Agent Test Suite
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * *"  # Teste diário às 6am
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          pip install --user graphify
+          pip install --user neural-memory
+          sudo apt-get install -y sqlite3
+      - name: Smoke tests
+        run: bash tests/smoke/test_smoke.sh
+        env:
+          SINAPSE_HOME: ${{ github.workspace }}
+
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test deps
+        run: pip install pytest pytest-timeout pytest-mock
+      - name: Unit tests
+        run: python3 -m pytest tests/unit/ -v --tb=short
+        env:
+          SINAPSE_HOME: ${{ github.workspace }}
+
+  integration:
+    needs: [smoke, unit]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup full environment
+        run: |
+          bash install.sh --force --skip-agent=hermes
+      - name: Integration tests
+        run: python3 -m pytest tests/integration/ -v --tb=short --run-integration
+        env:
+          SINAPSE_HOME: ${{ github.workspace }}
+
+  e2e:
+    needs: [integration]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup full environment
+        run: |
+          bash install.sh --force --skip-agent=hermes
+      - name: End-to-end tests
+        run: python3 -m pytest tests/e2e/ -v --tb=short --run-e2e
+        env:
+          SINAPSE_HOME: ${{ github.workspace }}
+          SINAPSE_DRY_RUN: "1"

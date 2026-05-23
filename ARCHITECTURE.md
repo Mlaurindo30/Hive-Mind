@@ -1,5 +1,8 @@
 # ARCHITECTURE.md — Sinapse Agent
 
+> 📚 **Documentação técnica completa:** [docs/](docs/) — Arquitetura, Modelos de IA, Pipeline de Dados, Infraestrutura, Blueprints, Análise de Gaps.
+> Esta é a referência canônica. A pasta docs/ contém documentação detalhada com diagramas Mermaid e métricas.
+
 Blueprint técnico da camada de memória universal para agentes de IA.
 
 ---
@@ -985,6 +988,127 @@ cron:
               │ └─────────────────┘ │
               └─────────────────────┘
 ```
+
+---
+
+---
+
+## 12. Testes e Qualidade
+
+### Suite de Testes
+
+A suite completa cobre todos os backends, helpers de escrita e fluxos E2E.
+
+```bash
+./tests/run_all.sh
+```
+
+### Matriz de Cobertura
+
+| Suite | Arquivo | Testes | Cobertura |
+|-------|---------|--------|-----------|
+| Smoke | `tests/smoke/test_smoke.sh` | 7 checks | Binários, saúde do sistema |
+| U1 | `tests/unit/test_backend_graphify.py` | 9 | Backend Graphify |
+| U2 | `tests/unit/test_backend_claude_mem.py` | 7 | Backend claude-mem (HTTP mock) |
+| U3 | `tests/unit/test_backend_nmem.py` | 7 | Backend NeuralMemory (subprocess mock) |
+| U4 | `tests/unit/test_write_helpers.py` | 14 | Escrita: slug, atomic write, dedup |
+| U5 | `tests/unit/test_query_engine.py` | 6 | Motor de busca unificado |
+| U6 | `tests/unit/test_format_context.py` | 4 | Formatação de contexto |
+| I1 | `tests/integration/test_read_flow.py` | 5 | Fluxo de leitura real |
+| I2 | `tests/integration/test_write_read_cycle.py` | 4 | Ciclo escrita/leitura |
+| I3 | `tests/integration/test_mcp.py` | 3 | Interface MCP/plugin |
+| I4 | `tests/integration/test_cron.py` | 3 | Cache e leitura de graph.json |
+| E1 | `tests/e2e/test_full_session.py` | 5 | Ciclo completo de sessão |
+| E2 | `tests/e2e/test_degradation.py` | 4 | Degradação graceful |
+| E3 | `tests/e2e/test_concurrency.py` | 2 | Concorrência |
+| E4 | `tests/e2e/test_recovery.py` | 5 | Recuperação de falhas |
+| E5 | `tests/e2e/test_edge_cases.py` | 7 | Casos de borda |
+
+### Health Check Unificado
+
+```python
+from sinapse_memory import health_check
+status = health_check()
+# Retorna status de todos os backends, vault e plugin
+```
+
+### Circuit Breaker
+
+Backends com 3+ falhas consecutivas são temporariamente pulados (cooldown 30s).
+
+---
+
+## 13. Disaster Recovery
+
+### Script Automatizado
+
+```bash
+./scripts/recover.sh
+```
+
+Executa 5 passos:
+1. Verifica/rebuilda graph.json
+2. Verifica integridade do backup
+3. Reinicia worker claude-mem
+4. Health check HTTP
+5. Verifica carregamento do plugin
+
+### Variáveis de Ambiente
+
+| Variável | Descrição | Default |
+|----------|-----------|---------|
+| `SINAPSE_HOME` | Raiz do projeto | `~/Documentos/Projects/sinapse_agent` |
+| `SINAPSE_DRY_RUN` | Modo sem side effects | `false` |
+| `SINAPSE_LOG_JSON` | Logs em JSON | `false` |
+| `SINAPSE_DECISION_TOOLS` | Tools de decisão (csv) | `memory_add,observation_add,...` |
+| `SINAPSE_LEARNING_SIGNALS` | Sinais de aprendizado (csv) | padrão pt/en/es |
+
+---
+
+---
+
+## 14. Integração Multi-Agente
+
+O Sinapse Agent funciona como camada de memória universal via 3 métodos:
+
+| Método | Agentes | Como funciona |
+|--------|---------|--------------|
+| **Plugin nativo** | Hermes | `sinapse-memory.py` registra hooks `pre_prompt_build`, `post_tool_use`, `post_session_end` no `~/.hermes/plugins/sinapse-memory/` |
+| **MCP server** | Claude Code, Codex CLI, Kilo Code, Copilot CLI, OpenClaw, Gemini CLI, ZooCode, Cursor, Aider | `scripts/sinapse-mcp.py` expõe 5 tools via stdio JSON-RPC |
+| **CLI standalone** | Qualquer agente com execução shell | `scripts/sinapse-write.py` aceita subcomandos `decision`, `learning`, `query`, `health`, `session-end` |
+
+### Fluxo MCP (Claude Code, Codex, Kilo Code, etc.)
+
+```
+Agente externo → MCP tool sinapse_query(query) → sinapse-mcp.py
+    → _query_vault_knowledge() → nmem / claude-mem / graph.json
+    → resultado JSON → agente usa no contexto
+
+Agente externo → MCP tool sinapse_save_decision(title, content) → sinapse-mcp.py
+    → _save_decision() → vault Obsidian (work/active/)
+```
+
+### Configuração MCP por Agente
+
+| Agente | Arquivo de Config MCP |
+|--------|----------------------|
+| Claude Code | `~/.claude/.mcp.json` |
+| Codex CLI | `~/.codex/mcp.json` |
+| Kilo Code | `kilo.json` (raiz do projeto) |
+| OpenClaw | `~/.openclaw/openclaw.json` |
+| Gemini CLI | `~/.gemini/settings.json` |
+| ZooCode | Extensão VS Code settings |
+| Cursor | `.cursor/mcp.json` |
+
+### Matriz de Funcionalidades por Agente
+
+| Funcionalidade | Hermes | Claude Code | Codex | Kilo Code | OpenClaw | Copilot |
+|---------------|--------|-------------|-------|-----------|----------|---------|
+| Leitura automática (pre_prompt) | ✅ Hook | ✅ MCP tool | ✅ MCP tool | ✅ MCP tool | ✅ MCP tool | ✅ MCP |
+| Escrita automática (post_tool) | ✅ Hook | ⚠️ MCP tool (manual) | ⚠️ MCP tool | ⚠️ MCP tool | ⚠️ MCP tool | ⚠️ MCP |
+| Health check | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Circuit breaker | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Dry-run mode | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
 

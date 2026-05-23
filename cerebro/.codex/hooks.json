@@ -8,6 +8,11 @@
             "type": "command",
             "command": "node --disable-warning=ExperimentalWarning --experimental-strip-types \"${CODEX_PROJECT_DIR:-.}/.claude/scripts/session-start.ts\"",
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CODEX_PROJECT_DIR:-.}/.claude/scripts/sinapse-hook.py\" session-start",
+            "timeout": 15
           }
         ]
       }
@@ -36,6 +41,11 @@
             "type": "command",
             "command": "node --disable-warning=ExperimentalWarning --experimental-strip-types \"${CODEX_PROJECT_DIR:-.}/.claude/scripts/qmd-refresh.ts\"",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CODEX_PROJECT_DIR:-.}/.claude/scripts/sinapse-hook.py\" tool-detect",
+            "timeout": 15
           }
         ]
       }
@@ -47,6 +57,11 @@
             "type": "command",
             "command": "node --disable-warning=ExperimentalWarning --experimental-strip-types \"${CODEX_PROJECT_DIR:-.}/.claude/scripts/stop-checklist.ts\"",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CODEX_PROJECT_DIR:-.}/.claude/scripts/sinapse-hook.py\" session-end",
+            "timeout": 15
           }
         ]
       }

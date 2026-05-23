@@ -3,18 +3,24 @@
 # Sinapse Agent — Script de Instalação Universal
 # =============================================================================
 # Detecta quais agentes estão instalados e configura cada um automaticamente.
-# Uso: ./install.sh [--force] [--skip-agent <nome>]
+# Uso: ./install.sh [--force] [--skip-agent <nome>] [--with-tests]
 #
 # O que este script faz:
 #   1. Verifica dependências (Python 3.10+, uv/pipx, Node 18+, Bun, Ollama opcional)
 #   2. Instala Graphify (graphifyy[all]) e indexa o vault cerebro/ (Gemini→Ollama→AST)
-#   3. Configura claude-mem, instala dependências, inicia worker (systemd)
-#   4. Instala NeuralMemory (nmem) — busca associativa com spreading activation
-#   5. Configura RTK plugin no Hermes (se detectado)
-#   6. Registra skills em cada agente detectado (Hermes, Claude, Codex, etc.)
-#   7. Configura MCP servers (graphify + claude-mem)
-#   8. Instala cron job de sync periódico
+#   3. Registra skills nos agentes detectados (Hermes, Claude, Codex, etc.)
+#   4. Configura claude-mem, instala dependências, inicia worker (systemd)
+#   5. Instala NeuralMemory (nmem) — busca associativa com spreading activation
+#   6. Compila RTK do source (Rust) e instala plugin no Hermes
+#   7. Configura MCP servers (graphify + claude-mem) para Hermes
+#   8. Instala cron job de sync periódico (rebuild do graph.json a cada 6h)
 #   9. Instala/atualiza plugin sinapse-memory (multi-backend: nmem + claude-mem + graphify)
+#  10. Configura agentes externos (MCP: Claude Code, Codex, Kilo Code, etc.)
+#
+# Flags:
+#   --force          Reinstala componentes mesmo se já existirem
+#   --skip-agent=X   Pula configuração de um agente específico
+#   --with-tests     Executa testes unitários após instalação
 # =============================================================================
 
 set -euo pipefail
@@ -33,10 +39,13 @@ GRAPHIFY_OUT="$VAULT_DIR/graphify-out"
 FORCE=false
 SKIP_AGENTS=()
 
+WITH_TESTS=false
+
 for arg in "$@"; do
     case "$arg" in
         --force) FORCE=true ;;
         --skip-agent=*) SKIP_AGENTS+=("${arg#*=}") ;;
+        --with-tests) WITH_TESTS=true ;;
         *) echo -e "${RED}Erro:${NC} argumento desconhecido: $arg"; exit 1 ;;
     esac
 done
@@ -51,7 +60,7 @@ echo ""
 # =============================================================================
 # 1. VERIFICAÇÃO DE DEPENDÊNCIAS
 # =============================================================================
-echo -e "${BOLD}[1/9] Verificando dependências...${NC}"
+echo -e "${BOLD}[1/10] Verificando dependências...${NC}"
 
 # Python
 if ! command -v python3 &>/dev/null; then
@@ -60,6 +69,14 @@ if ! command -v python3 &>/dev/null; then
 fi
 PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
 echo -e "  ${GREEN}✓${NC} Python $PYTHON_VERSION"
+
+# Validar versão mínima (3.10+)
+PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
+PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
+if [ "$PYTHON_MAJOR" -lt 3 ] || { [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 10 ]; }; then
+    echo -e "  ${RED}Erro:${NC} Python $PYTHON_VERSION é muito antigo. Necessário Python 3.10+."
+    exit 1
+fi
 
 # uv (preferred) ou pipx
 INSTALL_METHOD=""
@@ -111,7 +128,7 @@ echo ""
 # =============================================================================
 # 2. INSTALAÇÃO DO GRAPHIFY (do source clonado, NÃO do PyPI)
 # =============================================================================
-echo -e "${BOLD}[2/9] Instalando Graphify (source local)...${NC}"
+echo -e "${BOLD}[2/10] Instalando Graphify (source local)...${NC}"
 
 GRAPHIFY_SRC="$PROJECT_ROOT/graphify"
 
@@ -128,6 +145,8 @@ if $FORCE || ! python3 -c "import graphify" 2>/dev/null; then
     else
         pip install -e "$GRAPHIFY_SRC[all]"
     fi
+    # Garantir pyyaml (usado pelo plugin sinapse-memory)
+    python3 -c "import yaml" 2>/dev/null || ${INSTALL_METHOD} pip install pyyaml --quiet 2>/dev/null || true
     echo -e "  ${GREEN}✓${NC} graphify instalado do source ($GRAPHIFY_SRC)"
 else
     echo -e "  ${GREEN}✓${NC} graphify já instalado"
@@ -159,7 +178,7 @@ echo ""
 # =============================================================================
 # 3. REGISTRO NOS AGENTES DETECTADOS
 # =============================================================================
-echo -e "${BOLD}[3/9] Registrando skills nos agentes...${NC}"
+echo -e "${BOLD}[3/10] Registrando skills nos agentes...${NC}"
 
 # Array associativo: comando de detecção → plataforma graphify
 # Alguns agentes não têm CLI detectável (Cursor, Copilot) — usamos caminho de arquivo
@@ -248,7 +267,7 @@ echo ""
 # =============================================================================
 # 4. CONFIGURAÇÃO DO CLAUDE-MEM (do source clonado)
 # =============================================================================
-echo -e "${BOLD}[4/9] Configurando claude-mem (source local)...${NC}"
+echo -e "${BOLD}[4/10] Configurando claude-mem (source local)...${NC}"
 
 if $NODE_OK; then
     CLAUDE_MEM_DIR="$PROJECT_ROOT/claude-mem"
@@ -311,7 +330,7 @@ echo ""
 # =============================================================================
 # 5. INSTALAÇÃO DO NEURAL MEMORY (spreading activation — associativo, do source)
 # =============================================================================
-echo -e "${BOLD}[5/9] Instalando NeuralMemory (spreading activation, source local)...${NC}"
+echo -e "${BOLD}[5/10] Instalando NeuralMemory (spreading activation, source local)...${NC}"
 
 NEURAL_MEMORY_SRC="$PROJECT_ROOT/neural-memory"
 
@@ -345,7 +364,7 @@ echo ""
 # =============================================================================
 # 6. CONFIGURAÇÃO DO RTK (do source clonado — Rust)
 # =============================================================================
-echo -e "${BOLD}[6/9] Compilando RTK (source local)...${NC}"
+echo -e "${BOLD}[6/10] Compilando RTK (source local)...${NC}"
 
 RTK_SRC="$PROJECT_ROOT/rtk"
 
@@ -391,7 +410,7 @@ echo ""
 # =============================================================================
 # 6. CONFIGURAÇÃO MCP (GRAPHIFY + CLAUDE-MEM)
 # =============================================================================
-echo -e "${BOLD}[7/9] Configurando servidores MCP...${NC}"
+echo -e "${BOLD}[7/10] Configurando servidores MCP...${NC}"
 
 # Graphify MCP
 if command -v hermes &>/dev/null; then
@@ -440,9 +459,9 @@ echo ""
 # =============================================================================
 # 7. CRON DE SYNC PERIÓDICO
 # =============================================================================
-echo -e "${BOLD}[8/9] Configurando cron de sync...${NC}"
+echo -e "${BOLD}[8/10] Configurando cron de sync...${NC}"
 
-CRON_JOB="0 */6 * * * cd $PROJECT_ROOT && ./scripts/build-graph.sh >> logs/sync.log 2>&1"
+CRON_JOB="SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd $SINAPSE_HOME && ./scripts/build-graph.sh >> logs/sync.log 2>&1"
 
 if command -v crontab &>/dev/null; then
     # Verificar se já existe
@@ -461,7 +480,7 @@ echo ""
 # =============================================================================
 # 8. PLUGIN SINAPSE-MEMORY (HERMES)
 # =============================================================================
-echo -e "${BOLD}[9/9] Instalando plugin sinapse-memory...${NC}"
+echo -e "${BOLD}[9/10] Instalando plugin sinapse-memory...${NC}"
 
 if command -v hermes &>/dev/null && [ -d "$HOME/.hermes/plugins/" ]; then
     PLUGIN_DIR="$HOME/.hermes/plugins/sinapse-memory"
@@ -496,13 +515,13 @@ config:
       timeout: 3
     graphify:
       enabled: true
-      graph_json: "~/Documentos/Projects/sinapse_agent/cerebro/graphify-out/graph.json"
+      graph_json: "$PROJECT_ROOT/cerebro/graphify-out/graph.json"
   limits:
     max_context_chars: 3000
     max_nodes: 5
     max_observations: 5
   vault:
-    root: "~/Documentos/Projects/sinapse_agent/cerebro"
+    root: "$PROJECT_ROOT/cerebro"
     decisions: "work/active"
     learnings: "brain"
     memory: "brain"
@@ -515,7 +534,152 @@ else
 fi
 
 echo ""
+
+# =============================================================================
+# 10. CONFIGURAÇÃO DE AGENTES EXTERNOS (via MCP + templates)
+# =============================================================================
+echo -e "${BOLD}[10/10] Configurando agentes externos (MCP + CLI)...${NC}"
+
+# Garantir permissões de execução em todos os scripts e hooks
+chmod +x "$PROJECT_ROOT/scripts/"*.sh 2>/dev/null || true
+chmod +x "$PROJECT_ROOT/scripts/"*.py 2>/dev/null || true
+chmod +x "$PROJECT_ROOT/cerebro/.claude/scripts/"*.py 2>/dev/null || true
+
+# Template MCP config (universal)
+MCP_SINAPSE_CONFIG=$(cat << 'MCPEOF'
+{
+    "mcpServers": {
+        "sinapse-memory": {
+            "command": "python3",
+            "args": ["PROJECT_ROOT_PLACEHOLDER/scripts/sinapse-mcp.py"],
+            "cwd": "PROJECT_ROOT_PLACEHOLDER",
+            "transport": "stdio",
+            "enabled": true,
+            "description": "Sinapse Agent — Universal Memory Layer"
+        }
+    }
+}
+MCPEOF
+)
+MCP_SINAPSE_CONFIG="${MCP_SINAPSE_CONFIG//PROJECT_ROOT_PLACEHOLDER/$PROJECT_ROOT}"
+
+AGENTS_CONFIGURED=0
+
+# Kilo Code (detectado via ~/.kilo/config.json ou kilo.json)
+if [ -f "$HOME/.kilo/config.json" ] || [ -f "kilo.json" ]; then
+    MCP_FILE="$HOME/.kilo/config.json"
+    mkdir -p "$(dirname "$MCP_FILE")"
+    # Merge MCP config (assume JSON com mcpServers key se existir)
+    if [ -f "$MCP_FILE" ]; then
+        python3 -c "
+import json
+with open('$MCP_FILE') as f: cfg = json.load(f)
+cfg.setdefault('mcpServers', {})['sinapse-memory'] = '$MCP_SINAPSE_CONFIG'
+with open('$MCP_FILE', 'w') as f: json.dump(cfg, f, indent=2)
+" 2>/dev/null || echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
+    else
+        mkdir -p "$(dirname "$MCP_FILE")"
+        echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
+    fi
+    echo -e "  ${GREEN}✓${NC} Kilo Code → $MCP_FILE"
+    ((AGENTS_CONFIGURED++))
+fi
+
+# OpenCode
+if command -v opencode &>/dev/null; then
+    MCP_FILE="$HOME/.opencode/mcp.json"
+    mkdir -p "$(dirname "$MCP_FILE")"
+    echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
+    echo -e "  ${GREEN}✓${NC} OpenCode → $MCP_FILE"
+    ((AGENTS_CONFIGURED++))
+fi
+
+# Cursor
+if [ -d "$HOME/.cursor/" ]; then
+    MCP_FILE="$HOME/.cursor/mcp.json"
+    mkdir -p "$(dirname "$MCP_FILE")"
+    echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
+    echo -e "  ${GREEN}✓${NC} Cursor → $MCP_FILE"
+    ((AGENTS_CONFIGURED++))
+fi
+
+# Claude Code
+if command -v claude &>/dev/null; then
+    MCP_FILE="$HOME/.claude/.mcp.json"
+    mkdir -p "$(dirname "$MCP_FILE")"
+    echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
+    echo -e "  ${GREEN}✓${NC} Claude Code → $MCP_FILE"
+    ((AGENTS_CONFIGURED++))
+fi
+
+# Codex CLI
+if command -v codex &>/dev/null; then
+    MCP_FILE="$HOME/.codex/mcp.json"
+    mkdir -p "$(dirname "$MCP_FILE")"
+    echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
+    # Template AGENTS.md no vault
+    if [ -f "$PROJECT_ROOT/cerebro/.codex/AGENTS.md" ]; then
+        cp "$PROJECT_ROOT/cerebro/.codex/AGENTS.md" "$VAULT_DIR/.codex/AGENTS.md" 2>/dev/null || true
+    fi
+    echo -e "  ${GREEN}✓${NC} Codex CLI → $MCP_FILE"
+    ((AGENTS_CONFIGURED++))
+fi
+
+# OpenClaw
+if command -v openclaw &>/dev/null; then
+    OW_FILE="$HOME/.openclaw/openclaw.json"
+    mkdir -p "$(dirname "$OW_FILE")"
+    if [ -f "$OW_FILE" ]; then
+        python3 -c "
+import json
+try:
+    with open('$OW_FILE') as f: cfg = json.load(f)
+    cfg.setdefault('mcpServers', {})['sinapse-memory'] = json.loads('''$MCP_SINAPSE_CONFIG''')['mcpServers']['sinapse-memory']
+    with open('$OW_FILE', 'w') as f: json.dump(cfg, f, indent=2)
+except Exception:
+    pass" 2>/dev/null || echo "$MCP_SINAPSE_CONFIG" > "$OW_FILE"
+    else
+        echo "$MCP_SINAPSE_CONFIG" > "$OW_FILE"
+    fi
+    echo -e "  ${GREEN}✓${NC} OpenClaw → $OW_FILE"
+    ((AGENTS_CONFIGURED++))
+fi
+
+# Gemini CLI
+if command -v gemini &>/dev/null; then
+    GEMINI_FILE="$HOME/.gemini/settings.json"
+    mkdir -p "$(dirname "$GEMINI_FILE")"
+    if [ -f "$GEMINI_FILE" ]; then
+        python3 -c "
+import json
+try:
+    with open('$GEMINI_FILE') as f: cfg = json.load(f)
+    cfg['mcpServers'] = cfg.get('mcpServers', {})
+    cfg['mcpServers']['sinapse-memory'] = json.loads('''$MCP_SINAPSE_CONFIG''')['mcpServers']['sinapse-memory']
+    with open('$GEMINI_FILE', 'w') as f: json.dump(cfg, f, indent=2)
+except Exception:
+    pass" 2>/dev/null || echo "$MCP_SINAPSE_CONFIG" > "$GEMINI_FILE"
+    else
+        echo "$MCP_SINAPSE_CONFIG" > "$GEMINI_FILE"
+    fi
+    echo -e "  ${GREEN}✓${NC} Gemini CLI → $GEMINI_FILE"
+    ((AGENTS_CONFIGURED++))
+fi
+
+if [ "$AGENTS_CONFIGURED" -eq 0 ]; then
+    echo -e "  ${YELLOW}⊘${NC} Nenhum agente externo detectado. Use scripts/sinapse-write.py via CLI."
+fi
+
+echo ""
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}Verificando integridade...${NC}"
+if python3 "$PROJECT_ROOT/scripts/sinapse-write.py" health >/dev/null 2>&1; then
+    echo -e "  ${GREEN}✓${NC} Health check: backends operacionais"
+else
+    echo -e "  ${YELLOW}⊘${NC}  Health check: alguns backends offline"
+    echo -e "  Execute: python3 scripts/sinapse-write.py health"
+fi
+echo ""
 echo -e "${BOLD}${GREEN}║       Sinapse Agent instalado com sucesso!          ║${NC}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
@@ -540,6 +704,9 @@ echo -e "  ${BOLD}Ollama (modelos recomendados):${NC}"
 echo -e "         ollama pull qwen2.5-coder:3b    # Extração semântica local (rápido)"
 echo -e "         ollama pull bge-m3               # Embeddings de alta qualidade"
 echo -e "         ollama pull nomic-embed-text     # Embeddings leve"
+echo ""
+echo -e "  ${BOLD}Disaster Recovery:${NC}"
+echo -e "         ${BOLD}./scripts/recover.sh${NC} — Verifica/Rebuilda graph.json, reinicia worker, health check"
 echo ""
 echo -e "  ${BOLD}API Keys (opcional):${NC}"
 echo -e "         Copie .env.example para .env e configure GOOGLE_API_KEY."
