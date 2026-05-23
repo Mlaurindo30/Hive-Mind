@@ -1,0 +1,647 @@
+{
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/AGENTS.md": {
+    "mtime": 1779482948.2323008,
+    "ast_hash": "48a4ca6312e8b9685eed57eba6d2f67a",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/vault-manifest.json": {
+    "mtime": 1779482268.4826875,
+    "ast_hash": "a9dacef7d42968483533f0f44c54c6b0",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.mcp.json": {
+    "mtime": 1779482268.4838598,
+    "ast_hash": "820b5ac4b8b2b859d06bd2c139d3fda4",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/settings.json": {
+    "mtime": 1779482268.4977067,
+    "ast_hash": "8e62f891858cd175f02960e48b47e1f1",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/charcount.ts": {
+    "mtime": 1779482268.491308,
+    "ast_hash": "6748331555d18afbd99d49eae3f751bf",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/validate-write.ts": {
+    "mtime": 1779482268.4942462,
+    "ast_hash": "09c93df7e74616c40644459f5cf6d4c5",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/stop-checklist.ts": {
+    "mtime": 1779482268.492882,
+    "ast_hash": "148a4370252a031bc7112ae4f6855af0",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/classify-message.ts": {
+    "mtime": 1779482268.4913723,
+    "ast_hash": "728a1d92241cef4f9b464abc0dad922b",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/session-start.ts": {
+    "mtime": 1779482268.4927938,
+    "ast_hash": "7c987af72cbedc4e302fa39fae24daee",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/package.json": {
+    "mtime": 1779482268.492351,
+    "ast_hash": "8bc3d8038075581babbe1824110e614f",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tsconfig.json": {
+    "mtime": 1779482268.4942067,
+    "ast_hash": "984e4c7d6257039170450a8397b462e3",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/qmd-refresh.ts": {
+    "mtime": 1779482268.4927194,
+    "ast_hash": "dc84a7f1a83012a3f16e8ab860c25305",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/qmd-mcp.mjs": {
+    "mtime": 1779482268.4925675,
+    "ast_hash": "ae7e9f3641cd9b3b84ae025ae75b0da7",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/pre-compact.ts": {
+    "mtime": 1779482268.4924176,
+    "ast_hash": "0222ef35ec001b3c5c3cde5223addf5d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/qmd-refresh-run.ts": {
+    "mtime": 1779482268.4926505,
+    "ast_hash": "518e5354fdfbf683555875184efcac80",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/signals.test.ts": {
+    "mtime": 1779482268.4940617,
+    "ast_hash": "9c03747d9fc69da47aa50fcb71636f0e",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/qmd-mcp.test.ts": {
+    "mtime": 1779482268.4936762,
+    "ast_hash": "68a04bd8649e2ef2c01c9956e493a368",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/session-start.integration.test.ts": {
+    "mtime": 1779482268.4939513,
+    "ast_hash": "d4bc896debe93de1b3a4acfcaf517acb",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/manifest-check.test.ts": {
+    "mtime": 1779482268.4934165,
+    "ast_hash": "22824f10bf4ef957bd714da5fd42b3f6",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/qmd-ignore.test.ts": {
+    "mtime": 1779482268.4936297,
+    "ast_hash": "c634e393ced13650a2cdef7cefdad704",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/_helpers.ts": {
+    "mtime": 1779482268.493005,
+    "ast_hash": "06ebf929f330eb5db9a8543abe62caca",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/session-start.test.ts": {
+    "mtime": 1779482268.4940069,
+    "ast_hash": "b5016b8d317e318e7cc69cfd3dffbfc2",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/post-install-hook.test.ts": {
+    "mtime": 1779482268.493494,
+    "ast_hash": "e7a99f830ef25b52d1a58b44af912035",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/validate-write.test.ts": {
+    "mtime": 1779482268.494158,
+    "ast_hash": "e5dd639ddef0d5d7e29d81801c99a648",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/classify-message.test.ts": {
+    "mtime": 1779482268.493165,
+    "ast_hash": "90afa40976a845b24a5972eac3216be1",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/generate-changelog.test.ts": {
+    "mtime": 1779482268.493264,
+    "ast_hash": "d99dd8bd2eafe4ce150dbc8064eae780",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/regex.test.ts": {
+    "mtime": 1779482268.493894,
+    "ast_hash": "0248a94860fe11f6ecf8fb68b23a0387",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/qmd-refresh.test.ts": {
+    "mtime": 1779482268.4937758,
+    "ast_hash": "d1fc17f0c36c2d572018e357b94fc721",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/frontmatter.test.ts": {
+    "mtime": 1779482268.49322,
+    "ast_hash": "56726d10c3b871bcc7e2d6852e622978",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/qmd.test.ts": {
+    "mtime": 1779482268.4938395,
+    "ast_hash": "bf2b2e3b0c042b09a9836f6999e6c453",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/stop-checklist.test.ts": {
+    "mtime": 1779482268.4941058,
+    "ast_hash": "c24a2432ffd1a5545e9c1c0d78017da1",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/hook-io.test.ts": {
+    "mtime": 1779482268.4933448,
+    "ast_hash": "07edd81ffd1db14334d38daddecbf6f4",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/charcount.test.ts": {
+    "mtime": 1779482268.493095,
+    "ast_hash": "9ac6cf816d50ec49c15c942bdac1dcec",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/hook-config.test.ts": {
+    "mtime": 1779482268.4933085,
+    "ast_hash": "ebbf9739c32519e6740a0c54fa0844dd",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/qmd-refresh.integration.test.ts": {
+    "mtime": 1779482268.4937263,
+    "ast_hash": "7272ac7b1ed524b496a7efff1965e020",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/main-guard.test.ts": {
+    "mtime": 1779482268.4933803,
+    "ast_hash": "96d50d8da963c856d04f5123b633b910",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/qmd-bootstrap.test.ts": {
+    "mtime": 1779482268.4935813,
+    "ast_hash": "1648b2ed3be8ca6da80300bd76e3afc7",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/matcher.test.ts": {
+    "mtime": 1779482268.4934537,
+    "ast_hash": "732af350316e7af31ea34354920913b0",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/tests/pre-compact.test.ts": {
+    "mtime": 1779482268.4935405,
+    "ast_hash": "84c53dc0c1dea7d1252d482f8c9367e4",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/lib/charcount.ts": {
+    "mtime": 1779482268.4914842,
+    "ast_hash": "67cb0f44c4a4762514ba02625c64b6ac",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/lib/qmd-ignore.ts": {
+    "mtime": 1779482268.4918768,
+    "ast_hash": "a123aa30c491360d7e07df49ec7f59ca",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/lib/qmd.ts": {
+    "mtime": 1779482268.4920104,
+    "ast_hash": "61735aa5184f0a4644848a631c99ae01",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/lib/main-guard.ts": {
+    "mtime": 1779482268.4917037,
+    "ast_hash": "d9f55af030e9e247ef6474b2e7c23595",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/lib/session-start.ts": {
+    "mtime": 1779482268.4921956,
+    "ast_hash": "eeb3ab442d2420e5c2e5658eb6908c57",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/lib/regex.ts": {
+    "mtime": 1779482268.49213,
+    "ast_hash": "1997f67458eb52049369ddc2d04051b4",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/lib/signals.ts": {
+    "mtime": 1779482268.4922707,
+    "ast_hash": "1f5177d2105344c0180ef17d0b21ae6a",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/lib/matcher.ts": {
+    "mtime": 1779482268.4917634,
+    "ast_hash": "43d47be4981617481e1f13a8c9dbedd9",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/lib/qmd-refresh.ts": {
+    "mtime": 1779482268.4919415,
+    "ast_hash": "769b15f8edc978f5dedd4780c202fb64",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/lib/hook-io.ts": {
+    "mtime": 1779482268.49164,
+    "ast_hash": "bb6aecb4b467842a5d4edbb731054855",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/lib/read-field.ts": {
+    "mtime": 1779482268.4920635,
+    "ast_hash": "488ce5bbd28ff7b423c2eaeb8f0d0c2d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/lib/frontmatter.ts": {
+    "mtime": 1779482268.491575,
+    "ast_hash": "ec80db49d7455318a839564038d183b1",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/scripts/lib/qmd-bootstrap.ts": {
+    "mtime": 1779482268.4918165,
+    "ast_hash": "e5459663708b4b977bb309b692a42aa0",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/Home.md": {
+    "mtime": 1779482338.9607737,
+    "ast_hash": "b0bd95199adb490c9e7341af9c9db3bb",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/CLAUDE.md": {
+    "mtime": 1779483046.4623857,
+    "ast_hash": "22e06b9cc04471c30cd5b58438c29f04",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/templates/Competency Note.md": {
+    "mtime": 1779482268.486409,
+    "ast_hash": "5a4476cc540e7274ecdd516255c0b626",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/templates/Thinking Note.md": {
+    "mtime": 1779482268.4865592,
+    "ast_hash": "e2dfbf1b3c2d191ab7d2415f22696066",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/templates/Review Template.md": {
+    "mtime": 1779482268.4865117,
+    "ast_hash": "8b4cf6dc3df4b013e1514278cfab7a68",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/templates/Work Note.md": {
+    "mtime": 1779486436.9491684,
+    "ast_hash": "7a3a8357ff0a8a53d4115105f454e1c1",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/templates/Decision Record.md": {
+    "mtime": 1779486447.145174,
+    "ast_hash": "30ea0a95b38f55c2bfba7b2e964e2d59",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/org/People & Context.md": {
+    "mtime": 1779482268.5001788,
+    "ast_hash": "8be3a8c33598938c6f3386bf5adb2dc2",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/work/Index.md": {
+    "mtime": 1779482268.5013783,
+    "ast_hash": "75a128d6579771c7b1e69e0bbb53016c",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/work/_projects-index.md": {
+    "mtime": 1779482302.5047421,
+    "ast_hash": "6862260d7c703fc693fc8689eb9eeccb",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/work/pipeline/_exemplo.md": {
+    "mtime": 1779482304.505744,
+    "ast_hash": "5d55d6f7ba1f586cba94328f411b5af5",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/work/active/open-design-README.md": {
+    "mtime": 1779482304.9417443,
+    "ast_hash": "fbd3366eb2fbf410cd41025394cf1332",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/work/active/thoth-README.md": {
+    "mtime": 1779482305.1607444,
+    "ast_hash": "9978522455aeaf6cbaa0d7a17c0ef3ae",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/work/active/2026-05-22-renomear-agente-thoth.md": {
+    "mtime": 1779482301.8177416,
+    "ast_hash": "a46c21516d0223d7ef64becf11841cfa",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/work/active/hermes-vps-README.md": {
+    "mtime": 1779482304.714744,
+    "ast_hash": "fda4c51e13b06380a677396fd7073f61",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/memory-template.md": {
+    "mtime": 1779482268.4988492,
+    "ast_hash": "f355a93fd80ef86a34bbbafecddc9f48",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/skills/defuddle/SKILL.md": {
+    "mtime": 1779482268.4957027,
+    "ast_hash": "d44e5528e7cda3a5743710d4d2d85d54",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/skills/obsidian-bases/SKILL.md": {
+    "mtime": 1779482268.4959712,
+    "ast_hash": "74853a63e5ba6a822ba26740786fb2f9",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/skills/obsidian-bases/references/FUNCTIONS_REFERENCE.md": {
+    "mtime": 1779482268.4960577,
+    "ast_hash": "62cc0ad245b7ff3c7c76375ca0dc3d9f",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/skills/obsidian-markdown/SKILL.md": {
+    "mtime": 1779482268.496273,
+    "ast_hash": "2d8d1df5bad33284d36ac121fce3e633",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/skills/obsidian-markdown/references/PROPERTIES.md": {
+    "mtime": 1779482268.4964578,
+    "ast_hash": "6d07430a6abb018d5b9871fca7dfafe9",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/skills/obsidian-markdown/references/EMBEDS.md": {
+    "mtime": 1779482268.4964116,
+    "ast_hash": "0b4127078d2353981e01623988e69562",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/skills/obsidian-markdown/references/CALLOUTS.md": {
+    "mtime": 1779482268.4963567,
+    "ast_hash": "e3d670bd6ad42827d53afc1844f32696",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/skills/qmd/SKILL.md": {
+    "mtime": 1779482268.496525,
+    "ast_hash": "f0af6d271a6e6b0f5e109d848036dc2b",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/skills/obsidian-cli/SKILL.md": {
+    "mtime": 1779482268.4961658,
+    "ast_hash": "f78c0621ac1dc7120670a82e4efb50ec",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/skills/json-canvas/SKILL.md": {
+    "mtime": 1779482268.4957924,
+    "ast_hash": "6fdd02922d5862166075c0a79cdf711d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/skills/json-canvas/references/EXAMPLES.md": {
+    "mtime": 1779482268.4958746,
+    "ast_hash": "729f3c519bf39a741cdb7f63626e61ed",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/agents/review-prep.md": {
+    "mtime": 1779482268.489976,
+    "ast_hash": "e8091f9ab9af112f2a568bffbfc67af0",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/agents/review-fact-checker.md": {
+    "mtime": 1779482268.4899356,
+    "ast_hash": "08f4e91de2263805c067124b80c6e17d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/agents/brag-spotter.md": {
+    "mtime": 1779482268.4897423,
+    "ast_hash": "fd0c07d6f8810577fbd438a2105ef3b0",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/agents/people-profiler.md": {
+    "mtime": 1779482268.4898844,
+    "ast_hash": "3bc39702b0404633969f15fcd18893c7",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/agents/vault-librarian.md": {
+    "mtime": 1779482268.490054,
+    "ast_hash": "a33e76a6e43ad9f66f5a9b2b7c53e887",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/agents/cross-linker.md": {
+    "mtime": 1779482268.4898376,
+    "ast_hash": "6afbb4d3af3dd1511d4ee920d9278c33",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/agents/vault-migrator.md": {
+    "mtime": 1779482268.4901202,
+    "ast_hash": "6dbd5b9ffbf849cf3fc87012a0d6326b",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/agents/context-loader.md": {
+    "mtime": 1779482268.4897945,
+    "ast_hash": "90373a47ffe769a124f53923607c160e",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/agents/slack-archaeologist.md": {
+    "mtime": 1779482268.4900148,
+    "ast_hash": "aec67c495a864ba14545108ce1a6689c",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-meeting.md": {
+    "mtime": 1779482268.4879467,
+    "ast_hash": "987da28b9cbee53ef8123a06297883b8",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-capture-1on1.md": {
+    "mtime": 1779482268.4876764,
+    "ast_hash": "319f3c0e02eda602f6f4ed859cab7554",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-vault-upgrade.md": {
+    "mtime": 1779482268.4884343,
+    "ast_hash": "e38aeb0b4eb8c5503f9b6a1b3e6dbe2d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-dump.md": {
+    "mtime": 1779482268.4877317,
+    "ast_hash": "06b0721fecf05074c1bb638d65ada5e6",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-humanize.md": {
+    "mtime": 1779482268.4877806,
+    "ast_hash": "6ae4de29276092d2f20c9eb26bc48de1",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-peer-scan.md": {
+    "mtime": 1779482268.4879935,
+    "ast_hash": "8212bc5911cd66e2ea12d1248c4ea95f",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-wrap-up.md": {
+    "mtime": 1779482268.4885237,
+    "ast_hash": "cad47991a1ccae656a5b23a8c35aa1f3",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-slack-scan.md": {
+    "mtime": 1779482268.4883096,
+    "ast_hash": "54413540415e76f4d11a31230f35356b",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-weekly.md": {
+    "mtime": 1779482268.4884834,
+    "ast_hash": "2b79882cb92b92fc4eb7a9fdf3161507",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-prep-1on1.md": {
+    "mtime": 1779482268.4880438,
+    "ast_hash": "435019457cfc57d1d3e743640b857793",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-self-review.md": {
+    "mtime": 1779482268.4882653,
+    "ast_hash": "b752e7e659823267ff26c633e6d3704f",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-intake.md": {
+    "mtime": 1779482268.4878957,
+    "ast_hash": "f6619244d21f77c8a41d04aeb45ea9e9",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-review-brief.md": {
+    "mtime": 1779482268.4881492,
+    "ast_hash": "7bf7cc31c775e4b10cc215b63450ad8d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-project-archive.md": {
+    "mtime": 1779482268.48809,
+    "ast_hash": "a7e8c1a5115f603fbd0d1f4f91c48383",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-incident-capture.md": {
+    "mtime": 1779482268.4878392,
+    "ast_hash": "fe808ca0ad33b5129d5cad5622c4aab8",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-standup.md": {
+    "mtime": 1779482268.4883482,
+    "ast_hash": "1cd03308e09a8be60bbc3d20cd077896",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-vault-audit.md": {
+    "mtime": 1779482268.4883897,
+    "ast_hash": "d0ac8b4b694d94d8033241432dfbc295",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.claude/commands/om-review-peer.md": {
+    "mtime": 1779482268.4882002,
+    "ast_hash": "74927d46bf0c04d8b2a84425906f9585",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/reference/business-services.md": {
+    "mtime": 1779482303.6157432,
+    "ast_hash": "641f015a675d8c9b5366c8a22ddf6eda",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/reference/README.md": {
+    "mtime": 1779482302.7287424,
+    "ast_hash": "ef91fa0456784081b014a703202b6627",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/reference/business-icp.md": {
+    "mtime": 1779482302.9427426,
+    "ast_hash": "54d526596dba1f00be5d595467313939",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/reference/business-tone-of-voice.md": {
+    "mtime": 1779482303.8357434,
+    "ast_hash": "b5d3e882fac2c9716a1ab5438ab8e9f9",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/reference/business-positioning.md": {
+    "mtime": 1779482303.1527429,
+    "ast_hash": "16f831011645c4f163d2594026f64849",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/reference/business-pricing.md": {
+    "mtime": 1779482303.381743,
+    "ast_hash": "74b9e2f938886af98f46334cde5c9615",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/brain/North Star.md": {
+    "mtime": 1779482338.5907733,
+    "ast_hash": "3dc5ffb97261ebd0c997a6a9bdbefb1f",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/brain/Gotchas.md": {
+    "mtime": 1779482339.066774,
+    "ast_hash": "622da9e945ecf6b653cee845d04df173",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/brain/Skills.md": {
+    "mtime": 1779482268.5073535,
+    "ast_hash": "e2e5df8e6dec1d023c4f7b5817bd027d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/brain/Patterns.md": {
+    "mtime": 1779482998.331508,
+    "ast_hash": "87598477c5aadf354cf14848d15fadae",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/brain/Key Decisions.md": {
+    "mtime": 1779482338.104773,
+    "ast_hash": "f7f1bc211d90ef16e4b2a6744d3c0363",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/brain/Current State.md": {
+    "mtime": 1779483024.6603668,
+    "ast_hash": "b1b736151ebf30292b115babe1d35a1a",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/thinking/README.md": {
+    "mtime": 1779482268.5050008,
+    "ast_hash": "ca15e2e48e7c8b0bd1de63be0a141895",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.gemini/settings.json": {
+    "mtime": 1779482901.6577346,
+    "ast_hash": "7b05d00c2cd19479923753345b1dd847",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.codex/hooks.json": {
+    "mtime": 1779482901.6563802,
+    "ast_hash": "8314553d49b273e0dbd11f7c16162c67",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/GEMINI.md": {
+    "mtime": 1779482983.455331,
+    "ast_hash": "d4919238ea07fcff93bce42e1b6383a6",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/templates/Atom Note.md": {
+    "mtime": 1779486425.4291623,
+    "ast_hash": "a319e4adde23857d1744effcc4cf1ac5",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/work/active/2026-05-22-migrar-obsidian-mind.md": {
+    "mtime": 1779483040.0373802,
+    "ast_hash": "69e7d73622021c9bd1fa20f6b68212bc",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.openclaw/instructions.md": {
+    "mtime": 1779483277.6875856,
+    "ast_hash": "bf1ac7fc95665f7cdbfc653d76f91912",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/atoms/README.md": {
+    "mtime": 1779486418.6881585,
+    "ast_hash": "84aff0df0c314139eabf164bea649b9b",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.codex/instructions.md": {
+    "mtime": 1779483270.9745798,
+    "ast_hash": "fe3f2decd0c0e5242e598e9331d4210e",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.github/copilot-instructions.md": {
+    "mtime": 1779483297.667603,
+    "ast_hash": "fd67837412c5f71c963f77deadc656ec",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/sinapse_agent/cerebro/.roo/instructions.md": {
+    "mtime": 1779483308.7646124,
+    "ast_hash": "15e320a0829e7200443ac8864b25c8dd",
+    "semantic_hash": ""
+  }
+}
