@@ -81,6 +81,7 @@ Agentes de IA sofrem de amnésia entre sessões. O Sinapse Agent resolve isso co
 | 1 — Estrutural | **Graphify** | Como os conceitos se conectam? | `graph.json` (491 nodes, 606 edges, 55 communities) |
 | 2 — Temporal | **claude-mem** | Quem fez o quê? Quando? | SQLite + Chroma (FTS5 search) |
 | 3 — Execução | **RTK** | Como otimizar esse comando? | Hook `pre_tool_call` no Hermes |
+| 4 — Associativa | **NeuralMemory** | Como os conceitos se relacionam? | Spreading activation (nmem recall) |
 
 ---
 
@@ -125,16 +126,17 @@ cd ~/Documentos/Projects/sinapse_agent
 ./install.sh
 ```
 
-O `install.sh` faz tudo (8 etapas):
+O `install.sh` faz tudo (9 etapas):
 
 1. **Verifica dependências** — Python, uv/pipx, Node, Bun, Ollama (opcional)
 2. **Instala Graphify** — indexa vault (Gemini→Ollama→AST)
 3. **Registra skills** — detecta e configura 12+ agentes
 4. **Configura claude-mem** — compila do source, inicia worker (systemd)
-5. **Configura RTK** — compila Rust, instala plugin Hermes
-6. **Configura MCP** — graphify + claude-mem servers
-7. **Configura cron** — sync a cada 6h
-8. **Plugin sinapse-memory v2** — multi-backend
+5. **Instala NeuralMemory** — busca associativa com spreading activation
+6. **Configura RTK** — compila Rust, instala plugin Hermes
+7. **Configura MCP** — graphify + claude-mem servers
+8. **Configura cron** — sync a cada 6h
+9. **Plugin sinapse-memory v3** — multi-backend (nmem + claude-mem + graphify)
 
 ### Modelos Ollama (opcional)
 

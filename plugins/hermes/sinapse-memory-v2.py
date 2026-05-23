@@ -1,13 +1,14 @@
 """
-Sinapse Agent — Plugin de Memória para Hermes (v2.0)
+Sinapse Agent — Plugin de Memória para Hermes (v3.0)
 =====================================================
-Integração bidirecional entre Hermes, Obsidian vault, Graphify e claude-mem.
+Integração bidirecional entre Hermes, Obsidian vault, Graphify, claude-mem e NeuralMemory.
 
 Arquitetura de backends plugáveis:
   LEITURA (pre_prompt_build):
-    1. claude-mem (HTTP API) → busca semântica temporal (Chroma + FTS5)
-    2. graph.json (Graphify) → busca estrutural (Leiden clustering)
-    3. Fallback vazio se nada disponível
+    1. NeuralMemory (nmem recall) → busca associativa (spreading activation)
+    2. claude-mem (HTTP API) → busca semântica temporal (Chroma + FTS5)
+    3. graph.json (Graphify) → busca estrutural (Leiden clustering)
+    4. Fallback vazio se nada disponível
 
   ESCRITA (post_tool_use + post_session_end):
     1. Decisão tomada → salva em cerebro/work/active/YYYY-MM-DD-titulo.md
@@ -51,6 +52,10 @@ MAX_CONTEXT_CHARS = 3000
 MAX_NODES = 5
 MAX_OBSERVATIONS = 5
 
+# NeuralMemory CLI
+NMEM_BIN = os.path.expanduser("~/.local/bin/nmem")
+NMEM_TIMEOUT = 5  # segundos
+
 
 # ---------------------------------------------------------------------------
 # Helpers de normalização
@@ -77,6 +82,86 @@ def register_backend(fn: BackendFn) -> None:
     """Registra um backend de busca. Ordem de registro = prioridade."""
     if fn not in _READ_BACKENDS:
         _READ_BACKENDS.append(fn)
+
+
+# ---------------------------------------------------------------------------
+# Backend 0: NeuralMemory (associativo — spreading activation)
+# ---------------------------------------------------------------------------
+
+def _backend_neural_memory(query: str) -> Optional[Dict[str, Any]]:
+    """
+    Busca associativa via NeuralMemory (spreading activation).
+    Chama `nmem recall <query>` e parseia o output.
+    """
+    if not os.path.isfile(NMEM_BIN) or not os.access(NMEM_BIN, os.X_OK):
+        return None
+
+    try:
+        result = subprocess.run(
+            [NMEM_BIN, "recall", query],
+            capture_output=True,
+            text=True,
+            timeout=NMEM_TIMEOUT,
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+
+        # Parser simples do output do nmem recall
+        lines = result.stdout.strip().split("\n")
+        memories = []
+        current = None
+        for line in lines:
+            line = line.strip()
+            if line.startswith("- ") and not line.startswith("- ["):
+                if current:
+                    memories.append(current)
+                current = {"content": line[2:].strip()}
+            elif line.startswith("  [") and current:
+                # Metadata line: [type] content [src=... · date · conf=...]
+                meta = line.strip()
+                if "conf=" in meta:
+                    try:
+                        conf_str = meta.split("conf=")[1].split("]")[0]
+                        current["confidence"] = float(conf_str)
+                    except (ValueError, IndexError):
+                        pass
+                if "src=" in meta:
+                    try:
+                        current["source"] = meta.split("src=")[1].split("·")[0].strip().rstrip("]")
+                    except IndexError:
+                        pass
+        if current:
+            memories.append(current)
+
+        if not memories:
+            # Tenta extrair da seção "## Relevant Memories"
+            in_section = False
+            for line in lines:
+                if "## Relevant Memories" in line:
+                    in_section = True
+                    continue
+                if in_section and line.startswith("- ") and line.strip() != "-":
+                    memories.append({"content": line.strip()[2:]})
+                elif in_section and line.startswith("##"):
+                    break
+
+        if not memories:
+            return None
+
+        return {
+            "source": "neural-memory (associative)",
+            "observations": [
+                {"content": m.get("content", str(m)), "confidence": m.get("confidence", 0.5)}
+                for m in memories[:MAX_OBSERVATIONS]
+            ],
+            "count": len(memories),
+            "query": query,
+        }
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+
+
+register_backend(_backend_neural_memory)
 
 
 # ---------------------------------------------------------------------------
