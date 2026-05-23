@@ -1,0 +1,14 @@
+{
+    "nodes": [
+        {"label": "thoth", "file_type": "document", "source_file": "thoth.md", "id": "thoth", "community": 1, "norm_label": "thoth"},
+        {"label": "vps", "file_type": "document", "source_file": "vps.md", "id": "vps", "community": 2, "norm_label": "vps"},
+        {"label": "pricing", "file_type": "document", "source_file": "pricing.md", "id": "pricing", "community": 3, "norm_label": "pricing"},
+        {"label": "deploy", "file_type": "code", "source_file": "deploy.sh", "id": "deploy", "community": 2, "norm_label": "deploy"},
+        {"label": "database", "file_type": "code", "source_file": "db.py", "id": "database", "community": 4, "norm_label": "database"}
+    ],
+    "links": [
+        {"source": "thoth", "target": "vps", "relation": "related_to", "confidence": "EXTRACTED", "source_file": "thoth.md", "source_location": "L5", "weight": 1.0, "confidence_score": 1.0},
+        {"source": "vps", "target": "deploy", "relation": "managed_by", "confidence": "EXTRACTED", "source_file": "vps.md", "source_location": "L10", "weight": 1.0, "confidence_score": 1.0},
+        {"source": "database", "target": "deploy", "relation": "depends_on", "confidence": "EXTRACTED", "source_file": "db.py", "source_location": "L3", "weight": 1.0, "confidence_score": 1.0}
+    ]
+}

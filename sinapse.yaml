@@ -6,7 +6,7 @@
 # =============================================================================
 project:
   name: sinapse_agent
-  version: 1.0.0
+  version: 1.1.0
   description: >
     Camada de memória universal para agentes de IA. Indexa um vault Obsidian
     (cerebro/) em um knowledge graph queryable via Graphify, complementado por
@@ -61,27 +61,53 @@ rtk:
   install_path: ~/.hermes/plugins/rtk-rewrite/  # destino no Hermes
 
 # =============================================================================
+# SINAPSE MCP (servidor universal de leitura + escrita)
+# =============================================================================
+sinapse_mcp:
+  command: "python3 scripts/sinapse-mcp.py"
+  transport: stdio
+  enabled: true
+  config_template: mcp/sinapse-memory.json
+  tools:
+    - sinapse_query          # busca unificada em todos os backends
+    - sinapse_save_decision   # salva decisão no vault
+    - sinapse_save_learning   # salva aprendizado no Patterns.md
+    - sinapse_health          # health check completo
+    - sinapse_session_end     # finaliza sessão, atualiza Current State
+
+# =============================================================================
 # AGENTES SUPORTADOS
 # =============================================================================
 agents:
   supported:
-    - hermes
-    - claude-code
-    - codex
-    - opencode
-    - cursor
-    - aider
-    - gemini-cli
-    - copilot
+    - hermes        # native: plugin Python com hooks pre_prompt / post_tool / post_session
+    - claude-code   # mcp: sinapse-mcp.py + CLAUDE.md
+    - codex         # mcp: sinapse-mcp.py + AGENTS.md
+    - kilocode      # mcp: sinapse-mcp.py + AGENTS.md
+    - openclaw      # mcp: sinapse-mcp.py + workspace files
+    - copilot       # mcp: via GitHub MCP integration
+    - opencode      # mcp: sinapse-mcp.py + AGENTS.md
+    - gemini-cli    # mcp: sinapse-mcp.py + GEMINI.md
+    - zoocode       # mcp: sinapse-mcp.py (sucessor do Roo Code)
+    - cursor        # mcp: sinapse-mcp.py + AGENTS.md
+    - aider         # mcp: sinapse-mcp.py
+  integration_methods:
+    native: [hermes]
+    mcp: [claude-code, codex, kilocode, openclaw, copilot, opencode, gemini-cli, zoocode, cursor, aider]
+    workspace: [openclaw]
+    cli: [sinapse-write]
   install_methods:
     hermes: "graphify install --platform hermes"
-    claude-code: "graphify install --platform claude"
-    codex: "graphify install --platform codex"
-    opencode: "graphify install --platform opencode"
-    cursor: "graphify cursor install"
-    aider: "graphify install --platform aider"
-    gemini-cli: "graphify install --platform gemini"
-    copilot: "graphify install --platform copilot"
+    claude-code: "configure MCP server sinapse-memory in ~/.claude/.mcp.json"
+    codex: "configure MCP server sinapse-memory in ~/.codex/mcp.json"
+    kilocode: "configure MCP server sinapse-memory in kilo.json"
+    openclaw: "configure MCP server sinapse-memory in ~/.openclaw/openclaw.json"
+    copilot: "configure MCP server sinapse-memory"
+    opencode: "configure MCP server sinapse-memory"
+    gemini-cli: "configure MCP server sinapse-memory"
+    zoocode: "configure MCP server sinapse-memory"
+    cursor: "configure MCP server sinapse-memory"
+    aider: "configure MCP server sinapse-memory"
 
 # =============================================================================
 # MCP SERVERS
@@ -95,6 +121,10 @@ mcp_servers:
     command: "node claude-mem/mcp-server.js"
     transport: stdio
     port: 37700
+    enabled: true
+  sinapse_memory:
+    command: "python3 scripts/sinapse-mcp.py"
+    transport: stdio
     enabled: true
 
 # =============================================================================
