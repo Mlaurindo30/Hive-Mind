@@ -43,7 +43,7 @@ O mesmo vault serve Hermes (plugin nativo), Claude Code (MCP + hooks), Codex CLI
 
 | Método | Agentes | Mecanismo |
 |--------|---------|-----------|
-| Plugin nativo | Hermes | `register(ctx)` → hooks `pre_prompt_build`, `post_tool_use`, `post_session_end` |
+| Plugin nativo | Hermes | `register(ctx)` → hooks `pre_gateway_dispatch`, `post_tool_call`, `on_session_end` |
 | MCP server | Claude Code, Codex, Kilo Code, OpenClaw, Copilot, Gemini CLI, ZooCode | `sinapse-mcp.py` → 5 tools via stdio JSON-RPC |
 | CLI standalone | Qualquer agente com shell | `sinapse-write.py` → subcomandos `decision`, `learning`, `query`, `health`, `session-end` |
 
@@ -108,11 +108,11 @@ Script invocado pelos hooks do Claude Code e Codex CLI (SessionStart, PostToolUs
 
 ```
 1. Agente toma decisão → tool memory_add
-2. Hermes: post_tool_use hook detecta DECISION_TOOLS
+2. Hermes: post_tool_call hook detecta DECISION_TOOLS
    Claude/Codex: PostToolUse hook executa sinapse-hook.py tool-detect
 3. _save_decision(title, content) → atomic write em work/active/YYYY-MM-DD-slug.md
 4. Se conteúdo contém LEARNING_SIGNALS → _save_learning() → append em brain/Patterns.md
-5. post_session_end / Stop hook → _update_current_state() → brain/Current State.md
+5. on_session_end / Stop hook → _update_current_state() → brain/Current State.md
 6. Cron (6h) → build-graph.sh → graphify update → graph.json atualizado
 ```
 
@@ -120,7 +120,7 @@ Script invocado pelos hooks do Claude Code e Codex CLI (SessionStart, PostToolUs
 
 ```
 1. Usuário faz pergunta
-2. Hermes: pre_prompt_build hook → _query_vault_knowledge(user_message)
+2. Hermes: pre_gateway_dispatch hook → _query_vault_knowledge(user_message)
    Claude/Codex: SessionStart hook → sinapse-hook.py session-start
 3. _query_vault_knowledge itera _READ_BACKENDS:
    a. _backend_neural_memory(query) → nmem recall → spreading activation

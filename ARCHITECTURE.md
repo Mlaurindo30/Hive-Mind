@@ -147,7 +147,7 @@ Usuário         Agente           Plugin sinapse      Graphify        MCP
   │   o pricing?" │                    │                │              │
   │───────────────►                    │                │              │
   │                │                    │                │              │
-  │                │ pre_prompt_build   │                │              │
+  │                │ pre_gateway_dispatch   │                │              │
   │                │───────────────────►                │              │
   │                │                    │                │              │
   │                │                    │ _query_vault   │              │
@@ -184,12 +184,12 @@ O arquivo `plugins/hermes/sinapse-memory.py` implementa três hooks:
 
 ```python
 def register(ctx):
-    ctx.register_hook("pre_prompt_build", _pre_prompt_build)   # leitura
-    ctx.register_hook("post_tool_use", _post_tool_use)         # escrita
-    ctx.register_hook("post_session_end", _post_session_end)   # fechamento
+    ctx.register_hook("pre_gateway_dispatch", _pre_prompt_build)   # leitura
+    ctx.register_hook("post_tool_call", _post_tool_use)         # escrita
+    ctx.register_hook("on_session_end", _post_session_end)   # fechamento
 ```
 
-**pre_prompt_build** (fluxo de leitura):
+**pre_gateway_dispatch** (fluxo de leitura):
 
 ```
 1. Recebe user_message do hook
@@ -239,7 +239,7 @@ Agente      Plugin sinapse       Vault Obsidian       Graphify         claude-me
   │  migrar VPS")  │                    │                 │                │
   │───────────────►│                    │                 │                │
   │                │                    │                 │                │
-  │                │ post_tool_use      │                 │                │
+  │                │ post_tool_call      │                 │                │
   │                │ detecta memory_add │                 │                │
   │                │                    │                 │                │
   │                │ _save_decision()   │                 │                │
@@ -871,9 +871,9 @@ cd ~/Documentos/Projects/sinapse_agent/claude-mem && bun plugin/scripts/worker-s
 ```python
 # Hooks registrados
 def register(ctx):
-    ctx.register_hook("pre_prompt_build", _pre_prompt_build)
-    ctx.register_hook("post_tool_use", _post_tool_use)
-    ctx.register_hook("post_session_end", _post_session_end)
+    ctx.register_hook("pre_gateway_dispatch", _pre_prompt_build)
+    ctx.register_hook("post_tool_call", _post_tool_use)
+    ctx.register_hook("on_session_end", _post_session_end)
 
 # Constantes
 MAX_CONTEXT_CHARS = 3000   # limite de contexto injetado
@@ -1073,7 +1073,7 @@ O Sinapse Agent funciona como camada de memória universal via 3 métodos:
 
 | Método | Agentes | Como funciona |
 |--------|---------|--------------|
-| **Plugin nativo** | Hermes | `sinapse-memory.py` registra hooks `pre_prompt_build`, `post_tool_use`, `post_session_end` no `~/.hermes/plugins/sinapse-memory/` |
+| **Plugin nativo** | Hermes | `sinapse-memory.py` registra hooks `pre_gateway_dispatch`, `post_tool_call`, `on_session_end` no `~/.hermes/plugins/sinapse-memory/` |
 | **MCP server** | Claude Code, Codex CLI, Kilo Code, Copilot CLI, OpenClaw, Gemini CLI, ZooCode, Cursor, Aider | `scripts/sinapse-mcp.py` expõe 5 tools via stdio JSON-RPC |
 | **CLI standalone** | Qualquer agente com execução shell | `scripts/sinapse-write.py` aceita subcomandos `decision`, `learning`, `query`, `health`, `session-end` |
 

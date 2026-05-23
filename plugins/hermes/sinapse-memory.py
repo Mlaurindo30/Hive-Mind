@@ -562,9 +562,9 @@ def _format_context(ctx: Dict[str, Any]) -> str:
 
 def register(ctx):
     """Registra hooks de leitura e escrita no Hermes."""
-    ctx.register_hook("pre_prompt_build", _pre_prompt_build)       # leitura
-    ctx.register_hook("post_tool_use", _post_tool_use)             # escrita
-    ctx.register_hook("post_session_end", _post_session_end)       # escrita final
+    ctx.register_hook("pre_gateway_dispatch", _pre_prompt_build)   # leitura (pre_prompt_build)
+    ctx.register_hook("post_tool_call", _post_tool_use)            # escrita (post_tool_use)
+    ctx.register_hook("on_session_end", _post_session_end)         # escrita final (post_session_end)
 
 
 # ===========================================================================

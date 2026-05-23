@@ -500,13 +500,13 @@ description: >
   Escrita de decisões e aprendizados no vault com frontmatter YAML + WikiLinks.
 author: Sinapse Agent
 hooks:
-  - pre_prompt_build
-  - post_tool_use
-  - post_session_end
+  - pre_gateway_dispatch
+  - post_tool_call
+  - on_session_end
 provides_hooks:
-  - pre_prompt_build
-  - post_tool_use
-  - post_session_end
+  - pre_gateway_dispatch
+  - post_tool_call
+  - on_session_end
 config:
   backends:
     claude_mem:
