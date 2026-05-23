@@ -6,7 +6,7 @@
 # =============================================================================
 project:
   name: sinapse_agent
-  version: 1.0.0
+  version: 2.0.0
   description: >
     Camada de memória universal para agentes de IA. Indexa um vault Obsidian
     (cerebro/) em um knowledge graph queryable via Graphify, complementado por
@@ -30,7 +30,7 @@ graphify:
   package: graphifyy                      # nome do pacote PyPI (double-y)
   install_method: uv                      # uv | pipx | pip
   extras: [all]                           # pdf, office, video, mcp, neo4j, ollama, etc
-  output_dir: graphify/graphify-out/      # output do knowledge graph
+  output_dir: cerebro/graphify-out/       # output do knowledge graph
   mcp_port: 0                             # 0 = stdio, ou porta para HTTP
   watch: true                             # --watch flag
   obsidian_export: true                   # --obsidian flag
@@ -48,7 +48,7 @@ claude_mem:
 # RTK (camada 3 — execução: COMO otimizar)
 # =============================================================================
 rtk:
-  plugin_dir: rtk/hermes-plugin/          # plugin Hermes
+  plugin_dir: rtk/hooks/hermes/rtk-rewrite/  # plugin Hermes
   install_path: ~/.hermes/plugins/rtk-rewrite/  # destino no Hermes
 
 # =============================================================================
@@ -79,7 +79,7 @@ agents:
 # =============================================================================
 mcp_servers:
   graphify:
-    command: "python -m graphify.serve graphify/graphify-out/graph.json"
+    command: "bash scripts/serve-graph.sh"
     transport: stdio
     enabled: true
   claude_mem:

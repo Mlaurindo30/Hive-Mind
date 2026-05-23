@@ -171,7 +171,7 @@ Em **Configurações > Arquivos e links**, ative **Mostrar arquivos ocultos**.
 
 | Problema | Solução |
 |----------|---------|
-| Graphify não instalou | `uv tool install graphifyy[all]` |
+| Graphify não instalou | `pip install -e graphify/[all]` |
 | graph.json não gerado | `./scripts/build-graph.sh` |
 | MCP não conecta | Verifique `~/.hermes/config.yaml` → `mcp_servers` |
 | claude-mem worker parou | `systemctl --user restart sinapse-claude-mem.service` |

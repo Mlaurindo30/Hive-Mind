@@ -1,7 +1,7 @@
-# Sinapse Agent — AGENTS.md (v2.0)
+# Sinapse Agent — AGENTS.md (v3.0)
 >
 > Guia para agentes de IA que trabalham neste projeto.
-> Formato cross-agent: Hermes, Claude Code, Codex, OpenCode, Cursor, Copilot, etc.
+> Formato cross-agent: Thoth (Hermes), Claude Code, Codex, OpenCode, Cursor, Copilot, etc.
 >
 > Última revisão: 2026-05-22
 
@@ -22,10 +22,10 @@ Camada de memória universal para agentes de IA. Três componentes:
 | Camada | Ferramenta | O que faz | Source |
 |--------|-----------|----------|--------|
 | Estrutural | **Graphify** | Knowledge graph do vault (Leiden clustering) | `graphify/` (safishamsi/graphify) |
-| Temporal | **claude-mem** | Tracking de eventos e observações (FTS5) | `claude-mem/` (thedotmack/claude-mem) |
+| Temporal | **claude-mem** | Tracking de eventos e observações (FTS5 + Chroma) | `claude-mem/` (thedotmack/claude-mem) |
 | Execução | **RTK** | Otimização de comandos shell | `rtk/` (rtk-ai/rtk) |
 
-Vault: `cerebro/` (Obsidian). Fonte única de verdade.
+Vault: `cerebro/` (Obsidian, template obsidian-mind). Fonte única de verdade.
 
 ---
 
@@ -34,7 +34,7 @@ Vault: `cerebro/` (Obsidian). Fonte única de verdade.
 ### Ao iniciar
 
 1. Leia `cerebro/AGENTS.md`
-2. Leia `cerebro/_memory/current-state.md`
+2. Leia `cerebro/brain/Current State.md`
 3. Verifique se o graph.json está atualizado: `cerebro/graphify-out/graph.json`
 
 ### Ao modificar código
@@ -50,7 +50,7 @@ Vault: `cerebro/` (Obsidian). Fonte única de verdade.
 
 ### Ao commitar
 
-- Não commite `graphify/graphify-out/` (gerado pelo build).
+- Não commite `cerebro/graphify-out/cache/` (cache regenerável).
 - Não commite `claude-mem/data/` (dados locais).
 - Não commite `rtk/target/` (build Rust).
 
@@ -67,14 +67,14 @@ Agente decide                  Cron (6h)                    Usuário pergunta
 sinapse-memory                build-graph.sh              sinapse-memory v2
 (post_tool_use)                   │                       (pre_prompt_build)
      │                             ▼                            │
-     ├──► _decisions/          graphify update             ├──► 1. claude-mem
-     ├──► _learnings/          cerebro/                    │    (Chroma semantic)
-     └──► _memory/                 │                       │
-          current-state.md         ▼                       └──► 2. graph.json
+     ├──► work/active/         graphify update             ├──► 1. claude-mem
+     ├──► brain/Patterns.md    cerebro/                    │    (Chroma semantic)
+     └──► brain/Current            │                       │
+          State.md                 ▼                       └──► 2. graph.json
                               graph.json                       (Graphify structural)
-                              (161 nodes,                       │
-                              144 edges,                        ▼
-                              18 comunidades)              Contexto injetado
+                              (491 nodes,                       │
+                              606 edges,                        ▼
+                              55 communities)              Contexto injetado
                                                           no prompt
 ```
 
@@ -104,6 +104,6 @@ cd rtk && cargo build --release
 ## 5. Guardrails
 
 - **Nunca** modifique `cerebro/` manualmente sem atualizar o graph.json depois.
-- **Nunca** use `graphify <path>` sem `--backend` se não tiver API key configurada. Use `graphify update <path>`.
+- **Nunca** use `graphify cerebro/` sem `--backend` se não tiver API key ou Ollama. Use `graphify update cerebro/` para AST-only.
 - **Nunca** duplique dados entre vault e ferramentas externas. O vault é a fonte única.
 - **Nunca** commite dados sensíveis (API keys, .env, tokens).

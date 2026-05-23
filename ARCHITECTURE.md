@@ -624,13 +624,14 @@ cerebro/.obsidian/
 ```json
 {
   "useMarkdownLinks": true,       // Usa [link](file.md) em vez de [[link]]
+  "showHiddenFiles": true,        // Mostra arquivos ocultos (.claude/, .codex/, etc.)
+  "showUnsupportedFiles": true,   // Mostra arquivos não-Markdown
   "showFrontmatter": true,        // Mostra YAML frontmatter no editor
   "livePreview": true,            // Preview em tempo real
   "defaultViewMode": "source",    // Abre em modo código fonte
   "newLinkFormat": "shortest",    // Caminho mais curto nos links
   "alwaysUpdateLinks": true,      // Atualiza links ao renomear
-  "tabSize": 2,                   // Indentação de 2 espaços
-  "attachmentFolderPath": "_attachments"  // Assets centralizados
+  "tabSize": 2                    // Indentação de 2 espaços
 }
 ```
 
@@ -775,7 +776,7 @@ momento: `./scripts/build-graph.sh`.
 cd ~/Documentos/Projects/sinapse_agent
 
 # Camada 1: Graphify
-python3 -c "import json; g=json.load(open('graphify/graphify-out/graph.json')); print(f'Graphify OK: {len(g[\"nodes\"])} nodes, {len(g.get(\"links\",[]))} edges')"
+python3 -c "import json; g=json.load(open('cerebro/graphify-out/graph.json')); print(f'Graphify OK: {len(g[\"nodes\"])} nodes, {len(g.get(\"links\",[]))} edges')"
 
 # Camada 2: claude-mem
 curl -s http://localhost:37700/health 2>/dev/null || echo "claude-mem worker offline"
