@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Sinapse Agent — Script de Instalação Universal (v2.0)
+# Sinapse Agent — Script de Instalação Universal
 # =============================================================================
 # Detecta quais agentes estão instalados e configura cada um automaticamente.
 # Uso: ./install.sh [--force] [--skip-agent <nome>]
@@ -14,7 +14,7 @@
 #   6. Registra skills em cada agente detectado (Hermes, Claude, Codex, etc.)
 #   7. Configura MCP servers (graphify + claude-mem)
 #   8. Instala cron job de sync periódico
-#   9. Instala/atualiza plugin sinapse-memory v3.0 (multi-backend: nmem + claude-mem + graphify)
+#   9. Instala/atualiza plugin sinapse-memory (multi-backend: nmem + claude-mem + graphify)
 # =============================================================================
 
 set -euo pipefail
@@ -238,7 +238,7 @@ if command -v hermes &>/dev/null; then
     fi
     if [ -d "$HOME/.hermes/plugins/" ]; then
         mkdir -p "$HOME/.hermes/plugins/sinapse-memory/"
-        cp "$PROJECT_ROOT/plugins/hermes/sinapse-memory-v2.py" "$HOME/.hermes/plugins/sinapse-memory/__init__.py" 2>/dev/null && \
+        cp "$PROJECT_ROOT/plugins/hermes/sinapse-memory.py" "$HOME/.hermes/plugins/sinapse-memory/__init__.py" 2>/dev/null && \
             echo -e "    ${GREEN}✓${NC} plugin sinapse-memory"
     fi
 fi
@@ -442,18 +442,16 @@ fi
 echo ""
 
 # =============================================================================
-# 8. PLUGIN SINAPSE-MEMORY V2.0 (HERMES)
+# 8. PLUGIN SINAPSE-MEMORY (HERMES)
 # =============================================================================
-echo -e "${BOLD}[9/9] Instalando plugin sinapse-memory v3.0...${NC}"
+echo -e "${BOLD}[9/9] Instalando plugin sinapse-memory...${NC}"
 
 if command -v hermes &>/dev/null && [ -d "$HOME/.hermes/plugins/" ]; then
     PLUGIN_DIR="$HOME/.hermes/plugins/sinapse-memory"
     mkdir -p "$PLUGIN_DIR"
 
-    # Copia plugin v2.0 do projeto
-    if [ -f "$PROJECT_ROOT/plugins/hermes/sinapse-memory-v2.py" ]; then
-        cp "$PROJECT_ROOT/plugins/hermes/sinapse-memory-v2.py" "$PLUGIN_DIR/__init__.py"
-    elif [ -f "$PROJECT_ROOT/plugins/hermes/sinapse-memory.py" ]; then
+    # Copia plugin do projeto
+    if [ -f "$PROJECT_ROOT/plugins/hermes/sinapse-memory.py" ]; then
         cp "$PROJECT_ROOT/plugins/hermes/sinapse-memory.py" "$PLUGIN_DIR/__init__.py"
     fi
 
@@ -495,7 +493,7 @@ config:
     projects: "work/active"
 PLUGINEOF
 
-    echo -e "  ${GREEN}✓${NC} plugin sinapse-memory v2.0 (multi-backend)"
+    echo -e "  ${GREEN}✓${NC} plugin sinapse-memory (multi-backend)"
 else
     echo -e "  ${YELLOW}⊘${NC}  Hermes não detectado"
 fi

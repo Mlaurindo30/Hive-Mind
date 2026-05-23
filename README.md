@@ -136,7 +136,7 @@ O `install.sh` faz tudo (9 etapas):
 6. **Configura RTK** — compila Rust, instala plugin Hermes
 7. **Configura MCP** — graphify + claude-mem servers
 8. **Configura cron** — sync a cada 6h
-9. **Plugin sinapse-memory v3** — multi-backend (nmem + claude-mem + graphify)
+9. **Plugin sinapse-memory** — multi-backend (nmem + claude-mem + graphify)
 
 ### Modelos Ollama (opcional)
 

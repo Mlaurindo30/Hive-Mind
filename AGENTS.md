@@ -1,4 +1,4 @@
-# Sinapse Agent — AGENTS.md (v3.0)
+# Sinapse Agent — AGENTS.md
 >
 > Guia para agentes de IA que trabalham neste projeto.
 > Formato cross-agent: Thoth (Hermes), Claude Code, Codex, OpenCode, Cursor, Copilot, etc.
@@ -60,12 +60,12 @@ Vault: `cerebro/` (Obsidian, template obsidian-mind). Fonte única de verdade.
 ## 3. Arquitetura de fluxo
 
 ```
-ESCRITA                        INDEXAÇÃO                    LEITURA (v2.0)
+ESCRITA                        INDEXAÇÃO                    LEITURA
 ───────                        ─────────                    ───────────────
 Agente decide                  Cron (6h)                    Usuário pergunta
      │                             │                            │
      ▼                             ▼                            ▼
-sinapse-memory                build-graph.sh              sinapse-memory v2
+sinapse-memory                build-graph.sh              sinapse-memory
 (post_tool_use)                   │                       (pre_prompt_build)
      │                             ▼                            │
      ├──► work/active/         graphify update             ├──► 1. claude-mem
