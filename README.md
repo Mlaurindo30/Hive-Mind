@@ -132,7 +132,7 @@ O `install.sh` faz tudo (9 etapas):
 2. **Instala Graphify** — indexa vault (Gemini→Ollama→AST)
 3. **Registra skills** — detecta e configura 12+ agentes
 4. **Configura claude-mem** — compila do source, inicia worker (systemd)
-5. **Instala NeuralMemory** — busca associativa com spreading activation
+5. **Instala NeuralMemory** — clone + `pip install -e neural-memory/`
 6. **Configura RTK** — compila Rust, instala plugin Hermes
 7. **Configura MCP** — graphify + claude-mem servers
 8. **Configura cron** — sync a cada 6h

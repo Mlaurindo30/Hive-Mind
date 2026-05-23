@@ -49,8 +49,8 @@ claude_mem:
 # =============================================================================
 neural_memory:
   package: neural-memory                # pipx install neural-memory
-  install_method: pipx                  # pipx
-  bin: ~/.local/bin/nmem                # CLI binary
+  install_method: source                  # uv pip install -e neural-memory/
+  src_dir: neural-memory/                 # source local
   recall_timeout: 5                     # segundos
 
 # =============================================================================

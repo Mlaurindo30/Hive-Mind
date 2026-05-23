@@ -19,7 +19,7 @@ Blueprint técnico da camada de memória universal para agentes de IA.
 
 ---
 
-## 1. Visão Geral das 3 Camadas
+## 1. Visão Geral das 4 Camadas
 
 O Sinapse Agent organiza a memória de agentes em três camadas complementares,
 cada uma respondendo a uma pergunta fundamental:
@@ -398,7 +398,11 @@ temporal) também aparece no vault Obsidian (fonte única de verdade).
 │                     │ a camada de EXECUÇÃO (COMO otimizar).          │
 │                     │ Hook pre_tool_call intercepta comandos.        │
 ├─────────────────────┼───────────────────────────────────────────────┤
-│ plugins/hermes/     │ Plugin bidirecional: leitura (pre_prompt)      │
+| neural-memory/      | Recall associativo (spreading activation).       |
+|                     | Gerencia a memória ASSOCIATIVA (COMO conceitos    |
+|                     | se relacionam). 24 tipos de relações explícitas.  |
+├─────────────────────┼───────────────────────────────────────────────┤
+| plugins/hermes/     | Plugin bidirecional: leitura (pre_prompt)      |
 │                     │ + escrita (post_tool, post_session).           │
 │                     │ Ponte entre Hermes e o vault.                  │
 ├─────────────────────┼───────────────────────────────────────────────┤

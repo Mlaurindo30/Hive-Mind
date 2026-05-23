@@ -309,18 +309,35 @@ fi
 echo ""
 
 # =============================================================================
-# 5. INSTALAÇÃO DO NEURALMEMORY (spreading activation — associativo)
+# 5. INSTALAÇÃO DO NEURAL MEMORY (spreading activation — associativo, do source)
 # =============================================================================
-echo -e "${BOLD}[5/9] Instalando NeuralMemory (spreading activation)...${NC}"
+echo -e "${BOLD}[5/9] Instalando NeuralMemory (spreading activation, source local)...${NC}"
 
-if command -v pipx &>/dev/null; then
-    if ! command -v nmem &>/dev/null || $FORCE; then
-        echo -e "  Instalando neural-memory via pipx..."
-        pipx install neural-memory 2>&1 | tail -1
+NEURAL_MEMORY_SRC="$PROJECT_ROOT/neural-memory"
+
+if [ ! -f "$NEURAL_MEMORY_SRC/pyproject.toml" ]; then
+    echo -e "  Clonando NeuralMemory de github.com/nhadaututtheky/neural-memory..."
+    git clone --depth 1 https://github.com/nhadaututtheky/neural-memory.git "$NEURAL_MEMORY_SRC" 2>&1 | tail -1
+fi
+
+# Instalar do source em modo editável
+if $FORCE || ! python3 -c "import neural_memory" 2>/dev/null; then
+    if [ "$INSTALL_METHOD" = "uv" ]; then
+        uv pip install -e "$NEURAL_MEMORY_SRC" 2>/dev/null || \
+        pip install -e "$NEURAL_MEMORY_SRC" --break-system-packages
+    else
+        pip install -e "$NEURAL_MEMORY_SRC" --break-system-packages
     fi
-    echo -e "  ${GREEN}✓${NC} NeuralMemory $(nmem --version 2>/dev/null || echo 'OK')"
+    echo -e "  ${GREEN}✓${NC} NeuralMemory instalado do source ($NEURAL_MEMORY_SRC)"
 else
-    echo -e "  ${YELLOW}⊘${NC}  pipx não encontrado. Instale: sudo apt install pipx && pipx ensurepath"
+    echo -e "  ${GREEN}✓${NC} NeuralMemory já instalado"
+fi
+
+# Verificar se o CLI está disponível
+if command -v nmem &>/dev/null; then
+    echo -e "  ${GREEN}✓${NC} nmem $(nmem --version 2>/dev/null || echo 'OK')"
+else
+    echo -e "  ${YELLOW}⊘${NC}  nmem CLI não encontrado. Verifique PATH: ~/.local/bin"
 fi
 
 echo ""
@@ -458,7 +475,6 @@ if command -v hermes &>/dev/null && [ -d "$HOME/.hermes/plugins/" ]; then
     # plugin.yaml
     cat > "$PLUGIN_DIR/plugin.yaml" << 'PLUGINEOF'
 name: sinapse-memory
-version: "2.0.0"
 description: >
   Integração bidirecional Hermes ↔ Obsidian vault via Sinapse Agent.
   Busca multi-backend: claude-mem (semântica Chroma + FTS5) → Graphify (estrutural Leiden).
