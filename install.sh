@@ -115,9 +115,8 @@ echo -e "${BOLD}[2/8] Instalando Graphify (source local)...${NC}"
 GRAPHIFY_SRC="$PROJECT_ROOT/graphify"
 
 if [ ! -f "$GRAPHIFY_SRC/pyproject.toml" ]; then
-    echo -e "  ${RED}✗${NC} Código fonte do Graphify não encontrado em $GRAPHIFY_SRC"
-    echo -e "  Clone o repositório: git clone https://github.com/safishamsi/graphify.git $GRAPHIFY_SRC"
-    exit 1
+    echo -e "  Clonando Graphify de github.com/safishamsi/graphify..."
+    git clone --depth 1 https://github.com/safishamsi/graphify.git "$GRAPHIFY_SRC" 2>&1 | tail -1
 fi
 
 # Instalar do source em modo editável (pip install -e)
@@ -254,9 +253,8 @@ if $NODE_OK; then
     CLAUDE_MEM_DIR="$PROJECT_ROOT/claude-mem"
 
     if [ ! -f "$CLAUDE_MEM_DIR/package.json" ]; then
-        echo -e "  ${RED}✗${NC} Código fonte do claude-mem não encontrado em $CLAUDE_MEM_DIR"
-        echo -e "  Clone o repositório: git clone https://github.com/thedotmack/claude-mem.git $CLAUDE_MEM_DIR"
-        exit 1
+        echo -e "  Clonando claude-mem de github.com/thedotmack/claude-mem..."
+        git clone --depth 1 https://github.com/thedotmack/claude-mem.git "$CLAUDE_MEM_DIR" 2>&1 | tail -1
     fi
 
     # Compilar do source local
@@ -317,9 +315,8 @@ echo -e "${BOLD}[5/8] Compilando RTK (source local)...${NC}"
 RTK_SRC="$PROJECT_ROOT/rtk"
 
 if [ ! -f "$RTK_SRC/Cargo.toml" ]; then
-    echo -e "  ${RED}✗${NC} Código fonte do RTK não encontrado em $RTK_SRC"
-    echo -e "  Clone o repositório: git clone https://github.com/rtk-ai/rtk.git $RTK_SRC"
-    exit 1
+    echo -e "  Clonando RTK de github.com/rtk-ai/rtk..."
+    git clone --depth 1 https://github.com/rtk-ai/rtk.git "$RTK_SRC" 2>&1 | tail -1
 fi
 
 # Verificar Rust
