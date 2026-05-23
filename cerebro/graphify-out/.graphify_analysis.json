@@ -1,14 +1,116 @@
 {
   "communities": {
     "0": [
+      "claude_scripts_lib_session_start_ts",
+      "codex_hooks_hooks",
+      "codex_hooks_hooks_posttooluse",
+      "codex_hooks_hooks_sessionstart",
+      "codex_hooks_hooks_stop",
+      "codex_hooks_hooks_userpromptsubmit",
+      "codex_hooks_json",
+      "lib_session_start_collectopentasks",
+      "lib_session_start_extractfrontmatterfield",
+      "lib_session_start_findfrontmatterend",
+      "lib_session_start_formatactivework",
+      "lib_session_start_formatbrainindex",
+      "lib_session_start_formatdateheader",
+      "lib_session_start_formatrecentchanges",
+      "lib_session_start_hasbraincontent",
+      "lib_session_start_isinfrafilename",
+      "lib_session_start_ismarkdownfilename",
+      "lib_session_start_isskippedpath",
+      "lib_session_start_isvalidqmdindex",
+      "lib_session_start_parseinfrarootfilenames",
+      "lib_session_start_parseqmdindex",
+      "lib_session_start_stripfrontmatter",
+      "lib_session_start_take",
+      "scripts_session_start_activework",
+      "scripts_session_start_brainindex",
+      "scripts_session_start_cmdresult",
+      "scripts_session_start_infrarootfilenames",
+      "scripts_session_start_listmarkdownsources",
+      "scripts_session_start_listmd",
+      "scripts_session_start_manifestjson",
+      "scripts_session_start_northstar",
+      "scripts_session_start_opentasks",
+      "scripts_session_start_qmdchild",
+      "scripts_session_start_qmdindex",
+      "scripts_session_start_qmdupdate",
+      "scripts_session_start_readmanifestraw",
+      "scripts_session_start_readmarkdownsource",
+      "scripts_session_start_recentchanges",
+      "scripts_session_start_runcmd",
+      "scripts_session_start_sections",
+      "scripts_session_start_skip_prefixes",
+      "tests_session_start_test_d",
+      "tests_session_start_test_input",
+      "tests_session_start_test_manifest",
+      "tests_session_start_test_out",
+      "tests_session_start_test_patterns",
+      "tests_session_start_test_prefixes",
+      "tests_session_start_test_sources"
+    ],
+    "1": [
+      "claude_scripts_stop_checklist_ts",
+      "claude_scripts_tests_helpers_ts",
+      "claude_scripts_tests_qmd_refresh_integration_test_ts",
+      "claude_scripts_tests_session_start_integration_test_ts",
+      "claude_scripts_tests_validate_write_test_ts",
+      "scripts_stop_checklist_checklist",
+      "scripts_stop_checklist_hookinput",
+      "scripts_stop_checklist_input",
+      "scripts_stop_checklist_script_dir",
+      "scripts_stop_checklist_worker_path",
+      "tests_classify_message_test_code_stdout",
+      "tests_helpers_runresult",
+      "tests_helpers_runscript",
+      "tests_qmd_refresh_integration_test_after",
+      "tests_qmd_refresh_integration_test_before",
+      "tests_qmd_refresh_integration_test_clearsentinel",
+      "tests_qmd_refresh_integration_test_makestalesentinel",
+      "tests_qmd_refresh_integration_test_runhook",
+      "tests_qmd_refresh_integration_test_script",
+      "tests_qmd_refresh_integration_test_script_dir",
+      "tests_qmd_refresh_integration_test_sentinelmtime",
+      "tests_qmd_refresh_integration_test_stdout_code",
+      "tests_qmd_refresh_integration_test_stdout_stderr_code",
+      "tests_qmd_refresh_integration_test_vault_root",
+      "tests_session_start_integration_test_code_stderr",
+      "tests_session_start_integration_test_idx",
+      "tests_session_start_integration_test_projectfile",
+      "tests_session_start_integration_test_required_sections",
+      "tests_session_start_integration_test_runhook",
+      "tests_session_start_integration_test_script",
+      "tests_session_start_integration_test_script_dir",
+      "tests_session_start_integration_test_stdout",
+      "tests_session_start_integration_test_stdout_stderr_code",
+      "tests_stop_checklist_test_runscript",
+      "tests_stop_checklist_test_script",
+      "tests_stop_checklist_test_stdout",
+      "tests_stop_checklist_test_stdout_code",
+      "tests_validate_write_test_body",
+      "tests_validate_write_test_code",
+      "tests_validate_write_test_data",
+      "tests_validate_write_test_makemd",
+      "tests_validate_write_test_path",
+      "tests_validate_write_test_runon",
+      "tests_validate_write_test_runscript",
+      "tests_validate_write_test_script",
+      "tests_validate_write_test_start",
+      "tests_validate_write_test_stdout_code"
+    ],
+    "2": [
+      "claude_scripts_lib_hook_io_ts",
       "claude_scripts_lib_qmd_refresh_ts",
       "claude_scripts_lib_qmd_ts",
+      "claude_scripts_lib_read_field_ts",
       "claude_scripts_qmd_refresh_run_ts",
       "claude_scripts_qmd_refresh_ts",
-      "claude_scripts_tests_qmd_refresh_integration_test_ts",
+      "claude_scripts_tests_hook_io_test_ts",
       "claude_scripts_tests_qmd_refresh_test_ts",
       "claude_scripts_tests_qmd_test_ts",
       "lib_hook_io_debug",
+      "lib_hook_io_readstdinjson",
       "lib_qmd_buildqmdcommand",
       "lib_qmd_refresh_composeworkerinvocations",
       "lib_qmd_refresh_isdebounced",
@@ -22,6 +124,9 @@
       "lib_qmd_refresh_triggerdebouncedrefresh",
       "lib_qmd_require",
       "lib_qmd_resolveqmdentry",
+      "lib_read_field_fields",
+      "lib_read_field_input",
+      "lib_read_field_values",
       "lib_session_start_qmdargswithindex",
       "scripts_qmd_refresh_hookinput",
       "scripts_qmd_refresh_input",
@@ -34,17 +139,7 @@
       "scripts_qmd_refresh_run_vault_root",
       "scripts_qmd_refresh_script_dir",
       "scripts_qmd_refresh_worker_path",
-      "tests_qmd_refresh_integration_test_after",
-      "tests_qmd_refresh_integration_test_before",
-      "tests_qmd_refresh_integration_test_clearsentinel",
-      "tests_qmd_refresh_integration_test_makestalesentinel",
-      "tests_qmd_refresh_integration_test_runhook",
-      "tests_qmd_refresh_integration_test_script",
-      "tests_qmd_refresh_integration_test_script_dir",
-      "tests_qmd_refresh_integration_test_sentinelmtime",
-      "tests_qmd_refresh_integration_test_stdout_code",
-      "tests_qmd_refresh_integration_test_stdout_stderr_code",
-      "tests_qmd_refresh_integration_test_vault_root",
+      "tests_hook_io_test_capturestderr",
       "tests_qmd_refresh_test_invs",
       "tests_qmd_refresh_test_result",
       "tests_qmd_refresh_test_subcommands",
@@ -53,7 +148,7 @@
       "tests_qmd_test_input",
       "tests_qmd_test_out"
     ],
-    "1": [
+    "3": [
       "claude_scripts_classify_message_ts",
       "claude_scripts_lib_matcher_ts",
       "claude_scripts_lib_signals_ts",
@@ -72,6 +167,7 @@
       "tests_classify_message_test_cjk_cases",
       "tests_classify_message_test_cjkcase",
       "tests_classify_message_test_code",
+      "tests_classify_message_test_code_stdout_stderr",
       "tests_classify_message_test_data",
       "tests_classify_message_test_n",
       "tests_classify_message_test_names",
@@ -94,7 +190,7 @@
       "tests_signals_test_unique",
       "tests_signals_test_win"
     ],
-    "2": [
+    "4": [
       "claude_scripts_lib_qmd_bootstrap_ts",
       "claude_scripts_lib_qmd_ignore_ts",
       "claude_scripts_lib_regex_ts",
@@ -133,72 +229,6 @@
       "tests_qmd_ignore_test_twice",
       "tests_regex_test_re"
     ],
-    "3": [
-      "claude_scripts_lib_frontmatter_ts",
-      "claude_scripts_lib_hook_io_ts",
-      "claude_scripts_lib_read_field_ts",
-      "claude_scripts_stop_checklist_ts",
-      "claude_scripts_tests_hook_io_test_ts",
-      "claude_scripts_validate_write_ts",
-      "lib_frontmatter_root_files",
-      "lib_frontmatter_shouldskipfile",
-      "lib_frontmatter_skip_path_segments",
-      "lib_frontmatter_validatecontent",
-      "lib_frontmatter_validatefile",
-      "lib_hook_io_readstdinjson",
-      "lib_hook_io_writehookoutput",
-      "lib_read_field_fields",
-      "lib_read_field_input",
-      "lib_read_field_values",
-      "scripts_stop_checklist_checklist",
-      "scripts_stop_checklist_hookinput",
-      "scripts_stop_checklist_input",
-      "scripts_stop_checklist_script_dir",
-      "scripts_stop_checklist_worker_path",
-      "scripts_validate_write_base",
-      "scripts_validate_write_hintlist",
-      "scripts_validate_write_hookinput",
-      "scripts_validate_write_input",
-      "scripts_validate_write_warnings",
-      "tests_frontmatter_test_warnings",
-      "tests_hook_io_test_capturestderr",
-      "tests_stop_checklist_test_runscript",
-      "tests_stop_checklist_test_script",
-      "tests_stop_checklist_test_stdout",
-      "tests_stop_checklist_test_stdout_code"
-    ],
-    "4": [
-      "claude_scripts_lib_main_guard_ts",
-      "claude_scripts_tests_helpers_ts",
-      "claude_scripts_tests_main_guard_test_ts",
-      "claude_scripts_tests_session_start_integration_test_ts",
-      "claude_scripts_tests_validate_write_test_ts",
-      "lib_main_guard_ismainmodule",
-      "tests_classify_message_test_code_stdout",
-      "tests_helpers_hostpath",
-      "tests_helpers_runresult",
-      "tests_helpers_runscript",
-      "tests_main_guard_test_path",
-      "tests_session_start_integration_test_code_stderr",
-      "tests_session_start_integration_test_idx",
-      "tests_session_start_integration_test_projectfile",
-      "tests_session_start_integration_test_required_sections",
-      "tests_session_start_integration_test_runhook",
-      "tests_session_start_integration_test_script",
-      "tests_session_start_integration_test_script_dir",
-      "tests_session_start_integration_test_stdout",
-      "tests_session_start_integration_test_stdout_stderr_code",
-      "tests_validate_write_test_body",
-      "tests_validate_write_test_code",
-      "tests_validate_write_test_data",
-      "tests_validate_write_test_makemd",
-      "tests_validate_write_test_path",
-      "tests_validate_write_test_runon",
-      "tests_validate_write_test_runscript",
-      "tests_validate_write_test_script",
-      "tests_validate_write_test_start",
-      "tests_validate_write_test_stdout_code"
-    ],
     "5": [
       "cerebro_vault_manifest_frontmatter_required",
       "cerebro_vault_manifest_frontmatter_required_1_1",
@@ -223,88 +253,81 @@
       "cerebro_vault_manifest_template",
       "cerebro_vault_manifest_user_content_roots",
       "cerebro_vault_manifest_version",
-      "vault_manifest_json"
+      "vault_manifest"
     ],
     "6": [
-      "agents_claudecode",
-      "agents_claudemem",
-      "agents_codex",
-      "agents_gemini",
-      "agents_graphify",
-      "agents_rtk",
-      "agents_thoth",
-      "agents_vault",
       "atoms_readme",
-      "brain_current_state",
-      "om_capture_1on1_command",
-      "om_humanize_command",
-      "om_incident_capture_command",
-      "om_intake_command",
-      "om_meeting_command",
-      "om_peer_scan_command",
-      "om_prep_1on1_command",
-      "om_project_archive_command",
-      "om_review_brief_command",
-      "om_review_peer_command",
-      "om_self_review_command",
-      "om_slack_scan_command",
-      "om_weekly_command",
-      "work_active_sintese_vault"
+      "brag_spotter",
+      "claude_mem",
+      "context_loader",
+      "execution_memory",
+      "gotchas",
+      "graphify",
+      "home_md",
+      "hook_sessionstart",
+      "knowledge_graph",
+      "leiden_clustering",
+      "michel_laurindo",
+      "north_star",
+      "om_standup",
+      "om_wrap_up",
+      "roo_instructions",
+      "rtk",
+      "skills_doc",
+      "structural_memory",
+      "temporal_memory",
+      "thoth_agent",
+      "thoth_ai"
     ],
     "7": [
-      "codex_hooks_hooks_sessionstart",
-      "lib_session_start_formatdateheader",
-      "lib_session_start_hasbraincontent",
-      "lib_session_start_isinfrafilename",
-      "lib_session_start_isskippedpath",
-      "lib_session_start_parseinfrarootfilenames",
-      "scripts_session_start_cmdresult",
-      "scripts_session_start_infrarootfilenames",
-      "scripts_session_start_listmd",
-      "scripts_session_start_manifestjson",
-      "scripts_session_start_qmdchild",
-      "scripts_session_start_qmdindex",
-      "scripts_session_start_qmdupdate",
-      "scripts_session_start_readmanifestraw",
-      "scripts_session_start_sections",
-      "scripts_session_start_skip_prefixes",
-      "tests_session_start_test_d",
-      "tests_session_start_test_input",
-      "tests_session_start_test_manifest",
-      "tests_session_start_test_out",
-      "tests_session_start_test_patterns",
-      "tests_session_start_test_prefixes",
-      "tests_session_start_test_sources"
+      "concept_boil_the_lake",
+      "concept_brain_first",
+      "concept_gstack",
+      "concept_iron_laws",
+      "concept_no_fixes_without_root_cause",
+      "concept_resolver",
+      "concept_search_before_building",
+      "concept_skills_first_rule",
+      "concept_superpowers_methodology",
+      "concept_user_sovereignty",
+      "document_brain_current_state",
+      "document_reference_business_services",
+      "person_garry_tan",
+      "person_michel",
+      "project_hermes_vps",
+      "project_thoth_agent_runtime",
+      "tool_claude_mem",
+      "tool_go",
+      "tool_graphify",
+      "tool_rtk",
+      "tool_sqlite"
     ],
     "8": [
-      "brag_spotter",
-      "context_loader",
-      "cross_linker",
-      "gotchas",
-      "home_md",
-      "memory_template",
-      "north_star",
-      "om_dump",
-      "om_standup",
-      "om_vault_audit",
-      "om_vault_upgrade",
-      "om_wrap_up",
-      "people_profiler",
-      "qmd_skill",
-      "review_fact_checker",
-      "review_prep",
-      "skills_note",
-      "slack_archaeologist",
-      "vault_librarian",
-      "vault_migrator"
+      "agents_md",
+      "claude_code",
+      "claude_md",
+      "claude_settings_hooks",
+      "claude_settings_hooks_stop",
+      "claude_settings_json",
+      "codex_cli",
+      "codex_instructions",
+      "copilot_instructions",
+      "gemini_cli_agent",
+      "gemini_md",
+      "hook_posttooluse",
+      "hook_precompact",
+      "hook_stop",
+      "hook_userpromptsubmit",
+      "obsidian_cli",
+      "obsidian_skills",
+      "openclaw_instructions",
+      "qmd"
     ],
     "9": [
+      "claude_scripts_lib_main_guard_ts",
       "claude_scripts_pre_compact_ts",
-      "claude_settings_hooks",
-      "claude_settings_hooks_posttooluse",
-      "claude_settings_hooks_stop",
-      "claude_settings_hooks_userpromptsubmit",
-      "claude_settings_json",
+      "claude_scripts_tests_main_guard_test_ts",
+      "lib_main_guard_ismainmodule",
       "scripts_pre_compact_backupdir",
       "scripts_pre_compact_dest",
       "scripts_pre_compact_formattimestamp",
@@ -313,6 +336,8 @@
       "scripts_pre_compact_listbackups",
       "scripts_pre_compact_prunebackups",
       "scripts_pre_compact_scriptdir",
+      "tests_helpers_hostpath",
+      "tests_main_guard_test_path",
       "tests_pre_compact_test_d",
       "tests_pre_compact_test_makebackup",
       "tests_pre_compact_test_ordered",
@@ -375,6 +400,22 @@
       "cerebro_vault_manifest_version_fingerprints_v6_0"
     ],
     "13": [
+      "claude_scripts_lib_frontmatter_ts",
+      "claude_scripts_validate_write_ts",
+      "lib_frontmatter_root_files",
+      "lib_frontmatter_shouldskipfile",
+      "lib_frontmatter_skip_path_segments",
+      "lib_frontmatter_validatecontent",
+      "lib_frontmatter_validatefile",
+      "lib_hook_io_writehookoutput",
+      "scripts_validate_write_base",
+      "scripts_validate_write_hintlist",
+      "scripts_validate_write_hookinput",
+      "scripts_validate_write_input",
+      "scripts_validate_write_warnings",
+      "tests_frontmatter_test_warnings"
+    ],
+    "14": [
       "claude_scripts_tests_generate_changelog_test_ts",
       "tests_generate_changelog_test_added",
       "tests_generate_changelog_test_addedidx",
@@ -390,33 +431,7 @@
       "tests_generate_changelog_test_twice",
       "tests_generate_changelog_test_withnested"
     ],
-    "14": [
-      "date_reference",
-      "duration_reference",
-      "file_reference",
-      "functions_reference",
-      "link_reference",
-      "list_reference",
-      "number_reference",
-      "object_reference",
-      "properties_reference",
-      "regexp_reference",
-      "string_reference"
-    ],
     "15": [
-      "businesspositioning_positioning",
-      "businessservices_agente_personalizado",
-      "hermesvpsreadme_hermes_vps",
-      "keydecisions_rename_to_thoth",
-      "patterns_hermes",
-      "patterns_thoth",
-      "projectsindex_hermes_vps",
-      "projectsindex_segundo_cerebro",
-      "projectsindex_thoth_runtime",
-      "renomearagente_decision",
-      "thothreadme_thoth_runtime"
-    ],
-    "16": [
       "claude_scripts_charcount_ts",
       "claude_scripts_lib_charcount_ts",
       "lib_charcount_countargs",
@@ -428,7 +443,7 @@
       "tests_charcount_test_d",
       "tests_charcount_test_doc"
     ],
-    "17": [
+    "16": [
       "claude_scripts_tests_hook_config_test_ts",
       "tests_hook_config_test_barerelative",
       "tests_hook_config_test_cfg",
@@ -440,6 +455,15 @@
       "tests_hook_config_test_loadconfig",
       "tests_hook_config_test_reporoot"
     ],
+    "17": [
+      "gemini_settings_hooks",
+      "gemini_settings_hooks_aftertool",
+      "gemini_settings_hooks_beforeagent",
+      "gemini_settings_hooks_precompress",
+      "gemini_settings_hooks_sessionend",
+      "gemini_settings_hooks_sessionstart",
+      "gemini_settings_json"
+    ],
     "18": [
       "claude_scripts_package_json",
       "scripts_package_description",
@@ -450,189 +474,123 @@
       "scripts_package_type"
     ],
     "19": [
-      "gemini_settings_hooks",
-      "gemini_settings_hooks_aftertool",
-      "gemini_settings_hooks_beforeagent",
-      "gemini_settings_hooks_precompress",
-      "gemini_settings_hooks_sessionend",
-      "gemini_settings_json"
-    ],
-    "20": [
       "cerebro_mcp_mcpservers",
       "cerebro_mcp_mcpservers_qmd",
       "cerebro_mcp_qmd_args",
       "cerebro_mcp_qmd_command",
       "mcp_json"
     ],
+    "20": [
+      "concept_obsidian_mind",
+      "concept_para",
+      "concept_zettelkasten",
+      "document_work_active_2026_05_22_sintese_vault_estrutura",
+      "person_brenno_ferrari"
+    ],
     "21": [
-      "codex_hooks_hooks",
-      "codex_hooks_hooks_posttooluse",
-      "codex_hooks_hooks_stop",
-      "codex_hooks_hooks_userpromptsubmit",
-      "codex_hooks_json"
-    ],
-    "22": [
-      "lib_session_start_collectopentasks",
-      "lib_session_start_ismarkdownfilename",
-      "scripts_session_start_listmarkdownsources",
-      "scripts_session_start_opentasks",
-      "scripts_session_start_readmarkdownsource"
-    ],
-    "23": [
-      "templates_competency_note_md",
-      "templates_decision_record_md",
-      "templates_review_template_md",
-      "templates_thinking_note_md",
-      "templates_work_note_md"
-    ],
-    "24": [
       "claude_scripts_tests_post_install_hook_test_ts",
       "tests_post_install_hook_test_isenoent",
       "tests_post_install_hook_test_makectx",
       "tests_post_install_hook_test_maketempdir",
       "tests_post_install_hook_test_restored"
     ],
-    "25": [
-      "claude_skills_obsidian_markdown_references_callouts",
-      "claude_skills_obsidian_markdown_references_embeds",
-      "org_people_context",
-      "reference_readme"
+    "22": [
+      "cross_linker",
+      "om_vault_audit",
+      "vault_librarian"
     ],
-    "26": [
-      "patterns_gbrain",
-      "patterns_gstack",
-      "patterns_resolver",
-      "patterns_superpowers"
+    "23": [
+      "project_open_design",
+      "tool_next_js",
+      "tool_pnpm"
     ],
-    "27": [
+    "24": [
       "claude_scripts_tests_manifest_check_test_ts",
       "tests_manifest_check_test_globs",
       "tests_manifest_check_test_r"
     ],
+    "25": [
+      "document_superpowers_methodology_md",
+      "person_jesse_vincent"
+    ],
+    "26": [
+      "om_vault_upgrade",
+      "vault_migrator"
+    ],
+    "27": [
+      "obsidian_mind"
+    ],
     "28": [
-      "lib_session_start_extractfrontmatterfield",
-      "lib_session_start_findfrontmatterend",
-      "lib_session_start_stripfrontmatter"
+      "people_profiler"
     ],
     "29": [
-      "lib_session_start_formatrecentchanges",
-      "scripts_session_start_recentchanges",
-      "scripts_session_start_runcmd"
+      "review_prep"
     ],
     "30": [
-      "businesspricing_cfo",
-      "businesspricing_pricing_strategy"
+      "slack_archaeologist"
     ],
     "31": [
-      "claude_md",
-      "gemini_md"
+      "review_fact_checker"
     ],
     "32": [
-      "lib_session_start_formatactivework",
-      "scripts_session_start_activework"
+      "om_dump"
     ],
     "33": [
-      "lib_session_start_isvalidqmdindex",
-      "lib_session_start_parseqmdindex"
+      "concept_back_linking"
     ],
     "34": [
-      "lib_session_start_take",
-      "scripts_session_start_northstar"
+      "concept_deterministic_links"
     ],
     "35": [
-      "lib_session_start_formatbrainindex",
-      "scripts_session_start_brainindex"
+      "concept_no_slop"
     ],
     "36": [
-      "thinking_readme_md",
-      "work_index_md"
+      "concept_notability_gate"
     ],
     "37": [
-      "projectsindex_agency_agents"
+      "concept_primary_subject"
     ],
     "38": [
-      "pipelineexemplo_pipeline_template"
+      "document_brain_first_md"
     ],
     "39": [
-      "opendesign_readme"
+      "document_brain_patterns"
     ],
     "40": [
-      "migrarobsidianmind_decision"
-    ],
-    "41": [
-      "defuddle_skill"
-    ],
-    "42": [
-      "obsidian_bases_skill"
-    ],
-    "43": [
-      "obsidian_markdown_skill"
-    ],
-    "44": [
-      "obsidian_cli_skill"
-    ],
-    "45": [
-      "json_canvas_skill"
-    ],
-    "46": [
-      "openclaw_instructions"
-    ],
-    "47": [
-      "businessservices_retainer_manutencao"
-    ],
-    "48": [
-      "businessicp_icp"
-    ],
-    "49": [
-      "businesstoneofvoice_tone_of_voice"
-    ],
-    "50": [
-      "codex_instructions"
-    ],
-    "51": [
-      "copilot_instructions"
-    ],
-    "52": [
-      "roo_instructions"
-    ],
-    "53": [
-      "claude_skills_json_canvas_references_examples_md"
-    ],
-    "54": [
-      "templates_atom_note_md"
+      "document_builder_ethos_md"
     ]
   },
   "cohesion": {
-    "0": 0.058823529411764705,
-    "1": 0.0620782726045884,
-    "2": 0.07357357357357357,
-    "3": 0.07661290322580645,
-    "4": 0.07816091954022988,
+    "0": 0.06560283687943262,
+    "1": 0.04717853839037928,
+    "2": 0.07030527289546716,
+    "3": 0.06025641025641026,
+    "4": 0.07357357357357357,
     "5": 0.08333333333333333,
-    "6": 0.08333333333333333,
-    "7": 0.08695652173913043,
-    "8": 0.1368421052631579,
-    "9": 0.11764705882352941,
+    "6": 0.10822510822510822,
+    "7": 0.11428571428571428,
+    "8": 0.1111111111111111,
+    "9": 0.13071895424836602,
     "10": 0.1111111111111111,
     "11": 0.19117647058823528,
     "12": 0.3333333333333333,
-    "13": 0.14285714285714285,
-    "14": 0.18181818181818182,
-    "15": 0.23636363636363636,
-    "16": 0.24444444444444444,
-    "17": 0.2,
+    "13": 0.17582417582417584,
+    "14": 0.14285714285714285,
+    "15": 0.24444444444444444,
+    "16": 0.2,
+    "17": 0.2857142857142857,
     "18": 0.2857142857142857,
-    "19": 0.3333333333333333,
+    "19": 0.4,
     "20": 0.4,
     "21": 0.4,
-    "22": 0.4,
-    "23": 0.4,
-    "24": 0.4,
+    "22": 0.6666666666666666,
+    "23": 0.6666666666666666,
+    "24": 0.6666666666666666,
     "25": 1.0,
-    "26": 0.5,
-    "27": 0.6666666666666666,
-    "28": 0.6666666666666666,
-    "29": 0.6666666666666666,
+    "26": 1.0,
+    "27": 1.0,
+    "28": 1.0,
+    "29": 1.0,
     "30": 1.0,
     "31": 1.0,
     "32": 1.0,
@@ -643,37 +601,13 @@
     "37": 1.0,
     "38": 1.0,
     "39": 1.0,
-    "40": 1.0,
-    "41": 1.0,
-    "42": 1.0,
-    "43": 1.0,
-    "44": 1.0,
-    "45": 1.0,
-    "46": 1.0,
-    "47": 1.0,
-    "48": 1.0,
-    "49": 1.0,
-    "50": 1.0,
-    "51": 1.0,
-    "52": 1.0,
-    "53": 1.0,
-    "54": 1.0
+    "40": 1.0
   },
   "gods": [
     {
       "id": "codex_hooks_hooks_sessionstart",
       "label": "SessionStart",
-      "degree": 52
-    },
-    {
-      "id": "agents_vault",
-      "label": "Sinapse Agent Vault",
-      "degree": 21
-    },
-    {
-      "id": "skills_note",
-      "label": "brain/Skills.md \u2014 Slash Commands & Workflows",
-      "degree": 16
+      "degree": 47
     },
     {
       "id": "scripts_tsconfig_compileroptions",
@@ -683,6 +617,11 @@
     {
       "id": "cerebro_vault_manifest_version_fingerprints",
       "label": "version_fingerprints",
+      "degree": 13
+    },
+    {
+      "id": "project_thoth_agent_runtime",
+      "label": "Thoth Agent Runtime",
       "degree": 13
     },
     {
@@ -701,75 +640,80 @@
       "degree": 10
     },
     {
-      "id": "functions_reference",
-      "label": "Functions Reference",
-      "degree": 10
-    },
-    {
       "id": "cerebro_vault_manifest_scaffold",
       "label": "scaffold",
+      "degree": 9
+    },
+    {
+      "id": "lib_regex_escaperegex",
+      "label": "escapeRegex()",
+      "degree": 9
+    },
+    {
+      "id": "lib_qmd_refresh_triggerdebouncedrefresh",
+      "label": "triggerDebouncedRefresh()",
       "degree": 9
     }
   ],
   "surprises": [
     {
-      "source": "Segundo C\u00e9rebro",
-      "target": "Hermes",
+      "source": "Claude Code",
+      "target": "SessionStart Hook",
       "source_files": [
-        "work/_projects-index.md",
-        "brain/Patterns.md"
+        "AGENTS.md",
+        ".claude/scripts/session-start.ts"
       ],
       "confidence": "EXTRACTED",
-      "relation": "references",
-      "why": "connects across different repos/directories; peripheral node `Segundo C\u00e9rebro` unexpectedly reaches hub `Hermes`"
+      "relation": "calls",
+      "why": "crosses file types (doc \u2194 code); connects across different repos/directories; bridges separate communities; peripheral node `SessionStart Hook` unexpectedly reaches hub `Claude Code`"
     },
     {
-      "source": "Renomear Agente para Thoth",
-      "target": "Thoth",
+      "source": "Claude Code",
+      "target": "UserPromptSubmit Hook",
       "source_files": [
-        "work/active/2026-05-22-renomear-agente-thoth.md",
-        "brain/Patterns.md"
+        "AGENTS.md",
+        ".claude/scripts/classify-message.ts"
       ],
       "confidence": "EXTRACTED",
-      "relation": "references",
-      "why": "connects across different repos/directories; peripheral node `Renomear Agente para Thoth` unexpectedly reaches hub `Thoth`"
+      "relation": "calls",
+      "why": "crosses file types (doc \u2194 code); connects across different repos/directories; peripheral node `UserPromptSubmit Hook` unexpectedly reaches hub `Claude Code`"
     },
     {
-      "source": "Renomear Agente para Thoth",
-      "target": "Hermes",
+      "source": "Claude Code",
+      "target": "PostToolUse Hook",
       "source_files": [
-        "work/active/2026-05-22-renomear-agente-thoth.md",
-        "brain/Patterns.md"
+        "AGENTS.md",
+        ".claude/scripts/validate-write.ts"
       ],
       "confidence": "EXTRACTED",
-      "relation": "references",
-      "why": "connects across different repos/directories; peripheral node `Renomear Agente para Thoth` unexpectedly reaches hub `Hermes`"
+      "relation": "calls",
+      "why": "crosses file types (doc \u2194 code); connects across different repos/directories; peripheral node `PostToolUse Hook` unexpectedly reaches hub `Claude Code`"
     },
     {
-      "source": "Hermes na VPS",
-      "target": "Hermes",
+      "source": "Claude Code",
+      "target": "PreCompact Hook",
       "source_files": [
-        "work/active/hermes-vps-README.md",
-        "brain/Patterns.md"
+        "AGENTS.md",
+        ".claude/scripts/pre-compact.ts"
       ],
       "confidence": "EXTRACTED",
-      "relation": "references",
-      "why": "connects across different repos/directories; peripheral node `Hermes na VPS` unexpectedly reaches hub `Hermes`"
+      "relation": "calls",
+      "why": "crosses file types (doc \u2194 code); connects across different repos/directories; peripheral node `PreCompact Hook` unexpectedly reaches hub `Claude Code`"
     },
     {
-      "source": "brain/Skills.md \u2014 Slash Commands & Workflows",
-      "target": "QMD \u2014 Semantic Search Skill",
+      "source": "Claude Code",
+      "target": "Stop Hook",
       "source_files": [
-        "brain/Skills.md",
-        ".claude/skills/qmd/SKILL.md"
+        "AGENTS.md",
+        ".claude/scripts/stop-checklist.ts"
       ],
       "confidence": "EXTRACTED",
-      "relation": "references",
-      "why": "connects across different repos/directories; peripheral node `QMD \u2014 Semantic Search Skill` unexpectedly reaches hub `brain/Skills.md \u2014 Slash Commands & Workflows`"
+      "relation": "calls",
+      "why": "crosses file types (doc \u2194 code); connects across different repos/directories; peripheral node `Stop Hook` unexpectedly reaches hub `Claude Code`"
     }
   ],
   "tokens": {
-    "input": 9330,
-    "output": 6947
+    "input": 77107,
+    "output": 26837
   }
 }

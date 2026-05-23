@@ -9,11 +9,12 @@
 #   1. Verifica dependências (Python 3.10+, uv/pipx, Node 18+, Bun, Ollama opcional)
 #   2. Instala Graphify (graphifyy[all]) e indexa o vault cerebro/ (Gemini→Ollama→AST)
 #   3. Configura claude-mem, instala dependências, inicia worker (systemd)
-#   4. Configura RTK plugin no Hermes (se detectado)
-#   5. Registra skills em cada agente detectado (Hermes, Claude, Codex, etc.)
-#   6. Configura MCP servers (graphify + claude-mem)
-#   7. Instala cron job de sync periódico
-#   8. Instala/atualiza plugin sinapse-memory v2.0 (multi-backend)
+#   4. Instala NeuralMemory (nmem) — busca associativa com spreading activation
+#   5. Configura RTK plugin no Hermes (se detectado)
+#   6. Registra skills em cada agente detectado (Hermes, Claude, Codex, etc.)
+#   7. Configura MCP servers (graphify + claude-mem)
+#   8. Instala cron job de sync periódico
+#   9. Instala/atualiza plugin sinapse-memory v3.0 (multi-backend: nmem + claude-mem + graphify)
 # =============================================================================
 
 set -euo pipefail
@@ -50,7 +51,7 @@ echo ""
 # =============================================================================
 # 1. VERIFICAÇÃO DE DEPENDÊNCIAS
 # =============================================================================
-echo -e "${BOLD}[1/8] Verificando dependências...${NC}"
+echo -e "${BOLD}[1/9] Verificando dependências...${NC}"
 
 # Python
 if ! command -v python3 &>/dev/null; then
@@ -110,7 +111,7 @@ echo ""
 # =============================================================================
 # 2. INSTALAÇÃO DO GRAPHIFY (do source clonado, NÃO do PyPI)
 # =============================================================================
-echo -e "${BOLD}[2/8] Instalando Graphify (source local)...${NC}"
+echo -e "${BOLD}[2/9] Instalando Graphify (source local)...${NC}"
 
 GRAPHIFY_SRC="$PROJECT_ROOT/graphify"
 
@@ -158,7 +159,7 @@ echo ""
 # =============================================================================
 # 3. REGISTRO NOS AGENTES DETECTADOS
 # =============================================================================
-echo -e "${BOLD}[3/8] Registrando skills nos agentes...${NC}"
+echo -e "${BOLD}[3/9] Registrando skills nos agentes...${NC}"
 
 # Array associativo: comando de detecção → plataforma graphify
 # Alguns agentes não têm CLI detectável (Cursor, Copilot) — usamos caminho de arquivo
@@ -247,7 +248,7 @@ echo ""
 # =============================================================================
 # 4. CONFIGURAÇÃO DO CLAUDE-MEM (do source clonado)
 # =============================================================================
-echo -e "${BOLD}[4/8] Configurando claude-mem (source local)...${NC}"
+echo -e "${BOLD}[4/9] Configurando claude-mem (source local)...${NC}"
 
 if $NODE_OK; then
     CLAUDE_MEM_DIR="$PROJECT_ROOT/claude-mem"
@@ -308,9 +309,26 @@ fi
 echo ""
 
 # =============================================================================
-# 5. CONFIGURAÇÃO DO RTK (do source clonado — Rust)
+# 5. INSTALAÇÃO DO NEURALMEMORY (spreading activation — associativo)
 # =============================================================================
-echo -e "${BOLD}[5/8] Compilando RTK (source local)...${NC}"
+echo -e "${BOLD}[5/9] Instalando NeuralMemory (spreading activation)...${NC}"
+
+if command -v pipx &>/dev/null; then
+    if ! command -v nmem &>/dev/null || $FORCE; then
+        echo -e "  Instalando neural-memory via pipx..."
+        pipx install neural-memory 2>&1 | tail -1
+    fi
+    echo -e "  ${GREEN}✓${NC} NeuralMemory $(nmem --version 2>/dev/null || echo 'OK')"
+else
+    echo -e "  ${YELLOW}⊘${NC}  pipx não encontrado. Instale: sudo apt install pipx && pipx ensurepath"
+fi
+
+echo ""
+
+# =============================================================================
+# 6. CONFIGURAÇÃO DO RTK (do source clonado — Rust)
+# =============================================================================
+echo -e "${BOLD}[6/9] Compilando RTK (source local)...${NC}"
 
 RTK_SRC="$PROJECT_ROOT/rtk"
 
@@ -356,7 +374,7 @@ echo ""
 # =============================================================================
 # 6. CONFIGURAÇÃO MCP (GRAPHIFY + CLAUDE-MEM)
 # =============================================================================
-echo -e "${BOLD}[6/8] Configurando servidores MCP...${NC}"
+echo -e "${BOLD}[7/9] Configurando servidores MCP...${NC}"
 
 # Graphify MCP
 if command -v hermes &>/dev/null; then
@@ -405,7 +423,7 @@ echo ""
 # =============================================================================
 # 7. CRON DE SYNC PERIÓDICO
 # =============================================================================
-echo -e "${BOLD}[7/8] Configurando cron de sync...${NC}"
+echo -e "${BOLD}[8/9] Configurando cron de sync...${NC}"
 
 CRON_JOB="0 */6 * * * cd $PROJECT_ROOT && ./scripts/build-graph.sh >> logs/sync.log 2>&1"
 
@@ -426,7 +444,7 @@ echo ""
 # =============================================================================
 # 8. PLUGIN SINAPSE-MEMORY V2.0 (HERMES)
 # =============================================================================
-echo -e "${BOLD}[8/8] Instalando plugin sinapse-memory v2.0...${NC}"
+echo -e "${BOLD}[9/9] Instalando plugin sinapse-memory v3.0...${NC}"
 
 if command -v hermes &>/dev/null && [ -d "$HOME/.hermes/plugins/" ]; then
     PLUGIN_DIR="$HOME/.hermes/plugins/sinapse-memory"

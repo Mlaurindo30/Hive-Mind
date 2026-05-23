@@ -6,7 +6,7 @@
 # =============================================================================
 project:
   name: sinapse_agent
-  version: 2.0.0
+  version: 3.0.0
   description: >
     Camada de memória universal para agentes de IA. Indexa um vault Obsidian
     (cerebro/) em um knowledge graph queryable via Graphify, complementado por
@@ -43,6 +43,15 @@ claude_mem:
   port: 37700                             # porta padrão do worker
   install_method: npx                     # npx claude-mem install
   worker_autostart: true                  # inicia worker junto
+
+# =============================================================================
+# NEURAL MEMORY (camada 4 — associativa: COMO conceitos se relacionam)
+# =============================================================================
+neural_memory:
+  package: neural-memory                # pipx install neural-memory
+  install_method: pipx                  # pipx
+  bin: ~/.local/bin/nmem                # CLI binary
+  recall_timeout: 5                     # segundos
 
 # =============================================================================
 # RTK (camada 3 — execução: COMO otimizar)
