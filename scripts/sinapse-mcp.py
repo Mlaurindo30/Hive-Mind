@@ -97,6 +97,38 @@ TOOLS = [
             },
             "required": ["summary"]
         }
+    },
+    {
+        "name": "sinapse_temporal_search",
+        "description": "Search claude-mem temporal memory directly (FTS5 full-text + Chroma semantic). Use for finding past conversations, events, and observations that may not be in the vault yet. Returns timeline entries and observations.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query for temporal memory"
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "sinapse_temporal_save",
+        "description": "Save an observation to claude-mem temporal memory. NOTE: only works when claude-mem is in server-beta mode (CLAUDE_MEM_RUNTIME=server-beta). In worker mode, observations are saved via hooks, not HTTP API. Falls back to saving in vault brain/Patterns.md as a temporal note.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string",
+                    "description": "Observation content to save"
+                },
+                "kind": {
+                    "type": "string",
+                    "description": "Kind of observation: change, decision, learning, event (default: change)"
+                }
+            },
+            "required": ["content"]
+        }
     }
 ]
 
@@ -110,6 +142,8 @@ HANDLERS = {
     },
     "sinapse_health": lambda args: sm.health_check(),
     "sinapse_session_end": lambda args: _session_end(args.get("summary", "")),
+    "sinapse_temporal_search": lambda args: _temporal_search(args.get("query", "")),
+    "sinapse_temporal_save": lambda args: _temporal_save(args.get("content", ""), args.get("kind", "change")),
 }
 
 
@@ -118,6 +152,53 @@ def _session_end(summary):
     sm._session_learnings = []
     sm._update_current_state([], [], summary)
     return {"updated": True}
+
+
+def _temporal_search(query):
+    """Busca no claude-mem via API HTTP (FTS5 + Chroma)."""
+    from urllib.request import Request, urlopen
+    from urllib.error import URLError
+    from urllib.parse import quote
+    
+    CLAUDE_MEM_URL = "http://127.0.0.1:37700"
+    
+    try:
+        encoded = quote(query)
+        req = Request(f"{CLAUDE_MEM_URL}/api/search?query={encoded}", method="GET")
+        with urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+            return {"source": "claude-mem (temporal)", "results": data, "query": query}
+    except (URLError, json.JSONDecodeError, OSError) as e:
+        return {"source": "claude-mem (temporal)", "error": str(e), "query": query}
+
+
+def _temporal_save(content, kind="change"):
+    """Salva observação no claude-mem (modo server-beta) ou fallback vault."""
+    from urllib.request import Request, urlopen
+    from urllib.error import URLError
+
+    CLAUDE_MEM_URL = "http://127.0.0.1:37700"
+
+    # Tenta server-beta primeiro
+    try:
+        req = Request(
+            f"{CLAUDE_MEM_URL}/api/observations",
+            method="POST",
+            data=json.dumps({"content": content, "kind": kind}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        with urlopen(req, timeout=5) as resp:
+            if resp.status == 200:
+                return {"saved": True, "backend": "claude-mem", "content": content[:100]}
+    except (URLError, OSError):
+        pass
+
+    # Fallback: salva como nota temporal no vault
+    try:
+        sm._save_learning(f"temporal: {content[:80]}", content)
+        return {"saved": True, "backend": "vault (fallback)", "content": content[:100]}
+    except Exception as e:
+        return {"saved": False, "error": str(e)}
 
 
 def handle_request(req: dict) -> dict | None:
