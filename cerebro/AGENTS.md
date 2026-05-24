@@ -3,7 +3,7 @@
 > Formato cross-agent: Thoth (Hermes), Claude Code, Codex, OpenCode, Gemini CLI, Cursor, Copilot.
 > Stack: Graphify (knowledge graph) + claude-mem (temporal tracking) + RTK (execution optimization).
 > Template base: [obsidian-mind](https://github.com/breferrari/obsidian-mind).
-> Última revisão: 2026-05-22.
+> Última revisão: 2026-05-23.
 
 ---
 
@@ -199,6 +199,7 @@ Decisão → vault (work/active/)  ← Graphify reindex (cron 6h)
 - **Decisão importante** → `brain/Key Decisions.md`
 - **Referência técnica** → `reference/`
 - **Documento de negócio** → `reference/business-*.md`
+- **Análise de ferramenta/skill/plugin** → `reference/analises/` (template: [[templates/Analise Fria|Análise Fria]], ver [[#10-análises-de-ferramentas]])
 
 ---
 
@@ -228,3 +229,66 @@ Campos adicionais por tipo:
 - **Incident**: `ticket: TICKET-123`, `severity: high|medium|low`, `role: incident-lead`
 - **Person**: `team: Backend`, `role: Eng Manager`
 - **Review**: `cycle: h1-2026`, `person: "Nome"`
+
+---
+
+## 10. Análises de ferramentas (fluxo Thoth)
+
+Quando Michel enviar uma skill, plugin, ferramenta, integração ou ideia para avaliação,
+Thoth gera uma **Análise Fria** usando o template `templates/Analise Fria.md` e salva em `reference/analises/`.
+
+### Seções obrigatórias
+- Veredito (adotar sim/não, com qual escopo)
+- O que é / O que faz
+- Vantagem prática para o projeto THOTH AI
+- Risco principal + riscos específicos
+- O que NÃO fazer / NÃO incluir
+- Plano de adoção (fases) + rollback
+- Decisão sugerida (formato Decision Record)
+- Veredito final
+
+### Fluxo
+```
+Michel envia (PDF, link, ideia) → Thoth analisa → salva em reference/analises/ → registra no claude-mem
+```
+
+O arquivo serve como registro permanente de avaliação para decisões futuras.
+
+---
+
+## 11. Regras de uso do Sinapse pelo Thoth (OBRIGATÓRIO)
+
+> **Estas regras são não-negociáveis. O Thoth deve segui-las em toda interação com Michel.**
+
+### Consulta obrigatória (antes de responder)
+
+| Gatilho | Ação | Ferramenta |
+|---------|------|-----------|
+| Qualquer pergunta sobre projeto, ferramenta, decisão passada | Consultar vault primeiro | `session_search()` ou `sinapse-write.py query` |
+| Dúvida sobre contexto de conversas anteriores | Buscar no histórico | `session_search(query="...")` |
+| Referência a ferramenta/skill/plugin já analisada | Verificar análises existentes | `search_files(pattern="...", path="cerebro/reference/analises/")` |
+| Decisão técnica ou arquitetural | Verificar `brain/Key Decisions.md` | `read_file("cerebro/brain/Key Decisions.md")` |
+| Padrão ou convenção | Verificar `brain/Patterns.md` | `read_file("cerebro/brain/Patterns.md")` |
+
+### Escrita obrigatória (após agir)
+
+| Gatilho | Ação | Destino |
+|---------|------|---------|
+| Decisão tomada (qualquer) | Registrar | `work/active/` (Decision Record) + `claude-mem memory_add` |
+| Ferramenta/skill avaliada | Análise Fria completa | `reference/analises/` + PDF + `claude-mem` |
+| Aprendizado novo | Apendar | `brain/Patterns.md` |
+| Erro cometido ou gotcha | Registrar | `brain/Gotchas.md` |
+| Fim de tarefa complexa (5+ tool calls) | Atualizar estado | `brain/Current State.md` |
+| Skill criada ou modificada | Salvar | `skill_manage()` + `claude-mem` |
+
+### Health check (início de sessão)
+
+Antes de qualquer resposta complexa, verificar:
+```bash
+python3 scripts/sinapse-write.py health
+```
+Se qualquer backend falhar, reportar e oferecer correção imediata.
+
+### Violação
+
+Michel espera que o Sinapse seja usado ativamente. Não consultar o vault antes de responder, ou não escrever decisões após agir, é considerado falha operacional do Thoth.
