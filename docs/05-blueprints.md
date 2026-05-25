@@ -19,9 +19,10 @@ graph TB
 
     subgraph INTEGRATION["🔌 Camada de Integração"]
         PLUGIN[sinapse-memory.py<br/>Plugin Python<br/>Hooks: pre_prompt, post_tool, post_session]
-        MCP[sinapse-mcp.py<br/>MCP Server stdio<br/>5 tools]
-        CLI[sinapse-write.py<br/>CLI Standalone<br/>5 subcommands]
+        MCP[sinapse-mcp.py<br/>MCP Server stdio<br/>8 tools]
+        CLI[sinapse-write.py<br/>CLI Standalone<br/>6 subcommands]
         HOOK[sinapse-hook.py<br/>Hook Script<br/>SessionStart, Stop, PostToolUse]
+        API[sinapse-api.py<br/>REST Cloud API<br/>FastAPI :8000]
     end
 
     subgraph BACKENDS["🧠 Backends de Memória"]
@@ -33,7 +34,7 @@ graph TB
 
     subgraph STORAGE["💾 Storage"]
         VAULT[Vault Obsidian<br/>cerebro/<br/>~200 .md files]
-        GRAPH[graph.json<br/>1266+ nodes<br/>1319+ edges]
+        GRAPH[graph.json<br/>1328 nodes<br/>1473 edges]
         SQLITE[(SQLite FTS5<br/>claude-mem.db)]
         CHROMA[(ChromaDB<br/>embeddings)]
     end
@@ -46,6 +47,10 @@ graph TB
     KC --> MCP
     OC --> MCP
     
+    PLUGIN -->|Redirecionamento Cloud| API
+    MCP -->|Redirecionamento Cloud| API
+    CLI -->|Redirecionamento Cloud| API
+    
     PLUGIN --> NM
     PLUGIN --> CM
     PLUGIN --> GF
@@ -55,6 +60,10 @@ graph TB
     CLI --> NM
     CLI --> CM
     CLI --> GF
+    
+    API --> NM
+    API --> CM
+    API --> GF
     
     NM --> VAULT
     CM --> SQLITE
@@ -277,26 +286,31 @@ sequenceDiagram
 
 ---
 
-## 8. Deploy Architecture
+## 8. Deploy Architecture (Nuvem / VPS)
 
 ```mermaid
 graph TB
-    subgraph VPS["VPS / Servidor Local"]
+    subgraph VPS["VPS (Thoth AI / Nuvem)"]
+        API2[sinapse-api.py<br/>REST Cloud API :8000]
         OLLAMA[Ollama<br/>:11434]
         WORKER[claude-mem Worker<br/>systemd service<br/>:37700]
-        CRON[Cron Jobs<br/>build-graph.sh 6h<br/>sync-diario.sh dom]
-        VAULT2[Vault cerebro/<br/>Git repo]
+        CRON[Cron Jobs<br/>build-graph.sh 6h]
+        VAULT2[Vault cerebro/]
     end
     
-    subgraph AGENTS2["Agentes Conectados"]
-        HERMES2[Hermes<br/>Plugin Python]
-        CLAUDE2[Claude Code<br/>MCP + Hooks]
-        CODEX2[Codex CLI<br/>MCP + Hooks]
+    subgraph LOCAL["Máquina Local / VPS de Agentes"]
+        HERMES2[Hermes<br/>Plugin Python<br/>cloud.enabled: true]
+        CLAUDE2[Claude Code<br/>MCP + Hooks<br/>cloud.enabled: true]
+        CODEX2[Codex CLI<br/>MCP + Hooks<br/>cloud.enabled: true]
     end
     
-    HERMES2 -->|hooks| VAULT2
-    CLAUDE2 -->|MCP + hooks| VAULT2
-    CODEX2 -->|MCP + hooks| VAULT2
+    HERMES2 -->|HTTP Request / Token Bearer| API2
+    CLAUDE2 -->|HTTP Request / Token Bearer| API2
+    CODEX2 -->|HTTP Request / Token Bearer| API2
+    
+    API2 -->|concorrência local na VPS| VAULT2
+    API2 -->|temporal search| WORKER
+    API2 -->|relationships| VAULT2
     
     VAULT2 -->|indexa| CRON
     CRON -->|graph.json| VAULT2

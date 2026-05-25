@@ -3,6 +3,10 @@
     "qmd": {
       "command": "node",
       "args": [".claude/scripts/qmd-mcp.mjs"]
+    },
+    "sinapse-memory": {
+      "command": "python3",
+      "args": ["/home/michel/Documentos/Projects/sinapse_agent/scripts/sinapse-mcp.py"]
     }
   }
 }

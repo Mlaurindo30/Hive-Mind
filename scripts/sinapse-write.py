@@ -46,6 +46,10 @@ def main():
     se = sub.add_parser("session-end", help="End session and update Current State")
     se.add_argument("--summary", required=True, help="Session summary")
 
+    zk = sub.add_parser("zettelkasten", help="Auto-partition monolithic file into atomic Zettelkasten notes")
+    zk.add_argument("--source", required=True, help="Monolithic markdown file path")
+    zk.add_argument("--output-dir", default="cerebro/atoms", help="Target atoms directory")
+
     args = parser.parse_args()
 
     if args.command == "decision":
@@ -65,6 +69,14 @@ def main():
         sm._session_learnings = []
         sm._update_current_state([], [], args.summary)
         print(json.dumps({"updated": True}))
+    elif args.command == "zettelkasten":
+        import importlib.util
+        zk_script = os.path.join(os.path.dirname(__file__), "sinapse-zettelkasten.py")
+        spec = importlib.util.spec_from_file_location("sinapse_zettelkasten", zk_script)
+        zk_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(zk_mod)
+        files = zk_mod.split_monolithic_file(args.source, args.output_dir)
+        print(json.dumps({"atoms_created": len(files), "files": files}, indent=2))
 
 
 if __name__ == "__main__":

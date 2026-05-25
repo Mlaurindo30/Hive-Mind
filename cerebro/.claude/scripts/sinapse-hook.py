@@ -14,6 +14,7 @@ Faz fallback para SINAPSE_HOME ou detecta a partir do vault path.
 
 import json
 import os
+import select
 import sys
 from pathlib import Path
 
@@ -43,14 +44,25 @@ sys.modules["sinapse_memory"] = sm
 spec.loader.exec_module(sm)
 
 
+def _read_stdin_with_timeout(timeout: float = 0.1) -> str:
+    """Lê stdin de forma não-bloqueante usando select (evita hangs interativos)."""
+    try:
+        r, _, _ = select.select([sys.stdin], [], [], timeout)
+        if r:
+            return sys.stdin.read()
+    except Exception:
+        pass
+    return ""
+
+
 def hook_session_start():
     """Hook SessionStart: busca contexto relevante do vault."""
     # Tenta extrair contexto do hook
     context_text = ""
     try:
-        hook_input = json.loads(sys.stdin.read())
+        hook_input = json.loads(_read_stdin_with_timeout())
         context_text = hook_input.get("prompt", "") or hook_input.get("user_message", "")
-    except (json.JSONDecodeError, EOFError):
+    except (json.JSONDecodeError, ValueError):
         pass
 
     if not context_text:
@@ -77,9 +89,9 @@ def hook_session_end():
     """Hook Stop/SessionEnd: atualiza Current State."""
     summary = ""
     try:
-        hook_input = json.loads(sys.stdin.read())
+        hook_input = json.loads(_read_stdin_with_timeout())
         summary = hook_input.get("summary", "") or hook_input.get("session_summary", "")
-    except (json.JSONDecodeError, EOFError):
+    except (json.JSONDecodeError, ValueError):
         pass
 
     if not summary:
@@ -92,7 +104,7 @@ def hook_session_end():
 def hook_tool_detect():
     """Hook PostToolUse: detecta memory_add e espelha no vault."""
     try:
-        hook_input = json.loads(sys.stdin.read())
+        hook_input = json.loads(_read_stdin_with_timeout())
         tool_name = hook_input.get("tool_name", "") or hook_input.get("toolName", "")
         tool_args = hook_input.get("tool_input", {}) or hook_input.get("arguments", {})
 
@@ -102,7 +114,7 @@ def hook_tool_detect():
             if content and title:
                 path = sm._save_decision(title, content)
                 print(json.dumps({"sinapse": "decision-saved", "path": path}))
-    except (json.JSONDecodeError, EOFError):
+    except (json.JSONDecodeError, ValueError):
         pass
 
 

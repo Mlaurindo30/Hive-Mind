@@ -19,6 +19,7 @@ Arquitetura de backends plugáveis:
 Tudo converge no vault Obsidian como fonte única.
 """
 
+import concurrent.futures
 import json
 import os
 import re
@@ -98,6 +99,9 @@ DRY_RUN = os.environ.get("SINAPSE_DRY_RUN", "").lower() in ("1", "true", "yes")
 # Log JSON estruturado
 _LOG_JSON = os.environ.get("SINAPSE_LOG_JSON", "").lower() in ("1", "true", "yes")
 
+API_SERVER_MODE = False
+
+
 
 # ---------------------------------------------------------------------------
 # Logging estruturado
@@ -132,9 +136,57 @@ def _load_config() -> dict:
 _config = _load_config()
 
 
+def _cloud_request(endpoint: str, method: str = "POST", data: Optional[dict] = None) -> Any:
+    """
+    Realiza uma requisição HTTP segura para a API de Nuvem do Sinapse Agent.
+    Bypassa lógica local se cloud.enabled estiver ativo.
+    """
+    cloud_cfg = _config.get("cloud", {})
+    url_base = cloud_cfg.get("url", "http://localhost:8000").rstrip("/")
+    url = f"{url_base}/api/v1/{endpoint.lstrip('/')}"
+    
+    # Obter token de autenticação
+    api_key_raw = cloud_cfg.get("api_key", "")
+    api_key = api_key_raw
+    if api_key_raw:
+        # Se for uma variável de ambiente formatada como ${VAR} ou $VAR
+        match = re.match(r"^\$?\{?([A-Za-z0-9_]+)\}?$", str(api_key_raw))
+        if match:
+            var_name = match.group(1)
+            resolved = os.environ.get(var_name)
+            if resolved:
+                api_key = resolved
+    if not api_key:
+        api_key = os.environ.get("SINAPSE_API_KEY", "sinapse_default_secret_key")
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    
+    payload = None
+    if data is not None:
+        payload = json.dumps(data).encode("utf-8")
+        
+    req = Request(url, data=payload, headers=headers, method=method)
+    try:
+        with urlopen(req, timeout=10) as response:
+            res_data = response.read().decode("utf-8")
+            if res_data:
+                return json.loads(res_data)
+            return None
+    except URLError as e:
+        _log("error", "cloud_request_failed", url=url, error=str(e))
+        return None
+    except Exception as e:
+        _log("error", "cloud_request_error", url=url, error=str(e))
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Helpers de normalização
 # ---------------------------------------------------------------------------
+
 
 def _normalize(text: str) -> str:
     """Remove acentos e normaliza para lowercase (busca cross-idioma)."""
@@ -400,24 +452,25 @@ def _backend_graphify(query: str) -> Optional[Dict[str, Any]]:
     """
     Busca estrutural no knowledge graph (graph.json).
     Busca textual nos labels e tipos dos nodes/edges.
-    Implementa retry loop para race condition cron vs plugin (Fase 1.2).
+    Usa _load_graph() com cache TTL (Fase 3.2) para evitar releitura do disco.
+    Fallback: retry loop para race condition cron vs plugin (Fase 1.2).
     """
-    if not os.path.isfile(GRAPH_JSON):
-        return None
+    # Tenta via cache primeiro (TTL 60s)
+    graph = _load_graph()
 
-    # Retry loop: graph.json pode estar sendo escrito pelo cron
-    graph = None
-    for attempt in range(3):
-        try:
-            with open(GRAPH_JSON, "r") as f:
-                graph = json.load(f)
-            break
-        except (json.JSONDecodeError, OSError):
-            if attempt < 2:
-                time.sleep(0.1)
-            else:
-                _log("error", "graph_json_read_failed", file=GRAPH_JSON)
-                return None
+    # Fallback: retry direto se cache falhou (e.g. primeira chamada, cache expirado + erro)
+    if graph is None and os.path.isfile(GRAPH_JSON):
+        for attempt in range(3):
+            try:
+                with open(GRAPH_JSON, "r") as f:
+                    graph = json.load(f)
+                break
+            except (json.JSONDecodeError, OSError):
+                if attempt < 2:
+                    time.sleep(0.1)
+                else:
+                    _log("error", "graph_json_read_failed", file=GRAPH_JSON)
+                    return None
 
     if graph is None:
         return None
@@ -481,8 +534,9 @@ register_backend(_backend_graphify)
 
 def _query_vault_knowledge(query: str) -> Optional[Dict[str, Any]]:
     """
-    Orquestra todos os backends em ordem de prioridade.
-    Retorna o primeiro resultado não-vazio.
+    Orquestra todos os backends de busca em paralelo concorrente.
+    Combina múltiplos resultados (Context Fusion) se houver hits concorrentes.
+    Retorna hit único diretamente para manter total compatibilidade.
     Implementa:
       - Exception logging (Fase 1.1)
       - Circuit breaker (Fase 3.4)
@@ -491,37 +545,99 @@ def _query_vault_knowledge(query: str) -> Optional[Dict[str, Any]]:
     if not query or not query.strip():
         return None
 
-    deadline = time.time() + GLOBAL_QUERY_TIMEOUT
+    if _config.get("cloud", {}).get("enabled") and not API_SERVER_MODE:
+        _log("info", "query_vault_knowledge_cloud", query=query[:60])
+        return _cloud_request("query", method="POST", data={"query": query})
 
-    for backend in _READ_BACKENDS:
-        if time.time() > deadline:
-            _log("warn", "query_timeout", query=query[:50])
-            break
 
-        name = backend.__name__
 
-        if not _is_backend_healthy(name):
-            continue
+    # Filtrar backends saudáveis
+    healthy_backends = [b for b in _READ_BACKENDS if _is_backend_healthy(b.__name__)]
+    if not healthy_backends:
+        return None
 
+    results = {}
+    
+    # Função interna para rodar na thread
+    def _run_backend(backend_fn):
+        name = backend_fn.__name__
         try:
-            result = backend(query)
-            if result:
-                _record_backend_result(name, True)
-                _log("info", "backend_hit", backend=name, query=query[:50])
-                return result
-            _record_backend_result(name, False)
+            res = backend_fn(query)
+            return name, res
         except (URLError, OSError, subprocess.TimeoutExpired, FileNotFoundError):
-            # Expected: backend unreachable — silently skip
-            _record_backend_result(name, False)
-            continue
+            return name, None
         except Exception as e:
-            # Unexpected: bug in backend — log and skip
             _log("error", "backend_error", backend=name, error=str(e))
             traceback.print_exc(file=sys.stderr)
-            _record_backend_result(name, False)
-            continue
+            return name, None
 
-    return None
+    # Executar consultas concorrentes em paralelo
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(healthy_backends)) as executor:
+        futures = {executor.submit(_run_backend, b): b for b in healthy_backends}
+        done, not_done = concurrent.futures.wait(
+            futures, 
+            timeout=GLOBAL_QUERY_TIMEOUT,
+            return_when=concurrent.futures.ALL_COMPLETED
+        )
+
+        # Coletar resultados das threads concluídas
+        for future in done:
+            try:
+                name, res = future.result()
+                if res:
+                    has_content = bool(res.get("observations")) or bool(res.get("nodes")) or bool(res.get("edges"))
+                    if has_content:
+                        results[name] = res
+                        _record_backend_result(name, True)
+                        _log("info", "backend_hit", backend=name, query=query[:50])
+                    else:
+                        _record_backend_result(name, False)
+                else:
+                    _record_backend_result(name, False)
+            except Exception as e:
+                _log("error", "thread_unhandled_error", error=str(e))
+
+        # Registrar warn/timeout para threads excedentes
+        for future in not_done:
+            backend_fn = futures[future]
+            name = backend_fn.__name__
+            _record_backend_result(name, False)
+            _log("warn", "query_timeout", backend=name, query=query[:50])
+
+    if not results:
+        return None
+
+    # Se apenas um backend respondeu, mantemos compatibilidade direta e absoluta
+    if len(results) == 1:
+        return list(results.values())[0]
+
+    # Fusão híbrida de contexto (Context Fusion)
+    combined = {
+        "source": "hybrid",
+        "observations": [],
+        "nodes": [],
+        "edges": [],
+        "query": query,
+    }
+    
+    hit_sources = []
+    for name, res in results.items():
+        hit_sources.append(res.get("source", name))
+        
+        # Merge de dados estruturais e temporais
+        combined["observations"].extend(res.get("observations", []))
+        combined["nodes"].extend(res.get("nodes", []))
+        combined["edges"].extend(res.get("edges", []))
+        
+    # Identificar a fonte combinada
+    combined["source"] = "hybrid (" + ", ".join(hit_sources) + ")"
+    
+    # Limitar aos máximos globais configurados
+    combined["observations"] = combined["observations"][:MAX_OBSERVATIONS]
+    combined["nodes"] = combined["nodes"][:MAX_NODES]
+    combined["edges"] = combined["edges"][:MAX_NODES]
+
+    return combined
 
 
 # ---------------------------------------------------------------------------
@@ -666,7 +782,16 @@ def _save_decision(title: str, content: str) -> Optional[str]:
     Salva uma decisão no vault: work/active/YYYY-MM-DD-titulo.md
     Formato: frontmatter YAML + conteúdo da decisão.
     """
+    if _config.get("cloud", {}).get("enabled") and not API_SERVER_MODE:
+        _log("info", "save_decision_cloud", title=title[:60])
+        res = _cloud_request("decision", method="POST", data={"title": title, "content": content})
+        if res and res.get("saved"):
+            return res.get("path")
+        return None
+
+
     if DRY_RUN:
+
         _log("info", "dry_run", action="save_decision", title=title[:60])
         return "/dev/null/dry-run"
 
@@ -703,7 +828,16 @@ def _save_learning(title: str, content: str) -> Optional[str]:
     Salva um aprendizado no vault: append em brain/Patterns.md
     Com deduplicação (Fase 2.1).
     """
+    if _config.get("cloud", {}).get("enabled") and not API_SERVER_MODE:
+        _log("info", "save_learning_cloud", title=title[:60])
+        res = _cloud_request("learning", method="POST", data={"title": title, "content": content})
+        if res and res.get("saved"):
+            return res.get("path")
+        return None
+
+
     if DRY_RUN:
+
         _log("info", "dry_run", action="save_learning", title=title[:60])
         return "/dev/null/dry-run"
 
@@ -727,11 +861,20 @@ def _save_learning(title: str, content: str) -> Optional[str]:
 
 {content}
 """
+    # Atomic write: lê existente + append em memória + atomic replace (Fase 3.9)
     try:
-        with open(PATTERNS_FILE, "a") as f:
-            f.write(entry)
-        _log("info", "learning_saved", title=title[:60])
-        return PATTERNS_FILE
+        existing = ""
+        try:
+            with open(PATTERNS_FILE, "r") as f:
+                existing = f.read()
+        except FileNotFoundError:
+            pass
+        if _atomic_write(PATTERNS_FILE, existing + entry):
+            _log("info", "learning_saved", title=title[:60])
+            return PATTERNS_FILE
+        else:
+            _log("error", "save_learning_failed", title=title[:60], error="atomic_write returned False")
+            return None
     except OSError as e:
         _log("error", "save_learning_failed", title=title[:60], error=str(e))
         return None
@@ -747,7 +890,18 @@ def _update_current_state(
     Mantém o formato existente, adiciona nova seção da sessão atual.
     Regex corrigido com flag MULTILINE (Fase 1.6).
     """
+    if _config.get("cloud", {}).get("enabled") and not API_SERVER_MODE:
+        _log("info", "update_current_state_cloud")
+        _cloud_request("session-end", method="POST", data={
+            "summary": summary,
+            "decisions": decisions,
+            "learnings": learnings
+        })
+        return
+
+
     today = datetime.now().strftime("%Y-%m-%d %H:%M")
+
     os.makedirs(os.path.dirname(MEMORY_FILE), exist_ok=True)
 
     # Lê o arquivo existente

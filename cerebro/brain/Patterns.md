@@ -500,3 +500,17 @@ Operational patterns accumulated from GBrain, GStack, and Superpowers methodolog
 ## MCP Pattern (2026-05-23)
 
 Learning from MCP
+
+
+---
+
+## Thoth deve usar sinapse-mcp.py como MCP server unificado (2026-05-24)
+
+O sinapse-memory.py (plugin de 984 linhas) é o backend unificado. O sinapse-mcp.py expõe 5 tools. Ambos usam o mesmo código. Não é necessário MCP server separado para claude-mem — o sinapse_query já cobre todos os backends.
+
+
+---
+
+## Aprendizado via API (2026-05-24)
+
+Novo padrão identificado no fluxo de testes de integração da API REST.

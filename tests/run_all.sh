@@ -16,17 +16,17 @@ run_suite() {
     echo "════════════════════════════════════════════════════"
     if "$@"; then
         echo "  ✓ $name PASSED"
-        ((PASS++))
+        ((++PASS))
     else
         echo "  ✗ $name FAILED"
-        ((FAIL++))
+        ((++FAIL))
     fi
 }
 
 run_suite "S0 — Smoke" bash tests/smoke/test_smoke.sh
 run_suite "U — Unit" python3 -m pytest tests/unit/ -v --tb=short
-run_suite "I — Integration" python3 -m pytest tests/integration/ -v --tb=short --run-integration
-run_suite "E — End-to-End" python3 -m pytest tests/e2e/ -v --tb=short --run-e2e
+run_suite "I — Integration" python3 -m pytest tests/integration/ -v --tb=short
+run_suite "E — End-to-End" python3 -m pytest tests/e2e/ -v --tb=short
 
 echo ""
 echo "════════════════════════════════════════════════════"

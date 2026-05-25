@@ -31,6 +31,9 @@ class TestSinapseMCP:
             "sinapse_save_learning",
             "sinapse_health",
             "sinapse_session_end",
+            "sinapse_temporal_search",
+            "sinapse_temporal_save",
+            "sinapse_zettelkasten_split",
         }
 
     def test_health_tool(self):
