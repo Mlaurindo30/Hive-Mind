@@ -10,7 +10,8 @@ Agentes de IA sofrem de amnésia entre sessões. O Sinapse Agent resolve isso co
 
 ---
 
-## Arquitetura (3 Camadas)
+## Arquitetura (Camadas & Cloud API)
+
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -78,10 +79,12 @@ Agentes de IA sofrem de amnésia entre sessões. O Sinapse Agent resolve isso co
 
 | Camada | Ferramenta | Pergunta que responde | Dados |
 |--------|-----------|----------------------|-------|
-| 1 — Estrutural | **Graphify** | Como os conceitos se conectam? | `graph.json` (491 nodes, 606 edges, 55 communities) |
+| 1 — Estrutural | **Graphify** | Como os conceitos se conectam? | `graph.json` (1328 nodes, 1473 edges, 113 communities) |
 | 2 — Temporal | **claude-mem** | Quem fez o quê? Quando? | SQLite + Chroma (FTS5 search) |
 | 3 — Execução | **RTK** | Como otimizar esse comando? | Hook `pre_tool_call` no Hermes |
 | 4 — Associativa | **NeuralMemory** | Como os conceitos se relacionam? | Spreading activation (nmem recall) |
+| 5 — Cloud REST | **FastAPI Cloud API** | Como acessar a memória remotamente? | Endpoints seguros HTTP (Token Bearer auth) |
+
 
 ---
 
@@ -126,17 +129,19 @@ cd ~/Documentos/Projects/sinapse_agent
 ./install.sh
 ```
 
-O `install.sh` faz tudo (9 etapas):
+O `install.sh` faz tudo (10 etapas):
 
-1. **Verifica dependências** — Python, uv/pipx, Node, Bun, Ollama (opcional)
-2. **Instala Graphify** — indexa vault (Gemini→Ollama→AST)
-3. **Registra skills** — detecta e configura 12+ agentes
-4. **Configura claude-mem** — compila do source, inicia worker (systemd)
-5. **Instala NeuralMemory** — clone + `pip install -e neural-memory/`
-6. **Configura RTK** — compila Rust, instala plugin Hermes
-7. **Configura MCP** — graphify + claude-mem servers
-8. **Configura cron** — sync a cada 6h
-9. **Plugin sinapse-memory** — multi-backend (nmem + claude-mem + graphify)
+1. **Verifica dependências** — Python, uv/pipx, Node, Bun, SQLite3, etc.
+2. **Instala Graphify** — indexa vault e atualiza o knowledge graph (AST-only por padrão).
+3. **Registra skills** — detecta e configura 12+ agentes.
+4. **Configura claude-mem** — compila do source, inicia worker (systemd).
+5. **Instala NeuralMemory** — clone + `pip install -e neural-memory/`.
+6. **Configura RTK** — compila Rust, instala plugin Hermes.
+7. **Configura MCP** — graphify + claude-mem servers.
+8. **Plugin sinapse-memory** — copia para a pasta do plugin do Hermes.
+9. **Configura agentes externos** — Claude Code, Codex, Cursor, etc. (MCP).
+10. **Configura cron** — sync e rebuild automático a cada 6h.
+
 
 ### Modelos Ollama (opcional)
 
@@ -153,9 +158,27 @@ cp .env.example .env
 # Configure GOOGLE_API_KEY para extração semântica com Gemini
 ```
 
+### Cloud Memory API (VPS Deploy — Opcional)
+
+Para rodar a camada de memória de forma 100% desacoplada na nuvem (VPS), inicie o microsserviço de API seguro e chaveie a comunicação:
+
+1. **Inicie a REST API na VPS:**
+   ```bash
+   python3 scripts/sinapse-api.py
+   ```
+2. **Ative o chaveamento no `sinapse.yaml` da máquina de desenvolvimento:**
+   ```yaml
+   cloud:
+     enabled: true
+     url: "http://<sua-vps-ip>:8000"
+     api_key: "${SINAPSE_API_KEY}"
+   ```
+
 ---
 
 ## Configuração do Obsidian
+
+
 
 ```bash
 # Flatpak
