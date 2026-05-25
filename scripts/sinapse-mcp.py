@@ -129,6 +129,24 @@ TOOLS = [
             },
             "required": ["content"]
         }
+    },
+    {
+        "name": "sinapse_zettelkasten_split",
+        "description": "Auto-partition a monolithic file or densly annotated content into individual conceptual atomic Zettelkasten notes in Obsidian vault atoms/ directory using local Ollama model (qwen2.5-coder:3b). Updates knowledge graph automatically.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source_file": {
+                    "type": "string",
+                    "description": "Path to the monolithic markdown file to partition (e.g. cerebro/brain/Patterns.md)"
+                },
+                "output_dir": {
+                    "type": "string",
+                    "description": "Target atoms directory (default: cerebro/atoms)"
+                }
+            },
+            "required": ["source_file"]
+        }
     }
 ]
 
@@ -144,6 +162,7 @@ HANDLERS = {
     "sinapse_session_end": lambda args: _session_end(args.get("summary", "")),
     "sinapse_temporal_search": lambda args: _temporal_search(args.get("query", "")),
     "sinapse_temporal_save": lambda args: _temporal_save(args.get("content", ""), args.get("kind", "change")),
+    "sinapse_zettelkasten_split": lambda args: _zettelkasten_split(args.get("source_file", ""), args.get("output_dir", "cerebro/atoms")),
 }
 
 
@@ -152,6 +171,18 @@ def _session_end(summary):
     sm._session_learnings = []
     sm._update_current_state([], [], summary)
     return {"updated": True}
+
+
+def _zettelkasten_split(source_file, output_dir="cerebro/atoms"):
+    import importlib.util
+    import os
+    scripts_dir = os.path.dirname(__file__)
+    zk_script = os.path.join(scripts_dir, "sinapse-zettelkasten.py")
+    spec = importlib.util.spec_from_file_location("sinapse_zettelkasten", zk_script)
+    zk_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(zk_mod)
+    files = zk_mod.split_monolithic_file(source_file, output_dir)
+    return {"atoms_created": len(files), "files": files}
 
 
 def _temporal_search(query):

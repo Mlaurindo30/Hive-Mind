@@ -33,7 +33,7 @@ class TestGracefulDegradation:
             raise KeyError("simulated bug")
 
         def fallback(query):
-            return {"source": "fallback", "observations": []}
+            return {"source": "fallback", "observations": [{"content": "recovered"}]}
 
         monkeypatch.setattr("sinapse_memory._READ_BACKENDS", [buggy, fallback])
         result = _query_vault_knowledge("test")

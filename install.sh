@@ -146,22 +146,38 @@ if $FORCE || ! python3 -c "import graphify" 2>/dev/null; then
         pip install -e "$GRAPHIFY_SRC[all]"
     fi
     # Garantir pyyaml (usado pelo plugin sinapse-memory)
-    python3 -c "import yaml" 2>/dev/null || ${INSTALL_METHOD} pip install pyyaml --quiet 2>/dev/null || true
+    if [ "$INSTALL_METHOD" = "uv" ]; then
+        python3 -c "import yaml" 2>/dev/null || uv pip install pyyaml --quiet 2>/dev/null || pip3 install pyyaml --quiet 2>/dev/null || pip install pyyaml --quiet 2>/dev/null || true
+    else
+        python3 -c "import yaml" 2>/dev/null || pip3 install pyyaml --quiet 2>/dev/null || pip install pyyaml --quiet 2>/dev/null || true
+    fi
     echo -e "  ${GREEN}✓${NC} graphify instalado do source ($GRAPHIFY_SRC)"
 else
     echo -e "  ${GREEN}✓${NC} graphify já instalado"
 fi
+
+# Garantir dependências da API Cloud (fastapi, uvicorn, python-multipart, httpx)
+echo -e "  Instalando dependências da API Cloud (fastapi, uvicorn, python-multipart, httpx)..."
+if [ "$INSTALL_METHOD" = "uv" ]; then
+    uv pip install -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
+    pip install --break-system-packages -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
+    pip install -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || true
+else
+    pip install --break-system-packages -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
+    pip install -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || true
+fi
+
 
 # Indexar o vault com extração semântica se API key disponível, senão AST-only
 echo -e "  Indexando vault cerebro/..."
 if [ -n "${GOOGLE_API_KEY:-}" ] || [ -n "${GEMINI_API_KEY:-}" ]; then
     echo -e "  Usando Gemini para extração semântica..."
     graphify "$VAULT_DIR" 2>&1 | tail -3
-elif curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
+elif [ "${SINAPSE_OLLAMA:-0}" = "1" ] && curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
     echo -e "  Ollama detectado. Usando qwen2.5-coder:3b para extração semântica..."
     OLLAMA_MODEL=qwen2.5-coder:3b graphify "$VAULT_DIR" --backend ollama 2>&1 | tail -3
 else
-    echo -e "  Sem API key ou Ollama. Usando AST-only (tree-sitter + Leiden clustering)..."
+    echo -e "  Usando AST-only rápido (tree-sitter + Leiden clustering)..."
     graphify update "$VAULT_DIR" 2>&1 | tail -3
 fi
 
@@ -461,7 +477,7 @@ echo ""
 # =============================================================================
 echo -e "${BOLD}[8/10] Configurando cron de sync...${NC}"
 
-CRON_JOB="SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd $SINAPSE_HOME && ./scripts/build-graph.sh >> logs/sync.log 2>&1"
+CRON_JOB="SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && ./scripts/build-graph.sh >> logs/sync.log 2>&1"
 
 if command -v crontab &>/dev/null; then
     # Verificar se já existe
@@ -582,7 +598,7 @@ with open('$MCP_FILE', 'w') as f: json.dump(cfg, f, indent=2)
         echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
     fi
     echo -e "  ${GREEN}✓${NC} Kilo Code → $MCP_FILE"
-    ((AGENTS_CONFIGURED++))
+    ((++AGENTS_CONFIGURED))
 fi
 
 # OpenCode
@@ -591,7 +607,7 @@ if command -v opencode &>/dev/null; then
     mkdir -p "$(dirname "$MCP_FILE")"
     echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
     echo -e "  ${GREEN}✓${NC} OpenCode → $MCP_FILE"
-    ((AGENTS_CONFIGURED++))
+    ((++AGENTS_CONFIGURED))
 fi
 
 # Cursor
@@ -600,7 +616,7 @@ if [ -d "$HOME/.cursor/" ]; then
     mkdir -p "$(dirname "$MCP_FILE")"
     echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
     echo -e "  ${GREEN}✓${NC} Cursor → $MCP_FILE"
-    ((AGENTS_CONFIGURED++))
+    ((++AGENTS_CONFIGURED))
 fi
 
 # Claude Code
@@ -609,7 +625,7 @@ if command -v claude &>/dev/null; then
     mkdir -p "$(dirname "$MCP_FILE")"
     echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
     echo -e "  ${GREEN}✓${NC} Claude Code → $MCP_FILE"
-    ((AGENTS_CONFIGURED++))
+    ((++AGENTS_CONFIGURED))
 fi
 
 # Codex CLI
@@ -622,7 +638,7 @@ if command -v codex &>/dev/null; then
         cp "$PROJECT_ROOT/cerebro/.codex/AGENTS.md" "$VAULT_DIR/.codex/AGENTS.md" 2>/dev/null || true
     fi
     echo -e "  ${GREEN}✓${NC} Codex CLI → $MCP_FILE"
-    ((AGENTS_CONFIGURED++))
+    ((++AGENTS_CONFIGURED))
 fi
 
 # OpenClaw
@@ -642,7 +658,7 @@ except Exception:
         echo "$MCP_SINAPSE_CONFIG" > "$OW_FILE"
     fi
     echo -e "  ${GREEN}✓${NC} OpenClaw → $OW_FILE"
-    ((AGENTS_CONFIGURED++))
+    ((++AGENTS_CONFIGURED))
 fi
 
 # Gemini CLI
@@ -663,7 +679,7 @@ except Exception:
         echo "$MCP_SINAPSE_CONFIG" > "$GEMINI_FILE"
     fi
     echo -e "  ${GREEN}✓${NC} Gemini CLI → $GEMINI_FILE"
-    ((AGENTS_CONFIGURED++))
+    ((++AGENTS_CONFIGURED))
 fi
 
 if [ "$AGENTS_CONFIGURED" -eq 0 ]; then
@@ -680,6 +696,17 @@ else
     echo -e "  Execute: python3 scripts/sinapse-write.py health"
 fi
 echo ""
+
+if $WITH_TESTS; then
+    echo -e "${BOLD}Executando testes da suíte completa...${NC}"
+    if ./tests/run_all.sh; then
+        echo -e "  ${GREEN}✓${NC} Todos os testes passaram com sucesso!"
+    else
+        echo -e "  ${RED}✗${NC} Alguns testes falharam!"
+        exit 1
+    fi
+    echo ""
+fi
 echo -e "${BOLD}${GREEN}║       Sinapse Agent instalado com sucesso!          ║${NC}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""

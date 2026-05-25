@@ -74,6 +74,9 @@ sinapse_mcp:
     - sinapse_save_learning   # salva aprendizado no Patterns.md
     - sinapse_health          # health check completo
     - sinapse_session_end     # finaliza sessão, atualiza Current State
+    - sinapse_temporal_search # busca direta no claude-mem (FTS5 + Chroma)
+    - sinapse_temporal_save   # salva observação no claude-mem ou fallback vault
+    - sinapse_zettelkasten_split # particiona notas monolíticas em notas atômicas Zettelkasten
 
 # =============================================================================
 # AGENTES SUPORTADOS
@@ -128,8 +131,17 @@ mcp_servers:
     enabled: true
 
 # =============================================================================
+# CLOUD (Fase 4.3 — Desacoplamento para VPS)
+# =============================================================================
+cloud:
+  enabled: false                          # Se true, os hooks locais agem como clientes da nuvem
+  url: "http://localhost:8000"           # Endpoint padrão para testes locais
+  api_key: "${SINAPSE_API_KEY}"          # Token de autenticação seguro
+
+# =============================================================================
 # CRON
 # =============================================================================
 cron:
   sync_schedule: "0 */6 * * *"            # a cada 6 horas
   rebuild_schedule: "0 2 * * 0"           # domingo 2am rebuild completo
+

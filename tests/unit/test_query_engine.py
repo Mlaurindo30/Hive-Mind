@@ -4,7 +4,7 @@ from sinapse_memory import _query_vault_knowledge, _READ_BACKENDS
 
 
 class TestQueryEngine:
-    """U5: Motor de busca unificado"""
+    """U5: Motor de busca unificado com Context Fusion"""
 
     def test_empty_query_returns_none(self):
         """U5.1: Query vazia retorna None."""
@@ -16,19 +16,21 @@ class TestQueryEngine:
         assert _query_vault_knowledge(None) is None
 
     def test_first_backend_wins(self, monkeypatch):
-        """U5.2: Primeiro backend que retorna resultado ganha."""
+        """U5.2: Funde múltiplos backends se ambos tiverem conteúdo, ou retorna o único hit real."""
         def backend1(q):
-            return {"source": "backend1", "observations": [{"content": "found"}]}
+            return {"source": "backend1", "observations": [{"content": "found1"}]}
         def backend2(q):
             return {"source": "backend2", "observations": []}
 
         monkeypatch.setattr("sinapse_memory._READ_BACKENDS", [backend1, backend2])
         result = _query_vault_knowledge("test")
         assert result is not None
+        # Como backend2 não tem observações (vazio), backend1 é o único hit real (retornado diretamente)
         assert result["source"] == "backend1"
+        assert result["observations"][0]["content"] == "found1"
 
     def test_second_backend_fallback(self, monkeypatch):
-        """U5.3: Segundo backend é usado se primeiro falha."""
+        """U5.3: Segundo backend é usado se primeiro falha ou retorna vazio."""
         def backend1(q):
             return None
         def backend2(q):
@@ -40,12 +42,12 @@ class TestQueryEngine:
         assert result["source"] == "backend2"
 
     def test_bug_in_backend_doesnt_crash(self, monkeypatch):
-        """U5.4: Backend com bug (KeyError) não crasha o sistema."""
+        """U5.4: Backend com bug (KeyError) não crasha o sistema e permite fallback."""
         def buggy(q):
             raise KeyError("simulated bug")
 
         def fallback(q):
-            return {"source": "fallback", "observations": []}
+            return {"source": "fallback", "observations": [{"content": "recovered"}]}
 
         monkeypatch.setattr("sinapse_memory._READ_BACKENDS", [buggy, fallback])
         result = _query_vault_knowledge("test")
@@ -62,3 +64,20 @@ class TestQueryEngine:
         monkeypatch.setattr("sinapse_memory._READ_BACKENDS", [fail1, fail2])
         result = _query_vault_knowledge("test")
         assert result is None
+
+    def test_context_fusion_multiple_hits(self, monkeypatch):
+        """U5.6: Funde observações de múltiplos backends concorrentes com conteúdo."""
+        def backend1(q):
+            return {"source": "backend1", "observations": [{"content": "obs1"}]}
+        def backend2(q):
+            return {"source": "backend2", "observations": [{"content": "obs2"}]}
+
+        monkeypatch.setattr("sinapse_memory._READ_BACKENDS", [backend1, backend2])
+        result = _query_vault_knowledge("test")
+        assert result is not None
+        assert "hybrid" in result["source"]
+        assert "backend1" in result["source"]
+        assert "backend2" in result["source"]
+        assert len(result["observations"]) == 2
+        contents = {obs["content"] for obs in result["observations"]}
+        assert contents == {"obs1", "obs2"}
