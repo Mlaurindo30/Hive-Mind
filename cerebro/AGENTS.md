@@ -3,7 +3,7 @@
 > Formato cross-agent: Thoth (Hermes), Claude Code, Codex, OpenCode, Gemini CLI, Cursor, Copilot.
 > Stack: Graphify (knowledge graph) + claude-mem (temporal tracking) + RTK (execution optimization).
 > Template base: [obsidian-mind](https://github.com/breferrari/obsidian-mind).
-> Última revisão: 2026-05-23.
+> Última revisão: 2026-05-30.
 
 ---
 
@@ -17,13 +17,19 @@
 
 ## 1. O que é este vault
 
-Fonte única de verdade para Thoth (agente pessoal do Michel) e todos os coding agents. Três camadas de memória:
+Fonte única de verdade para Thoth (agente pessoal do Michel) e todos os coding agents. **Cinco camadas de memória:**
 
-| Camada | Ferramenta | O que faz | Como acessar |
-|--------|-----------|----------|-------------|
-| Estrutural | **Graphify** | Knowledge graph com Leiden clustering (1266 nodes) | `graphify-out/graph.json` |
-| Temporal | **claude-mem** | Tracking de eventos, FTS5, Chroma | Worker HTTP `:37700` |
-| Execução | **RTK** | Otimização de comandos shell | Plugin Hermes `pre_tool_call` |
+| Camada | Ferramenta | O que faz | Como acessar | Gap |
+|--------|-----------|----------|-------------|-----|
+| 1 — Estrutural | **Graphify** | Knowledge graph com Leiden clustering | `graphify-out/graph.json` | ~6h (reindex) |
+| 2 — Temporal | **claude-mem** | Tracking de eventos, FTS5, Chroma | Worker HTTP `:37700` | Zero |
+| 3 — Execução | **RTK** | Otimização de comandos shell | Plugin Hermes `pre_tool_call` | Zero |
+| 4 — Associativa | **Neural Memory** | Busca vetorial HNSW, conceitos relacionados | Plugin Python `sinapse-memory` | ~6h |
+| 5 — Híbrida | **Filesystem** | Busca direta real-time nos .md do vault | Plugin Python `sinapse-memory` | **ZERO** |
+
+> **Camada 5 elimina o gap do Graphify:** notas recém-escritas aparecem instantaneamente 
+> via scan direto no vault, sem esperar reindexação de 6h. O Context Fusion deduplica 
+> automaticamente quando Graphify + filesystem retornam o mesmo arquivo.
 
 **Verificação de saúde (antes de qualquer sessão):**
 ```bash
@@ -53,6 +59,9 @@ systemctl --user is-active sinapse-claude-mem.service
 ---
 
 ## 3. Como cada agente usa este vault
+
+### O Protocolo de Execução (Agent Loop)
+Todo agente DEVE seguir estritamente o `cerebro/brain/Agent Loop Protocol.md`. Este protocolo unifica a disciplina de pensamento do Manus com a soberania do usuário e a prioridade de memória do Sinapse.
 
 ### Thoth (Hermes Agent — agente principal do Michel)
 
@@ -159,27 +168,46 @@ Definidos em `.claude/agents/`. Rodam em contextos isolados.
 
 ## 7. Memória — como o agente lembra
 
-O vault é a fonte única de verdade. A memória do agente opera em 3 camadas:
+O vault é a fonte única de verdade. A memória do agente opera em **5 camadas:**
 
-### Structural Memory (Graphify)
+### Camada 1 — Structural Memory (Graphify)
 - `graphify update cerebro/` → `cerebro/graphify-out/graph.json`
-- 1266 nodes, 1319 edges, 117 comunidades (Leiden clustering)
+- 1266+ nodes, 1319+ edges, 117 comunidades (Leiden clustering)
 - Query via: `graphify query`, MCP server, ou sinapse-memory plugin
+- **Gap:** ~6h entre reindexações automáticas
 
-### Temporal Memory (claude-mem)
+### Camada 2 — Temporal Memory (claude-mem)
 - Worker em `:37700` (systemd user service)
 - FTS5 full-text search + Chroma embeddings
 - Query via: `search()` → `timeline(anchor=ID)` → `get_observations([IDs])`
+- **Gap:** Zero (eventos em tempo real)
 
-### Execution Memory (RTK)
+### Camada 3 — Execution Memory (RTK)
 - Plugin Hermes: `~/.hermes/plugins/rtk-rewrite/`
 - Otimiza comandos shell automaticamente (pre_tool_call hook)
+- **Gap:** Zero (hook síncrono)
+
+### Camada 4 — Associative Memory (Neural Memory)
+- Plugin Python: `neural-memory/` (busca vetorial HNSW)
+- Retorna conceitos semelhantes, clusters dinâmicos
+- Query via: sinapse-memory plugin (recall_timeout: 5s)
+- **Gap:** ~6h (sincroniza com graph.json)
+
+### Camada 5 — Hybrid Memory (Filesystem — busca direta real-time)
+- Plugin Python: `sinapse-memory` → `_backend_filesystem()`
+- Scan recursivo direto em `.md` do vault, sem depender de indexação
+- Busca case-insensitive, extrai título H1, YAML frontmatter, conteúdo
+- Cache TTL 30s — performance sem stale data
+- **Gap: ZERO** — lê o arquivo no momento exato da query
+- **Deduplicação cross-backend** elimina duplicados quando Graphify + filesystem
+  retornam o mesmo arquivo (chaves: source_file, title, conteúdo)
 
 ### Write path
 ```
 Decisão → vault (work/active/)  ← Graphify reindex (cron 6h)
         → claude-mem (memory_add) ← temporal tracking
         → comandos passam pelo RTK ← otimização
+        → hybrid search encontra INSTANTANEAMENTE ← camada 5 filesystem
 ```
 
 ---
@@ -232,7 +260,7 @@ Campos adicionais por tipo:
 
 ---
 
-## 10. Análises de ferramentas (fluxo Thoth)
+## 11. Análises de ferramentas (fluxo Thoth)
 
 Quando Michel enviar uma skill, plugin, ferramenta, integração ou ideia para avaliação,
 Thoth gera uma **Análise Fria** usando o template `templates/Analise Fria.md` e salva em `reference/analises/`.
@@ -256,7 +284,7 @@ O arquivo serve como registro permanente de avaliação para decisões futuras.
 
 ---
 
-## 11. Regras de uso do Sinapse pelo Thoth (OBRIGATÓRIO)
+## 12. Regras de uso do Sinapse pelo Thoth (OBRIGATÓRIO)
 
 > **Estas regras são não-negociáveis. O Thoth deve segui-las em toda interação com Michel.**
 
@@ -295,7 +323,7 @@ Michel espera que o Sinapse seja usado ativamente. Não consultar o vault antes 
 
 ---
 
-## 12. Regra de resposta por áudio (OBRIGATÓRIO)
+## 13. Regra de resposta por áudio (OBRIGATÓRIO)
 
 > **Se Michel enviar mensagem de voz (áudio), o Thoth DEVE responder também com áudio.**
 

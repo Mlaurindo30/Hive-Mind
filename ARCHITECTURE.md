@@ -9,7 +9,7 @@ Blueprint técnico da camada de memória universal para agentes de IA.
 
 ## Índice
 
-1. [Visão Geral das 3 Camadas](#1-visão-geral-das-3-camadas)
+1. [Visão Geral das 5 Camadas](#1-visão-geral-das-5-camadas)
 2. [Fluxo de Leitura](#2-fluxo-de-leitura)
 3. [Fluxo de Escrita](#3-fluxo-de-escrita)
 4. [Divisão de Responsabilidades](#4-divisão-de-responsabilidades)
@@ -22,10 +22,77 @@ Blueprint técnico da camada de memória universal para agentes de IA.
 
 ---
 
-## 1. Visão Geral das 4 Camadas
+## 1. Visão Geral das 5 Camadas
 
-O Sinapse Agent organiza a memória de agentes em três camadas complementares,
+O Sinapse Agent organiza a memória de agentes em **cinco camadas complementares**,
 cada uma respondendo a uma pergunta fundamental:
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│   CAMADA 1 — ESTRUTURAL                    Graphify                          │
+│   ─────────────────────                    ────────                          │
+│   Pergunta: O QUE existe no vault? Como os conceitos se conectam?            │
+│                                                                              │
+│   Entrada:  Arquivos .md no vault cerebro/                                   │
+│   Processo: Parsing → extração de entidades → embeddings →                     │
+│             clusterização (Leiden community detection)                         │
+│   Saída:    graph.json (nodes, edges, communities)                           │
+│   Latência: ~30-60s (build), <5s (query)                                     │
+│   Gap:      Até 6h entre reindexações automáticas                            │
+│                                                                              │
+│   ═══════════════════════════════════════════════════════════════════════════  │
+│                                                                              │
+│   CAMADA 2 — TEMPORAL                      claude-mem                        │
+│   ─────────────────────                    ──────────                        │
+│   Pergunta: QUEM fez o quê? QUANDO? Em qual CONTEXTO?                        │
+│                                                                              │
+│   Entrada:  Eventos de agentes (tool uses, prompts, resultados)              │
+│   Processo: Hook intercepta eventos → gera observações via LLM →               │
+│             armazena em SQLite (FTS5 search)                                  │
+│   Saída:    Observations, corpora, timeline reports                          │
+│   Latência: <500ms (search), 3-10s (generate)                                │
+│                                                                              │
+│   ═══════════════════════════════════════════════════════════════════════════  │
+│                                                                              │
+│   CAMADA 3 — EXECUÇÃO                       RTK                              │
+│   ─────────────────────                     ───                              │
+│   Pergunta: COMO otimizar esse comando shell?                                  │
+│                                                                              │
+│   Entrada:  Comando shell antes da execução (hook pre_tool_call)               │
+│   Processo: rtk rewrite → analisa e reescreve com melhores práticas          │
+│   Saída:    Comando otimizado (ou original se já estiver bom)                  │
+│   Latência: <2s (rewrite)                                                    │
+│                                                                              │
+│   ═══════════════════════════════════════════════════════════════════════════  │
+│                                                                              │
+│   CAMADA 4 — ASSOCIATIVA                  Neural Memory                      │
+│   ─────────────────────                   ─────────────                      │
+│   Pergunta: COMO conceitos se relacionam de forma semântica?                 │
+│                                                                              │
+│   Entrada:  Embeddings de entidades do vault + queries do agente               │
+│   Processo: Busca vetorial HNSW em memória neural → retorna associações        │
+│   Saída:    Conceitos relacionados, similaridades, clusters dinâmicos          │
+│   Latência: <100ms (recall)                                                  │
+│                                                                              │
+│   ═══════════════════════════════════════════════════════════════════════════  │
+│                                                                              │
+│   CAMADA 5 — HÍBRIDA                    Filesystem + Context Fusion            │
+│   ─────────────────────                   ────────────────────────             │
+│   Pergunta: O que existe AGORA, real-time, sem esperar reindexação?            │
+│                                                                              │
+│   Entrada:  Arquivos .md do vault (scan recursivo direto)                      │
+│   Processo: Busca textual case-insensitive em todos os .md →                 │
+│             extrai título, conteúdo, frontmatter → retorna observações         │
+│   Saída:    Observations diretas do filesystem                                 │
+│   Latência: <1s para vaults até 10MB                                         │
+│   Gap:      ZERO — lê o arquivo no momento da query                            │
+│                                                                              │
+│   ⚡ HYBRID SEARCH: combina os 5 backends + deduplicação cross-backend          │
+│      → elimina o gap de 6h do Graphify sem duplicar resultados                 │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -105,29 +172,37 @@ cada uma respondendo a uma pergunta fundamental:
 ### Mapa de Responsabilidades
 
 ```
-┌───────────────┬─────────────────┬───────────────────┬─────────────────┐
-│               │   CAMADA 1      │    CAMADA 2       │   CAMADA 3      │
-│               │   Graphify      │    claude-mem     │   RTK           │
-├───────────────┼─────────────────┼───────────────────┼─────────────────┤
-│ O que          │ Arquivos .md no │ Eventos de        │ Comandos shell  │
-│ processa       │ vault Obsidian  │ agentes + prompts │ antes de exec   │
-├───────────────┼─────────────────┼───────────────────┼─────────────────┤
-│ Como          │ tree-sitter +  │ Hook intercepta   │ Regex + regras  │
-│ processa       │ regex +        │ eventos → LLM     │ determinísticas │
-│               │ Leiden cluster │ gera observações  │                 │
-├───────────────┼─────────────────┼───────────────────┼─────────────────┤
-│ Formato de     │ graph.json     │ SQLite rows +     │ stdout string   │
-│ saída          │ (JSON)         │ FTS5 search       │                 │
-├───────────────┼─────────────────┼───────────────────┼─────────────────┤
-│ Interface      │ MCP (stdio) +  │ MCP (stdio) +     │ Hook            │
-│               │ arquivo direto  │ REST API          │ pre_tool_call   │
-├───────────────┼─────────────────┼───────────────────┼─────────────────┤
-│ Latência       │ < 5s (query)   │ < 500ms (search)  │ < 2s (rewrite)  │
-│               │ 30-60s (build)  │ 3-10s (generate)  │                 │
-├───────────────┼─────────────────┼───────────────────┼─────────────────┤
-│ Dependência    │ Python 3.10+   │ Node 18+/Bun 1.0+ │ Rust binary     │
-│               │ uv ou pipx      │                   │ (via pip)       │
-└───────────────┴─────────────────┴───────────────────┴─────────────────┘
+┌───────────────┬─────────────────┬───────────────────┬─────────────────┬─────────────────┬──────────────────────┐
+│               │   CAMADA 1      │    CAMADA 2       │   CAMADA 3      │   CAMADA 4      │   CAMADA 5           │
+│               │   Graphify      │   claude-mem      │   RTK           │  Neural Memory  │  Filesystem          │
+│               │   ESTRUTURAL    │   TEMPORAL        │   EXECUÇÃO      │  ASSOCIATIVA    │  HÍBRIDA             │
+├───────────────┼─────────────────┼───────────────────┼─────────────────┼─────────────────┼──────────────────────┤
+│ O que         │ Arquivos .md no │ Eventos de        │ Comandos shell  │ Embeddings do  │ Arquivos .md do     │
+│ processa      │ vault Obsidian  │ agentes + prompts │ antes de exec   │ vault + queries │ vault (scan direto) │
+├───────────────┼─────────────────┼───────────────────┼─────────────────┼─────────────────┼──────────────────────┤
+│ Como          │ tree-sitter +   │ Hook intercepta   │ Regex + regras  │ Busca vetorial  │ Regex + walk        │
+│ processa      │ regex +         │ eventos → LLM     │ determinísticas │ HNSW            │ recursivo em .md    │
+│               │ Leiden cluster  │ gera observações  │                 │                 │                     │
+├───────────────┼─────────────────┼───────────────────┼─────────────────┼─────────────────┼──────────────────────┤
+│ Formato de    │ graph.json      │ SQLite rows +      │ stdout string   │ Similaridades    │ Observations com    │
+│ saída         │ (JSON)          │ FTS5 search        │                 │ e clusters       │ source_file         │
+├───────────────┼─────────────────┼───────────────────┼─────────────────┼─────────────────┼──────────────────────┤
+│ Interface     │ MCP (stdio) +   │ MCP (stdio) +      │ Hook            │ Plugin Python   │ Plugin Python       │
+│               │ arquivo direto  │ REST API           │ pre_tool_call   │ (sinapse-memory)│ (sinapse-memory)    │
+├───────────────┼─────────────────┼───────────────────┼─────────────────┼─────────────────┼──────────────────────┤
+│ Latência      │ < 5s (query)    │ < 500ms (search)   │ < 2s (rewrite)  │ < 100ms          │ < 1s (scan)         │
+│               │ 30-60s (build)  │ 3-10s (generate)   │                 │ (recall)         │ cache 30s           │
+├───────────────┼─────────────────┼───────────────────┼─────────────────┼─────────────────┼──────────────────────┤
+│ Dependência   │ Python 3.10+    │ Node 18+/Bun 1.0+  │ Rust binary     │ Python 3.10+     │ Python 3.10+        │
+│               │ uv ou pipx      │                    │ (via pip)       │ (neural-memory)  │ (stdlib apenas)     │
+├───────────────┼─────────────────┼───────────────────┼─────────────────┼─────────────────┼──────────────────────┤
+│ Gap           │ ~6h (rebuild)   │ Zero (real-time)   │ Zero (hook)    │ ~6h (sync)       │ ZERO (leitura       │
+│               │                 │                    │                │                  │ direta no momento)  │
+├───────────────┼─────────────────┼───────────────────┼─────────────────┼─────────────────┼──────────────────────┤
+│ Quando usar   │ Explorar        │ "O que fizemos     │ Otimizar        │ "O que é          │ "O que acabei de    │
+│               │ conexões e      │ sobre isso na      │ comandos        │ semelhante a     │ escrever?"          │
+│               │ estrutura       │ última semana?"    │ shell           │ isso?"           │ Busca imediata      │
+└───────────────┴─────────────────┴───────────────────┴─────────────────┴─────────────────┴──────────────────────┘
 ```
 
 ---
