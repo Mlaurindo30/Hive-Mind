@@ -345,6 +345,45 @@ register_backend(_backend_neural_memory)
 
 
 # ---------------------------------------------------------------------------
+# Backend 1.5: sqlite-vec (semântico nativo — substitui Chroma)
+# ---------------------------------------------------------------------------
+
+VEC_WORKER_URL = "http://127.0.0.1:37701"
+
+
+def _backend_sqlite_vec(query: str) -> Optional[Dict[str, Any]]:
+    """
+    Busca semântica via sqlite-vec worker (nativo, zero Python MCP).
+    Lightweight replacement for Chroma. Runs alongside claude-mem.
+    """
+    try:
+        req = Request(
+            f"{VEC_WORKER_URL}/api/context/semantic",
+            data=json.dumps({"query": query}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urlopen(req, timeout=CLAUDE_MEM_TIMEOUT) as resp:
+            data = json.loads(resp.read().decode())
+            context = data.get("context", "")
+            count = data.get("count", 0)
+            if context and count > 0:
+                return {
+                    "source": "sqlite-vec (semantic)",
+                    "observations": [{"content": context[:SEMANTIC_CONTEXT_CHARS]}],
+                    "count": count,
+                    "query": query,
+                }
+    except (URLError, OSError, json.JSONDecodeError, ValueError):
+        pass
+
+    return None
+
+
+register_backend(_backend_sqlite_vec)
+
+
+# ---------------------------------------------------------------------------
 # Backend 1: claude-mem (semântico/temporal via Chroma + FTS5)
 # ---------------------------------------------------------------------------
 
@@ -529,6 +568,124 @@ register_backend(_backend_graphify)
 
 
 # ---------------------------------------------------------------------------
+# Backend 2.5: Filesystem (busca direta em .md do vault — fallback)
+# ---------------------------------------------------------------------------
+
+# Cache de filesystem com TTL (evita re-walk a cada query)
+_FS_CACHE: Dict[str, Any] = {}
+_FS_CACHE_TIME: float = 0
+_FS_CACHE_TTL = 30  # segundos
+
+# Diretórios de categoria para scan
+_FS_CATEGORIES = ["work", "work/active", "work/archive", "brain", "atoms", "org", "reference", "templates"]
+
+
+def _backend_filesystem(query: str) -> Optional[Dict[str, Any]]:
+    """
+    Busca direta no filesystem do vault: caminha diretórios de categoria,
+    lê .md, faz match de substring. Elimina o gap de 6h do Graphify.
+    Cache TTL de 30s para evitar re-walk excessivo.
+    """
+    if not query or not query.strip():
+        return None
+
+    query_lower = query.lower().strip()
+    if not query_lower:
+        return None
+
+    # Usar cache se válido
+    global _FS_CACHE, _FS_CACHE_TIME
+    now = time.time()
+    if _FS_CACHE and (now - _FS_CACHE_TIME) < _FS_CACHE_TTL:
+        cached = _FS_CACHE.get(query_lower)
+        if cached is not None:
+            return cached
+
+    results = []
+    limit = MAX_OBSERVATIONS * 2
+
+    for cat in _FS_CATEGORIES:
+        cat_dir = os.path.join(VAULT_DIR, cat)
+        if not os.path.isdir(cat_dir):
+            continue
+
+        for root, _, files in os.walk(cat_dir):
+            for fname in files:
+                if not fname.endswith(".md"):
+                    continue
+                fpath = os.path.join(root, fname)
+                try:
+                    with open(fpath, "r", encoding="utf-8") as f:
+                        content = f.read()
+                except (OSError, UnicodeDecodeError):
+                    continue
+
+                content_lower = content.lower()
+                if query_lower not in content_lower:
+                    continue
+
+                # Strip YAML frontmatter
+                if content.startswith("---"):
+                    parts = content.split("---", 2)
+                    if len(parts) >= 3:
+                        body = parts[2].strip()
+                    else:
+                        body = content
+                else:
+                    body = content
+
+                # Extrair título: primeiro H1 ou nome do arquivo
+                title = fname[:-3]
+                for line in body.split("\n"):
+                    line = line.strip()
+                    if line.startswith("# "):
+                        title = line[2:].strip()
+                        break
+
+                excerpt = body[:OBSERVATION_CHARS]
+
+                results.append({
+                    "title": title,
+                    "content": excerpt,
+                    "source_file": os.path.relpath(fpath, VAULT_DIR),
+                    "category": cat,
+                })
+
+                if len(results) >= limit:
+                    break
+            if len(results) >= limit:
+                break
+        if len(results) >= limit:
+            break
+
+    if not results:
+        _FS_CACHE[query_lower] = None
+        _FS_CACHE_TIME = now
+        return None
+
+    # Dedup por source_file
+    seen = set()
+    deduped = []
+    for r in results:
+        key = r["source_file"]
+        if key not in seen:
+            seen.add(key)
+            deduped.append(r)
+
+    result = {
+        "source": "filesystem (vault fallback)",
+        "observations": deduped[:MAX_OBSERVATIONS],
+        "query": query,
+    }
+    _FS_CACHE[query_lower] = result
+    _FS_CACHE_TIME = now
+    return result
+
+
+register_backend(_backend_filesystem)
+
+
+# ---------------------------------------------------------------------------
 # Motor de busca unificado (com exception logging + global timeout)
 # ---------------------------------------------------------------------------
 
@@ -611,7 +768,7 @@ def _query_vault_knowledge(query: str) -> Optional[Dict[str, Any]]:
     if len(results) == 1:
         return list(results.values())[0]
 
-    # Fusão híbrida de contexto (Context Fusion)
+    # Fusao hibrida de contexto (Context Fusion) com deduplicacao cross-backend
     combined = {
         "source": "hybrid",
         "observations": [],
@@ -619,20 +776,43 @@ def _query_vault_knowledge(query: str) -> Optional[Dict[str, Any]]:
         "edges": [],
         "query": query,
     }
-    
+
     hit_sources = []
+
+    # Rastrear chaves ja vistas para dedup cross-backend
+    _seen_fs_keys: set = set()
+    _seen_node_ids: set = set()
+
     for name, res in results.items():
         hit_sources.append(res.get("source", name))
-        
-        # Merge de dados estruturais e temporais
-        combined["observations"].extend(res.get("observations", []))
-        combined["nodes"].extend(res.get("nodes", []))
+
+        # Deduplicar observations por source_file/title
+        for obs in res.get("observations", []):
+            # Chave: source_file se disponivel, senao title, senao content[:40]
+            key = obs.get("source_file", "") or obs.get("title", "") or obs.get("content", "")[:40]
+            key = key.lower().strip()
+            if key and key in _seen_fs_keys:
+                continue
+            if key:
+                _seen_fs_keys.add(key)
+            combined["observations"].append(obs)
+
+        # Deduplicar nodes por id/label
+        for node in res.get("nodes", []):
+            nid = node.get("id", "") or node.get("label", "")
+            nid = nid.lower().strip()
+            if nid and nid in _seen_node_ids:
+                continue
+            if nid:
+                _seen_node_ids.add(nid)
+            combined["nodes"].append(node)
+
         combined["edges"].extend(res.get("edges", []))
-        
+
     # Identificar a fonte combinada
     combined["source"] = "hybrid (" + ", ".join(hit_sources) + ")"
-    
-    # Limitar aos máximos globais configurados
+
+    # Limitar aos maximos globais configurados
     combined["observations"] = combined["observations"][:MAX_OBSERVATIONS]
     combined["nodes"] = combined["nodes"][:MAX_NODES]
     combined["edges"] = combined["edges"][:MAX_NODES]
@@ -681,11 +861,84 @@ def register(ctx):
     ctx.register_hook("pre_gateway_dispatch", _pre_prompt_build)   # leitura (pre_prompt_build)
     ctx.register_hook("post_tool_call", _post_tool_use)            # escrita (post_tool_use)
     ctx.register_hook("on_session_end", _post_session_end)         # escrita final (post_session_end)
+    ctx.register_hook("on_session_finalize", _on_session_finalize) # backup pre-reset (PreCompact)
 
 
 # ===========================================================================
-# LEITURA — injeta contexto do vault no prompt
+# LEITURA — injeta contexto do vault no prompt (event stream tipado)
 # ===========================================================================
+
+_EVENT_PRIORITY = {
+    "datasource": 0,
+    "knowledge": 1,
+    "plan": 2,
+    "observation": 3,
+    "message": 4,
+    "system": 5,
+    "decision": 2,
+    "learning": 2,
+}
+
+
+def _classify_message(msg: str) -> str:
+    """Classifica mensagem do usuário em tipo de evento."""
+    msg_lower = msg.lower().strip()
+    if not msg_lower:
+        return "system"
+    if any(w in msg_lower for w in ["busca", "pesquisa", "procura", "encontra", "search", "find"]):
+        return "datasource"
+    if any(w in msg_lower for w in ["aprendi", "descobri", "notei", "padrão", "pattern", "insight"]):
+        return "learning"
+    if any(w in msg_lower for w in ["decidi", "vamos", "quero", "faz", "cria", "implementa"]):
+        return "decision"
+    if any(w in msg_lower for w in ["planeja", "plano", "como faria", "estratégia"]):
+        return "plan"
+    return "message"
+
+
+def _generate_plan(msg: str) -> Optional[str]:
+    """Gera pseudocódigo numerado estilo Manus Planner."""
+    if not msg or not msg.strip():
+        return None
+    msg_lower = msg.lower()
+
+    steps = []
+
+    if any(w in msg_lower for w in ["busca", "pesquisa", "procura", "search"]):
+        steps.append("1. Consultar vault (graphify + sqlite-vec + neural-memory)")
+        steps.append("2. Se necessário, web_search para informações externas")
+        steps.append("3. Sintetizar resultados")
+
+    if any(w in msg_lower for w in ["cria", "criar", "implementa", "faz", "código"]):
+        steps.append("1. Analisar requisitos")
+        steps.append("2. Consultar vault por padrões e decisões similares")
+        steps.append("3. Implementar seguindo Boil the Lake")
+        steps.append("4. Verificar (testar/lint)")
+        steps.append("5. Registrar decisão no vault")
+
+    if any(w in msg_lower for w in ["corrige", "debug", "quebrado", "erro", "bug"]):
+        steps.append("1. No Fixes Without Root Cause — investigar antes")
+        steps.append("2. Reproduzir o erro consistentemente")
+        steps.append("3. Identificar causa raiz")
+        steps.append("4. Aplicar correção")
+        steps.append("5. Verificar que o erro não volta")
+
+    if any(w in msg_lower for w in ["analisa", "avalia", "review", "veredito"]):
+        steps.append("1. Extrair informações completas")
+        steps.append("2. Aplicar template Analise Fria")
+        steps.append("3. Gerar PDF se aplicável")
+        steps.append("4. Registrar aprendizado no vault")
+
+    if steps:
+        return "\n".join(steps)
+
+    return None
+
+
+def _add_event_type_to_log(level: str, event: str, **kwargs) -> None:
+    """Log com event_type."""
+    event_type = kwargs.pop("event_type", "system")
+    _log(level, event, event_type=event_type, **kwargs)
 
 def _pre_prompt_build(
     user_message: str = "",
@@ -693,15 +946,37 @@ def _pre_prompt_build(
     memory_context: str = "",
     **_kwargs: Any,
 ) -> Dict[str, Any]:
-    """Busca contexto relevante em todos os backends e injeta no prompt."""
+    """Busca contexto relevante em todos os backends e injeta no prompt.
+    Aplica event stream tipado (Manus-inspired): classifica mensagem,
+    gera plano, prioriza contexto, e formata tudo.
+    """
     result: Dict[str, Any] = {}
 
     if not user_message or not user_message.strip():
         return result
 
+    # 1. Classificar evento
+    event_type = _classify_message(user_message)
+    _add_event_type_to_log("info", "pre_prompt_build", event_type=event_type)
+
+    # 2. Buscar contexto no vault
     context = _query_vault_knowledge(user_message)
+    block = ""
+
+    # 3. Se for datasource/decision/plan, gerar plano
+    plan = _generate_plan(user_message)
+    if plan:
+        block = f"[Planner — {event_type}]\n{plan}\n"
+
+    # 4. Injetar contexto do vault
     if context:
-        block = _format_context(context)
+        vault_block = _format_context(context)
+        if block:
+            block += f"\n---\n\n{vault_block}"
+        else:
+            block = vault_block
+
+    if block:
         system_message = f"{block}\n\n---\n\n{system_message}" if system_message else block
         result["system_message"] = system_message
 
@@ -1015,6 +1290,50 @@ def _post_session_end(session_summary: str = "", **_kwargs: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
+# on_session_finalize — PreCompact backup antes de reset de sessão
+# ---------------------------------------------------------------------------
+
+def _on_session_finalize(session_id: str = "", platform: str = "", **_kwargs: Any) -> None:
+    """
+    Hook chamado antes do reset de sessão (/new, timeout).
+    Equivalente ao PreCompact do Claude Code:
+    faz backup do estado atual no vault antes de perder contexto.
+    """
+    if not session_id:
+        return
+
+    _log("info", "pre_compact", session_id=session_id, platform=platform)
+
+    # Salva snapshot do estado atual da sessão em thinking/session-logs/
+    try:
+        backup_dir = os.path.join(VAULT_DIR, "thinking", "session-logs")
+        os.makedirs(backup_dir, exist_ok=True)
+        now = datetime.now().strftime("%Y%m%d_%H%M%S")
+        snapshot = {
+            "session_id": session_id,
+            "platform": platform,
+            "timestamp": datetime.now().isoformat(),
+            "decisions": _session_decisions.copy(),
+            "learnings": _session_learnings.copy(),
+        }
+        path = os.path.join(backup_dir, f"session_finalize_{now}.json")
+        with open(path, "w") as f:
+            json.dump(snapshot, f)
+
+        # Prune: keep last 10 snapshots
+        backups = sorted(
+            f for f in os.listdir(backup_dir)
+            if f.startswith("session_finalize_") and f.endswith(".json")
+        )
+        for old in backups[:-10]:
+            os.remove(os.path.join(backup_dir, old))
+
+        _log("info", "pre_compact_saved", path=path, count=len(backups))
+    except OSError as e:
+        _log("error", "pre_compact_failed", error=str(e))
+
+
+# ---------------------------------------------------------------------------
 # Sync bidirecional: claude-mem → vault (via HTTP API — Fase 2.5)
 # ---------------------------------------------------------------------------
 
@@ -1108,6 +1427,7 @@ __all__ = [
     "sync_claude_mem_to_vault",
     "_pre_prompt_build",
     "_post_tool_use",
+    "_on_session_finalize",
     "_post_session_end",
     "_query_vault_knowledge",
     "_backend_graphify",

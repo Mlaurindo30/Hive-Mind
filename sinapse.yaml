@@ -139,6 +139,48 @@ cloud:
   api_key: "${SINAPSE_API_KEY}"          # Token de autenticação seguro
 
 # =============================================================================
+# FILESYSTEM (camada 5 — híbrida busca direta no vault)
+# =============================================================================
+# O backend filesystem elimina o gap de indexação do Graphify (até 6h) fazendo
+# busca direta nos arquivos .md do vault. Funciona como fallback quando o
+# graph.json está indisponível ou como fonte complementar para dados mais recentes.
+# É o componente central do HYBRID SEARCH — deduplicação cross-backend garante
+# que o mesmo arquivo não apareça duas vezes quando Graphify + filesystem
+# indexam o mesmo conteúdo.
+# =============================================================================
+hybrid_search:
+  enabled: true
+  backends:
+    - graphify        # camada 1 — estrutural (indexado a cada 6h)
+    - claude_mem      # camada 2 — temporal (eventos em tempo real)
+    - rtk             # camada 3 — execução (otimização de comandos)
+    - neural_memory   # camada 4 — associativa (relacionamentos conceituais)
+    - filesystem      # camada 5 — direta (leitura real-time dos .md)
+  filesystem:
+    enabled: true
+    categories:       # diretórios do vault escaneados em busca direta
+      - work
+      - work/active
+      - work/archive
+      - brain
+      - atoms
+      - org
+      - reference
+      - templates
+    cache_ttl: 30     # segundos — TTL do cache do scan recursivo
+    max_results: 15   # limit de observações retornadas por busca
+  dedup:              # elimina duplicados cross-backend
+    enabled: true
+    keys:             # campos usados para identificar duplicados
+      observations:
+        - source_file
+        - title
+        - content
+      nodes:
+        - id
+        - label
+
+# =============================================================================
 # CRON
 # =============================================================================
 cron:
