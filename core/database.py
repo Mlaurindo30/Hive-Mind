@@ -125,6 +125,26 @@ def add_observation(title, content, obs_type="event", project=None, session_id=N
     finally:
         conn.close()
 
+def add_visual_memory(image_path, description=None, ocr_text=None, neuron_id=None, metadata=None):
+    """
+    Função de conveniência para adicionar uma memória visual com UUID automático.
+    """
+    conn = get_connection()
+    try:
+        data = {
+            "image_path": image_path,
+            "description": description,
+            "ocr_text": ocr_text,
+            "neuron_id": neuron_id,
+            "metadata": json.dumps(metadata) if metadata else None,
+            "created_at": datetime.now().isoformat()
+        }
+        vm_id = execute_insert(conn, "visual_memories", data)
+        conn.commit()
+        return vm_id
+    finally:
+        conn.close()
+
 def init_db():
     """Inicializa o banco de dados com o esquema unificado."""
     conn = get_connection()

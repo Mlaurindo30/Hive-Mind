@@ -94,6 +94,18 @@ CREATE TRIGGER IF NOT EXISTS neurons_after_update AFTER UPDATE ON neurons BEGIN
     UPDATE search_fts SET label = new.label, content = new.content WHERE neuron_id = old.id;
 END;
 
+-- Multimodal Layer (Visual Memories)
+CREATE TABLE IF NOT EXISTS visual_memories (
+    id TEXT PRIMARY KEY,
+    image_path TEXT NOT NULL,
+    description TEXT,
+    ocr_text TEXT,
+    neuron_id TEXT, -- Link to a conceptual neuron
+    metadata JSON,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(neuron_id) REFERENCES neurons(id) ON DELETE SET NULL
+);
+
 -- PRAGMAS for performance
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
