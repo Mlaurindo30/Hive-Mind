@@ -147,11 +147,24 @@ TOOLS = [
             },
             "required": ["source_file"]
         }
+    },
+    {
+        "name": "sinapse_capture_screen",
+        "description": "Capture the user's screen and save it to the vault (cerebro/inbox/visual/). Returns the absolute path of the image and the provided description. Useful for visual context and UI review.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "description": "Optional description/reason for the capture. Will be used in the filename."
+                }
+            }
+        }
     }
 ]
 
 HANDLERS = {
-    "sinapse_query": lambda args: sm._query_vault_knowledge(args.get("query", "")) or {},
+    "sinapse_query": lambda args: sm._backend_umc(args.get("query", "")) or {"source": "umc", "observations": [], "query": args.get("query")},
     "sinapse_save_decision": lambda args: {
         "saved": sm._save_decision(args.get("title", ""), args.get("content", "")) is not None
     },
@@ -163,6 +176,7 @@ HANDLERS = {
     "sinapse_temporal_search": lambda args: _temporal_search(args.get("query", "")),
     "sinapse_temporal_save": lambda args: _temporal_save(args.get("content", ""), args.get("kind", "change")),
     "sinapse_zettelkasten_split": lambda args: _zettelkasten_split(args.get("source_file", ""), args.get("output_dir", "cerebro/atoms")),
+    "sinapse_capture_screen": lambda args: _capture_screen(args.get("description", "")),
 }
 
 
@@ -171,6 +185,43 @@ def _session_end(summary):
     sm._session_learnings = []
     sm._update_current_state([], [], summary)
     return {"updated": True}
+
+
+def _capture_screen(description=""):
+    """Captura a tela chamando o script visual_capture.py via subprocesso."""
+    import subprocess
+    import os
+    
+    scripts_dir = os.path.dirname(__file__)
+    capture_script = os.path.join(scripts_dir, "visual_capture.py")
+    
+    cmd = [sys.executable, capture_script]
+    if description:
+        cmd.append(description)
+        
+    try:
+        # Executa o script e captura a saída
+        # capture_output=True redireciona stdout e stderr
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        # O script visual_capture.py imprime o path absoluto no stdout
+        path = result.stdout.strip()
+        return {
+            "success": True,
+            "path": path,
+            "description": description
+        }
+    except subprocess.CalledProcessError as e:
+        return {
+            "success": False,
+            "error": e.stderr.strip() or str(e),
+            "description": description
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "description": description
+        }
 
 
 def _zettelkasten_split(source_file, output_dir="cerebro/atoms"):
