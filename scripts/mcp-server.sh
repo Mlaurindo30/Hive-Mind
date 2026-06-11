@@ -30,9 +30,12 @@ done
 echo "[sinapse] Iniciando MCP server: $GRAPH_JSON"
 
 if [ -n "$PORT_FLAG" ]; then
-    echo "[sinapse] Modo HTTP $PORT_FLAG"
+    echo "[sinapse] Modo HTTP não suportado pelo servidor unificado (use stdio)."
+    exit 1
 else
-    echo "[sinapse] Modo stdio (para clientes MCP como Hermes, Claude, etc.)"
+    echo "[sinapse] Modo stdio (para clientes MCP como Hermes, Claude, Cursor, etc.)"
 fi
 
-exec python3 -m graphify.serve "$GRAPH_JSON" $PORT_FLAG
+# Usa o ambiente virtual do sqlite-vec para garantir dependências
+export SINAPSE_HOME="$PROJECT_ROOT"
+exec "$PROJECT_ROOT/.venv-sqlite-vec/bin/python3" "$SCRIPT_DIR/sinapse-mcp.py"

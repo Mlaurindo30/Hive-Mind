@@ -41,12 +41,13 @@ def generate_uuid():
 
 def get_connection():
     """Retorna uma conexão SQLite com sqlite-vec carregado."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
-    
-    # Ativa chaves estrangeiras
+
+    # Ativa chaves estrangeiras e tolerância a locks concorrentes
     conn.execute("PRAGMA foreign_keys = ON;")
-    
+    conn.execute("PRAGMA busy_timeout = 5000;")
+
     if sqlite_vec:
         sqlite_vec.load(conn)
     return conn
@@ -117,6 +118,7 @@ def add_observation(title, content, obs_type="event", project=None, session_id=N
             "session_id": session_id,
             "neuron_id": neuron_id,
             "metadata": json.dumps(metadata) if metadata else None,
+            "archived": 0,
             "created_at": datetime.now().isoformat()
         }
         obs_id = execute_insert(conn, "observations", data)
@@ -145,15 +147,32 @@ def add_visual_memory(image_path, description=None, ocr_text=None, neuron_id=Non
     finally:
         conn.close()
 
+def ensure_migrations(conn):
+    """
+    Aplica migrações idempotentes em bancos existentes:
+    - Coluna 'archived' na tabela observations (0=pendente, 1=consolidado, 2=quarentena)
+    - Índice idx_observations_archived
+    - Backfill do formato legado ("archived": true no metadata)
+    """
+    try:
+        conn.execute("ALTER TABLE observations ADD COLUMN archived INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # Coluna já existe
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_observations_archived ON observations(archived)")
+    # Backfill único: migra observações arquivadas via metadata (legado) para a coluna
+    conn.execute("""UPDATE observations SET archived = 1 WHERE metadata LIKE '%"archived": true%' AND archived = 0""")
+    conn.commit()
+
 def init_db():
     """Inicializa o banco de dados com o esquema unificado."""
     conn = get_connection()
     with open(SCHEMA_PATH, "r") as f:
         schema = f.read()
-    
+
     try:
         conn.executescript(schema)
         conn.commit()
+        ensure_migrations(conn)
         print(f"Banco de dados inicializado em: {DB_PATH}")
     except Exception as e:
         print(f"Erro ao inicializar banco: {e}")
@@ -208,13 +227,18 @@ def query_hybrid(query_text, limit=10):
             seen_ids.add(row['neuron_id'])
             combined_ids.append(row['neuron_id'])
 
-    # 4. Hidratar neurônios
+    # 4. Hidratar neurônios (um único SELECT ... IN, preservando a ordem combinada)
     results = []
-    for nid in combined_ids[:limit]:
-        neuron = conn.execute("SELECT * FROM neurons WHERE id = ?", (nid,)).fetchone()
-        if neuron:
-            results.append(dict(neuron))
-            
+    top_ids = combined_ids[:limit]
+    if top_ids:
+        placeholders = ', '.join(['?'] * len(top_ids))
+        rows = conn.execute(f"SELECT * FROM neurons WHERE id IN ({placeholders})", top_ids).fetchall()
+        rows_by_id = {row['id']: row for row in rows}
+        for nid in top_ids:
+            neuron = rows_by_id.get(nid)
+            if neuron:
+                results.append(dict(neuron))
+
     # 5. Adicionar observações recentes relacionadas (opcional)
     # TODO: Relacionar observações via neuron_id ou busca textual
             

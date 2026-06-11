@@ -181,9 +181,13 @@ HANDLERS = {
 
 
 def _session_end(summary):
-    sm._session_decisions = []
-    sm._session_learnings = []
-    sm._update_current_state([], [], summary)
+    # Captura o buffer da sessão ANTES de zerar — senão as decisões/aprendizados
+    # acumulados nunca chegam ao Current State (A3/P1-9)
+    decisions = list(sm._session_decisions)
+    learnings = list(sm._session_learnings)
+    sm._session_decisions.clear()
+    sm._session_learnings.clear()
+    sm._update_current_state(decisions, learnings, summary)
     return {"updated": True}
 
 
