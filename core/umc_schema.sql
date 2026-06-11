@@ -37,9 +37,12 @@ CREATE TABLE IF NOT EXISTS observations (
     content TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     neuron_id TEXT, -- Link optional to a neuron
+    archived INTEGER DEFAULT 0,  -- 0=pendente, 1=consolidado, 2=quarentena
     metadata JSON,
     FOREIGN KEY(neuron_id) REFERENCES neurons(id) ON DELETE SET NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_observations_archived ON observations(archived);
 
 -- Vault for Encrypted Secrets
 CREATE TABLE IF NOT EXISTS vault (
@@ -104,6 +107,16 @@ CREATE TABLE IF NOT EXISTS visual_memories (
     metadata JSON,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(neuron_id) REFERENCES neurons(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS document_memories (
+    id TEXT PRIMARY KEY,
+    file_path TEXT NOT NULL,
+    file_hash TEXT UNIQUE,
+    summary TEXT,
+    topics TEXT,
+    metadata JSON,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- PRAGMAS for performance

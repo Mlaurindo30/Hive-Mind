@@ -36,14 +36,23 @@ from urllib.request import Request, urlopen
 from urllib.error import URLError
 from urllib.parse import quote
 
+# Raiz do projeto — fonte única de verdade (A1/P1-7).
+# Este arquivo vive em plugins/hermes/, então 3 níveis acima = raiz do projeto.
+SINAPSE_HOME = os.environ.get("SINAPSE_HOME", os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+# Importa o core do UMC
+try:
+    # Garante que o diretório raiz está no path
+    if SINAPSE_HOME not in sys.path:
+        sys.path.append(SINAPSE_HOME)
+    from core.database import query_hybrid as _umc_query_hybrid
+except ImportError:
+    _umc_query_hybrid = None
+
 # ---------------------------------------------------------------------------
 # Configuração
 # ---------------------------------------------------------------------------
 
-SINAPSE_HOME = os.environ.get(
-    "SINAPSE_HOME",
-    os.path.expanduser("~/Documentos/Projects/sinapse_agent"),
-)
 VAULT_DIR = os.path.join(SINAPSE_HOME, "cerebro")
 GRAPH_JSON = os.path.join(VAULT_DIR, "graphify-out", "graph.json")
 DECISIONS_DIR = os.path.join(VAULT_DIR, "work", "active")
@@ -142,9 +151,9 @@ def _cloud_request(endpoint: str, method: str = "POST", data: Optional[dict] = N
     Bypassa lógica local se cloud.enabled estiver ativo.
     """
     cloud_cfg = _config.get("cloud", {})
-    url_base = cloud_cfg.get("url", "http://localhost:8000").rstrip("/")
+    url_base = cloud_cfg.get("url", "http://localhost:37702").rstrip("/")
     url = f"{url_base}/api/v1/{endpoint.lstrip('/')}"
-    
+
     # Obter token de autenticação
     api_key_raw = cloud_cfg.get("api_key", "")
     api_key = api_key_raw
@@ -157,7 +166,11 @@ def _cloud_request(endpoint: str, method: str = "POST", data: Optional[dict] = N
             if resolved:
                 api_key = resolved
     if not api_key:
-        api_key = os.environ.get("SINAPSE_API_KEY", "sinapse_default_secret_key")
+        api_key = os.environ.get("SINAPSE_API_KEY")
+    # Fail-closed: sem chave, sem requisição — nunca usar segredo default (C5)
+    if not api_key:
+        _log("error", "cloud_api_key_missing", hint="configure cloud.api_key no sinapse.yaml ou SINAPSE_API_KEY")
+        return None
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -238,7 +251,46 @@ def _record_backend_result(name: str, success: bool):
 
 
 # ---------------------------------------------------------------------------
-# Backend 0: NeuralMemory (associativo — spreading activation)
+# Backend 0: Unified Memory Core (Híbrido: Texto + Vetores + Grafo)
+# ---------------------------------------------------------------------------
+
+def _backend_umc(query: str) -> Optional[Dict[str, Any]]:
+    """
+    Busca principal no Unified Memory Core (UMC).
+    Combina FTS5 (texto) e sqlite-vec (semântica) nativamente.
+    """
+    if _umc_query_hybrid is None:
+        return None
+
+    try:
+        results = _umc_query_hybrid(query, limit=MAX_NODES)
+        if results:
+            # Converte para formato compatível com Hermes
+            observations = []
+            for r in results:
+                observations.append({
+                    "title": r.get("label", ""),
+                    "content": r.get("content", "")[:OBSERVATION_CHARS],
+                    "source_file": r.get("source_file", ""),
+                    "type": r.get("type", "neuron"),
+                })
+
+            return {
+                "source": "Unified Memory Core (UMC)",
+                "observations": observations,
+                "query": query,
+            }
+    except Exception as e:
+        _log("error", "backend_umc_failed", error=str(e))
+
+    return None
+
+
+register_backend(_backend_umc)
+
+
+# ---------------------------------------------------------------------------
+# Backend 1: NeuralMemory (associativo via nmem recall)
 # ---------------------------------------------------------------------------
 
 def _backend_neural_memory(query: str) -> Optional[Dict[str, Any]]:
@@ -580,6 +632,16 @@ _FS_CACHE_TTL = 30  # segundos
 _FS_CATEGORIES = ["work", "work/active", "work/archive", "brain", "atoms", "org", "reference", "templates"]
 
 
+def _fs_cache_put(key: str, value: Any) -> None:
+    """Insere no _FS_CACHE com poda grosseira intencional: ao exceder 128
+    entradas, limpa tudo e reinsere apenas a atual (o TTL de 30s torna
+    qualquer estratégia mais sofisticada desnecessária aqui)."""
+    _FS_CACHE[key] = value
+    if len(_FS_CACHE) > 128:
+        _FS_CACHE.clear()
+        _FS_CACHE[key] = value
+
+
 def _backend_filesystem(query: str) -> Optional[Dict[str, Any]]:
     """
     Busca direta no filesystem do vault: caminha diretórios de categoria,
@@ -659,7 +721,7 @@ def _backend_filesystem(query: str) -> Optional[Dict[str, Any]]:
             break
 
     if not results:
-        _FS_CACHE[query_lower] = None
+        _fs_cache_put(query_lower, None)
         _FS_CACHE_TIME = now
         return None
 
@@ -677,7 +739,7 @@ def _backend_filesystem(query: str) -> Optional[Dict[str, Any]]:
         "observations": deduped[:MAX_OBSERVATIONS],
         "query": query,
     }
-    _FS_CACHE[query_lower] = result
+    _fs_cache_put(query_lower, result)
     _FS_CACHE_TIME = now
     return result
 
@@ -715,24 +777,26 @@ def _query_vault_knowledge(query: str) -> Optional[Dict[str, Any]]:
 
     results = {}
     
-    # Função interna para rodar na thread
+    # Função interna para rodar na thread.
+    # Retorna (name, res, failed): failed=True SOMENTE quando houve exceção —
+    # resultado vazio não é falha e não deve abrir o circuit breaker (A2/P1-8).
     def _run_backend(backend_fn):
         name = backend_fn.__name__
         try:
             res = backend_fn(query)
-            return name, res
+            return name, res, False
         except (URLError, OSError, subprocess.TimeoutExpired, FileNotFoundError):
-            return name, None
+            return name, None, True
         except Exception as e:
             _log("error", "backend_error", backend=name, error=str(e))
             traceback.print_exc(file=sys.stderr)
-            return name, None
+            return name, None, True
 
     # Executar consultas concorrentes em paralelo
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(healthy_backends)) as executor:
         futures = {executor.submit(_run_backend, b): b for b in healthy_backends}
         done, not_done = concurrent.futures.wait(
-            futures, 
+            futures,
             timeout=GLOBAL_QUERY_TIMEOUT,
             return_when=concurrent.futures.ALL_COMPLETED
         )
@@ -740,17 +804,18 @@ def _query_vault_knowledge(query: str) -> Optional[Dict[str, Any]]:
         # Coletar resultados das threads concluídas
         for future in done:
             try:
-                name, res = future.result()
+                name, res, failed = future.result()
+                if failed:
+                    # Só exceção conta como falha para o circuit breaker
+                    _record_backend_result(name, False)
+                    continue
+                # Backend saudável, independentemente de ter conteúdo
+                _record_backend_result(name, True)
                 if res:
                     has_content = bool(res.get("observations")) or bool(res.get("nodes")) or bool(res.get("edges"))
                     if has_content:
                         results[name] = res
-                        _record_backend_result(name, True)
                         _log("info", "backend_hit", backend=name, query=query[:50])
-                    else:
-                        _record_backend_result(name, False)
-                else:
-                    _record_backend_result(name, False)
             except Exception as e:
                 _log("error", "thread_unhandled_error", error=str(e))
 
@@ -1048,6 +1113,31 @@ def _validate_frontmatter_yaml(content: str) -> bool:
         return False
 
 
+def _umc_save_observation(title: str, content: str, obs_type: str = "event", session_id: str = None, project: str = None):
+    """Salva uma observação no banco de dados UMC SQLite."""
+    if DRY_RUN:
+        return True
+    try:
+        # Garante que o diretório raiz está no path para importar core
+        if SINAPSE_HOME not in sys.path:
+            sys.path.append(SINAPSE_HOME)
+        from core.database import get_connection, execute_insert
+        
+        conn = get_connection()
+        execute_insert(conn, "observations", {
+            "title": title,
+            "content": content,
+            "type": obs_type,
+            "session_id": session_id,
+            "project": project
+        })
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        _log("error", "umc_save_observation_failed", error=str(e))
+        return False
+
 # ---------------------------------------------------------------------------
 # Write helpers
 # ---------------------------------------------------------------------------
@@ -1092,6 +1182,8 @@ source: hermes-session
 
     if _atomic_write(filepath, note):
         _log("info", "decision_saved", title=title[:60], file=filepath)
+        # Espelha no UMC
+        _umc_save_observation(title, content, obs_type="decision")
         return filepath
 
     _log("error", "save_decision_failed", title=title[:60], file=filepath)
@@ -1118,11 +1210,12 @@ def _save_learning(title: str, content: str) -> Optional[str]:
 
     today = datetime.now().strftime("%Y-%m-%d")
 
-    # Verifica duplicação
+    # Verifica duplicação — match de heading exato, não substring (evita
+    # falso positivo com títulos curtos contidos em outros)
     try:
         with open(PATTERNS_FILE, "r") as f:
             existing = f.read()
-        if title in existing:
+        if re.search(rf"^## {re.escape(title)} \(", existing, re.MULTILINE):
             _log("info", "learning_duplicate_skipped", title=title[:60])
             return None
     except FileNotFoundError:
@@ -1146,6 +1239,8 @@ def _save_learning(title: str, content: str) -> Optional[str]:
             pass
         if _atomic_write(PATTERNS_FILE, existing + entry):
             _log("info", "learning_saved", title=title[:60])
+            # Espelha no UMC
+            _umc_save_observation(title, content, obs_type="learning")
             return PATTERNS_FILE
         else:
             _log("error", "save_learning_failed", title=title[:60], error="atomic_write returned False")

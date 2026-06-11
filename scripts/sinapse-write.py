@@ -50,6 +50,11 @@ def main():
     zk.add_argument("--source", required=True, help="Monolithic markdown file path")
     zk.add_argument("--output-dir", default="cerebro/atoms", help="Target atoms directory")
 
+    obs = sub.add_parser("observation", help="Save a generic observation to the UMC")
+    obs.add_argument("--title", required=True, help="Observation title")
+    obs.add_argument("--content", required=True, help="Observation content")
+    obs.add_argument("--kind", default="event", help="Observation kind (event, execution, etc.)")
+
     args = parser.parse_args()
 
     if args.command == "decision":
@@ -58,6 +63,9 @@ def main():
     elif args.command == "learning":
         result = sm._save_learning(args.title, args.content)
         print(json.dumps({"saved": result is not None, "path": result or None}))
+    elif args.command == "observation":
+        result = sm._umc_save_observation(args.title, args.content, obs_type=args.kind)
+        print(json.dumps({"saved": result}))
     elif args.command == "query":
         result = sm._query_vault_knowledge(args.text)
         print(json.dumps(result or {}, default=str, indent=2))
@@ -65,9 +73,13 @@ def main():
         result = sm.health_check()
         print(json.dumps(result, default=str, indent=2))
     elif args.command == "session-end":
-        sm._session_decisions = []
-        sm._session_learnings = []
-        sm._update_current_state([], [], args.summary)
+        # Captura o buffer da sessão ANTES de zerar — senão as decisões/aprendizados
+        # acumulados nunca chegam ao Current State (A3/P1-9)
+        decisions = list(sm._session_decisions)
+        learnings = list(sm._session_learnings)
+        sm._session_decisions.clear()
+        sm._session_learnings.clear()
+        sm._update_current_state(decisions, learnings, args.summary)
         print(json.dumps({"updated": True}))
     elif args.command == "zettelkasten":
         import importlib.util

@@ -1,0 +1,14 @@
+from pydantic import BaseModel, Field
+from enum import Enum
+from typing import Optional
+
+class DiffCategory(str, Enum):
+    ADDITIVE = "ADDITIVE"
+    SUBSTITUTIVE = "SUBSTITUTIVE"
+    CONTRADICTORY = "CONTRADICTORY"
+
+class SemanticDiffResult(BaseModel):
+    contradiction_score: float = Field(..., description="Score de contradição de 0.0 (sem contradição) a 1.0 (contradição total).")
+    category: DiffCategory = Field(..., description="Categoria da diferença semântica.")
+    reasoning: str = Field(..., description="Explicação detalhada do porquê desta classificação, citando trechos se necessário.")
+    suggested_resolution: Optional[str] = Field(None, description="Uma sugestão de como fundir ou resolver os dois textos em uma única verdade.")

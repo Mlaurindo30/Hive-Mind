@@ -1,0 +1,13 @@
+version: "1.0"
+
+dream_cycle:
+  validation:
+    strict_json: true
+    max_retries: 3
+    quarantine_on_fail: true # Se falhar 3 vezes, salva em inbox/quarantine/ em vez de descartar
+  
+  routing:
+    dynamic_topics: true
+    max_topic_length: 20
+    topic_casing: "snake_case"
+    prevent_fragmentation: true # O Router deve sempre receber a lista de diretórios atuais do atlas/
