@@ -252,6 +252,37 @@ def get_related(request: Request, file_path: str = Query(...)):
     except Exception:
         return {"results": []}
 
+@app.get("/api/v1/vault/{secret_id}", dependencies=[Depends(verify_api_key)])
+@limiter.limit("10/minute")
+def get_vault_secret(request: Request, secret_id: str):
+    """
+    Recupera e descriptografa um segredo do vault pela referência
+    [VAULT_SECURE:<id>]. Requer HIVE_MIND_MASTER_KEY e Bearer token.
+    Rate limit agressivo: endpoint sensível.
+    """
+    if not re.fullmatch(r"vault-[a-f0-9]{8}", secret_id):
+        raise HTTPException(status_code=400, detail="ID de vault inválido.")
+    try:
+        f = Fernet(get_master_key())
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT encrypted_secret, metadata FROM vault WHERE id = ?", (secret_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Segredo não encontrado no vault.")
+        try:
+            secret = f.decrypt(row["encrypted_secret"]).decode()
+        except Exception:
+            raise HTTPException(status_code=500, detail="Falha ao descriptografar (master key incorreta?).")
+        meta = json.loads(row["metadata"]) if row["metadata"] else {}
+        return {"id": secret_id, "secret": secret, "kind": meta.get("kind")}
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
     import uvicorn
     # Fail-closed: valida a chave de API antes de subir o servidor

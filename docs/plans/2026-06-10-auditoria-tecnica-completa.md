@@ -83,7 +83,7 @@
 
 **G2. Documentação tripla e contraditória.** `PROJECT_STATUS.md` diz Fases 9 e 10 concluídas/em finalização; `IMPLEMENTATION.md` lista as mesmas fases como "Próximas Fases" e tem entregas fora de ordem (Entrega 13 de 09/06 antes da Entrega 12 de 10/06); o `README.md` ainda descreve a Camada 2 como "SQLite + Chroma" (substituído pelo sqlite-vec) e mostra contagens de grafo divergentes na mesma página (491 vs 1328 nodes). Não há fonte única de verdade sobre o estado do projeto — irônico, dado o lema do vault.
 
-**G3. `docs/ARCHITECTURE.md` corrompido por automação:** contém blocos `## Last Update:` e `## Session: 2026-05-21` injetados entre as seções 3 e 4 — o mecanismo de `_update_current_state` (ou similar) escreveu blocos de sessão dentro do documento de arquitetura. Além disso, o arquivo foi movido da raiz para `docs/` sem atualizar referências.
+**G3. ~~`docs/ARCHITECTURE.md` corrompido por automação~~ — ERRATA (10/06):** falso positivo. Verificação com consciência de code fences mostrou que os blocos `## Last Update:`/`## Session:` estão dentro de um fence ```` ```markdown ```` na seção 3 (exemplo documentado do formato de `current-state.md`) e de um heredoc bash na seção 6. O documento está íntegro. Permanece válida apenas a observação da movimentação raiz→`docs/` sem atualização de referências.
 
 **G4. Instalador e dependências desatualizados em 3 fases.** `requirements.txt` tem só 4 pacotes (stack FastAPI); faltam `requests`, `pyyaml`, `pydantic`, `numpy`, `fastembed`, `sqlite-vec`, `cryptography`, `slowapi`, `python-dotenv`, `mss`, `watchdog`, `PyMuPDF`, `python-docx`. O `install.sh` (10 etapas) não menciona nenhum deles. Um clone limpo + `./install.sh` produz um sistema onde Dream Cycle, API e captura de tela simplesmente não importam.
 
@@ -131,3 +131,30 @@
 ## Síntese Final
 
 A arquitetura do Hive-Mind é ambiciosa e o desenho (UMC + vault + pipeline validado por Pydantic) é genuinamente bom. O risco do projeto hoje não é arquitetural — é **operacional**: código crítico não versionado, entregas declaradas prontas sem execução real, e três vetores de vazamento de segredo a um `git add` de distância. As 6 ações P0 cabem em poucos dias de trabalho e eliminam todo o risco de classe crítica.
+
+---
+
+## Status de Implementação (atualizado 2026-06-10, mesma data)
+
+Plano executado por 3 agentes paralelos + orquestrador. Commits: `eff2e8f` (gitignore), `dd87e4c` (fases 7–10 + fixes), `d0b8cd1` (testes), `e3cbe05` (docs/instalador).
+
+| Item | Status | Observação |
+|---|---|---|
+| P0-1 Segredo OAuth | ✅ Código limpo; credenciais migradas para `.env`; dbs no `.gitignore` | ⚠️ **Rotação do client_secret no Google Cloud Console é manual e ainda pendente** |
+| P0-2 document_ingest | ✅ | `doc_metadata` definido antes do INSERT + teste de regressão AST |
+| P0-3 Fila Dream Cycle | ✅ | Coluna `archived` + índice + migração aplicada ao banco real (19 observações represadas destravadas) |
+| P0-4 Quarentena | ✅ | `archived=2` em falha de pipeline/router; arquivamento só pós-sucesso |
+| P0-5 Commits + CI verde | ✅ | 74 unit passed, 116 coletados sem erro |
+| P0-6 API keys/CORS | ✅ | Fail-closed, `compare_digest`, CORS configurável, porta unificada 37702 |
+| P1-7 SINAPSE_HOME | ✅ | Constante única; path fantasma `sinapse_agent` eliminado |
+| P1-8 Circuit breaker | ✅ | Só exceção/timeout conta como falha |
+| P1-9 Session-end | ✅ | Buffers capturados antes de zerar (MCP + CLI) |
+| P1-10 source_file relativo | ✅ | `audit_memory` grava relpath; síntese normaliza e preserva frontmatter |
+| P1-11 busy_timeout | ✅ | `timeout=10` + `PRAGMA busy_timeout=5000` |
+| P1-12 Vault recovery | ✅ | `GET /api/v1/vault/{id}` autenticado + regexes atualizados (`sk-proj-`) |
+| P1-13 Dependências | ✅ | `requirements.txt` completo + etapa [2/12] no `install.sh` |
+| P2-14 Quebrar plugin em pacote | ⏳ Pendente | Mês — exige refactor dos 3 entry points |
+| P2-15 Testes do núcleo novo | 🟡 Parcial | Regressões C1/C3 criadas; `dream_cycle` com LLM mockada pendente |
+| P2-16 Consolidar docs | 🟡 Parcial | README/IMPLEMENTATION/PROJECT_STATUS alinhados; G3 era falso positivo (errata acima) |
+| P2-17 Performance busca | 🟡 Parcial | Hidratação em SELECT IN feita; RRF real e delegação do FS-backend ao FTS5 pendentes |
+| P2-18 Governança de fases | ⏳ Pendente | Convenção de namespace HM-/THOTH- a definir com o time |
