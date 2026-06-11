@@ -46,3 +46,14 @@ rtk/
 # ── Secrets ─────────────────────────────────────────────────────────
 .env
 *.secret
+
+# ── Bancos de dados locais (memória pessoal — nunca commitar) ───────
+hive_mind.db
+hive_mind.db-*
+hive_mind.db.bak
+*.db.bak
+banco.db
+
+# ── Venvs auxiliares ─────────────────────────────────────────────────
+.venv-sqlite-vec/
+.pytest_cache/
