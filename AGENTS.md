@@ -1,125 +1,60 @@
-# Sinapse Agent — AGENTS.md
+# Hive-Mind — AGENTS.md
 >
 > Guia para agentes de IA que trabalham neste projeto.
 > Formato cross-agent: Hermes, Claude Code, Codex CLI, Kilo Code, OpenClaw, Copilot.
 >
-> Última revisão: 2026-05-23
+> Última revisão: 10-06-2026
 
 ---
 
-## 0. Idioma
+## 0. O que é o Hive-Mind v2.0.0
 
-- **Conversas:** Português (BR).
-- **Código e saída técnica:** Inglês.
-- **Documentação:** Português (BR).
+O Hive-Mind é uma infraestrutura de **Inteligência Coletiva e Multimodal**. Ele unifica o que o agente faz, vê e lê em um único cérebro persistente e distribuído.
 
----
-
-## 1. O que é o Sinapse Agent
-
-Camada de memória universal para agentes de IA. Quatro componentes:
-
-| Camada | Ferramenta | O que faz | Source |
-|--------|-----------|----------|--------|
-| Estrutural | **Graphify** | Knowledge graph do vault (Leiden clustering) | `graphify/` (safishamsi/graphify) |
-| Temporal | **claude-mem** | Tracking de eventos e observações (FTS5 + Chroma) | `claude-mem/` (thedotmack/claude-mem) |
-| Execução | **RTK** | Otimização de comandos shell | `rtk/` (rtk-ai/rtk) |
-| Associativa | **NeuralMemory** | Spreading activation, 24 tipos de relações | `neural-memory/` (nhadaututtheky/neural-memory) |
-
-Vault: `cerebro/` (Obsidian, template obsidian-mind). Fonte única de verdade.
-
-**Documentação técnica completa:** `docs/` — Arquitetura, Modelos IA, Pipeline, Infraestrutura, Blueprints, Gap Analysis.
+| Camada | Ferramenta | O que faz | Tecnologia |
+|--------|-----------|----------|------------|
+| **Cérebro** | **UMC (SQLite)** | Centraliza Grafos, Logs, Vetores e Visão | `sqlite-vec`, `FTS5` |
+| **Memória** | **Atlas (Obsidian)** | Fonte única de verdade em Markdown | Obsidian, Syncthing |
+| **Visão** | **Deep Portal** | Captura de tela e indexação visual | `mss`, LLM Vision |
+| **Consolidação** | **Hive-Dreamer** | Transforma logs e arquivos em conhecimento | `dream_cycle.py` |
 
 ---
 
-## 2. Como trabalhar neste projeto
+## 1. Ferramentas Multimodais Disponíveis
 
-### Ao iniciar
+Se você é um agente conectado via MCP, você tem acesso às seguintes ferramentas de visão:
 
-1. Leia `cerebro/AGENTS.md`
-2. Leia `cerebro/brain/Current State.md`
-3. Verifique se o graph.json está atualizado: `cerebro/graphify-out/graph.json`
-4. Execute health check: `python3 scripts/sinapse-write.py health`
-
-### Ao modificar código
-
-- **Plugin sinapse-memory**: Python. `plugins/hermes/sinapse-memory.py` (984 linhas).
-- **Graphify**: Python. `pip install -e graphify/[all]` para instalar do source.
-- **claude-mem**: TypeScript/Node. `cd claude-mem && npm install && npm run build`.
-- **RTK**: Rust. `cd rtk && cargo build --release`.
-- **NeuralMemory**: Python. `pip install -e neural-memory/` para instalar do source.
-
-### Ao modificar o vault
-
-- Toda nota em `cerebro/` usa frontmatter YAML + WikiLinks.
-- Após editar o vault, reindexe: `./scripts/build-graph.sh` (ou aguarde o cron a cada 6h).
-
-### Ao commitar
-
-- Não commite `cerebro/graphify-out/cache/` (cache regenerável).
-- Não commite `claude-mem/data/` (dados locais).
-- Não commite `rtk/target/` (build Rust).
+- `sinapse_capture_screen`: Tira um print do estado atual do sistema para documentar bugs ou progresso.
+- `sinapse_save_visual_memory`: Salva uma imagem específica com descrição e OCR no cérebro.
 
 ---
 
-## 3. Arquitetura de fluxo
+## 2. Arquitetura de fluxo Multimodal
 
 ```
-ESCRITA                        INDEXAÇÃO                    LEITURA
-───────                        ─────────                    ───────────────
-Agente decide                  Cron (6h)                    Usuário pergunta
-     │                             │                            │
-     ▼                             ▼                            ▼
-sinapse-memory                build-graph.sh              sinapse-memory
-(post_tool_call)                   │                       (pre_gateway_dispatch)
-     │                             ▼                            │
-     ├──► work/active/         graphify update             ├──► 1. nmem recall
-     ├──► brain/Patterns.md    cerebro/                    │    (spreading activation)
-     └──► brain/Current            │                       ├──► 2. claude-mem
-          State.md                 ▼                       │    (Chroma semantic)
-                              graph.json                       │
-                              (1266 nodes,                     └──► 3. graph.json
-                              1319 edges,                          (Graphify structural)
-                              117 communities)                         │
-                                                                     ▼
-                                                              Contexto injetado
-                                                              no prompt
+CAPTURA (Visão/Texto)          RECONCILIAÇÃO (Sonho)         REDUÇÃO (Atlas)
+──────────────────────         ───────────────────────       ───────────────
+Agente vê erro/UI    ──┐       Ciclo de Sonho (Noite)  ──┐    Fato Unificado
+Agente lê PDF/DOCX   ──┼──►    Dialética Autônoma      ──┼──► Nota no Obsidian
+Agente registra Log  ──┘       (Merge de Conflitos)    ──┘    Nó no SQLite
 ```
 
 ---
 
-## 4. Comandos úteis
+## 3. Comandos de Operação
 
 ```bash
-# Health check de todos os backends
-python3 scripts/sinapse-write.py health
+# Iniciar o Watcher (Sincronia em tempo real)
+./scripts/start-watcher.sh
 
-# Buscar no vault via CLI
-python3 scripts/sinapse-write.py query "sua pergunta"
+# Rodar Auditoria de Integridade (P2P Sync)
+python3 scripts/audit_memory.py --fix
 
-# Salvar decisão via CLI (para agentes sem MCP)
-python3 scripts/sinapse-write.py decision --title "Título" --content "Conteúdo"
+# Disparar Ciclo de Consolidação (Dream Cycle)
+python3 scripts/dream_cycle.py
 
-# Indexar vault (sem LLM)
-./scripts/build-graph.sh
-
-# Iniciar MCP server Sinapse (stdio — 5 tools)
-python3 scripts/sinapse-mcp.py
-
-# Iniciar MCP server Graphify (modo stdio)
-./scripts/serve-graph.sh
-
-# Iniciar claude-mem worker
-./scripts/start-claude-mem.sh
-
-# Compilar RTK
-cd rtk && cargo build --release
-
-# Instalar tudo
-./install.sh
-
-# Disaster recovery
-./scripts/recover.sh
+# Gerar Portal Visual (Obsidian Canvas)
+python3 scripts/generate_portal.py
 ```
 
 ---

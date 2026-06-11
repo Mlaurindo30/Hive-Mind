@@ -1,144 +1,82 @@
 # 04 — Infraestrutura e Escopo
 
-> **Sinapse Agent v1.1.0** — Requisitos, portas, serviços, variáveis de ambiente, segurança.
+> **Hive-Mind v2.0.0** — Requisitos, serviços, sincronização P2P e variáveis de ambiente.
 
 ---
 
-## 1. Requisitos de Hardware
-
-### Mínimo (operação básica, sem LLMs locais)
-
-| Recurso | Requisito |
-|---------|-----------|
-| CPU | 1 core (ARM ou x86_64) |
-| RAM | 512 MB |
-| Disco | 2 GB (vault + dependências) |
-| Rede | Apenas para instalação inicial |
-| SO | Linux (Ubuntu 22.04+, Debian 12+), macOS 13+, WSL2 |
-
-### Recomendado (com Ollama local)
-
-| Recurso | Requisito |
-|---------|-----------|
-| CPU | 4 cores |
-| RAM | 8 GB (para Qwen 2.5 Coder 3B + BGE-M3) |
-| Disco | 10 GB (modelos Ollama ~5GB) |
-| GPU | Opcional (acelera embeddings) |
-
----
-
-## 2. Dependências de Software
+## 1. Requisitos de Software
 
 ### Runtime
 
 | Dependência | Versão | Uso |
 |-------------|--------|-----|
-| Python | 3.10+ | Plugin, Graphify, NeuralMemory, MCP server |
-| Node.js | 18+ | claude-mem (opcional) |
-| Bun | 1.0+ | Worker runtime do claude-mem |
-| Rust (cargo) | 1.70+ | Compilação do RTK (opcional) |
-| SQLite | 3.35+ | FTS5 do claude-mem |
-| uv | 0.4+ | Gerenciador de pacotes Python (preferido) |
-| Git | 2.0+ | Clone de repositórios |
+| Python | 3.10+ | Núcleo do sistema, scripts de IA, MCP |
+| SQLite | 3.44+ | Unified Memory Core com `sqlite-vec` |
+| Syncthing | 1.27+ | Sincronização P2P de arquivos Markdown |
+| uv | 0.4+ | Gerenciador de pacotes Python |
 
-### Opcionais
-
-| Dependência | Uso |
-|-------------|-----|
-| Ollama | LLMs locais (Qwen, BGE-M3, Nomic) |
-| Docker | Sandbox para execução isolada |
-| systemd | Serviço do worker claude-mem |
-| crontab | Agendamento de rebuild do graph.json |
+### Bibliotecas de Ingestão (Fase 10)
+- `pypdf`: Extração de texto de PDFs.
+- `python-docx`: Leitura de documentos Word.
+- `PyMuPDF` (fitz): Extração de imagens de documentos.
+- `mss`: Captura de tela de alta performance.
 
 ---
 
-## 3. Portas e Serviços
+## 2. Variáveis de Ambiente (.env)
 
-| Serviço | Porta | Protocolo | Descrição |
-|---------|-------|-----------|-----------|
-| claude-mem worker | `37700` | HTTP REST | API de busca semântica, health check, search |
-| Graphify MCP | stdio | JSON-RPC | Tools: query_graph, get_node, get_neighbors |
-| Sinapse MCP | stdio | JSON-RPC | Tools: sinapse_query, sinapse_save_decision, etc. |
+O Hive-Mind é configurado via arquivo `.env` na raiz do projeto. Nomes de modelos nunca devem ser hardcoded nos scripts.
 
-**Nota:** Nenhuma porta é exposta para a rede externa. O worker claude-mem escuta em `127.0.0.1:37700` (localhost only). Os MCP servers usam stdio (comunicação via stdin/stdout do processo).
-
----
-
-## 4. Variáveis de Ambiente
-
-| Variável | Descrição | Default |
+| Variável | Descrição | Exemplo |
 |----------|-----------|---------|
-| `SINAPSE_HOME` | Raiz do projeto | `~/Documentos/Projects/sinapse_agent` |
-| `SINAPSE_DRY_RUN` | Modo sem side effects no filesystem | `false` |
-| `SINAPSE_LOG_JSON` | Logs estruturados em JSON | `false` |
-| `SINAPSE_DECISION_TOOLS` | CSV de tool names que disparam escrita | `memory_add,observation_add,mcp_claude_mem_memory_add` |
-| `SINAPSE_LEARNING_SIGNALS` | CSV de palavras que disparam aprendizados | Lista pt/en/es |
-| `GOOGLE_API_KEY` | API key Gemini (opcional) | — |
-| `CLAUDE_MEM_DATA_DIR` | Data directory do claude-mem | `$SINAPSE_HOME/claude-mem/data` |
+| `SINAPSE_HOME` | Caminho raiz do projeto | `/home/user/hive-mind` |
+| `HIVE_DREAMER_PROVIDER` | Provedor de LLM para consolidação | `google`, `openai`, `deepseek`, `ollama` |
+| `HIVE_DREAMER_MODEL` | Modelo específico para o Ciclo de Sonho | `gemini-2.0-flash`, `gpt-4o`, `deepseek-v3` |
+| `OLLAMA_LOCAL` | URL do Ollama se provedor for local | `http://localhost:11434` |
+| `GOOGLE_API_KEY` | Chave de API para Google/Gemini | `AIza...` |
+| `OPENAI_API_KEY` | Chave de API para OpenAI/Codex | `sk-...` |
 
 ---
 
-## 5. Serviços Systemd
+## 3. Serviços e Daemonização
 
-### sinapse-claude-mem.service
+### Real-time Watcher (Sistema Nervoso)
+O serviço `scripts/start-watcher.sh` deve rodar em background. Ele utiliza a biblioteca `watchdog` para detectar mudanças em `cerebro/` e atualizar o `hive_mind.db` instantaneamente.
 
-```ini
-[Unit]
-Description=Sinapse Agent — claude-mem Worker
-After=network.target
-
-[Service]
-Type=simple
-Environment=CLAUDE_MEM_DATA_DIR=/home/user/sinapse_agent/claude-mem/data
-ExecStart=/home/user/.bun/bin/bun /home/user/sinapse_agent/claude-mem/plugin/scripts/worker-service.cjs
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-```
-
-**Comandos:**
-```bash
-systemctl --user status sinapse-claude-mem.service
-systemctl --user restart sinapse-claude-mem.service
-journalctl --user -u sinapse-claude-mem.service -f
-```
+### Swarm Sync (Syncthing)
+A sincronização P2P é delegada ao **Syncthing**. 
+- Compartilhe a pasta `cerebro/` entre suas máquinas.
+- O Hive-Mind detectará arquivos recebidos e disparará o **Swarm Auditor** para integridade.
 
 ---
 
-## 6. Cron Jobs
+## 4. Cron Jobs e Manutenção
+
+O rebuild de 6 horas foi substituído pelo Watcher em tempo real. Os crons agora são focados em manutenção de saúde:
 
 ```cron
-# Rebuild do knowledge graph a cada 6 horas
-0 */6 * * * cd /home/user/sinapse_agent && ./scripts/build-graph.sh >> logs/sync.log 2>&1
+# Auditoria de integridade e resolução de conflitos (1x por hora)
+0 * * * * cd $SINAPSE_HOME && ./scripts/audit_memory.py --fix >> logs/audit.log 2>&1
 
-# Rebuild completo semanal (domingo 2am)
-0 2 * * 0 /home/user/sinapse_agent/cron/sync-diario.sh
+# Backup completo do banco UMC (diário às 3am)
+0 3 * * * cp $SINAPSE_HOME/hive_mind.db $SINAPSE_HOME/backups/hive_mind_$(date +\%F).db
 ```
 
 ---
 
-## 7. Estrutura de Diretórios de Dados
+## 5. Estrutura de Diretórios (v2.0.0)
 
 ```
-~/Documentos/Projects/sinapse_agent/
-├── cerebro/                         # Vault Obsidian (fonte única)
-│   ├── graphify-out/
-│   │   ├── graph.json               # Knowledge graph (2MB, rebuildado 6h)
-│   │   ├── graph.json.bak           # Backup automático
-│   │   └── cache/                   # Cache regenerável (SHA256, .gitignore)
-│   ├── brain/
-│   │   ├── Current State.md         # Estado atual (atualizado por sessão)
-│   │   ├── Patterns.md              # Aprendizados acumulados (append-only)
-│   │   └── *.md                     # Notas de conhecimento operacional
-│   └── work/active/                 # Decisões e projetos ativos
-├── claude-mem/data/                 # SQLite + ChromaDB (local, .gitignore)
-│   ├── claude-mem.db                # SQLite FTS5
-│   └── chroma/                      # ChromaDB embeddings
-├── logs/                            # Logs de sync (30 dias retenção)
-│   └── sync-YYYYMMDD-HHMMSS.log
-└── .env                             # API keys (nunca commitado)
+~/Documentos/Projects/Hive-Mind/
+├── cerebro/                         # Vault Obsidian (Fonte de Verdade)
+│   ├── atlas/                       # Conhecimento estruturado (Markdown)
+│   ├── inbox/                       # Dados brutos recebidos (Temporal)
+│   │   ├── visual/                  # Screenshots capturados
+│   │   └── documents/               # PDFs e DOCXs para processamento
+│   └── conflicts/                   # Arquivo de conflitos P2P resolvidos
+├── core/                            # Código fonte do UMC e Schemas
+├── scripts/                         # Ferramentas operacionais e Ciclo de Sonho
+└── hive_mind.db                     # O Unified Memory Core (SQLite)
 ```
 
 ---

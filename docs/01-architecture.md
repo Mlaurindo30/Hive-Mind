@@ -1,102 +1,62 @@
 # 01 — Arquitetura e Abordagem Técnica
 
-> **Sinapse Agent v1.1.0** — Camada de memória universal para agentes de IA.
+> **Hive-Mind v2.0.0** — Camada de memória universal, distribuída e multimodal para agentes de IA.
 
 ---
 
 ## 1. Visão Geral
 
-O Sinapse Agent resolve o problema de **continuidade de memória** entre sessões de agentes de IA. Sem ele, cada sessão começa "do zero" — o agente não lembra decisões passadas, padrões aprendidos ou o estado atual dos projetos.
+O Hive-Mind é a evolução do Sinapse Agent. Ele resolve o problema de **continuidade de memória** e **inteligência coletiva** entre sessões de agentes de IA e múltiplos dispositivos. Sem ele, cada sessão começa "do zero".
 
-A solução organiza a memória em **4 camadas complementares**, cada uma respondendo a uma pergunta fundamental sobre o conhecimento:
+A solução organiza a memória em um **Unified Memory Core (UMC)** baseado em SQLite, integrando 5 dimensões do conhecimento:
 
-| Camada | Pergunta | Ferramenta | Tecnologia |
-|--------|----------|-----------|-----------|
-| **Estrutural** | O QUE existe? Como os conceitos se conectam? | Graphify | Python, tree-sitter, Leiden clustering |
-| **Temporal** | QUEM fez o quê? QUANDO? | claude-mem | TypeScript/Bun, SQLite FTS5, Chroma |
-| **Execução** | COMO otimizar comandos? | RTK | Rust, regex determinístico |
-| **Associativa** | COMO conceitos se relacionam? | NeuralMemory | Python, spreading activation, 24 tipos de relações |
+| Dimensão | Pergunta | Ferramenta | Tecnologia |
+|----------|----------|-----------|------------|
+| **Estrutural** | O QUE existe? | Graphify | Grafos, Leiden clustering |
+| **Temporal** | QUANDO ocorreu? | UMC Logs | SQLite FTS5 |
+| **Associativa** | O que é SIMILAR? | UMC Vectors | `sqlite-vec` (all-MiniLM-L6-v2) |
+| **Distribuída** | Onde está a VERDADE? | Swarm Layer | Syncthing, UUID v4, SHA-256 |
+| **Multimodal** | Como isso PARECE? | Deep Portal | Vision LLM, OCR, Obsidian Canvas |
 
-**Fonte única de verdade:** Vault Obsidian em `cerebro/` com frontmatter YAML + WikiLinks.
+**Fonte única de verdade:** Vault Obsidian em `cerebro/` sincronizado via P2P.
 
 ---
 
 ## 2. Princípios de Design
 
-### 2.1 Vault como Fonte Única (Single Source of Truth)
+### 2.1 Unified Memory Core (UMC)
+Diferente da v1.1.0, o Hive-Mind centraliza tudo em um banco SQLite (`hive_mind.db`). Isso elimina a fragmentação entre Chroma, JSON e arquivos locais, permitindo buscas híbridas complexas em milissegundos.
 
-Toda informação converge para o vault Obsidian. As 4 camadas são **indexadores e aumentadores**, não armazenamento primário.
+### 2.2 Soberania de Modelos (Hive-Dreamer)
+O usuário tem controle total sobre qual "Cérebro" processa as memórias através das variáveis `HIVE_DREAMER_PROVIDER` e `HIVE_DREAMER_MODEL`. O sistema é agnóstico e não força o uso de modelos específicos.
 
-- Graphify **lê** o vault e gera graph.json
-- claude-mem **trackeia** eventos e **exporta** para o vault periodicamente
-- RTK **intercepta** comandos mas não armazena estado
-- NeuralMemory **indexa** relações associativas a partir do vault
-- sinapse-memory plugin **lê e escreve** no vault em tempo real
+### 2.3 Sincronização em Enxame (P2P Swarm)
+Utiliza o **Syncthing** para mover arquivos Markdown. A integridade entre o banco de dados e os arquivos físicos é garantida por **Hashes de Integridade** e um **Swarm Auditor** que detecta e resolve divergências automaticamente.
 
-### 2.2 Independência de Camadas & Redirecionamento Cloud
-
-Cada camada opera de forma independente e resiliente. A busca híbrida de contexto (Fase 4.1) consulta todos os backends ativos concorrentemente em paralelo. Se algum backend falhar, os demais cobrem de forma transparente. Adicionalmente, se a configuração `cloud.enabled` estiver ativa (Fase 4.3), o plugin age como um cliente HTTP de alta velocidade, delegando as buscas e gravações diretamente para a API REST na VPS (FastAPI), viabilizando o desacoplamento completo do agente e do vault físico.
-
-### 2.3 Agente-Agnóstico
-
-O mesmo vault serve Hermes (plugin nativo), Claude Code (MCP + hooks), Codex CLI (MCP + hooks), Kilo Code (MCP) e OpenClaw (MCP). A interface de integração é abstraída em 4 métodos:
-
-| Método | Agentes | Mecanismo |
-|--------|---------|-----------|
-| Plugin nativo | Hermes | `register(ctx)` → hooks `pre_gateway_dispatch`, `post_tool_call`, `on_session_end` |
-| MCP server | Claude Code, Codex, Kilo Code, OpenClaw, Copilot, Gemini CLI, ZooCode | `sinapse-mcp.py` → 8 tools via stdio JSON-RPC |
-| CLI standalone | Qualquer agente com shell | `sinapse-write.py` → subcomandos `decision`, `learning`, `query`, `health`, `session-end`, `zettelkasten` |
-| REST Cloud API | Agentes desacoplados na VPS | `sinapse-api.py` → Endpoints seguros HTTP (SSL + API Key Bearer) |
-
-### 2.4 Indexação Assíncrona
-
-O knowledge graph (graph.json) é rebuildado a cada 6h via cron. Mudanças no vault ficam disponíveis para consulta **imediata** via leitura direta de arquivos (plugin/MCP), mas aparecem como nodes/edges no grafo apenas após reindexação. Este trade-off (consistência eventual) é aceitável para vaults de conhecimento.
+### 2.4 Multimodalidade por Design
+A memória não é apenas texto. O Hive-Mind captura o estado do sistema (screenshots) e ingere documentos (PDF/DOCX), transformando-os em conhecimento semântico pesquisável.
 
 ---
 
 ## 3. Componentes do Sistema
 
-### 3.1 Plugins/hermes/sinapse-memory.py (1138 linhas)
+### 3.1 Unified Memory Core (UMC) - SQLite
+O coração do sistema. Tabelas principais:
+- `neurons`: Conceitos, notas e fatos.
+- `synapses`: Relações entre neurônios.
+- `observations`: Logs temporais brutos.
+- `visual_memories`: Metadados de capturas visuais e OCR.
+- `ambiguities`: Fila de conflitos semânticos para resolução.
 
-**Núcleo do sistema.** Implementa:
+### 3.2 Hive-Dreamer (dream_cycle.py)
+O pipeline de consolidação que roda em background:
+1.  **Reflexão:** Extrai fatos de observações brutas.
+2.  **Visão:** Processa imagens da inbox visual.
+3.  **Síntese:** Resolve conflitos semânticos P2P (Dialética).
+4.  **Roteamento:** Organiza o conhecimento na taxonomia do Atlas.
 
-- **Sistema de busca concorrente em paralelo (Fase 4.1):** Consulta todos os backends de leitura (`_READ_BACKENDS`) concorrentemente através de `ThreadPoolExecutor`. Se múltiplos backends retornarem dados ricos, unifica as observações, nós e arestas (Context Fusion), mantendo compatibilidade retroativa para hits isolados.
-- **Redirecionamento Cloud API (Fase 4.3):** Intercepta todas as operações locais e delega via requisições HTTP seguras para o microsserviço remoto se `cloud.enabled` for `true`.
-- **Prevenção de Recursão:** Implementa a flag `API_SERVER_MODE` para evitar loops de auto-redirecionamento quando rodando dentro da API de nuvem.
-- **Escrita atômica** (`_atomic_write`): temp file + `os.replace()` para evitar arquivos truncados
-- **Sanitização de slugs** (`_sanitize_slug`): unicode NFKD + regex ASCII-safe + truncamento
-- **Deduplicação de aprendizados** (`_save_learning`): verifica existência antes de append
-- **Health check unificado** (`health_check`): status de todos os backends + vault
-- **Cache TTL** (`_load_graph`): evita releitura do disco a cada consulta (60s TTL)
-- **Circuit breaker** (`_is_backend_healthy`): pula backends com 3+ falhas consecutivas (cooldown 30s)
-- **Logs estruturados** (`_log`): modo texto ou JSON via `SINAPSE_LOG_JSON`
-- **Dry-run mode** (`SINAPSE_DRY_RUN`): sem side effects no filesystem
-- **Config centralizada** (`_load_config`): carrega `sinapse.yaml` no startup
-
-### 3.2 Scripts/sinapse-mcp.py (MCP Server)
-
-Servidor MCP que expõe 8 tools via stdio JSON-RPC:
-
-| Tool | Descrição |
-|------|-----------|
-| `sinapse_query` | Busca unificada concorrente em todos os backends (Context Fusion) |
-| `sinapse_save_decision` | Salva decisão no vault com YAML frontmatter |
-| `sinapse_save_learning` | Salva aprendizado no Patterns.md (com dedup) |
-| `sinapse_health` | Health check completo |
-| `sinapse_session_end` | Finaliza sessão, atualiza Current State |
-| `sinapse_temporal_search` | Busca direta no claude-mem (FTS5 + Chroma) |
-| `sinapse_temporal_save` | Salva observação no claude-mem ou fallback |
-| `sinapse_zettelkasten_split` | Particiona notas monolíticas em notas atômicas interligadas |
-
-### 3.3 Scripts/sinapse-write.py (CLI Standalone)
-
-CLI para agentes sem MCP. Subcomandos: `decision`, `learning`, `query`, `health`, `session-end`, `zettelkasten`.
-
-### 3.4 cerebro/.claude/scripts/sinapse-hook.py (Hook Script)
-
-Script invocado pelos hooks do Claude Code e Codex CLI (SessionStart, PostToolUse, Stop). Resolve `SINAPSE_HOME` dinamicamente a partir do vault path.
-
-### 3.5 Scripts de Infraestrutura e Core
+### 3.3 Real-time Watcher (scripts/start-watcher.sh)
+Monitora o Vault Obsidian e reflete qualquer mudança no SQLite/Vetores em < 2 segundos, eliminando a necessidade de rebuilds periódicos.
 
 | Script | Função |
 |--------|--------|

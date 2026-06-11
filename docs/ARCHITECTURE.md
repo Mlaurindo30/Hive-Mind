@@ -35,61 +35,61 @@ cada uma respondendo a uma pergunta fundamental:
 │   Pergunta: O QUE existe no vault? Como os conceitos se conectam?            │
 │                                                                              │
 │   Entrada:  Arquivos .md no vault cerebro/                                   │
-│   Processo: Parsing → extração de entidades → embeddings →                     │
-│             clusterização (Leiden community detection)                         │
+│   Processo: Parsing → extração de entidades → embeddings →                   │
+│             clusterização (Leiden community detection)                       │
 │   Saída:    graph.json (nodes, edges, communities)                           │
 │   Latência: ~30-60s (build), <5s (query)                                     │
 │   Gap:      Até 6h entre reindexações automáticas                            │
 │                                                                              │
-│   ═══════════════════════════════════════════════════════════════════════════  │
+│   ═══════════════════════════════════════════════════════════════════════════│
 │                                                                              │
 │   CAMADA 2 — TEMPORAL                      claude-mem                        │
 │   ─────────────────────                    ──────────                        │
 │   Pergunta: QUEM fez o quê? QUANDO? Em qual CONTEXTO?                        │
 │                                                                              │
 │   Entrada:  Eventos de agentes (tool uses, prompts, resultados)              │
-│   Processo: Hook intercepta eventos → gera observações via LLM →               │
-│             armazena em SQLite (FTS5 search)                                  │
+│   Processo: Hook intercepta eventos → gera observações via LLM →             │
+│             armazena em SQLite (FTS5 search)                                 │
 │   Saída:    Observations, corpora, timeline reports                          │
 │   Latência: <500ms (search), 3-10s (generate)                                │
 │                                                                              │
-│   ═══════════════════════════════════════════════════════════════════════════  │
+│   ═══════════════════════════════════════════════════════════════════════════│
 │                                                                              │
 │   CAMADA 3 — EXECUÇÃO                       RTK                              │
 │   ─────────────────────                     ───                              │
-│   Pergunta: COMO otimizar esse comando shell?                                  │
+│   Pergunta: COMO otimizar esse comando shell?                                │
 │                                                                              │
-│   Entrada:  Comando shell antes da execução (hook pre_tool_call)               │
+│   Entrada:  Comando shell antes da execução (hook pre_tool_call)             │
 │   Processo: rtk rewrite → analisa e reescreve com melhores práticas          │
-│   Saída:    Comando otimizado (ou original se já estiver bom)                  │
+│   Saída:    Comando otimizado (ou original se já estiver bom)                │
 │   Latência: <2s (rewrite)                                                    │
 │                                                                              │
-│   ═══════════════════════════════════════════════════════════════════════════  │
+│   ═══════════════════════════════════════════════════════════════════════════│
 │                                                                              │
 │   CAMADA 4 — ASSOCIATIVA                  Neural Memory                      │
 │   ─────────────────────                   ─────────────                      │
 │   Pergunta: COMO conceitos se relacionam de forma semântica?                 │
 │                                                                              │
-│   Entrada:  Embeddings de entidades do vault + queries do agente               │
-│   Processo: Busca vetorial HNSW em memória neural → retorna associações        │
-│   Saída:    Conceitos relacionados, similaridades, clusters dinâmicos          │
+│   Entrada:  Embeddings de entidades do vault + queries do agente             │
+│   Processo: Busca vetorial HNSW em memória neural → retorna associações      │
+│   Saída:    Conceitos relacionados, similaridades, clusters dinâmicos        │
 │   Latência: <100ms (recall)                                                  │
 │                                                                              │
-│   ═══════════════════════════════════════════════════════════════════════════  │
+│   ═══════════════════════════════════════════════════════════════════════════│
 │                                                                              │
-│   CAMADA 5 — HÍBRIDA                    Filesystem + Context Fusion            │
-│   ─────────────────────                   ────────────────────────             │
-│   Pergunta: O que existe AGORA, real-time, sem esperar reindexação?            │
+│   CAMADA 5 — HÍBRIDA                    Filesystem + Context Fusion          │
+│   ─────────────────────                   ────────────────────────           │
+│   Pergunta: O que existe AGORA, real-time, sem esperar reindexação?          │
 │                                                                              │
-│   Entrada:  Arquivos .md do vault (scan recursivo direto)                      │
+│   Entrada:  Arquivos .md do vault (scan recursivo direto)                    │
 │   Processo: Busca textual case-insensitive em todos os .md →                 │
-│             extrai título, conteúdo, frontmatter → retorna observações         │
-│   Saída:    Observations diretas do filesystem                                 │
+│             extrai título, conteúdo, frontmatter → retorna observações       │
+│   Saída:    Observations diretas do filesystem                               │
 │   Latência: <1s para vaults até 10MB                                         │
-│   Gap:      ZERO — lê o arquivo no momento da query                            │
+│   Gap:      ZERO — lê o arquivo no momento da query                          │
 │                                                                              │
-│   ⚡ HYBRID SEARCH: combina os 5 backends + deduplicação cross-backend          │
-│      → elimina o gap de 6h do Graphify sem duplicar resultados                 │
+│   ⚡ HYBRID SEARCH: combina os 5 backends + deduplicação cross-backend        │
+│      → elimina o gap de 6h do Graphify sem duplicar resultados               │
 │                                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
