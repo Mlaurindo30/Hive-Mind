@@ -1,6 +1,6 @@
-# Sinapse Agent
+# Hive-Mind
 
-Camada de memória universal para agentes de IA. Indexa um vault Obsidian em um knowledge graph queryable via Graphify, complementado por tracking granular de eventos (claude-mem) e otimização de execução (RTK). **Um clone, um `./install.sh`, todos os agentes conectados.**
+**Hive-Mind** é a evolução do Sinapse Agent. Uma camada de memória universal, persistente e local-first para enxames de agentes de IA. Utiliza um motor de busca híbrido (Texto + Vetores + Grafos) sobre um vault Obsidian, permitindo que múltiplos agentes (Cursor, Claude Code, Codex, Hermes) compartilhem o mesmo cérebro de conhecimento estruturado.
 
 ---
 
@@ -49,9 +49,9 @@ Agentes de IA sofrem de amnésia entre sessões. O Sinapse Agent resolve isso co
 │   │  │  conecta?    │  │  Histórico   │  │  comandos    │       │   │
 │   │  │              │  │              │  │              │       │   │
 │   │  │  graph.json  │  │  SQLite      │  │  pre_tool    │       │   │
-│   │  │  491 nodes   │  │  + Chroma    │  │  _call hook  │       │   │
-│   │  │  606 edges   │  │  + FTS5      │  │              │       │   │
-│   │  │  55 comunid. │  │              │  │              │       │   │
+│   │  │              │  │  + sqlite-vec│  │  _call hook  │       │   │
+│   │  │              │  │  + FTS5      │  │              │       │   │
+│   │  │              │  │              │  │              │       │   │
 │   │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │   │
 │   │         │                 │                 │               │   │
 │   │         ▼                 ▼                 ▼               │   │
@@ -80,7 +80,7 @@ Agentes de IA sofrem de amnésia entre sessões. O Sinapse Agent resolve isso co
 | Camada | Ferramenta | Pergunta que responde | Dados |
 |--------|-----------|----------------------|-------|
 | 1 — Estrutural | **Graphify** | Como os conceitos se conectam? | `graph.json` (1328 nodes, 1473 edges, 113 communities) |
-| 2 — Temporal | **claude-mem** | Quem fez o quê? Quando? | SQLite + Chroma (FTS5 search) |
+| 2 — Temporal | **claude-mem** | Quem fez o quê? Quando? | SQLite + sqlite-vec (FTS5) |
 | 3 — Execução | **RTK** | Como otimizar esse comando? | Hook `pre_tool_call` no Hermes |
 | 4 — Associativa | **NeuralMemory** | Como os conceitos se relacionam? | Spreading activation (nmem recall) |
 | 5 — Cloud REST | **FastAPI Cloud API** | Como acessar a memória remotamente? | Endpoints seguros HTTP (Token Bearer auth) |
@@ -166,11 +166,12 @@ Para rodar a camada de memória de forma 100% desacoplada na nuvem (VPS), inicie
    ```bash
    python3 scripts/sinapse-api.py
    ```
+   > **Obrigatório:** defina a variável de ambiente `HIVE_MIND_API_KEY` antes de iniciar — a API não inicia sem ela.
 2. **Ative o chaveamento no `sinapse.yaml` da máquina de desenvolvimento:**
    ```yaml
    cloud:
      enabled: true
-     url: "http://<sua-vps-ip>:8000"
+     url: "http://<sua-vps-ip>:37702"
      api_key: "${SINAPSE_API_KEY}"
    ```
 

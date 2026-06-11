@@ -7,15 +7,17 @@
 #
 # O que este script faz:
 #   1. Verifica dependências (Python 3.10+, uv/pipx, Node 18+, Bun, Ollama opcional)
-#   2. Instala Graphify (graphifyy[all]) e indexa o vault cerebro/ (Gemini→Ollama→AST)
-#   3. Registra skills nos agentes detectados (Hermes, Claude, Codex, etc.)
-#   4. Configura claude-mem, instala dependências, inicia worker (systemd)
-#   5. Instala NeuralMemory (nmem) — busca associativa com spreading activation
-#   6. Compila RTK do source (Rust) e instala plugin no Hermes
-#   7. Configura MCP servers (graphify + claude-mem) para Hermes
-#   8. Instala cron job de sync periódico (rebuild do graph.json a cada 6h)
-#   9. Instala/atualiza plugin sinapse-memory (multi-backend: nmem + claude-mem + graphify)
-#  10. Configura agentes externos (MCP: Claude Code, Codex, Kilo Code, etc.)
+#   2. Instala dependências Python (requirements.txt: API, Core/UMC, Watcher, Multimodal)
+#   3. Instala Graphify (graphifyy[all]) e indexa o vault cerebro/ (Gemini→Ollama→AST)
+#   4. Registra skills nos agentes detectados (Hermes, Claude, Codex, etc.)
+#   5. Configura claude-mem, instala dependências, inicia worker (systemd)
+#   6. Instala NeuralMemory (nmem) — busca associativa com spreading activation
+#   7. Compila RTK do source (Rust) e instala plugin no Hermes
+#   8. Configura MCP servers (graphify + claude-mem) para Hermes
+#   9. Instala cron job de sync periódico (rebuild do graph.json a cada 6h)
+#  10. Instala/atualiza plugin sinapse-memory (multi-backend: nmem + claude-mem + graphify)
+#  11. Configura inteligência do Ciclo de Sonho (dream cycle)
+#  12. Configura agentes externos (MCP: Claude Code, Codex, Kilo Code, etc.)
 #
 # Flags:
 #   --force          Reinstala componentes mesmo se já existirem
@@ -53,14 +55,14 @@ done
 # ── Banner ──────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}${BLUE}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${BLUE}║          Sinapse Agent — Instalação Universal        ║${NC}"
+echo -e "${BOLD}${BLUE}║          Hive-Mind — Instalação Universal        ║${NC}"
 echo -e "${BOLD}${BLUE}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 
 # =============================================================================
 # 1. VERIFICAÇÃO DE DEPENDÊNCIAS
 # =============================================================================
-echo -e "${BOLD}[1/10] Verificando dependências...${NC}"
+echo -e "${BOLD}[1/12] Verificando dependências...${NC}"
 
 # Python
 if ! command -v python3 &>/dev/null; then
@@ -126,9 +128,40 @@ fi
 echo ""
 
 # =============================================================================
-# 2. INSTALAÇÃO DO GRAPHIFY (do source clonado, NÃO do PyPI)
+# 2. DEPENDÊNCIAS PYTHON (requirements.txt)
 # =============================================================================
-echo -e "${BOLD}[2/10] Instalando Graphify (source local)...${NC}"
+echo -e "${BOLD}[2/12] Instalando dependências Python (requirements.txt)...${NC}"
+
+# Cobre todos os componentes: API REST (fastapi/uvicorn/slowapi/cryptography),
+# Core/UMC (pydantic/pyyaml/numpy/sqlite-vec/fastembed), Watcher (watchdog)
+# e Multimodal Fase 10 (mss/PyMuPDF/python-docx).
+if [ -f "$PROJECT_ROOT/requirements.txt" ]; then
+    if [ "$INSTALL_METHOD" = "uv" ]; then
+        uv pip install -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
+        pip install --user -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
+        pip install --break-system-packages -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
+        pip install -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || true
+    else
+        pip install --user -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
+        pip install --break-system-packages -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
+        pip install -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || true
+    fi
+    # Sanity check: módulos críticos para API e UMC
+    if python3 -c "import fastapi, yaml, pydantic" 2>/dev/null; then
+        echo -e "  ${GREEN}✓${NC} Dependências Python instaladas (requirements.txt)"
+    else
+        echo -e "  ${YELLOW}⚠${NC}  Algumas dependências Python podem não ter sido instaladas. Rode manualmente: pip install -r requirements.txt"
+    fi
+else
+    echo -e "  ${YELLOW}⚠${NC}  requirements.txt não encontrado em $PROJECT_ROOT — pulando."
+fi
+
+echo ""
+
+# =============================================================================
+# 3. INSTALAÇÃO DO GRAPHIFY (do source clonado, NÃO do PyPI)
+# =============================================================================
+echo -e "${BOLD}[3/12] Instalando Graphify (source local)...${NC}"
 
 GRAPHIFY_SRC="$PROJECT_ROOT/graphify"
 
@@ -156,17 +189,7 @@ else
     echo -e "  ${GREEN}✓${NC} graphify já instalado"
 fi
 
-# Garantir dependências da API Cloud (fastapi, uvicorn, python-multipart, httpx)
-echo -e "  Instalando dependências da API Cloud (fastapi, uvicorn, python-multipart, httpx)..."
-if [ "$INSTALL_METHOD" = "uv" ]; then
-    uv pip install -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
-    pip install --break-system-packages -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
-    pip install -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || true
-else
-    pip install --break-system-packages -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
-    pip install -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || true
-fi
-
+# Dependências Python (requirements.txt) já instaladas na etapa 2.
 
 # Indexar o vault com extração semântica se API key disponível, senão AST-only
 echo -e "  Indexando vault cerebro/..."
@@ -192,9 +215,9 @@ fi
 echo ""
 
 # =============================================================================
-# 3. REGISTRO NOS AGENTES DETECTADOS
+# 4. REGISTRO NOS AGENTES DETECTADOS
 # =============================================================================
-echo -e "${BOLD}[3/10] Registrando skills nos agentes...${NC}"
+echo -e "${BOLD}[4/12] Registrando skills nos agentes...${NC}"
 
 # Array associativo: comando de detecção → plataforma graphify
 # Alguns agentes não têm CLI detectável (Cursor, Copilot) — usamos caminho de arquivo
@@ -281,9 +304,9 @@ fi
 echo ""
 
 # =============================================================================
-# 4. CONFIGURAÇÃO DO CLAUDE-MEM (do source clonado)
+# 5. CONFIGURAÇÃO DO CLAUDE-MEM (do source clonado)
 # =============================================================================
-echo -e "${BOLD}[4/10] Configurando claude-mem (source local)...${NC}"
+echo -e "${BOLD}[5/12] Configurando claude-mem (source local)...${NC}"
 
 if $NODE_OK; then
     CLAUDE_MEM_DIR="$PROJECT_ROOT/claude-mem"
@@ -344,9 +367,9 @@ fi
 echo ""
 
 # =============================================================================
-# 5. INSTALAÇÃO DO NEURAL MEMORY (spreading activation — associativo, do source)
+# 6. INSTALAÇÃO DO NEURAL MEMORY (spreading activation — associativo, do source)
 # =============================================================================
-echo -e "${BOLD}[5/10] Instalando NeuralMemory (spreading activation, source local)...${NC}"
+echo -e "${BOLD}[6/12] Instalando NeuralMemory (spreading activation, source local)...${NC}"
 
 NEURAL_MEMORY_SRC="$PROJECT_ROOT/neural-memory"
 
@@ -378,9 +401,9 @@ fi
 echo ""
 
 # =============================================================================
-# 6. CONFIGURAÇÃO DO RTK (do source clonado — Rust)
+# 7. CONFIGURAÇÃO DO RTK (do source clonado — Rust)
 # =============================================================================
-echo -e "${BOLD}[6/10] Compilando RTK (source local)...${NC}"
+echo -e "${BOLD}[7/12] Compilando RTK (source local)...${NC}"
 
 RTK_SRC="$PROJECT_ROOT/rtk"
 
@@ -424,9 +447,9 @@ cd "$PROJECT_ROOT"
 echo ""
 
 # =============================================================================
-# 6. CONFIGURAÇÃO MCP (GRAPHIFY + CLAUDE-MEM)
+# 8. CONFIGURAÇÃO MCP (GRAPHIFY + CLAUDE-MEM)
 # =============================================================================
-echo -e "${BOLD}[7/10] Configurando servidores MCP...${NC}"
+echo -e "${BOLD}[8/12] Configurando servidores MCP...${NC}"
 
 # Graphify MCP
 if command -v hermes &>/dev/null; then
@@ -473,9 +496,9 @@ fi
 echo ""
 
 # =============================================================================
-# 7. CRON DE SYNC PERIÓDICO
+# 9. CRON DE SYNC PERIÓDICO
 # =============================================================================
-echo -e "${BOLD}[8/10] Configurando cron de sync...${NC}"
+echo -e "${BOLD}[9/12] Configurando cron de sync...${NC}"
 
 CRON_JOB="SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && ./scripts/build-graph.sh >> logs/sync.log 2>&1"
 
@@ -494,9 +517,9 @@ fi
 echo ""
 
 # =============================================================================
-# 8. PLUGIN SINAPSE-MEMORY (HERMES)
+# 10. PLUGIN SINAPSE-MEMORY (HERMES)
 # =============================================================================
-echo -e "${BOLD}[9/10] Instalando plugin sinapse-memory...${NC}"
+echo -e "${BOLD}[10/12] Instalando plugin sinapse-memory...${NC}"
 
 if command -v hermes &>/dev/null && [ -d "$HOME/.hermes/plugins/" ]; then
     PLUGIN_DIR="$HOME/.hermes/plugins/sinapse-memory"
@@ -552,9 +575,16 @@ fi
 echo ""
 
 # =============================================================================
-# 10. CONFIGURAÇÃO DE AGENTES EXTERNOS (via MCP + templates)
 # =============================================================================
-echo -e "${BOLD}[10/10] Configurando agentes externos (MCP + CLI)...${NC}"
+# 11. CONFIGURAÇÃO DE INTELIGÊNCIA (Ciclo de Sonho)
+# =============================================================================
+echo -e "${BOLD}[11/12] Configurando inteligência do Ciclo de Sonho...${NC}"
+"$PROJECT_ROOT/scripts/setup-dreamer.sh"
+echo ""
+
+# 12. CONFIGURAÇÃO DE AGENTES EXTERNOS (via MCP + templates)
+# =============================================================================
+echo -e "${BOLD}[12/12] Configurando agentes externos (MCP + CLI)...${NC}"
 
 # Garantir permissões de execução em todos os scripts e hooks
 chmod +x "$PROJECT_ROOT/scripts/"*.sh 2>/dev/null || true
