@@ -12,14 +12,24 @@ os.environ["SINAPSE_DRY_RUN"] = "true"
 import pytest
 from pathlib import Path
 import importlib.util
+
+# Dependências opcionais da API — pula o módulo inteiro se ausentes,
+# em vez de quebrar a coleta do pytest.
+pytest.importorskip("fastapi")
+pytest.importorskip("slowapi")
+pytest.importorskip("cryptography")
+uvicorn = pytest.importorskip("uvicorn")
+
 from fastapi.testclient import TestClient
-import uvicorn
 
 # Carrega scripts/sinapse-api.py dinamicamente para obter a instância da app
-_api_script = Path(__file__).resolve().parent.parent.parent / "scripts" / "sinapse-api.py"
+_api_script = Path(__file__).resolve().parents[2] / "scripts" / "sinapse-api.py"
 spec = importlib.util.spec_from_file_location("sinapse_api", _api_script)
 api_mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(api_mod)
+try:
+    spec.loader.exec_module(api_mod)
+except ImportError as exc:  # dependência transitiva ausente
+    pytest.skip(f"Dependência da API ausente: {exc}", allow_module_level=True)
 app = api_mod.app
 
 client = TestClient(app)

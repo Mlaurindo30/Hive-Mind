@@ -12,10 +12,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# Importar o plugin diretamente do path
-sys.path.insert(0, "/home/michel/Documentos/Projects/sinapse_agent/plugins/hermes")
+# Importar o plugin diretamente do path (resolvido dinamicamente a partir da raiz do projeto)
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_PLUGIN_PATH = PROJECT_ROOT / "plugins" / "hermes" / "sinapse-memory.py"
+sys.path.insert(0, str(_PLUGIN_PATH.parent))
 import importlib.util
-spec = importlib.util.spec_from_file_location("sm", "/home/michel/Documentos/Projects/sinapse_agent/plugins/hermes/sinapse-memory.py")
+spec = importlib.util.spec_from_file_location("sm", str(_PLUGIN_PATH))
 sm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(sm)
 
