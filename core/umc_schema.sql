@@ -94,7 +94,8 @@ CREATE TRIGGER IF NOT EXISTS neurons_after_delete AFTER DELETE ON neurons BEGIN
 END;
 
 CREATE TRIGGER IF NOT EXISTS neurons_after_update AFTER UPDATE ON neurons BEGIN
-    UPDATE search_fts SET label = new.label, content = new.content WHERE neuron_id = old.id;
+    DELETE FROM search_fts WHERE neuron_id = old.id;
+    INSERT INTO search_fts(neuron_id, label, content) VALUES (new.id, new.label, new.content);
 END;
 
 -- Multimodal Layer (Visual Memories)

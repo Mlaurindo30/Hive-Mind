@@ -58,9 +58,22 @@ def execute_insert(conn, table, data):
     'data' deve ser um dicionário com os nomes das colunas e valores.
     Retorna o ID gerado ou utilizado.
     """
+    # Whitelist de tabelas permitidas para evitar injeção SQL no nome da tabela
+    ALLOWED_TABLES = {
+        "neurons", "synapses", "observations", "vault", 
+        "ambiguities", "visual_memories", "document_memories"
+    }
+    if table not in ALLOWED_TABLES:
+        raise ValueError(f"Tabela não permitida: {table}")
+
     data_copy = dict(data)
     if 'id' not in data_copy or not data_copy['id']:
         data_copy['id'] = generate_uuid()
+    
+    # Valida se os nomes das colunas são identificadores válidos para evitar injeção
+    for col in data_copy.keys():
+        if not col.isidentifier():
+            raise ValueError(f"Nome de coluna inválido: {col}")
     
     columns = ', '.join(data_copy.keys())
     placeholders = ', '.join(['?'] * len(data_copy))

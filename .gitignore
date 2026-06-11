@@ -53,7 +53,30 @@ hive_mind.db-*
 hive_mind.db.bak
 *.db.bak
 banco.db
+ruvector.db
 
 # ── Venvs auxiliares ─────────────────────────────────────────────────
 .venv-sqlite-vec/
 .pytest_cache/
+
+# ── Pastas de ferramentas e agentes locais (não commitar) ────────────
+.claude/
+.claude-flow/
+.gemini/
+.kiro/
+.opencode/
+.swarm/
+.kilo/
+.mcp.json
+
+# ── Arquivos temporários e de testes do workspace ────────────────────
+contrarian_prompt.md
+framed_question.txt
+run_council.py
+cerebro/WatchTest.md
+cerebro/BenchTest.md
+cerebro/Bench-Test.md
+cerebro/BenchMark.md
+cerebro/portal.canvas
+cerebro/inbox/
+cerebro/conflicts/

@@ -1,61 +1,68 @@
-# Sinapse Agent — Documentação Técnica
+# Hive-Mind — Documentação Técnica
 
-> **Versão:** 1.1.0 | **Data:** 2026-05-23
-> **Stack:** Python 3.14 + TypeScript/Node + Rust | **Tests:** 103 passing
-> **Vault:** Obsidian (cerebro/) | **Agentes:** Hermes, Claude Code, Codex CLI, Kilo Code, OpenClaw
+> **Versão:** 2.0.0 | **Atualizado:** 2026-06-10
+> **Stack:** Python 3.10+ (core/pipeline) · TypeScript/Bun (claude-mem) · Rust (RTK) · SQLite (`sqlite-vec` + FTS5)
+> **Status:** Fase 10 (Deep Portal — multimodal) em finalização | **Testes:** 116 coletáveis
 
 ---
 
-## Índice de Documentação
+## Documento canônico
+
+| Documento | Conteúdo |
+|-----------|----------|
+| **[ARCHITECTURE.md](ARCHITECTURE.md)** | Referência canônica: princípios, UMC, fluxos de leitura/escrita, Dream Cycle, P2P, multimodal, camada de acesso (MCP/Plugin/CLI/REST), auth multi-provedor, extensão, testes, recovery |
+
+## Documentação por área
 
 | # | Documento | Conteúdo | Público-alvo |
 |---|-----------|----------|-------------|
-| 1 | [Arquitetura e Abordagem Técnica](01-architecture.md) | Visão geral do sistema, 4 camadas de memória, fluxos de leitura/escrita, decisões de design | Arquitetos, Engenheiros |
-| 2 | [Modelos de IA](02-ai-models.md) | LLMs utilizados (Gemini, Ollama, embeddings), rationale de seleção, fallback chain | ML Engineers, CTOs |
-| 3 | [Pipeline de Dados](03-data-pipeline.md) | Coleta → pré-processamento → embeddings → Leiden clustering → indexação → query | Data Engineers |
-| 4 | [Infraestrutura e Escopo](04-infrastructure.md) | Requisitos de hardware, portas, serviços, limites, variáveis de ambiente, segurança | DevOps, SRE |
-| 5 | [Blueprints e Fluxogramas](05-blueprints.md) | Diagramas Mermaid: arquitetura de camadas, fluxo de leitura, fluxo de escrita, deploy | Todos |
-| 6 | [Análise de Gaps — install.sh](06-gap-analysis.md) | O que o install.sh faz vs. o que deveria fazer, discrepâncias, recomendações | Desenvolvedores |
+| 1 | [Arquitetura e Abordagem Técnica](01-architecture.md) | → Consolidado em [ARCHITECTURE.md](ARCHITECTURE.md) (§17 ADRs) | — |
+| 2 | [Modelos de IA](02-ai-models.md) | LLMs e embeddings utilizados, rationale, fallback chain | ML Engineers |
+| 3 | [Pipeline de Dados](03-data-pipeline.md) | Coleta → pré-processamento → embeddings → clustering → indexação | Data Engineers |
+| 4 | [Infraestrutura e Escopo](04-infrastructure.md) | Hardware, portas, serviços, limites, variáveis de ambiente | DevOps/SRE |
+| 5 | [Blueprints e Fluxogramas](05-blueprints.md) | Diagramas ASCII de arquitetura, read/write path, Dream Cycle, P2P | Todos |
+| 6 | [Análise de Gaps — install.sh](06-gap-analysis.md) | Auditoria técnica (C1-C5), gaps do instalador, métricas de testes | Desenvolvedores |
+| 7 | [Setup de Sincronização P2P](07-p2p-sync-setup.md) | Syncthing, UUID v4, SHA-256, Síntese Dialética (Phase 9) | DevOps |
 
-## Documentação Complementar
+> Todos os documentos 01–07 foram reescritos para v2.0.0 em 2026-06-10. Em caso de conflito entre eles, **[ARCHITECTURE.md](ARCHITECTURE.md) prevalece**.
+
+## Relatórios e planos
+
+| Documento | Conteúdo |
+|-----------|----------|
+| [plans/2026-06-10-auditoria-tecnica-completa.md](plans/2026-06-10-auditoria-tecnica-completa.md) | Auditoria técnica completa (achados C1–C5, A1–A6, P1/P2) e plano de correção |
+| [walkthrough.md](walkthrough.md) | Tour guiado pelo sistema |
+
+## Documentação complementar (raiz)
 
 | Arquivo | Conteúdo |
 |---------|----------|
-| `../ARCHITECTURE.md` | Blueprint completo com 14 seções (referência canônica) |
-| `../AGENTS.md` | Guia para agentes de IA que trabalham no projeto |
-| `../sinapse.yaml` | Configuração central do projeto |
-| `../tests/README.md` | Estrutura e convenções da suite de testes |
-| `../README.md` | README público do repositório |
+| [`../README.md`](../README.md) | Visão geral pública: arquitetura, instalação, operação, API |
+| [`../AGENTS.md`](../AGENTS.md) | Guia para agentes de IA que trabalham no projeto |
+| [`../PROJECT_STATUS.md`](../PROJECT_STATUS.md) | Acompanhamento de fases (1–12) |
+| [`../IMPLEMENTATION.md`](../IMPLEMENTATION.md) | Log de entregas por data |
+| [`../sinapse.yaml`](../sinapse.yaml) | Configuração central comentada |
+| [`../tests/README.md`](../tests/README.md) | Estrutura e convenções da suíte de testes |
 
-## Stack Tecnológica
+## Stack em uma linha por camada
 
 ```
-Camada 1 — Estrutural:    Graphify (Python) → Leiden clustering → graph.json (1266+ nodes)
-Camada 2 — Temporal:      claude-mem (TypeScript/Bun) → FTS5 + Chroma → worker HTTP :37700
-Camada 3 — Execução:      RTK (Rust) → pre_tool_call hook → otimização de comandos shell
-Camada 4 — Associativa:   NeuralMemory (Python) → spreading activation → nmem recall CLI
-Plugin — Integração:      sinapse-memory.py (Python) → hooks Hermes + MCP server + CLI standalone
-Vault — Fonte única:      cerebro/ (Obsidian) → frontmatter YAML + WikiLinks
+Cérebro (UMC):       hive_mind.db — SQLite + sqlite-vec (384d) + FTS5 + grafo + multimodal
+Estrutural:          Graphify (Python) → neurons/synapses/communities
+Temporal:            claude-mem (TypeScript/Bun) → observations, worker HTTP :37700
+Execução:            RTK (Rust) → hook pre_tool_call no Hermes
+Associativa:         NeuralMemory (Python) → spreading activation
+Consolidação:        dream_cycle.py → Distiller→Validator→Router→Síntese (LLM multi-provedor)
+Tempo real:          Watcher (watchdog) → Obsidian→SQLite em ~2s
+Acesso:              MCP (9 tools) · plugin Hermes · CLI · REST FastAPI :37702
+Distribuição:        Syncthing (P2P) + UUID v4 + SHA-256 + Síntese Dialética
+Fonte de verdade:    cerebro/ (Obsidian) — frontmatter YAML + WikiLinks
 ```
-
-## Métricas do Projeto
-
-| Métrica | Valor |
-|---------|-------|
-| Linhas de código (plugin) | 984 |
-| Linhas de código (install.sh) | 625 |
-| Testes unitários | 66 |
-| Testes de integração | 15 |
-| Testes E2E | 22 |
-| Testes totais | 103 |
-| Scripts de automação | 9 |
-| Config files MCP | 3 |
-| Hooks (Claude Code + Codex) | 6 |
-| Variáveis de ambiente documentadas | 7 |
 
 ## Como usar esta documentação
 
-1. **Novo no projeto:** Comece por `01-architecture.md` para entender o sistema
-2. **Configurando deploy:** Leia `04-infrastructure.md`
-3. **Debugando integração:** Consulte `05-blueprints.md` para diagramas de fluxo
-4. **Instalando:** Execute `./install.sh` e verifique `06-gap-analysis.md` para limitações conhecidas
+1. **Novo no projeto:** [`../README.md`](../README.md) → [ARCHITECTURE.md](ARCHITECTURE.md)
+2. **Integrando um agente:** ARCHITECTURE.md §9 e §13
+3. **Deploy em VPS:** ARCHITECTURE.md §9.4 + [04-infrastructure.md](04-infrastructure.md)
+4. **Multi-máquina:** ARCHITECTURE.md §7 + [07-p2p-sync-setup.md](07-p2p-sync-setup.md)
+5. **Debugando:** ARCHITECTURE.md §14–15 (testes e recovery)

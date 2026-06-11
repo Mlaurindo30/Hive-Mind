@@ -6,7 +6,7 @@
 # =============================================================================
 project:
   name: sinapse_agent
-  version: 1.1.0
+  version: 2.0.0
   description: >
     Camada de memória universal para agentes de IA. Indexa um vault Obsidian
     (cerebro/) em um knowledge graph queryable via Graphify, complementado por

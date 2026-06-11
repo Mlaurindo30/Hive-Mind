@@ -40,14 +40,19 @@ GRAPHIFY_OUT="$VAULT_DIR/graphify-out"
 # ── Flags ───────────────────────────────────────────────────────────────────
 FORCE=false
 SKIP_AGENTS=()
-
 WITH_TESTS=false
+NON_INTERACTIVE=false
+PROVIDER=""
+MODEL=""
 
 for arg in "$@"; do
     case "$arg" in
         --force) FORCE=true ;;
         --skip-agent=*) SKIP_AGENTS+=("${arg#*=}") ;;
         --with-tests) WITH_TESTS=true ;;
+        --non-interactive) NON_INTERACTIVE=true ;;
+        --provider=*) PROVIDER="${arg#*=}" ;;
+        --model=*) MODEL="${arg#*=}" ;;
         *) echo -e "${RED}Erro:${NC} argumento desconhecido: $arg"; exit 1 ;;
     esac
 done
@@ -500,7 +505,7 @@ echo ""
 # =============================================================================
 echo -e "${BOLD}[9/12] Configurando cron de sync...${NC}"
 
-CRON_JOB="SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && ./scripts/build-graph.sh >> logs/sync.log 2>&1"
+CRON_JOB="0 */6 * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && ./scripts/build-graph.sh >> logs/sync.log 2>&1"
 
 if command -v crontab &>/dev/null; then
     # Verificar se já existe
@@ -574,12 +579,19 @@ fi
 
 echo ""
 
-# =============================================================================
-# =============================================================================
-# 11. CONFIGURAÇÃO DE INTELIGÊNCIA (Ciclo de Sonho)
-# =============================================================================
+# ── CONFIGURAÇÃO DE INTELIGÊNCIA (Ciclo de Sonho) ───────────────────────────
 echo -e "${BOLD}[11/12] Configurando inteligência do Ciclo de Sonho...${NC}"
-"$PROJECT_ROOT/scripts/setup-dreamer.sh"
+if [ -n "$PROVIDER" ] && [ -n "$MODEL" ]; then
+    echo -e "  Salvando provedor ($PROVIDER) e modelo ($MODEL) no .env..."
+    # Garante que o .env existe
+    [ -f "$PROJECT_ROOT/.env" ] || cp "$PROJECT_ROOT/.env.example" "$PROJECT_ROOT/.env"
+    # Salva no .env usando python
+    python3 -c "import sys; sys.path.append('$PROJECT_ROOT'); from core.auth import save_env; save_env('HIVE_DREAMER_PROVIDER', '$PROVIDER'); save_env('HIVE_DREAMER_MODEL', '$MODEL')"
+    echo -e "  ${GREEN}✓${NC} Provedor e modelo salvos."
+else
+    echo -e "  Nenhum provedor/modelo de IA fornecido via argumentos."
+    echo -e "  A configuração poderá ser realizada ao final da instalação ou posteriormente."
+fi
 echo ""
 
 # 12. CONFIGURAÇÃO DE AGENTES EXTERNOS (via MCP + templates)
@@ -591,129 +603,15 @@ chmod +x "$PROJECT_ROOT/scripts/"*.sh 2>/dev/null || true
 chmod +x "$PROJECT_ROOT/scripts/"*.py 2>/dev/null || true
 chmod +x "$PROJECT_ROOT/cerebro/.claude/scripts/"*.py 2>/dev/null || true
 
-# Template MCP config (universal)
-MCP_SINAPSE_CONFIG=$(cat << 'MCPEOF'
-{
-    "mcpServers": {
-        "sinapse-memory": {
-            "command": "python3",
-            "args": ["PROJECT_ROOT_PLACEHOLDER/scripts/sinapse-mcp.py"],
-            "cwd": "PROJECT_ROOT_PLACEHOLDER",
-            "transport": "stdio",
-            "enabled": true,
-            "description": "Sinapse Agent — Universal Memory Layer"
-        }
-    }
-}
-MCPEOF
-)
-MCP_SINAPSE_CONFIG="${MCP_SINAPSE_CONFIG//PROJECT_ROOT_PLACEHOLDER/$PROJECT_ROOT}"
-
-AGENTS_CONFIGURED=0
-
-# Kilo Code (detectado via ~/.kilo/config.json ou kilo.json)
-if [ -f "$HOME/.kilo/config.json" ] || [ -f "kilo.json" ]; then
-    MCP_FILE="$HOME/.kilo/config.json"
-    mkdir -p "$(dirname "$MCP_FILE")"
-    # Merge MCP config (assume JSON com mcpServers key se existir)
-    if [ -f "$MCP_FILE" ]; then
-        python3 -c "
-import json
-with open('$MCP_FILE') as f: cfg = json.load(f)
-cfg.setdefault('mcpServers', {})['sinapse-memory'] = '$MCP_SINAPSE_CONFIG'
-with open('$MCP_FILE', 'w') as f: json.dump(cfg, f, indent=2)
-" 2>/dev/null || echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
-    else
-        mkdir -p "$(dirname "$MCP_FILE")"
-        echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
-    fi
-    echo -e "  ${GREEN}✓${NC} Kilo Code → $MCP_FILE"
-    ((++AGENTS_CONFIGURED))
-fi
-
-# OpenCode
-if command -v opencode &>/dev/null; then
-    MCP_FILE="$HOME/.opencode/mcp.json"
-    mkdir -p "$(dirname "$MCP_FILE")"
-    echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
-    echo -e "  ${GREEN}✓${NC} OpenCode → $MCP_FILE"
-    ((++AGENTS_CONFIGURED))
-fi
-
-# Cursor
-if [ -d "$HOME/.cursor/" ]; then
-    MCP_FILE="$HOME/.cursor/mcp.json"
-    mkdir -p "$(dirname "$MCP_FILE")"
-    echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
-    echo -e "  ${GREEN}✓${NC} Cursor → $MCP_FILE"
-    ((++AGENTS_CONFIGURED))
-fi
-
-# Claude Code
-if command -v claude &>/dev/null; then
-    MCP_FILE="$HOME/.claude/.mcp.json"
-    mkdir -p "$(dirname "$MCP_FILE")"
-    echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
-    echo -e "  ${GREEN}✓${NC} Claude Code → $MCP_FILE"
-    ((++AGENTS_CONFIGURED))
-fi
-
-# Codex CLI
-if command -v codex &>/dev/null; then
-    MCP_FILE="$HOME/.codex/mcp.json"
-    mkdir -p "$(dirname "$MCP_FILE")"
-    echo "$MCP_SINAPSE_CONFIG" > "$MCP_FILE"
-    # Template AGENTS.md no vault
-    if [ -f "$PROJECT_ROOT/cerebro/.codex/AGENTS.md" ]; then
-        cp "$PROJECT_ROOT/cerebro/.codex/AGENTS.md" "$VAULT_DIR/.codex/AGENTS.md" 2>/dev/null || true
-    fi
-    echo -e "  ${GREEN}✓${NC} Codex CLI → $MCP_FILE"
-    ((++AGENTS_CONFIGURED))
-fi
-
-# OpenClaw
-if command -v openclaw &>/dev/null; then
-    OW_FILE="$HOME/.openclaw/openclaw.json"
-    mkdir -p "$(dirname "$OW_FILE")"
-    if [ -f "$OW_FILE" ]; then
-        python3 -c "
-import json
-try:
-    with open('$OW_FILE') as f: cfg = json.load(f)
-    cfg.setdefault('mcpServers', {})['sinapse-memory'] = json.loads('''$MCP_SINAPSE_CONFIG''')['mcpServers']['sinapse-memory']
-    with open('$OW_FILE', 'w') as f: json.dump(cfg, f, indent=2)
-except Exception:
-    pass" 2>/dev/null || echo "$MCP_SINAPSE_CONFIG" > "$OW_FILE"
-    else
-        echo "$MCP_SINAPSE_CONFIG" > "$OW_FILE"
-    fi
-    echo -e "  ${GREEN}✓${NC} OpenClaw → $OW_FILE"
-    ((++AGENTS_CONFIGURED))
-fi
-
-# Gemini CLI
-if command -v gemini &>/dev/null; then
-    GEMINI_FILE="$HOME/.gemini/settings.json"
-    mkdir -p "$(dirname "$GEMINI_FILE")"
-    if [ -f "$GEMINI_FILE" ]; then
-        python3 -c "
-import json
-try:
-    with open('$GEMINI_FILE') as f: cfg = json.load(f)
-    cfg['mcpServers'] = cfg.get('mcpServers', {})
-    cfg['mcpServers']['sinapse-memory'] = json.loads('''$MCP_SINAPSE_CONFIG''')['mcpServers']['sinapse-memory']
-    with open('$GEMINI_FILE', 'w') as f: json.dump(cfg, f, indent=2)
-except Exception:
-    pass" 2>/dev/null || echo "$MCP_SINAPSE_CONFIG" > "$GEMINI_FILE"
-    else
-        echo "$MCP_SINAPSE_CONFIG" > "$GEMINI_FILE"
-    fi
-    echo -e "  ${GREEN}✓${NC} Gemini CLI → $GEMINI_FILE"
-    ((++AGENTS_CONFIGURED))
-fi
-
-if [ "$AGENTS_CONFIGURED" -eq 0 ]; then
+# Registro MCP delegado ao script standalone (idempotente, merge seguro).
+# Pode ser re-executado a qualquer momento: ./scripts/register-mcp.sh
+if ! PROJECT_ROOT="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/register-mcp.sh"; then
     echo -e "  ${YELLOW}⊘${NC} Nenhum agente externo detectado. Use scripts/sinapse-write.py via CLI."
+fi
+
+# Template AGENTS.md no vault (Codex)
+if command -v codex &>/dev/null && [ -f "$PROJECT_ROOT/cerebro/.codex/AGENTS.md" ]; then
+    cp "$PROJECT_ROOT/cerebro/.codex/AGENTS.md" "$VAULT_DIR/.codex/AGENTS.md" 2>/dev/null || true
 fi
 
 echo ""
@@ -778,3 +676,28 @@ for m in json.load(sys.stdin)['models']:
 "
 fi
 echo ""
+
+# ── Configuração Interativa Pós-Instalação (Opcional) ───────────────────────
+HAS_DREAMER=false
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    # Verifica se HIVE_DREAMER_PROVIDER está preenchido e não vazio
+    if grep -q "^HIVE_DREAMER_PROVIDER=" "$PROJECT_ROOT/.env" && [ -n "$(grep "^HIVE_DREAMER_PROVIDER=" "$PROJECT_ROOT/.env" | cut -d= -f2-)" ]; then
+        HAS_DREAMER=true
+    fi
+fi
+
+if [ "$HAS_DREAMER" = "false" ] && [ "$NON_INTERACTIVE" = "false" ] && [ -t 0 ]; then
+    echo -e "${BOLD}${YELLOW}Configuração do Dreamer (Inteligência do Ciclo de Sonho):${NC}"
+    echo -e "  O Ciclo de Sonho consolida e destila seus aprendizados de forma autônoma."
+    echo -e "  Para funcionar, ele precisa de um modelo de linguagem (Gemini, OpenAI, Ollama, etc.) configurado."
+    echo ""
+    read -p "  Deseja configurar o seu modelo e chaves de IA interativamente agora? [S/n] " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[SsYy]$ ]] || [ -z "$REPLY" ]; then
+        "$PROJECT_ROOT/scripts/setup-dreamer.sh"
+    else
+        echo -e "  Você pode realizar essa configuração mais tarde rodando: ${BOLD}./scripts/setup-dreamer.sh${NC}"
+        echo ""
+    fi
+fi
+

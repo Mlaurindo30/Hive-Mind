@@ -1,188 +1,676 @@
-# 01 — Arquitetura e Abordagem Técnica
+# Arquitetura — Hive-Mind v2.0.0
 
-> **Hive-Mind v2.0.0** — Camada de memória universal, distribuída e multimodal para agentes de IA.
-
----
-
-## 1. Visão Geral
-
-O Hive-Mind é a evolução do Sinapse Agent. Ele resolve o problema de **continuidade de memória** e **inteligência coletiva** entre sessões de agentes de IA e múltiplos dispositivos. Sem ele, cada sessão começa "do zero".
-
-A solução organiza a memória em um **Unified Memory Core (UMC)** baseado em SQLite, integrando 5 dimensões do conhecimento:
-
-| Dimensão | Pergunta | Ferramenta | Tecnologia |
-|----------|----------|-----------|------------|
-| **Estrutural** | O QUE existe? | Graphify | Grafos, Leiden clustering |
-| **Temporal** | QUANDO ocorreu? | UMC Logs | SQLite FTS5 |
-| **Associativa** | O que é SIMILAR? | UMC Vectors | `sqlite-vec` (all-MiniLM-L6-v2) |
-| **Distribuída** | Onde está a VERDADE? | Swarm Layer | Syncthing, UUID v4, SHA-256 |
-| **Multimodal** | Como isso PARECE? | Deep Portal | Vision LLM, OCR, Obsidian Canvas |
-
-**Fonte única de verdade:** Vault Obsidian em `cerebro/` sincronizado via P2P.
+> Referência canônica de arquitetura. Atualizado em 2026-06-10.
+> Para uso rápido: [`../README.md`](../README.md) · Para guia de agentes: [`../AGENTS.md`](../AGENTS.md)
 
 ---
 
-## 2. Princípios de Design
+## Índice
 
-### 2.1 Unified Memory Core (UMC)
-Diferente da v1.1.0, o Hive-Mind centraliza tudo em um banco SQLite (`hive_mind.db`). Isso elimina a fragmentação entre Chroma, JSON e arquivos locais, permitindo buscas híbridas complexas em milissegundos.
-
-### 2.2 Soberania de Modelos (Hive-Dreamer)
-O usuário tem controle total sobre qual "Cérebro" processa as memórias através das variáveis `HIVE_DREAMER_PROVIDER` e `HIVE_DREAMER_MODEL`. O sistema é agnóstico e não força o uso de modelos específicos.
-
-### 2.3 Sincronização em Enxame (P2P Swarm)
-Utiliza o **Syncthing** para mover arquivos Markdown. A integridade entre o banco de dados e os arquivos físicos é garantida por **Hashes de Integridade** e um **Swarm Auditor** que detecta e resolve divergências automaticamente.
-
-### 2.4 Multimodalidade por Design
-A memória não é apenas texto. O Hive-Mind captura o estado do sistema (screenshots) e ingere documentos (PDF/DOCX), transformando-os em conhecimento semântico pesquisável.
-
----
-
-## 3. Componentes do Sistema
-
-### 3.1 Unified Memory Core (UMC) - SQLite
-O coração do sistema. Tabelas principais:
-- `neurons`: Conceitos, notas e fatos.
-- `synapses`: Relações entre neurônios.
-- `observations`: Logs temporais brutos.
-- `visual_memories`: Metadados de capturas visuais e OCR.
-- `ambiguities`: Fila de conflitos semânticos para resolução.
-
-### 3.2 Hive-Dreamer (dream_cycle.py)
-O pipeline de consolidação que roda em background:
-1.  **Reflexão:** Extrai fatos de observações brutas.
-2.  **Visão:** Processa imagens da inbox visual.
-3.  **Síntese:** Resolve conflitos semânticos P2P (Dialética).
-4.  **Roteamento:** Organiza o conhecimento na taxonomia do Atlas.
-
-### 3.3 Real-time Watcher (scripts/start-watcher.sh)
-Monitora o Vault Obsidian e reflete qualquer mudança no SQLite/Vetores em < 2 segundos, eliminando a necessidade de rebuilds periódicos.
-
-| Script | Função |
-|--------|--------|
-| `build-graph.sh` | Indexa vault → graph.json com backup + validação |
-| `serve-graph.sh` | MCP server Graphify (stdio) |
-| `start-claude-mem.sh` | Worker claude-mem (Bun) |
-| `start-rtk.sh` | Plugin RTK no Hermes |
-| `recover.sh` | Disaster recovery automático |
-| `sync-diario.sh` | Cron diário com rebuild completo + logs |
-| `sinapse-api.py` [NEW] | Microsserviço REST em FastAPI para acesso remoto VPS segura (Fase 4.3) |
-| `sinapse-zettelkasten.py` [NEW] | Particionador Zettelkasten conceitual via Ollama local (Fase 4.2) |
-
+1. [Princípios de Design](#1-princípios-de-design)
+2. [Visão Macro do Sistema](#2-visão-macro-do-sistema)
+3. [Unified Memory Core (UMC)](#3-unified-memory-core-umc)
+4. [Fluxo de Leitura](#4-fluxo-de-leitura)
+5. [Fluxo de Escrita](#5-fluxo-de-escrita)
+6. [O Ciclo de Sonho (Hive-Dreamer)](#6-o-ciclo-de-sonho-hive-dreamer)
+7. [Sincronização P2P e Fusão Semântica](#7-sincronização-p2p-e-fusão-semântica)
+8. [Camada Multimodal](#8-camada-multimodal)
+9. [Camada de Acesso](#9-camada-de-acesso)
+10. [Autenticação Multi-Provedor](#10-autenticação-multi-provedor)
+11. [Estrutura do Vault](#11-estrutura-do-vault)
+12. [Automação e Cron](#12-automação-e-cron)
+13. [Como Estender para Novos Agentes](#13-como-estender-para-novos-agentes)
+14. [Testes e Qualidade](#14-testes-e-qualidade)
+15. [Disaster Recovery](#15-disaster-recovery)
+16. [Referência de Configuração](#16-referência-de-configuração)
+17. [Decisões de Design (ADRs)](#17-decisões-de-design-adrs)
 
 ---
 
-## 4. Fluxo de Memória (Write Path)
+## 1. Princípios de Design
+
+1. **Fonte única de verdade legível por humanos.** O vault Obsidian (`cerebro/`) é a camada canônica. O SQLite é o índice; o Markdown é a verdade. Em caso de divergência, o auditor reconcilia a favor do vault.
+2. **Local-first.** Funciona completamente offline em uma máquina. Cloud e P2P são opcionais e aditivos.
+3. **Um banco, várias dimensões.** Em vez de JSON de grafo + SQLite do claude-mem + Chroma de vetores, o UMC centraliza tudo em um único `hive_mind.db`. Queries entre dimensões viram SQL simples.
+4. **Agnosticismo de agente e de LLM.** Qualquer agente se conecta via MCP/CLI/REST. Qualquer LLM serve o Dream Cycle via `HIVE_DREAMER_PROVIDER/MODEL`. Nenhum modelo é hardcoded.
+5. **Fail-safe, não fail-silent.** Pipeline que falha envia dados para quarentena (`archived=2`), nunca os descarta. API sem chave não inicia. Backend com 3+ falhas entra em circuit breaker (cooldown 30s).
+
+---
+
+## 2. Visão Macro do Sistema
 
 ```
-1. Agente toma decisão → tool memory_add
-2. Hermes: post_tool_call hook detecta DECISION_TOOLS
-   Claude/Codex: PostToolUse hook executa sinapse-hook.py tool-detect
-3. _save_decision(title, content) → atomic write em work/active/YYYY-MM-DD-slug.md
-4. Se conteúdo contém LEARNING_SIGNALS → _save_learning() → append em brain/Patterns.md
-5. on_session_end / Stop hook → _update_current_state() → brain/Current State.md
-6. Cron (6h) → build-graph.sh → graphify update → graph.json atualizado
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │                          AGENTES DE IA                               │
+  │                                                                      │
+  │  ┌────────────┐ ┌──────────┐ ┌────────┐ ┌────────┐ ┌─────────────┐  │
+  │  │Claude Code │ │Codex CLI │ │Cursor  │ │Gemini  │ │Hermes/Thoth │  │
+  │  │Kilo Code   │ │          │ │Aider   │ │CLI     │ │(plugin nativ│  │
+  │  └──────┬─────┘ └─────┬────┘ └───┬────┘ └───┬────┘ └──────┬──────┘  │
+  └─────────┼─────────────┼──────────┼───────────┼─────────────┼─────────┘
+            │             │          │           │             │
+            └──────────┬──┴──────────┘           │       (hooks nativos)
+                       │                         │             │
+                       ▼                         │             ▼
+  ┌────────────────────────────────┐             │  ┌──────────────────────┐
+  │  sinapse-mcp.py (MCP Server)  │             │  │ sinapse-memory.py    │
+  │  9 tools · stdio JSON-RPC     │             │  │ Plugin Hermes         │
+  │                               │             │  │ pre_gateway_dispatch │
+  │  sinapse-write.py (CLI)        │             │  │ post_tool_call       │
+  │  sinapse-api.py (REST :37702)  │             │  │ on_session_end       │
+  └──────────────────┬────────────┘             │  └──────────┬───────────┘
+                     └─────────────────────────┬┘             │
+                                               │              │
+                                               ▼              ▼
+  ┌────────────────────────────────────────────────────────────────────┐
+  │                 UNIFIED MEMORY CORE — hive_mind.db                  │
+  │                                                                    │
+  │  ┌──────────────┐  ┌────────────────┐  ┌───────────────────────┐  │
+  │  │  neurons     │  │  observations  │  │  visual_memories      │  │
+  │  │  synapses    │  │  archived: 0   │  │  document_memories    │  │
+  │  │  (grafo)     │  │  1=ok 2=quarent│  │  (multimodal)         │  │
+  │  └──────┬───────┘  └───────┬────────┘  └───────────────────────┘  │
+  │         │                  │                                        │
+  │  ┌──────▼───────┐  ┌───────▼───────┐  ┌───────────────────────┐  │
+  │  │  search_vec  │  │  search_fts   │  │  ambiguities          │  │
+  │  │  (sqlite-vec │  │  (FTS5        │  │  (conflitos P2P)      │  │
+  │  │   384d HNSW) │  │   unicode61)  │  │  vault (segredos)     │  │
+  │  └──────────────┘  └───────────────┘  └───────────────────────┘  │
+  └─────────────────────────────┬──────────────────────────────────────┘
+                                │                   ▲
+               ┌────────────────┼──────────┐        │ reindexação ~2s
+               │                │          │        │
+               ▼                ▼          │  ┌─────┴──────────────────┐
+  ┌────────────────┐  ┌──────────────┐    │  │  Watcher (watchdog)    │
+  │  Hive-Dreamer  │  │  REST API    │    │  │  + Graphify            │
+  │  dream_cycle.py│  │  FastAPI     │    │  │  vault → neurons +     │
+  │  noturno       │  │  :37702      │    │  │  embeddings + FTS      │
+  └───────┬────────┘  └──────────────┘    │  └────────────────────────┘
+          │                               │              ▲
+          ▼                               │              │ edição
+  ┌───────────────────────────────────┐   │              │
+  │  Vault Obsidian — cerebro/        │───┘──────────────┘
+  │  atlas/  brain/  work/            │
+  │  atoms/  org/  reference/         │ ◄─── Syncthing P2P (opcional)
+  │  portal.canvas  (fonte de verdade)│
+  └───────────────────────────────────┘
 ```
 
-## 5. Fluxo de Consulta (Read Path)
+### Responsabilidades
 
-```
-1. Usuário faz pergunta
-2. Hermes: pre_gateway_dispatch hook → _query_vault_knowledge(user_message)
-   Claude/Codex: SessionStart hook → sinapse-hook.py session-start
-3. Se cloud.enabled for True:
-   a. O cliente local intercepta e faz requisição HTTP para a API de nuvem (:8000/api/v1/query)
-   b. O servidor remoto (com a flag API_SERVER_MODE ativa) processa a consulta localmente na VPS
-4. Caso contrário (ou na VPS executando a API):
-   a. _query_vault_knowledge orquestra os 3 backends em paralelo assíncrono via ThreadPoolExecutor.
-   b. NeuralMemory (spreading activation), claude-mem (ChromaDB/FTS5) e Graphify (graph.json search) executam concorrentemente.
-5. Circuit breaker desativa automaticamente por 30s qualquer backend com 3+ falhas consecutivas.
-6. Se houver múltiplos hits válidos:
-   a. O Query Engine funde as observações, nós e arestas de todas as fontes (Context Fusion).
-   b. Se houver apenas um único hit, o Query Engine o retorna diretamente de forma a manter compatibilidade perfeita.
-7. O contexto consolidado é formatado e injetado no prompt de forma a respeitar o limite global de caracteres.
-```
-
-## 6. Tratamento de Falhas
-
-| Camada | Falha | Comportamento |
-|--------|-------|--------------|
-| NeuralMemory | Binário ausente ou timeout | Silently skip → os demais backends continuam concorrendo |
-| claude-mem | Worker offline (HTTP ECONNREFUSED) | Silently skip → os demais backends continuam concorrendo |
-| Graphify | graph.json corrompido ou ausente | Retry 3x com sleep 100ms → log error → skip |
-| Escrita | Disco cheio ou permissão | Log stderr → retorna None (não crasha) |
-| Backend com bug | KeyError, AttributeError | Log traceback → circuit breaker → skip |
-| Cron vs Plugin | Leitura parcial durante rebuild | Retry loop + backup automático no build-graph.sh |
-| Cloud API | Rede offline (HTTP Error / Timeout) | Log stderr ➔ Fallback automático para modo local bare-metal se disponível |
+| Componente | Responsável por | Independente de |
+|------------|-----------------|-----------------|
+| `cerebro/` | Conteúdo canônico | Tudo (vault Obsidian puro funciona sem o sistema) |
+| `core/` | Schema UMC, conexões, auth, schemas Pydantic | Agentes específicos |
+| `graphify/` | Indexação estrutural → neurons/synapses | claude-mem, RTK |
+| `claude-mem/` | Captura de eventos → observations | Graphify, RTK |
+| `rtk/` | Reescrita de comandos shell | Tudo (hook isolado) |
+| `neural-memory/` | Recall associativo (spreading activation) | Camadas restantes |
+| `scripts/` | Pipeline, servidores, operação | — |
+| `plugins/hermes/` | Ponte bidirecional Hermes ↔ UMC ↔ vault | — |
+| `sinapse.yaml` | Configuração central (paths, portas, agentes) | — |
+| `install.sh` | Instalação universal (10 etapas) | — |
 
 ---
 
-## 7. Decisões de Design (ADR)
+## 3. Unified Memory Core (UMC)
 
-### ADR-001: Vault Obsidian como fonte única
-**Decisão:** Usar vault Obsidian com frontmatter YAML + WikiLinks como storage primário.
-**Rationale:** Obsidian é um editor maduro com graph view, backlinks e plugin ecosystem. Formato plain-text Markdown é git-friendly e agnóstico de ferramenta.
-**Trade-off:** Dependência de reindexação para sincronizar com graph.json (latência de até 6h).
+Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em runtime. Schema em [`core/umc_schema.sql`](../core/umc_schema.sql).
 
-### ADR-002: Fusão de Contexto Paralela Concorrente (Context Fusion)
-**Decisão:** Substituir a busca em cadeia sequencial por orquestração assíncrona concorrente via `ThreadPoolExecutor` com fusão híbrida de resultados.
-**Rationale:** Aumenta exponencialmente a densidade do contexto injetado unificando busca semântica, relações estruturais Leiden e spreading activation associativa em tempo recorde (<100ms), sem perdas cognitivas.
-**Trade-off:** Ligeiramente maior consumo de I/O em paralelo.
+### Diagrama de Entidades
 
-### ADR-003: MCP como protocolo universal para agentes externos
-**Decisão:** Expor tools via MCP stdio em vez de criar plugins específicos por agente.
-**Rationale:** MCP é um padrão aberto adotado por Anthropic, OpenAI, GitHub e comunidade. Um único server serve todos os agentes.
-**Trade-off:** Menos integração profunda (hooks automáticos) vs. plugins nativos.
+```
+  neurons (UUID v4)              observations (UUID v4)
+  ─────────────────              ──────────────────────
+  id          PK                 id            PK
+  label                          session_id
+  type                           project
+  source_file  (relativo vault)  type          decision|learning|event
+  content                        title
+  hash         SHA-256           content
+  metadata     JSON              archived      0=pendente 1=ok 2=quarentena
+  community    Leiden cluster    neuron_id     FK→neurons (opcional)
+  created_at
+  updated_at                     ambiguities (UUID v4)
+       │                         ────────────────────
+       │ triggers FTS sync        id            PK
+       ▼                          neuron_id     FK→neurons
+  search_fts (FTS5)               source_a_hash SHA-256
+  ─────────────────               source_b_hash SHA-256
+  neuron_id   UNINDEXED           content_a
+  label                           content_b
+  content                         status   pending|synthesized|branched
+  tokenize=unicode61
+                                 visual_memories / document_memories
+  search_vec (vec0)              ──────────────────────────────────
+  ──────────────────             id, path, description/summary
+  neuron_id   PK                 topics, hash (dedup), neuron_id FK
+  embedding   FLOAT[384]
+                                 vault (segredos cifrados)
+  synapses (UUID v4)             ───────────────────────
+  ─────────────────              id             PK
+  id          PK                 encrypted_secret  BLOB (Fernet)
+  source_id   FK→neurons         metadata          JSON
+  target_id   FK→neurons
+  relation    TEXT
+  weight      FLOAT
+```
 
-### ADR-004: Atomic writes para arquivos do vault
+### Garantias técnicas
+
+| Garantia | Implementação |
+|----------|---------------|
+| FTS sync automático | Triggers `AFTER INSERT/UPDATE/DELETE` sobre `neurons` |
+| Colisão P2P impossível | UUIDs v4 em todas as PKs |
+| Detecção de divergência | SHA-256 de conteúdo em `neurons.hash` |
+| Fila auditável | `observations.archived` é coluna indexada (`idx_observations_archived`) — nunca LIKE em JSON |
+| Performance | `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000` |
+
+---
+
+## 4. Fluxo de Leitura
+
+```
+  Usuário faz pergunta
+         │
+         ▼
+  Agente recebe query
+         │
+         ▼ (hook automático ou tool MCP)
+  sinapse_query("pricing decision")
+         │
+         ├─────────────────────────────────────────────┐
+         │                                             │
+         ▼                                             ▼
+  Busca paralela em 4 backends:              Filesystem scan (cerebro/*.md)
+  ┌──────────────────────────────┐          cache TTL 30s
+  │ UMC SQL                      │          busca direta, zero gap
+  │  search_fts MATCH 'pricing'  │
+  │  search_vec KNN 384d         │
+  │  neurons/synapses            │
+  │  observations FTS5           │
+  └──────────────────────────────┘
+         │                              │
+         └──────────────┬───────────────┘
+                        │
+                        ▼
+              merge + dedup + ranking
+              (chave: source_file + title + content)
+                        │
+                        ▼
+              top-N resultados ≤ 3000 chars
+                        │
+                        ▼
+              injetados no system_message
+              do agente (pré-prompt)
+```
+
+**Plugin Hermes:** o hook `pre_gateway_dispatch` faz tudo automaticamente a cada prompt. Limites: `MAX_CONTEXT_CHARS=3000`, `MAX_NODES=5`.
+
+**Circuit breaker:** backend com 3+ falhas consecutivas entra em cooldown 30s. Apenas exceções e timeouts contam como falha (não resultados vazios).
+
+---
+
+## 5. Fluxo de Escrita
+
+```
+  Agente chama sinapse_save_decision("Migrar VPS", conteúdo)
+         │
+         ▼
+  _sanitize_slug(title)  →  "2026-06-10-migrar-vps"
+         │
+         ▼
+  _atomic_write()
+  tempfile.mkstemp() → write → os.replace()  (atômico no Linux)
+         │
+         ▼
+  cerebro/work/active/2026-06-10-migrar-vps.md
+  ─────────────────────────────────────────────
+  ---
+  tags: [decision]
+  status: active
+  created: 2026-06-10
+  source: hermes-session
+  ---
+  # Migrar VPS
+  conteúdo...
+         │
+         ▼
+  Watcher detecta mudança no filesystem (~2s)
+         │
+         ▼
+  Graphify reindexa → neurons + synapses + embeddings + FTS
+         │
+         ▼
+  Disponível para qualquer agente na próxima consulta
+
+  SINAIS DE APRENDIZADO detectados em paralelo:
+  "aprendizado"|"learning"|"insight"|"padrão"|"pattern"|"lição"
+         │
+         ▼
+  append em brain/Patterns.md (com dedup por título)
+
+  ao final da sessão:
+  sinapse_session_end() → brain/Current State.md atualizado
+                        → observation de fechamento no UMC
+```
+
+**Segredos detectados** (regex API keys, `sk-proj-*`, etc.) → cifrados em nível de campo (tabela `vault`, Fernet) → substituídos por placeholder no conteúdo final.
+
+---
+
+## 6. O Ciclo de Sonho (Hive-Dreamer)
+
+`scripts/dream_cycle.py` — consolidação offline com saída Pydantic validada.
+
+```
+  ┌────────────────────────────────────────────────────────────────┐
+  │                      ESTÁGIO 0 — INGESTÃO                      │
+  │                                                                │
+  │  document_ingest.py          visual_capture.py                │
+  │  PDF/DOCX → resumo/tópicos   mss screenshot → LLM Vision      │
+  │       │                           │                           │
+  │       └──────────────┬────────────┘                           │
+  │                      ▼                                         │
+  │  INSERT INTO observations (archived=0)  ←── fila de entrada   │
+  └──────────────────────┬─────────────────────────────────────────┘
+                         │
+  ┌──────────────────────▼─────────────────────────────────────────┐
+  │                  ESTÁGIO 1 — PIPELINE DE INTELIGÊNCIA          │
+  │                                                                │
+  │  SELECT observations WHERE archived=0                          │
+  │       │                                                        │
+  │       ▼                                                        │
+  │  Distiller  (DistillerOutput Pydantic)                         │
+  │  "extraia fatos estruturados destas observações"               │
+  │       │                                                        │
+  │       ▼                                                        │
+  │  Validator  (ValidatorOutput Pydantic)                         │
+  │  "estes fatos são suportados pelos logs originais?"            │
+  │       │                    │                                   │
+  │       │ aprovado           │ reprovado → feedback → Distiller  │
+  │       ▼                    │                                   │
+  │  Router  (RouterOutput Pydantic)                               │
+  │  "para qual tópico do Atlas cada fato pertence?"               │
+  │       │                                                        │
+  │  falha de pipeline → archived=2 (quarentena, jamais perdido)   │
+  └──────────────────────┬─────────────────────────────────────────┘
+                         │ roteamento bem-sucedido
+  ┌──────────────────────▼─────────────────────────────────────────┐
+  │                  ESTÁGIO 2 — PERSISTÊNCIA NO ATLAS             │
+  │                                                                │
+  │  cerebro/atlas/<tópico>/<fato>.md  (atomic write)              │
+  │  UPSERT neurons (hash SHA-256, embedding 384d)                 │
+  │  archived=1 (consolidado)                                      │
+  └──────────────────────┬─────────────────────────────────────────┘
+                         │
+  ┌──────────────────────▼─────────────────────────────────────────┐
+  │           ESTÁGIO 3 — SÍNTESE DIALÉTICA (Fase 9)               │
+  │                                                                │
+  │  SELECT ambiguities WHERE status='pending'                     │
+  │       │                                                        │
+  │  semantic_diff (vetorial + LLM)                                │
+  │       ├── complemento → merge → conteúdo unificado            │
+  │       ├── contradição → choose → versão com evidência         │
+  │       └── irreconciliável → branch → preserva ambas           │
+  │                                                                │
+  │  status='synthesized' | 'branched'                             │
+  └────────────────────────────────────────────────────────────────┘
+```
+
+**Garantias:**
+- Arquivamento somente após roteamento bem-sucedido
+- OAuth expirado dispara refresh automático (timeout polling: 300s)
+- Determinismo de hash: cada fato persistido carrega SHA-256 do conteúdo
+- `call_llm_structured()` valida o JSON retornado pelo LLM com `model_validate_json()`
+
+---
+
+## 7. Sincronização P2P e Fusão Semântica
+
+```
+  Máquina A           Syncthing (P2P)         Máquina B
+  ─────────           ───────────────         ─────────
+  edita atlas/        ──────────────►          recebe arquivo
+  pricing/fato.md                              (mesmo arquivo
+                                               editado offline)
+                                                    │
+                                               audit_memory.py
+                                               hash do arquivo ≠
+                                               hash do neuron
+                                                    │
+                                               INSERT ambiguities
+                                               (content_a, content_b
+                                                source_a_hash,
+                                                source_b_hash,
+                                                status='pending')
+                                                    │
+                                               dream_cycle.py
+                                               semantic_diff
+                                                    │
+                             ┌──────────────────────┤
+                             │                      │
+                        complemento          contradição factual
+                             │                      │
+                           merge               choose (logic_applied)
+                        conteúdo único          versão com evidência
+                             │                      │
+                             └───────────┬──────────┘
+                                         │
+                                    status='synthesized'
+                                    .md atualizado
+                                    neuron atualizado
+```
+
+**Pré-requisitos:**
+
+| Mecanismo | Implementação |
+|-----------|---------------|
+| IDs sem colisão | UUID v4 em todas as PKs |
+| Detecção de divergência | SHA-256 de conteúdo em `neurons.hash` |
+| Transporte | Syncthing (sem servidor central) |
+| Reconciliação vault ↔ SQLite | `audit_memory.py --fix` |
+| Classificação de conflitos | `semantic_diff.py` (vetorial + LLM) |
+| Resolução autônoma | `dream_cycle.py` estágio de síntese |
+
+Setup completo em [`07-p2p-sync-setup.md`](07-p2p-sync-setup.md).
+
+---
+
+## 8. Camada Multimodal
+
+```
+  ENTRADA                    PROCESSAMENTO              SAÍDA
+  ───────                    ─────────────              ─────
+  visual_capture.py          dream_cycle.py             visual_memories
+  tool sinapse_capture_screen  estágio visual           (id, image_path,
+  screenshot (mss)      ───►  LLM Vision               description,
+                              VisionAnalysis Pydantic    ocr_text,
+                              (descrição + OCR)         neuron_id)
+
+  document_ingest.py         dream_cycle.py             document_memories
+  PDF (PyMuPDF)         ───►  estágio docs              (id, file_path,
+  DOCX (python-docx)          resumo + tópicos          file_hash UNIQUE,
+                              → fila observations        summary, topics)
+
+  generate_portal.py         compõe memórias visuais    cerebro/portal.canvas
+                             e conceitos do UMC    ───►  (Obsidian Canvas)
+```
+
+O estágio multimodal roda **dentro** do Dream Cycle — imagens e documentos entram na mesma fila de consolidação que os logs.
+
+---
+
+## 9. Camada de Acesso
+
+### 9.1 MCP Server (`scripts/sinapse-mcp.py`)
+
+stdio JSON-RPC, compatível com qualquer cliente MCP.
+
+| Tool | Assinatura | Função |
+|------|-----------|--------|
+| `sinapse_query` | `(query, limit?)` | Busca híbrida: FTS5 + vetores + grafo + filesystem |
+| `sinapse_save_decision` | `(title, content)` | Decisão → `work/active/YYYY-MM-DD-slug.md` |
+| `sinapse_save_learning` | `(title, content)` | Aprendizado → `brain/Patterns.md` |
+| `sinapse_health` | `()` | Status de todos os backends |
+| `sinapse_session_end` | `(summary?)` | Fecha sessão, atualiza Current State |
+| `sinapse_temporal_search` | `(query, limit?)` | Busca direta na camada temporal |
+| `sinapse_temporal_save` | `(content, type?)` | Observação (fallback: vault) |
+| `sinapse_zettelkasten_split` | `(file_path)` | Nota monolítica → notas atômicas Zettelkasten |
+| `sinapse_capture_screen` | `(description?)` | Screenshot → `visual_memories` |
+
+**Configs MCP por agente** (templates em `mcp/`):
+Claude Code: `~/.claude/.mcp.json` · Codex: `~/.codex/mcp.json` · Cursor: `.cursor/mcp.json` · Gemini: `~/.gemini/settings.json`
+
+### 9.2 Plugin Hermes (`plugins/hermes/sinapse-memory.py`)
+
+```python
+def register(ctx):
+    ctx.register_hook("pre_gateway_dispatch", _pre_prompt_build)   # leitura automática
+    ctx.register_hook("post_tool_call",       _post_tool_use)      # escrita automática
+    ctx.register_hook("on_session_end",       _post_session_end)   # fechamento
+```
+
+Único componente que conhece todas as camadas. Circuit breaker embutido (3 falhas → cooldown 30s). `health_check()` retorna status de todos os backends.
+
+### 9.3 CLI standalone (`scripts/sinapse-write.py`)
+
+`decision` · `learning` · `query` · `health` · `session-end` — para agentes sem MCP.
+
+### 9.4 REST API (`scripts/sinapse-api.py`)
+
+FastAPI, porta `HIVE_MIND_API_PORT` (default **37702**). Fail-closed sem `HIVE_MIND_API_KEY`.
+
+```
+  ┌────────────────────┬───────────┬─────────┬───────────────────────────┐
+  │ Endpoint           │ Método    │ Auth    │ Rate      │ Descrição      │
+  ├────────────────────┼───────────┼─────────┼───────────┼────────────────┤
+  │ /api/v1/health     │ GET       │ —       │ 60/min    │ Health check   │
+  │ /api/v1/observati. │ POST      │ Bearer  │ 20/min    │ Nova observação│
+  │ /api/v1/query      │ POST      │ Bearer  │ 30/min    │ Busca híbrida  │
+  │ /api/v1/semantic/. │ GET       │ Bearer  │ —         │ Vizinhos sem.  │
+  │ /api/v1/vault/{id} │ GET       │ Bearer  │ 10/min    │ Segredo cifrado│
+  └────────────────────┴───────────┴─────────┴───────────┴────────────────┘
+```
+
+---
+
+## 10. Autenticação Multi-Provedor
+
+`PROVIDERS_CONFIG` em `core/auth.py` cobre 10 provedores:
+
+| Provedor | Auth | Env var |
+|----------|------|---------|
+| google | API key + OAuth loopback | `GOOGLE_API_KEY` / `GOOGLE_OAUTH_CLIENT_*` |
+| openai | API key + OAuth Codex-handshake | `OPENAI_API_KEY` |
+| anthropic | API key | `ANTHROPIC_API_KEY` |
+| deepseek | API key | `DEEPSEEK_API_KEY` |
+| openrouter | API key | `OPENROUTER_API_KEY` |
+| nvidia | API key | `NVIDIA_API_KEY` |
+| huggingface | API key | `HUGGINGFACE_API_KEY` |
+| qwen | API key | `QWEN_API_KEY` |
+| lmstudio | local (sem chave) | — |
+| ollama | local (sem chave) | — |
+
+**Capacidades comuns:** refresh automático de token OAuth, timeout de polling 300s, descoberta de modelos em tempo real (`discover_models_realtime()`), nenhuma credencial hardcoded.
+
+---
+
+## 11. Estrutura do Vault
+
+```
+  cerebro/
+  ├── atlas/           ← Fatos consolidados pelo Dream Cycle
+  │   └── <tópico>/   ←   uma pasta por tópico identificado
+  │       └── *.md    ←   um fato = um arquivo (com frontmatter)
+  ├── brain/           ← Conhecimento operacional
+  │   ├── Patterns.md  ←   aprendizados acumulados
+  │   ├── Consolidated.md ← síntese do Dreamer
+  │   └── Current State.md ← estado atual (atualizado a cada sessão)
+  ├── atoms/           ← Notas Zettelkasten (1 ideia = 1 nota)
+  ├── work/            ← Projetos e tarefas
+  │   ├── active/      ←   decisões ativas (YYYY-MM-DD-slug.md)
+  │   └── archive/     ←   decisões arquivadas
+  ├── org/             ← Pessoas e times
+  ├── reference/       ← Documentação atemporal
+  ├── templates/       ← Templates de notas
+  ├── inbox/           ← Entrada não triada
+  │   ├── visual/      ←   screenshots capturados
+  │   └── documents/   ←   PDFs e DOCXs
+  ├── conflicts/       ← Divergências P2P preservadas (branch)
+  ├── portal.canvas    ← Memória visual (Obsidian Canvas)
+  ├── AGENTS.md / CLAUDE.md / GEMINI.md  ← Manuais por agente
+  └── Home.md          ← Entry point com dashboards
+```
+
+Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiLinks criam `synapses` no grafo; decisões nomeadas `YYYY-MM-DD-titulo.md`.
+
+---
+
+## 12. Automação e Cron
+
+| Processo | Trigger | Ação |
+|----------|---------|------|
+| Watcher (`start-watcher.sh`) | daemon contínuo | Obsidian → SQLite em ~2s |
+| `build-graph.sh` | `0 */6 * * *` | Reindexação de segurança (cache SHA-256) |
+| `cron/sync-diario.sh` | `0 2 * * 0` | Rebuild completo `--force` (logs rotacionados, últimos 30) |
+| `dream_cycle.py` | noturno (recomendado) | Consolidação de memória |
+| `audit_memory.py` | pós-sync P2P | Reconciliação vault ↔ SQLite |
+
+---
+
+## 13. Como Estender para Novos Agentes
+
+```
+  1. sinapse.yaml
+     ─────────────
+     agents:
+       supported:
+         - seu-agente           ← adicionar aqui
+       install_methods:
+         seu-agente: "..."
+
+  2. install.sh
+     ─────────────
+     AGENT_DETECTORS+=([seu-agente]="seu-agente")
+     # no case "$agent":
+     seu-agente)
+         cp skills/sinapse-consulta.md ~/.seu-agente/skills/
+
+  3. mcp/seu-agente.json (template)
+     ─────────────────────────────
+     {
+       "mcpServers": {
+         "sinapse-memory": {
+           "command": "python3",
+           "args": ["<SINAPSE_HOME>/scripts/sinapse-mcp.py"]
+         }
+       }
+     }
+
+  4. Teste mínimo
+     ─────────────
+     Agente consegue chamar sinapse_query + sinapse_save_decision?
+     → Integração completa.
+```
+
+---
+
+## 14. Testes e Qualidade
+
+```bash
+./tests/run_all.sh   # Smoke → Unit → Integration → E2E
+```
+
+| Suíte | Local | LLM real? | O que cobre |
+|-------|-------|-----------|-------------|
+| Smoke | `tests/smoke/` | Não | Binários, health do sistema |
+| Unit | `tests/unit/` | **Não** | Backends (mocks HTTP/subprocess), helpers de escrita, fila Dream Cycle, regressões auditoria |
+| Integration | `tests/integration/` | Backends reais | Fluxos leitura/escrita, MCP, API, busca híbrida |
+| E2E | `tests/e2e/` | Backends reais | Sessão completa, degradação graceful, concorrência, recovery, edge cases |
+| Síntese | `tests/test_synthesis.py` | **Sim** | `run_synthesis_cycle()` com modelo real do `.env` |
+
+**116 testes coletáveis** (2026-06-10). Regra: testes unitários nunca chamam LLM — testam a lógica ao redor do modelo, não o modelo.
+
+---
+
+## 15. Disaster Recovery
+
+```bash
+./scripts/recover.sh
+```
+
+1. Verifica/reconstrói índice do grafo
+2. Verifica integridade do backup (`hive_mind.db.bak`)
+3. Reinicia worker claude-mem
+4. Health check HTTP (:37700)
+5. Verifica carregamento do plugin
+
+**Variáveis operacionais:**
+
+| Variável | Descrição | Default |
+|----------|-----------|---------|
+| `SINAPSE_HOME` | Raiz do projeto | `~/Documentos/Projects/Hive-Mind` |
+| `SINAPSE_DRY_RUN` | Sem side effects | `false` |
+| `SINAPSE_LOG_JSON` | Logs em JSON | `false` |
+| `SINAPSE_DECISION_TOOLS` | Tools que disparam escrita (csv) | `memory_add,observation_add,...` |
+| `SINAPSE_LEARNING_SIGNALS` | Sinais de aprendizado (csv) | padrão pt/en/es |
+
+---
+
+## 16. Referência de Configuração
+
+`sinapse.yaml` — schema resumido com comentários no próprio arquivo:
+
+```yaml
+project:        # nome, versão, descrição
+vault:          # path (cerebro/), format (obsidian), language, indexer, watch
+graphify:       # package, install_method, extras, output_dir, mcp_port
+claude_mem:     # port (37700), install_method, worker_autostart
+neural_memory:  # package, src_dir, recall_timeout
+rtk:            # plugin_dir, install_path
+sinapse_mcp:    # command, transport (stdio), tools (lista de 9)
+agents:         # supported[], integration_methods, install_methods
+mcp_servers:    # graphify, claude_mem, sinapse_memory
+cloud:          # enabled, url, api_key  ← chaveamento local→VPS
+hybrid_search:  # backends[], filesystem (categories, cache_ttl=30s), dedup
+cron:           # sync_schedule ("0 */6 * * *"), rebuild_schedule ("0 2 * * 0")
+```
+
+---
+
+*Histórico de fases e entregas: [`PROJECT_STATUS.md`](../PROJECT_STATUS.md) · [`IMPLEMENTATION.md`](../IMPLEMENTATION.md) · [`docs/plans/`](plans/)*
+
+---
+
+## 17. Decisões de Design (ADRs)
+
+Registro das decisões arquiteturais que moldaram o design atual. Cada ADR documenta o contexto, a decisão tomada, o rationale e os trade-offs aceitos.
+
+### ADR-001 — Vault Obsidian como fonte única de verdade
+
+**Decisão:** vault Obsidian com frontmatter YAML + WikiLinks como storage primário.
+**Rationale:** formato plain-text Markdown é git-friendly, agnóstico de ferramenta e legível por humanos sem software especial. Obsidian é editor maduro com graph view, backlinks e plugin ecosystem.
+**Trade-off:** dependência do Watcher para manter SQLite sincronizado; Obsidian é opcional (vault funciona sem ele).
+
+### ADR-002 — Busca híbrida paralela
+
+**Decisão:** busca paralela em 4 backends (UMC SQL, claude-mem, NeuralMemory, filesystem) com fusão e deduplicação cross-backend.
+**Rationale:** FTS5 encontra termos exatos; vetores encontram conceitos similares; grafo encontra conexões; filesystem garante dados recém-escritos (zero gap). Nenhum backend sozinho cobre todos os casos.
+**Trade-off:** ligeiramente maior consumo de I/O; mitigado por circuit breaker (cooldown 30s após 3+ falhas).
+
+### ADR-003 — MCP como protocolo universal de integração
+
+**Decisão:** expor tools via MCP stdio em vez de criar plugins específicos por agente.
+**Rationale:** MCP é padrão aberto adotado por Anthropic, OpenAI, GitHub e comunidade. Um único server (`sinapse-mcp.py`) serve todos os agentes sem adaptação.
+**Trade-off:** menos integração automática (hooks) que plugins nativos; compensado por CLI e hooks externos (SessionStart, PostToolUse, Stop).
+
+### ADR-004 — Atomic writes via os.replace()
+
 **Decisão:** `tempfile.mkstemp()` + `os.replace()` em vez de `open().write()`.
-**Rationale:** Evita arquivos truncados se o processo morrer durante a escrita. `os.replace()` é atômico no Linux.
-**Trade-off:** Ligeiramente mais complexo que write direto.
+**Rationale:** `os.replace()` é atômico no Linux (rename(2) syscall) — se o processo morrer durante a escrita, o arquivo destino permanece íntegro (o tmp fica orphan, não o destino).
+**Trade-off:** ligeiramente mais complexo; complexidade justificada para dados de memória persistente.
 
-### ADR-005: Desacoplamento de Memória via Cloud Memory API (FastAPI)
-**Decisão:** Criar um microsserviço REST leve em FastAPI protegido por SSL + API Key Bearer Token para permitir deploy agnóstico em nuvem.
-**Rationale:** Pavimenta o caminho para VPS hosting (como Thoth AI) de modo que o agente local funcione como um client HTTP extremamente ágil e desacoplado, sem necessidade do vault Obsidian físico local.
-**Trade-off:** Requer conexão de rede estável (com fallback determinístico local bare-metal).
+### ADR-005 — Cloud Memory API (FastAPI :37702)
 
----
+**Decisão:** microsserviço REST leve em FastAPI protegido por Bearer token para deploy em VPS.
+**Rationale:** permite que agentes locais usem memória hospedada num VPS sem precisar do vault físico local. Fail-closed: não inicia sem `HIVE_MIND_API_KEY`.
+**Trade-off:** requer rede estável; fallback automático para modo local quando `cloud.enabled=false`.
 
-## 8. Estrutura de Diretórios
+### ADR-006 — Saída estruturada Pydantic no Dream Cycle
 
+**Decisão:** todas as chamadas LLM usam JSON Schema derivado dos modelos Pydantic; a resposta é validada com `model_validate_json()`.
+**Rationale:** garante que qualquer provider (Ollama local ou Anthropic cloud) produza estrutura processável; loop de feedback (Validator reprova → Distiller reprocessa) aumenta qualidade sem intervenção humana.
+**Trade-off:** adiciona uma chamada LLM de validação por execução do pipeline.
 
-```
-sinapse_agent/
-├── plugins/hermes/sinapse-memory.py    # Plugin principal (1138 linhas, Context Fusion + Cloud)
-├── scripts/
-│   ├── sinapse-write.py                # CLI standalone (multi-agente)
-│   ├── sinapse-mcp.py                  # MCP server (stdio JSON-RPC)
-│   ├── sinapse-api.py                  # Microsserviço REST Cloud API (FastAPI)
-│   ├── sinapse-zettelkasten.py         # Script utilitário Auto-Zettelkasten via Ollama
-│   ├── build-graph.sh                  # Rebuild graph.json
-│   ├── serve-graph.sh                  # MCP server Graphify
-│   ├── start-claude-mem.sh             # Worker claude-mem
-│   ├── start-rtk.sh                    # Plugin RTK
-│   └── recover.sh                      # Disaster recovery
+### ADR-007 — UUID v4 em todas as PKs
 
-├── mcp/
-│   ├── graphify.json                   # Config MCP Graphify (template)
-│   ├── claude-mem.json                 # Config MCP claude-mem (template)
-│   └── sinapse-memory.json             # Config MCP sinapse (template)
-├── cerebro/                            # Vault Obsidian (fonte única)
-│   ├── brain/                          # Memória operacional do agente
-│   ├── work/active/                    # Decisões e projetos ativos
-│   ├── graphify-out/graph.json         # Knowledge graph indexado
-│   ├── .claude/settings.json           # Hooks Claude Code (5 hooks + 3 sinapse)
-│   ├── .claude/scripts/sinapse-hook.py # Script de hook sinapse
-│   ├── .codex/hooks.json               # Hooks Codex CLI (5 hooks + 3 sinapse)
-│   └── .codex/AGENTS.md               # Template Codex
-├── tests/                              # Suite de testes (103 testes)
-│   ├── unit/                           # 66 testes unitários
-│   ├── integration/                    # 15 testes de integração
-│   └── e2e/                            # 22 testes end-to-end
-├── cron/sync-diario.sh                 # Cron semanal com rebuild completo
-├── sinapse.yaml                        # Configuração central
-├── install.sh                          # Instalador universal (10 passos)
-├── AGENTS.md                           # Guia para agentes de IA
-├── ARCHITECTURE.md                     # Blueprint completo (referência canônica)
-└── docs/                               # Esta documentação
-```
+**Decisão:** migração de IDs sequenciais para UUID v4 em todas as tabelas do UMC.
+**Rationale:** IDs sequenciais colidem entre máquinas distintas no cenário P2P (máquina A e B ambas criam `id=1`). UUID v4 tem probabilidade de colisão de 1 em 10^36.
+**Trade-off:** IDs menos legíveis em logs; irrelevante para uso programático.
+
+### ADR-008 — Quarentena em vez de descarte
+
+**Decisão:** pipeline que falha seta `archived=2` em vez de deletar ou ignorar a observação.
+**Rationale:** dados de memória são valiosos; falhas temporárias (rede indisponível, saldo de API zerado) não devem causar perda permanente de contexto.
+**Trade-off:** acúmulo de dados em quarentena requer limpeza periódica manual ou automatizada.

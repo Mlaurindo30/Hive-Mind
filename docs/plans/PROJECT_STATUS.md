@@ -97,6 +97,6 @@
 
 1.  **AÇÃO:** Implementar `scripts/document_ingest.py` (Suporte PDF/DOCX).
 2.  **AÇÃO:** Atualizar `dream_cycle.py` para processar a fila de documentos.
-3.  **DOCUMENTAÇÃO:** Atualizar `docs/01-architecture.md` com as camadas de Sincronização P2P e Multimodalidade.
+3.  **DOCUMENTAÇÃO:** ~~Atualizar documentação com as camadas de Sincronização P2P e Multimodalidade.~~ (resolvido 10/06 — `README.md`, `docs/ARCHITECTURE.md`, `docs/README.md` e `AGENTS.md` reescritos com diagramas Mermaid da arquitetura atual; `docs/01-architecture.md` marcado como histórico)
 4.  **INSTALADOR:** Adicionar novas dependências ao `install.sh`.
 5.  **AUDITORIA:** Plano de ação P0/P1 do relatório docs/plans/2026-06-10-auditoria-tecnica-completa.md em execução (10/06).

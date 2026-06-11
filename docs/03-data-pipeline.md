@@ -1,77 +1,77 @@
 # 03 — Pipeline de Dados
 
-> **Sinapse Agent v1.1.0** — Fluxo completo de dados: coleta → processamento → indexação → consulta.
+> **Hive-Mind v2.0.0** — Fluxo completo: coleta → indexação em tempo real → Dream Cycle → consulta.
 
 ---
 
-## 1. Visão Geral do Pipeline
+## 1. Visão Geral
+
+O pipeline v2.0.0 tem dois fluxos paralelos:
 
 ```
-┌──────────┐    ┌──────────────┐    ┌─────────────┐    ┌────────────┐
-│ COLETA   │───▶│ PROCESSAMENTO│───▶│  INDEXAÇÃO   │───▶│  CONSULTA  │
-│ (Escrita)│    │ (Parsing)    │    │ (Grafo + DB) │    │ (Query)    │
-└──────────┘    └──────────────┘    └─────────────┘    └────────────┘
-     │                │                    │                  │
-     ▼                ▼                    ▼                  ▼
- vault .md      tree-sitter +         graph.json +        sinapse-memory
- + claude-mem   regex + LLM          SQLite FTS5 +        multi-backend
- observations   (NER + embeddings)   Chroma + nmem        query engine
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │                         FLUXO PRINCIPAL                                │
+  │                                                                        │
+  │  Agente / Humano                                                       │
+  │       │                                                                │
+  │       ▼                                                                │
+  │  [ COLETA ]──── escrita atômica ──→ vault (cerebro/*.md)              │
+  │       │                                   │                           │
+  │       │                     Watcher ~2s   │                           │
+  │       │                                   ▼                           │
+  │       │              [ INDEXAÇÃO REAL-TIME ] → hive_mind.db           │
+  │       │               neurons + synapses + FTS5 + sqlite-vec          │
+  │       │                                                                │
+  │       ▼                                                                │
+  │  [ CONSULTA ] ← UMC SQL / FTS5 / KNN / claude-mem / NeuralMemory      │
+  └────────────────────────────────────────────────────────────────────────┘
+
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │                         FLUXO OFFLINE                                  │
+  │                                                                        │
+  │  observations (pendentes, archived=0)                                  │
+  │       │                                                                │
+  │       ▼     execução manual ou agendada                                │
+  │  [ DREAM CYCLE ] ─────────────────────────────────────────────────    │
+  │    Distiller → Validator → Router → Atlas persistence                  │
+  │       │                                                                │
+  │       ▼                                                                │
+  │  atlas/ (fatos consolidados) + neurons atualizados                     │
+  └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Etapa 1 — Coleta de Dados (Escrita)
+## 2. Etapa 1 — Coleta (Escrita)
 
 ### 2.1 Fontes de Dados
 
 | Fonte | Formato | Gatilho | Destino |
 |-------|---------|---------|---------|
-| Agente (decisão) | `memory_add` tool call | `post_tool_call` hook | `work/active/YYYY-MM-DD-slug.md` |
-| Agente (aprendizado) | `memory_add` com learning signals | `post_tool_call` hook | `brain/Patterns.md` (append) |
-| Agente (sessão) | `session_summary` | `on_session_end` hook | `brain/Current State.md` |
-| claude-mem (observações) | SQLite rows | sync via HTTP API | `work/active/` (export) |
-| Humano (Obsidian) | Editor Markdown | salvamento manual | Qualquer `.md` no vault |
+| Agente (decisão) | `sinapse_save_decision` tool | PostToolUse hook | `work/active/YYYY-MM-DD-slug.md` |
+| Agente (aprendizado) | `sinapse_save_learning` tool | PostToolUse hook | `brain/Patterns.md` (append) |
+| Agente (sessão end) | Stop hook | `on_session_end` | `brain/Current State.md` |
+| Screenshot | `sinapse_capture_screen` tool | On demand | `inbox/visual/` + `visual_memories` |
+| Documento PDF/DOCX | `document_ingest.py` | Manual / cron | `inbox/documents/` + `observations` |
+| Humano (Obsidian) | Markdown editor | Salvamento manual | Qualquer `.md` no vault |
+| claude-mem | SQLite observations | Sync periódico | `observations` table do UMC |
 
-### 2.2 Formato dos Dados
+### 2.2 Formato de Arquivo (Vault)
 
-**Decisão** (`work/active/YYYY-MM-DD-slug.md`):
-```yaml
----
-tags: [decision]
-status: active
-created: 2026-05-23
-updated: 2026-05-23
-source: hermes-session
----
-
-# Título da Decisão
-
-Conteúdo completo com contexto, rationale e implicações.
 ```
+work/active/2026-06-10-migrar-vps-para-hetzner.md:
 
-**Aprendizado** (`brain/Patterns.md`):
-```markdown
----
+  ---
+  tags: [decision]
+  status: active
+  created: 2026-06-10
+  source: claude-code-session
+  agent: claude-fable-5
+  ---
 
-## Padrão Identificado (2026-05-23)
+  # Migrar VPS para Hetzner
 
-Descrição do insight, lição aprendida ou padrão descoberto.
-```
-
-**Current State** (`brain/Current State.md`):
-```markdown
-## Last Update: 2026-05-23 14:00
-
-## Session: 2026-05-23 14:00
-
-### Decisions
-- Decisão: [[2026-05-23-migrar-servidor-hetzner]]
-
-### Learnings
-- Aprendizado: [[2026-05-23-padrao-system-prompts]]
-
-### Summary
-Resumo da sessão atual...
+  Conteúdo com contexto, rationale e implicações.
 ```
 
 ### 2.3 Garantias de Escrita
@@ -79,165 +79,180 @@ Resumo da sessão atual...
 | Garantia | Mecanismo |
 |----------|-----------|
 | Atomicidade | `tempfile.mkstemp()` + `os.replace()` (atômico no Linux) |
-| Deduplicação | Verificação de título antes de append em Patterns.md |
-| Validação | `_validate_frontmatter_yaml()` checa `tags:`, `status:`, `created:` |
-| Dry-run | `SINAPSE_DRY_RUN=1` — sem side effects |
-| Logging | Falhas de escrita logadas via `_log("error", ...)` |
+| Deduplicação | Verificação de slug antes de criar novo arquivo |
+| Validação | `_validate_frontmatter_yaml()` — checa `tags`, `status`, `created` |
+| Detecção de segredos | Regex `sk-proj-*, AKIA*, Bearer token` → Fernet → vault table |
+| Dry-run | `SINAPSE_DRY_RUN=1` — zero side effects |
 
 ---
 
-## 3. Etapa 2 — Processamento (Parsing + Embeddings)
+## 3. Etapa 2 — Indexação em Tempo Real (Watcher)
 
-### 3.1 Fluxo Determinístico (tree-sitter + regex)
-
-**Sempre disponível. Sem dependência de LLM.**
+O `watchdog` monitora `cerebro/` continuamente. Qualquer mudança dispara reindexação em ~2 segundos — eliminando o gap de 6h da v1.x.
 
 ```
-1. tree-sitter parse → AST de arquivos de código (.py, .ts, .rs, .sh)
-   └─ Extrai: funções, classes, imports, variáveis
-2. regex parse → frontmatter YAML de arquivos .md
-   └─ Extrai: tags, status, created, title, WikiLinks
-3. Normalização → _normalize() (NFKD unicode → ASCII lowercase)
-```
+  Arquivo salvo/modificado em cerebro/
+         │
+         ▼ (watchdog FileModifiedEvent, ~2s)
+  Graphify reindexa arquivo:
+    ├── Extrai entidades + relações (LLM ou tree-sitter)
+    ├── Gera embedding 384d (all-MiniLM-L6-v2)
+    ├── UPDATE neurons SET title, content, hash, embedding
+    ├── UPDATE/INSERT synapses (WikiLinks como edges)
+    ├── UPDATE search_fts (trigger automático via SQL)
+    └── UPDATE search_vec (vec0, HNSW)
 
-### 3.2 Fluxo com LLM (Gemini / Ollama Qwen)
-
-**Opcional. Ativado com `--backend gemini` ou `--backend ollama`.**
-
-```
-1. Envia conteúdo do arquivo para LLM
-2. LLM extrai:
-   └─ Entidades nomeadas (pessoas, projetos, tecnologias)
-   └─ Relações entre entidades (related_to, depends_on, managed_by)
-   └─ Comunidades semânticas (tópicos)
-3. Output estruturado → nodes + edges + communities
-```
-
-### 3.3 Embeddings (Leiden Clustering)
-
-```
-1. BGE-M3 (ou Nomic) gera embeddings (1024-d ou 768-d)
-2. Matriz de similaridade entre todos os nodes
-3. Leiden algorithm → agrupa nodes em comunidades
-4. Comunidades recebem labels (tópicos)
+  Resultado: hive_mind.db atualizado em memória e em disco (WAL mode)
 ```
 
 ---
 
-## 4. Etapa 3 — Indexação
+## 4. Etapa 3 — Dream Cycle (Consolidação Offline)
 
-### 4.1 graph.json (Graphify)
+O Dream Cycle processa observations brutas e as eleva a fatos estruturados no Atlas.
 
-**Formato:**
-```json
-{
-  "nodes": [
-    {
-      "id": "thoth",
-      "label": "Thoth (Hermes Agent)",
-      "file_type": "document",
-      "source_file": "AGENTS.md",
-      "community": 1,
-      "norm_label": "thoth hermes agent"
-    }
-  ],
-  "links": [
-    {
-      "source": "thoth",
-      "target": "vps",
-      "relation": "related_to",
-      "confidence": "EXTRACTED",
-      "source_file": "AGENTS.md",
-      "weight": 1.0
-    }
-  ]
-}
-```
-
-**Métricas atuais:** 1266+ nodes, 1319+ edges, 117+ comunidades.
-
-**Atualização:** Cron a cada 6h (`build-graph.sh`). Com backup automático e validação.
-
-### 4.2 SQLite FTS5 (claude-mem)
+### 4.1 Estágio 1 — Distiller
 
 ```
-Tabela: observations
-  └─ id, content, created_at, session_id
-  └─ FTS5 virtual table para full-text search
-Tabela: corpora
-  └─ Coleções temáticas de observações
+  SELECT * FROM observations
+    WHERE archived = 0
+    ORDER BY created_at
+    LIMIT batch_size
+
+  Para cada observação:
+    prompt = system_prompt_distiller + observation.content
+    response = llm_call(provider, model, prompt, json_schema=DistilledFact)
+    fact = DistilledFact.model_validate_json(response)
+
+    → DistilledFact {
+        title: str
+        summary: str
+        key_insights: list[str]
+        confidence: float (0-1)
+        tags: list[str]
+      }
 ```
 
-### 4.3 ChromaDB (claude-mem)
+### 4.2 Estágio 2 — Validator
 
 ```
-Collection: observations
-  └─ Embeddings: all-MiniLM-L6-v2 (384-d)
-  └─ Metadata: session_id, timestamp, tool_name
+  Para cada DistilledFact:
+    prompt = system_prompt_validator + fact.json()
+    verdict = ValidatorVerdict.model_validate_json(llm_call(...))
+
+    if verdict.approved:
+      → passa para Router
+    elif retries < 2:
+      → re-envia ao Distiller com feedback
+    else:
+      → UPDATE observations SET archived=2  (quarentena)
 ```
 
-### 4.4 NeuralMemory Index
+### 4.3 Estágio 3 — Router
 
 ```
-Modelo associativo em memória:
-  └─ 24 tipos de relações (causes, prevents, requires, is_a, part_of, ...)
-  └─ Pesos de ativação configuráveis
-  └─ Spreading activation algorithm
+  Para cada fato aprovado:
+    Classifica destino:
+      └── category in ["decision", "learning", "insight", "fact", "entity"]
+      └── target_path = atlas/{category}/YYYY-MM-DD-{slug}.md
+
+    Verifica duplicata por embedding similarity (cosine > 0.92):
+      └── Se duplicata: merge (append insights únicos)
+      └── Se novo: INSERT neurons + write atlas/*.md
+```
+
+### 4.4 Estágio 4 — Atlas Persistence
+
+```
+  _atomic_write(target_path, markdown_with_frontmatter)
+    └── frontmatter:
+         agent: {provider}/{model}
+         consolidated_at: {timestamp}
+         source_observation_ids: [uuid1, uuid2]
+         confidence: {float}
+
+  UPDATE observations SET archived=1, consolidated_at=NOW()
+    WHERE id IN (processed_ids)
+```
+
+### 4.5 Fluxo Completo (ASCII)
+
+```
+  observations (archived=0)
+       │
+       ▼
+  ┌─────────────┐
+  │  DISTILLER  │ ← LLM (JSON schema obrigatório)
+  └──────┬──────┘
+         │ DistilledFact
+         ▼
+  ┌─────────────┐   reprova    ┌─────────────┐
+  │  VALIDATOR  │─────────────▶│  QUARENTENA │ archived=2
+  └──────┬──────┘              └─────────────┘
+         │ aprovado
+         ▼
+  ┌─────────────┐
+  │   ROUTER    │ classifica destino + dedup check
+  └──────┬──────┘
+         │
+         ▼
+  ┌─────────────────┐
+  │ ATLAS (cerebro/ │ atomic write + UPDATE neurons
+  │  atlas/*.md)    │ archived=1
+  └─────────────────┘
 ```
 
 ---
 
-## 5. Etapa 4 — Consulta (Query)
+## 5. Etapa 4 — Consulta
 
-### 5.1 Motor de Busca Unificado
+### 5.1 Backends Paralelos
 
 ```python
-def _query_vault_knowledge(query: str) -> Optional[Dict]:
-    # Backend 0: NeuralMemory (spreading activation)
-    result = _backend_neural_memory(query)  # nmem recall
-    
-    # Backend 1: claude-mem (semântico + temporal)
-    result = _backend_claude_mem(query)     # HTTP API → Chroma / FTS5
-    
-    # Backend 2: Graphify (estrutural)
-    result = _backend_graphify(query)       # graph.json textual search
-    
-    # Circuit breaker + global timeout + exception logging
+def _query_vault_knowledge(query: str, timeout=8.0) -> Optional[str]:
+
+    # 4 backends em paralelo (ThreadPoolExecutor)
+    results = []
+
+    # Backend 1: UMC SQL (FTS5 + KNN)
+    results += umc_search(query)        # FTS5 MATCH + vec KNN
+
+    # Backend 2: claude-mem
+    results += claude_mem_search(query) # HTTP :37700, timeout 3s
+
+    # Backend 3: NeuralMemory
+    results += nmem_recall(query)       # spreading activation, timeout 5s
+
+    # Backend 4: Filesystem
+    results += fs_scan(query)           # scan cerebro/*.md, TTL 30s
+
+    # Fusão e deduplicação
+    deduped = dedup(results, key=lambda r: (r.source_file, r.title))
+    return format(top_n=5, max_chars=3000, results=deduped)
 ```
 
-### 5.2 Algoritmo de Busca Textual (Graphify)
+### 5.2 Busca Vetorial (KNN)
 
-```
-1. Normaliza query (_normalize: NFKD → ASCII → lowercase)
-2. Tokeniza por whitespace → set de palavras
-3. Itera todos os nodes:
-   └─ Se palavra in label OR palavra in file_type OR palavra in community
-      → match! Adiciona ao resultado com score (contagem de matches)
-4. Itera todos os links:
-   └─ Se palavra in source OR target OR relation → match!
-5. Ordena nodes por score decrescente
-6. Trunca em MAX_NODES (5)
-7. Trunca edges em MAX_NODES (5)
+```sql
+SELECT n.id, n.title, n.content, n.source_file,
+       vec_distance_cosine(v.embedding, :query_vec) AS distance
+FROM search_vec v
+JOIN neurons n ON n.id = v.neuron_id
+ORDER BY distance
+LIMIT 5
 ```
 
-### 5.3 Cache e Performance
+`query_vec` = `all-MiniLM-L6-v2.encode(query)` — vetor 384d gerado no momento da query.
 
-| Otimização | Mecanismo |
-|-----------|-----------|
-| Cache graph.json | `_load_graph()` com TTL 60s, invalidação por mtime |
-| Circuit breaker | Backend com 3+ falhas → cooldown 30s |
-| Global timeout | `_query_vault_knowledge` tem deadline de 8s |
-| Timeouts individuais | claude-mem: 3s, nmem: 5s |
+### 5.3 Circuit Breaker
 
-### 5.4 Formatação de Contexto
+| Estado | Condição | Comportamento |
+|--------|---------|---------------|
+| Fechado (normal) | Menos de 3 falhas | Backend ativo |
+| Aberto (cooldown) | 3+ exceções ou timeouts | Cooldown 30s, backend ignorado |
+| Semi-aberto (teste) | Após 30s | Uma tentativa para resetar |
 
-```
-[Sinapse — graphify (structural)]
-  • Thoth (Hermes Agent) (document) — AGENTS.md
-  • VPS Migration (document) — work/active/vps.md
-  ↳ thoth → vps (related_to)
-  ↳ vps → deploy (managed_by)
-```
+Apenas exceções Python e timeouts contam como falha — resultados vazios (não encontrado) não.
 
 ---
 
@@ -245,12 +260,11 @@ def _query_vault_knowledge(query: str) -> Optional[Dict]:
 
 | Pipeline | Frequência | Gatilho |
 |----------|-----------|---------|
-| Escrita de decisões | Tempo real | `post_tool_call` hook |
-| Escrita de aprendizados | Tempo real | `post_tool_call` hook |
-| Update Current State | Fim de sessão | `on_session_end` / Stop hook |
-| Sync claude-mem → vault | Manual/cron | `sync_claude_mem_to_vault()` |
-| Rebuild graph.json | A cada 6h | Cron `build-graph.sh` |
-| Rebuild completo | Domingo 2am | Cron `sync-diario.sh --force` |
+| Escrita de decisões/aprendizados | Imediata | PostToolUse / Stop hook |
+| Indexação no UMC (Watcher) | ~2 segundos | watchdog FileModifiedEvent |
+| Dream Cycle | Manual ou cron | `python3 scripts/dream_cycle.py` |
+| Auditoria P2P | 1x por hora | Cron `audit_memory.py --fix` |
+| Backup UMC | Diário 3am | Cron `cp hive_mind.db backups/` |
 
 ---
 
@@ -258,11 +272,11 @@ def _query_vault_knowledge(query: str) -> Optional[Dict]:
 
 | Métrica | Valor típico |
 |---------|-------------|
-| Nodes no graph.json | 1.266+ |
-| Edges no graph.json | 1.319+ |
-| Comunidades | 117+ |
-| Tamanho graph.json | ~2MB |
-| Observações claude-mem | Variável por uso |
-| Notas no vault | ~200 arquivos .md |
-| Decisões/learning por sessão | 0-5 |
-| Tempo de rebuild graph.json | 30-60s |
+| neurons no UMC | 1.200+ |
+| synapses no UMC | 1.300+ |
+| observations pendentes (por sessão) | 5-30 |
+| atlas/*.md (fatos consolidados) | cresce com uso |
+| Tamanho do hive_mind.db | 50-200MB |
+| Tempo de reindexação por arquivo | ~1-3s |
+| Tempo de busca KNN (10k vetores) | ~5ms |
+| Tempo de busca FTS5 | ~2ms |
