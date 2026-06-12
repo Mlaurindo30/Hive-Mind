@@ -10,13 +10,13 @@
 
 | Documento | Conteúdo |
 |-----------|----------|
-| **[ARCHITECTURE.md](ARCHITECTURE.md)** | Referência canônica: princípios, UMC, fluxos de leitura/escrita, Dream Cycle, P2P, multimodal, camada de acesso (MCP/Plugin/CLI/REST), auth multi-provedor, extensão, testes, recovery |
+|  **[01-architecture.md](01-architecture.md)** | Referência canônica: princípios, UMC, fluxos de leitura/escrita, Dream Cycle, P2P, multimodal, camada de acesso (MCP/Plugin/CLI/REST), auth multi-provedor, extensão, testes, recovery |
 
 ## Documentação por área
 
 | # | Documento | Conteúdo | Público-alvo |
 |---|-----------|----------|-------------|
-| 1 | [Arquitetura e Abordagem Técnica](01-architecture.md) | → Consolidado em [ARCHITECTURE.md](ARCHITECTURE.md) (§17 ADRs) | — |
+| 1 | [Arquitetura](01-architecture.md) | **Canônico** — princípios, UMC, fluxos, Dream Cycle, P2P, ADRs (§17) | Todos |
 | 2 | [Modelos de IA](02-ai-models.md) | LLMs e embeddings utilizados, rationale, fallback chain | ML Engineers |
 | 3 | [Pipeline de Dados](03-data-pipeline.md) | Coleta → pré-processamento → embeddings → clustering → indexação | Data Engineers |
 | 4 | [Infraestrutura e Escopo](04-infrastructure.md) | Hardware, portas, serviços, limites, variáveis de ambiente | DevOps/SRE |
@@ -24,7 +24,7 @@
 | 6 | [Análise de Gaps — install.sh](06-gap-analysis.md) | Auditoria técnica (C1-C5), gaps do instalador, métricas de testes | Desenvolvedores |
 | 7 | [Setup de Sincronização P2P](07-p2p-sync-setup.md) | Syncthing, UUID v4, SHA-256, Síntese Dialética (Phase 9) | DevOps |
 
-> Todos os documentos 01–07 foram reescritos para v2.0.0 em 2026-06-10. Em caso de conflito entre eles, **[ARCHITECTURE.md](ARCHITECTURE.md) prevalece**.
+> Todos os documentos 01–07 foram reescritos para v2.0.0 em 2026-06-10. Em caso de conflito entre eles, **[01-architecture.md](01-architecture.md) prevalece**.
 
 ## Relatórios e planos
 
@@ -61,8 +61,8 @@ Fonte de verdade:    cerebro/ (Obsidian) — frontmatter YAML + WikiLinks
 
 ## Como usar esta documentação
 
-1. **Novo no projeto:** [`../README.md`](../README.md) → [ARCHITECTURE.md](ARCHITECTURE.md)
-2. **Integrando um agente:** ARCHITECTURE.md §9 e §13
-3. **Deploy em VPS:** ARCHITECTURE.md §9.4 + [04-infrastructure.md](04-infrastructure.md)
-4. **Multi-máquina:** ARCHITECTURE.md §7 + [07-p2p-sync-setup.md](07-p2p-sync-setup.md)
-5. **Debugando:** ARCHITECTURE.md §14–15 (testes e recovery)
+1. **Novo no projeto:** [`../README.md`](../README.md) → [01-architecture.md](01-architecture.md)
+2. **Integrando um agente:** 01-architecture.md §9 e §13
+3. **Deploy em VPS:** 01-architecture.md §9.4 + [04-infrastructure.md](04-infrastructure.md)
+4. **Multi-máquina:** 01-architecture.md §7 + [07-p2p-sync-setup.md](07-p2p-sync-setup.md)
+5. **Debugando:** 01-architecture.md §14–15 (testes e recovery)

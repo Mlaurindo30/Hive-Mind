@@ -58,11 +58,16 @@ class LLMChainFailure(RuntimeError):
         super().__init__(msg)
 
 
+# Frases específicas — substrings genéricas ("oauth", "credenciais", "401")
+# classificavam como auth qualquer erro que as mencionasse, pulando retries
+# de transitórios. Códigos HTTP são tratados via regex com word-boundary.
 _AUTH_MARKERS = (
-    "401", "402", "403", "unauthorized", "forbidden", "payment required",
-    "invalid api key", "invalid_api_key", "insufficient balance",
-    "insufficient credits", "insufficient quota", "insufficient_quota",
-    "exceeded your current quota", "saldo insuficiente", "credenciais", "oauth",
+    "unauthorized", "forbidden", "payment required",
+    "invalid api key", "invalid_api_key", "api key not valid",
+    "insufficient balance", "insufficient credits", "insufficient quota",
+    "insufficient_quota", "exceeded your current quota", "saldo insuficiente",
+    "credenciais não encontradas", "credenciais inválidas",
+    "token expirado", "oauth token expired", "authentication failed",
 )
 _TRANSIENT_MARKERS = (
     "timeout", "timed out", "connection", "429", "too many requests",
@@ -108,6 +113,12 @@ def classify_llm_error(exc: Exception) -> str:
             return "auth"
         if code == 429 or code >= 500:
             return "transient"
+    # Códigos HTTP fora do formato "api error (NNN)" — word-boundary evita
+    # falsos positivos (ex.: "403" dentro de "1403" ou de um nome de modelo)
+    if re.search(r"\b40[123]\b", msg):
+        return "auth"
+    if re.search(r"\b(429|5\d{2})\b", msg):
+        return "transient"
     if any(s in msg for s in _AUTH_MARKERS):
         return "auth"
     if any(s in msg for s in _TRANSIENT_MARKERS):

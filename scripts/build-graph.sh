@@ -25,8 +25,15 @@ fi
 # sem precisar inicializar um interpretador Python. Se a chave tiver
 # '=' no valor (ex.: URLs com query string), o cut captura o restante
 # da linha, o que é suficiente para o caso de uso atual.
+# Vars já exportadas no shell têm PRECEDÊNCIA sobre o .env — paridade com o
+# lado Python (os.environ vence) e com cron/CI que injetam env diretamente.
 ENV_FILE="$SINAPSE_HOME/.env"
 hive_env() {
+    local shell_val="${!1:-}"
+    if [ -n "$shell_val" ]; then
+        printf '%s' "$shell_val"
+        return
+    fi
     if [ -f "$ENV_FILE" ]; then
         grep -E "^${1}=" "$ENV_FILE" | head -n1 | cut -d= -f2- || true
     fi

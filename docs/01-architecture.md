@@ -467,8 +467,8 @@ FastAPI, porta `HIVE_MIND_API_PORT` (default **37702**). Fail-closed sem `HIVE_M
 | deepseek | API key | `DEEPSEEK_API_KEY` |
 | openrouter | API key | `OPENROUTER_API_KEY` |
 | nvidia | API key | `NVIDIA_API_KEY` |
-| huggingface | API key | `HUGGINGFACE_API_KEY` |
-| qwen | API key | `QWEN_API_KEY` |
+| huggingface | API key | `HF_TOKEN` |
+| qwen | API key | `DASHSCOPE_API_KEY` |
 | lmstudio | local (sem chave) | — |
 | ollama | local (sem chave) | — |
 
@@ -724,3 +724,9 @@ Registro das decisões arquiteturais que moldaram o design atual. Cada ADR docum
 **Decisão:** pipeline que falha seta `archived=2` em vez de deletar ou ignorar a observação.
 **Rationale:** dados de memória são valiosos; falhas temporárias (rede indisponível, saldo de API zerado) não devem causar perda permanente de contexto.
 **Trade-off:** acúmulo de dados em quarentena requer limpeza periódica manual ou automatizada.
+
+### ADR-009 — Configuração de LLM por papel com herança e fallback explícito
+
+**Decisão:** cada papel que consome LLM (`dreamer`, `graphify`, `vision`, `synthesis`) tem configuração própria via `HIVE_{ROLE}_PROVIDER/MODEL`, com herança do Dreamer quando ausente e fallback **opt-in** via `HIVE_{ROLE}_FALLBACK_PROVIDER/MODEL`. Resolução centralizada em `get_role_config()` (`core/auth.py`); chamadas e política de retry/fallback centralizadas em `core/llm_client.py`.
+**Rationale:** os papéis têm perfis opostos — extração de entidades (milhares de chamadas baratas e frequentes) e síntese dialética (poucas chamadas que exigem raciocínio forte) não podem ser servidos pelo mesmo modelo sem desperdício ou perda de qualidade. A **cascata automática de provedores foi rejeitada** por violar a soberania do usuário: a Síntese Dialética decide qual versão da memória é a verdade e não pode trocar de modelo silenciosamente. O fallback existe apenas quando o usuário o define explicitamente. Falha de **validação Pydantic nunca dispara fallback** — é problema de qualidade da saída, não de disponibilidade; trocar de modelo às cegas mascararia o problema. Chaves de API permanecem uma por provedor (nunca por papel), evitando duplicação de segredos.
+**Trade-off:** mais variáveis de ambiente (até 16 com fallbacks); mitigado pela herança — o caso mínimo continua sendo 2 variáveis (`HIVE_DREAMER_PROVIDER/MODEL`).

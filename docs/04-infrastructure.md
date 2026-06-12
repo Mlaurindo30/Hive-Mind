@@ -51,13 +51,25 @@
 | `HIVE_MIND_API_KEY` | Bearer token da REST API (obrigatório) | sem padrão |
 | `HIVE_MIND_API_PORT` | Porta da REST API | `37702` |
 
-### 2.2 Hive-Dreamer (Dream Cycle)
+### 2.2 LLM por papel (roles)
 
-| Variável | Descrição | Exemplos |
-|----------|-----------|---------|
-| `HIVE_DREAMER_PROVIDER` | Provider do LLM de consolidação | `google`, `openai`, `anthropic`, `ollama`, `deepseek` |
-| `HIVE_DREAMER_MODEL` | Modelo específico | `gemini-2.0-flash`, `gpt-4o`, `claude-haiku-4-5-20251001` |
-| `OLLAMA_LOCAL` | URL base do Ollama | `http://localhost:11434` |
+Cada papel tem primário e fallback opcionais; papel sem par completo PROVIDER+MODEL herda do Dreamer (regras: [`01-architecture.md`](01-architecture.md) §10.1).
+
+| Variável | Papel | Descrição |
+|----------|-------|-----------|
+| `HIVE_DREAMER_PROVIDER` / `HIVE_DREAMER_MODEL` | Dreamer (base de herança) | LLM do Dream Cycle (Distiller/Validator/Router) |
+| `HIVE_DREAMER_FALLBACK_PROVIDER` / `HIVE_DREAMER_FALLBACK_MODEL` | Dreamer | Fallback opt-in se o primário falhar |
+| `HIVE_GRAPHIFY_PROVIDER` / `HIVE_GRAPHIFY_MODEL` | Graphify | Extração de entidades na indexação |
+| `HIVE_GRAPHIFY_FALLBACK_PROVIDER` / `HIVE_GRAPHIFY_FALLBACK_MODEL` | Graphify | Fallback opt-in |
+| `HIVE_VISION_PROVIDER` / `HIVE_VISION_MODEL` | Vision | Descrição de screenshots (multimodal) |
+| `HIVE_VISION_FALLBACK_PROVIDER` / `HIVE_VISION_FALLBACK_MODEL` | Vision | Fallback opt-in |
+| `HIVE_SYNTHESIS_PROVIDER` / `HIVE_SYNTHESIS_MODEL` | Síntese P2P | Síntese Dialética de conflitos |
+| `HIVE_SYNTHESIS_FALLBACK_PROVIDER` / `HIVE_SYNTHESIS_FALLBACK_MODEL` | Síntese P2P | Fallback opt-in |
+| `OLLAMA_LOCAL` | — | URL base do Ollama (`http://localhost:11434`) |
+
+Exemplos de valores: provider `google`, `openai`, `anthropic`, `ollama`, `deepseek`; modelo `gemini-2.0-flash`, `gpt-4o`, `claude-haiku-4-5-20251001`, `qwen2.5-coder:3b`.
+
+> O modelo de **embedding não é configurável**: `all-MiniLM-L6-v2` (384d, local via fastembed) é fixo por decisão de schema — a tabela `search_vec` é `FLOAT[384]`; trocar exige migração + reindexação total.
 
 ### 2.3 API Keys por Provider
 
@@ -69,8 +81,8 @@
 | `OPENAI_API_KEY` | OpenAI / OpenRouter-compatible |
 | `ANTHROPIC_API_KEY` | Anthropic |
 | `DEEPSEEK_API_KEY` | DeepSeek |
-| `HUGGINGFACE_API_KEY` | Hugging Face Inference |
-| `QWEN_API_KEY` | Alibaba Qwen (DashScope) |
+| `HF_TOKEN` | Hugging Face Inference |
+| `DASHSCOPE_API_KEY` | Alibaba Qwen (DashScope) |
 | `NVIDIA_API_KEY` | NVIDIA NIM |
 | `OPENROUTER_API_KEY` | OpenRouter |
 

@@ -581,6 +581,17 @@ echo ""
 
 # ── CONFIGURAÇÃO DE INTELIGÊNCIA (Ciclo de Sonho) ───────────────────────────
 echo -e "${BOLD}[11/12] Configurando inteligência do Ciclo de Sonho...${NC}"
+
+# Garante que o .env.example contém o bloco de LLM por papel (idempotente).
+# O bloco vive versionado em config/env.roles.example — fonte única.
+if [ -f "$PROJECT_ROOT/config/env.roles.example" ] && [ -f "$PROJECT_ROOT/.env.example" ]; then
+    if ! grep -q "^HIVE_GRAPHIFY_PROVIDER=" "$PROJECT_ROOT/.env.example"; then
+        printf '\n' >> "$PROJECT_ROOT/.env.example"
+        cat "$PROJECT_ROOT/config/env.roles.example" >> "$PROJECT_ROOT/.env.example"
+        echo -e "  ${GREEN}✓${NC} Bloco de LLM por papel adicionado ao .env.example"
+    fi
+fi
+
 if [ -n "$PROVIDER" ] && [ -n "$MODEL" ]; then
     echo -e "  Salvando provedor ($PROVIDER) e modelo ($MODEL) no .env..."
     # Garante que o .env existe
