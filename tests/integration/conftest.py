@@ -14,18 +14,29 @@ if "sinapse_memory" not in sys.modules:
 
 @pytest.fixture(scope="module")
 def ensure_backends():
-    """Garante que backends reais estão operacionais."""
-    import urllib.request
-    import json
+    """Garante que backends reais estão operacionais.
 
+    Delegates entirely to ``sinapse_memory.health_check()`` — the same check
+    that ``scripts/sinapse-write.py health`` runs — so the fixture stays in
+    sync with the actual plugin logic.  If any backend reports unhealthy the
+    tests are skipped with a diagnostic message rather than giving a false
+    pass or a cryptic failure.
+    """
+    sinapse_memory = sys.modules["sinapse_memory"]
     try:
-        req = urllib.request.Request("http://127.0.0.1:37700/health")
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            assert json.loads(resp.read()).get("status") == "ok"
-    except Exception:
-        pytest.skip("claude-mem worker not available")
+        status = sinapse_memory.health_check()
+    except Exception as exc:
+        pytest.skip(f"health_check() raised an unexpected error: {exc}")
 
-    if not os.path.isfile(os.path.expanduser("~/.local/bin/nmem")):
-        pytest.skip("nmem not installed")
+    if not status.get("healthy"):
+        unhealthy = [
+            name
+            for name, ok in status.get("backends", {}).items()
+            if not ok
+        ]
+        pytest.skip(
+            "sinapse-memory backends not available: "
+            + (", ".join(unhealthy) if unhealthy else "unknown")
+        )
 
     return True

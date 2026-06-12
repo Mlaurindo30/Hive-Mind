@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS observations (
     neuron_id TEXT, -- Link optional to a neuron
     archived INTEGER DEFAULT 0,  -- 0=pendente, 1=consolidado, 2=quarentena
     metadata JSON,
+    uuid TEXT,           -- Phase 8: P2P/Syncthing sync identifier
+    source_machine TEXT, -- Phase 8: originating machine hostname
     FOREIGN KEY(neuron_id) REFERENCES neurons(id) ON DELETE SET NULL
 );
 

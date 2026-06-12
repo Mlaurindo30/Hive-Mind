@@ -166,6 +166,7 @@ def ensure_migrations(conn):
     - Coluna 'archived' na tabela observations (0=pendente, 1=consolidado, 2=quarentena)
     - Índice idx_observations_archived
     - Backfill do formato legado ("archived": true no metadata)
+    - Colunas 'uuid' e 'source_machine' (Phase 8: P2P/Syncthing sync)
     """
     try:
         conn.execute("ALTER TABLE observations ADD COLUMN archived INTEGER DEFAULT 0")
@@ -174,6 +175,16 @@ def ensure_migrations(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_observations_archived ON observations(archived)")
     # Backfill único: migra observações arquivadas via metadata (legado) para a coluna
     conn.execute("""UPDATE observations SET archived = 1 WHERE metadata LIKE '%"archived": true%' AND archived = 0""")
+
+    # Phase 8: P2P/Syncthing sync columns
+    existing_cols = [r[1] for r in conn.execute("PRAGMA table_info(observations)")]
+    if "uuid" not in existing_cols:
+        conn.execute("ALTER TABLE observations ADD COLUMN uuid TEXT")
+    if "source_machine" not in existing_cols:
+        import socket
+        hostname = socket.gethostname()
+        conn.execute(f"ALTER TABLE observations ADD COLUMN source_machine TEXT DEFAULT '{hostname}'")
+
     conn.commit()
 
 def init_db():

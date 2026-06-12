@@ -33,10 +33,12 @@ def main():
     d = sub.add_parser("decision", help="Save a decision to the vault")
     d.add_argument("--title", required=True, help="Decision title")
     d.add_argument("--content", required=True, help="Decision content")
+    d.add_argument("--dry-run", action="store_true", default=False, help="Preview without writing files or persisting to DB")
 
     l = sub.add_parser("learning", help="Save a learning to Patterns.md")
     l.add_argument("--title", required=True, help="Learning title")
     l.add_argument("--content", required=True, help="Learning content")
+    l.add_argument("--dry-run", action="store_true", default=False, help="Preview without writing files or persisting to DB")
 
     q = sub.add_parser("query", help="Query vault knowledge across all backends")
     q.add_argument("text", help="Search query")
@@ -58,11 +60,13 @@ def main():
     args = parser.parse_args()
 
     if args.command == "decision":
+        sm.DRY_RUN = args.dry_run
         result = sm._save_decision(args.title, args.content)
-        print(json.dumps({"saved": result is not None, "path": result or None}))
+        print(json.dumps({"saved": result is not None, "path": result or None, "dry_run": args.dry_run}))
     elif args.command == "learning":
+        sm.DRY_RUN = args.dry_run
         result = sm._save_learning(args.title, args.content)
-        print(json.dumps({"saved": result is not None, "path": result or None}))
+        print(json.dumps({"saved": result is not None, "path": result or None, "dry_run": args.dry_run}))
     elif args.command == "observation":
         result = sm._umc_save_observation(args.title, args.content, obs_type=args.kind)
         print(json.dumps({"saved": result}))
