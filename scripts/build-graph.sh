@@ -15,8 +15,70 @@ if [ -f "$GRAPH_OUT/graph.json" ]; then
     cp "$GRAPH_OUT/graph.json" "$GRAPH_OUT/graph.json.bak"
 fi
 
+# ── Papel Graphify (role-based LLM config) ───────────────────────────────────
+# Lê HIVE_GRAPHIFY_PROVIDER/MODEL do .env; se ausentes, herda HIVE_DREAMER_*.
+# Sem provedor compatível configurado, mantém o comportamento AST-only.
+#
+# Este script NÃO depende de core.auth.load_env() (que é o loader do lado
+# Python e injeta em os.environ). Ele lê o .env diretamente via grep para
+# poder exportar as chaves de API para o subprocesso `graphify extract`
+# sem precisar inicializar um interpretador Python. Se a chave tiver
+# '=' no valor (ex.: URLs com query string), o cut captura o restante
+# da linha, o que é suficiente para o caso de uso atual.
+ENV_FILE="$SINAPSE_HOME/.env"
+hive_env() {
+    if [ -f "$ENV_FILE" ]; then
+        grep -E "^${1}=" "$ENV_FILE" | head -n1 | cut -d= -f2- || true
+    fi
+}
+
+GRAPHIFY_PROVIDER="$(hive_env HIVE_GRAPHIFY_PROVIDER)"
+GRAPHIFY_MODEL="$(hive_env HIVE_GRAPHIFY_MODEL)"
+if [ -z "$GRAPHIFY_PROVIDER" ] || [ -z "$GRAPHIFY_MODEL" ]; then
+    GRAPHIFY_PROVIDER="$(hive_env HIVE_DREAMER_PROVIDER)"
+    GRAPHIFY_MODEL="$(hive_env HIVE_DREAMER_MODEL)"
+fi
+
+# Mapeia o provedor Hive-Mind para o backend equivalente do graphify
+GRAPHIFY_BACKEND=""
+case "$GRAPHIFY_PROVIDER" in
+    google|gemini)        GRAPHIFY_BACKEND="gemini" ;;
+    anthropic)            GRAPHIFY_BACKEND="claude" ;;
+    openai)               GRAPHIFY_BACKEND="openai" ;;
+    deepseek)             GRAPHIFY_BACKEND="deepseek" ;;
+    ollama|ollama-cloud)  GRAPHIFY_BACKEND="ollama" ;;
+    lmstudio)             GRAPHIFY_BACKEND="ollama"
+                          export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:1234/v1}" ;;
+esac
+
+# Exporta a chave de API do provedor escolhido (nunca duplicada por papel)
+export_key() {
+    local v
+    v="$(hive_env "$1")"
+    if [ -n "$v" ]; then export "$1=$v"; fi
+}
+case "$GRAPHIFY_BACKEND" in
+    gemini)   export_key GOOGLE_API_KEY; export_key GEMINI_API_KEY ;;
+    claude)   export_key ANTHROPIC_API_KEY ;;
+    openai)   export_key OPENAI_API_KEY ;;
+    deepseek) export_key DEEPSEEK_API_KEY ;;
+    ollama)   export_key OLLAMA_API_KEY ;;
+esac
+
 # Reindexa sem LLM (tree-sitter + regex + Leiden clustering)
 graphify update "$VAULT_DIR" 2>&1
+
+# Extração semântica opcional via papel Graphify (não bloqueia o build AST)
+if [ -n "$GRAPHIFY_BACKEND" ] && [ -n "$GRAPHIFY_MODEL" ]; then
+    echo "[graphify] Extração semântica via backend '$GRAPHIFY_BACKEND' (modelo: $GRAPHIFY_MODEL)..."
+    if ! graphify extract "$VAULT_DIR" --backend "$GRAPHIFY_BACKEND" --model "$GRAPHIFY_MODEL" 2>&1; then
+        echo "[graphify] Aviso: extração semântica falhou — grafo AST mantido." >&2
+    fi
+elif [ -n "$GRAPHIFY_PROVIDER" ]; then
+    echo "[graphify] Provedor '$GRAPHIFY_PROVIDER' sem backend graphify equivalente — modo AST-only."
+else
+    echo "[graphify] Nenhum papel Graphify/Dreamer configurado — modo AST-only."
+fi
 
 # Verificar se o novo graph.json é válido
 if python3 -c "import json; json.load(open('$GRAPH_OUT/graph.json'))" 2>/dev/null; then

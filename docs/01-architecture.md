@@ -474,6 +474,56 @@ FastAPI, porta `HIVE_MIND_API_PORT` (default **37702**). Fail-closed sem `HIVE_M
 
 **Capacidades comuns:** refresh automático de token OAuth, timeout de polling 300s, descoberta de modelos em tempo real (`discover_models_realtime()`), nenhuma credencial hardcoded.
 
+### 10.1 Resolução de LLM por papel (`get_role_config`)
+
+Cada estágio do sistema que chama LLM tem um **papel** com configuração própria. Papéis canônicos (constante `HIVE_LLM_ROLES` em `core/auth.py`): `dreamer`, `graphify`, `vision`, `synthesis`. A função aceita qualquer nome de papel (case-insensitive, `-` vira `_`); nome vazio ou não-string levanta `ValueError`.
+
+```python
+get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]
+# retorna {"provider", "model", "fallback_provider", "fallback_model"}
+# ou None se nem o papel nem o Dreamer estiverem configurados
+```
+
+**Variáveis de ambiente por papel** (lidas exclusivamente de `os.environ` — o `.env` é carregado por dotenv no `dream_cycle.py`):
+
+| Papel | Primário | Fallback (opcional) |
+|-------|----------|---------------------|
+| Dreamer (base de herança) | `HIVE_DREAMER_PROVIDER` / `HIVE_DREAMER_MODEL` | `HIVE_DREAMER_FALLBACK_PROVIDER` / `HIVE_DREAMER_FALLBACK_MODEL` |
+| Graphify | `HIVE_GRAPHIFY_PROVIDER` / `HIVE_GRAPHIFY_MODEL` | `HIVE_GRAPHIFY_FALLBACK_PROVIDER` / `HIVE_GRAPHIFY_FALLBACK_MODEL` |
+| Vision | `HIVE_VISION_PROVIDER` / `HIVE_VISION_MODEL` | `HIVE_VISION_FALLBACK_PROVIDER` / `HIVE_VISION_FALLBACK_MODEL` |
+| Síntese P2P | `HIVE_SYNTHESIS_PROVIDER` / `HIVE_SYNTHESIS_MODEL` | `HIVE_SYNTHESIS_FALLBACK_PROVIDER` / `HIVE_SYNTHESIS_FALLBACK_MODEL` |
+
+**Regras de resolução:**
+
+```
+  HIVE_{ROLE}_PROVIDER + HIVE_{ROLE}_MODEL definidos (par COMPLETO)?
+       │
+       ├── Sim → usa o primário do próprio papel
+       │          fallback: apenas o HIVE_{ROLE}_FALLBACK_* explícito
+       │          (NUNCA herda o fallback do Dreamer) — sem ele, fallback=None
+       │
+       └── Não (par incompleto ou ausente)
+             → herda HIVE_DREAMER_PROVIDER/MODEL
+             → sem HIVE_{ROLE}_FALLBACK_* próprio, herda também
+               HIVE_DREAMER_FALLBACK_PROVIDER/MODEL
+```
+
+- O fallback só vale como **par completo** PROVIDER+MODEL; par incompleto é tratado como ausente (`None`).
+- **Chaves de API nunca são duplicadas por papel:** são sempre resolvidas via `PROVIDERS_CONFIG` pelo nome do provedor (`GOOGLE_API_KEY`, `DEEPSEEK_API_KEY`, ...).
+
+### 10.2 Cliente LLM unificado (`core/llm_client.py`)
+
+Módulo que centraliza as chamadas estruturadas (antes embutidas no `dream_cycle.py`):
+
+| Função/Classe | Papel |
+|---------------|-------|
+| `call_llm_structured(...)` | Chamada com JSON Schema + validação Pydantic (movida do `dream_cycle.py`) |
+| `classify_llm_error(exc)` | Classifica exceção em `"validation"` \| `"auth"` \| `"transient"` |
+| `call_llm_with_fallback(role, ...)` | Aplica a política de retry/fallback do papel |
+| `LLMValidationError` | Saída da LLM reprovada pela validação Pydantic |
+
+Política de retry/fallback por classe de erro: ver tabela em [`02-ai-models.md`](02-ai-models.md). Ao alternar de modelo, o log registra: `[Fallback] Papel 'X': alternando de A/B para C/D`.
+
 ---
 
 ## 11. Estrutura do Vault

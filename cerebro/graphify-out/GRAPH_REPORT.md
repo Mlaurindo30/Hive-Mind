@@ -1,16 +1,16 @@
 # Graph Report - cerebro  (2026-06-11)
 
 ## Corpus Check
-- 82 files · ~32,525 words
+- 82 files · ~32,557 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1667 nodes · 1728 edges · 192 communities (159 shown, 33 thin omitted)
+- 1672 nodes · 1733 edges · 193 communities (161 shown, 32 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `e8bda399`
+- Built from commit: `917f686e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -176,10 +176,11 @@
 - [[_COMMUNITY_Community 189|Community 189]]
 - [[_COMMUNITY_Community 190|Community 190]]
 - [[_COMMUNITY_Community 191|Community 191]]
+- [[_COMMUNITY_Community 192|Community 192]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `Patterns & Conventions` - 28 edges
-2. `Current State` - 21 edges
+2. `Current State` - 22 edges
 3. `Sinapse Agent — Vault (AGENTS.md)` - 16 edges
 4. `Sinapse Agent — Vault (CLAUDE.md)` - 16 edges
 5. `compilerOptions` - 16 edges
@@ -191,6 +192,8 @@
 
 ## Surprising Connections (you probably didn't know these)
 - `runHook()` --calls--> `runScript()`  [EXTRACTED]
+  .claude/scripts/tests/qmd-refresh.integration.test.ts → .claude/scripts/tests/_helpers.ts
+- `runHook()` --calls--> `runScript()`  [EXTRACTED]
   .claude/scripts/tests/session-start.integration.test.ts → .claude/scripts/tests/_helpers.ts
 - `runScript()` --calls--> `runScript()`  [EXTRACTED]
   .claude/scripts/tests/validate-write.test.ts → .claude/scripts/tests/_helpers.ts
@@ -198,10 +201,8 @@
   .claude/scripts/tests/classify-message.test.ts → .claude/scripts/tests/_helpers.ts
 - `runScript()` --calls--> `runScript()`  [EXTRACTED]
   .claude/scripts/tests/stop-checklist.test.ts → .claude/scripts/tests/_helpers.ts
-- `runHook()` --calls--> `runScript()`  [EXTRACTED]
-  .claude/scripts/tests/qmd-refresh.integration.test.ts → .claude/scripts/tests/_helpers.ts
 
-## Communities (192 total, 33 thin omitted)
+## Communities (193 total, 32 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -209,11 +210,11 @@ Nodes (11): code:yaml (# Global filters apply to ALL views in the base), code:ma
 
 ### Community 1 - "Community 1"
 Cohesion: 0.14
-Nodes (14): buildQmdCommand(), composeWorkerInvocations(), require, resolveQmdEntry(), qmdArgsWithIndex(), invocations, MANIFEST_PATH, qmdIndex (+6 more)
+Nodes (12): composeWorkerInvocations(), resolveVaultRoot(), invocations, MANIFEST_PATH, qmdIndex, result, SCRIPT_DIR, VAULT_ROOT (+4 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.10
-Nodes (40): collectOpenTasks(), extractFrontmatterField(), findFrontmatterEnd(), formatActiveWork(), formatBrainIndex(), formatDateHeader(), formatRecentChanges(), hasBrainContent() (+32 more)
+Cohesion: 0.09
+Nodes (41): collectOpenTasks(), extractFrontmatterField(), findFrontmatterEnd(), formatActiveWork(), formatBrainIndex(), formatDateHeader(), formatRecentChanges(), hasBrainContent() (+33 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.05
@@ -260,8 +261,8 @@ Cohesion: 0.10
 Nodes (21): Classification Heuristics, code:yaml (---), Execution Process, Important, Mode A: Classification, Mode B: Execution, Modes, Step 1: Build Context (+13 more)
 
 ### Community 14 - "Community 14"
-Cohesion: 0.16
-Nodes (18): debug(), isDebounced(), QmdInvocation, readSentinelMtime(), resolveVaultRoot(), shouldRefreshForPath(), SKIP_SEGMENTS, spawnDetachedWorker() (+10 more)
+Cohesion: 0.23
+Nodes (13): debug(), isDebounced(), QmdInvocation, readSentinelMtime(), shouldRefreshForPath(), SKIP_SEGMENTS, spawnDetachedWorker(), touchSentinel() (+5 more)
 
 ### Community 15 - "Community 15"
 Cohesion: 0.09
@@ -276,8 +277,8 @@ Cohesion: 0.12
 Nodes (17): compilerOptions, allowImportingTsExtensions, exactOptionalPropertyTypes, isolatedModules, lib, module, moduleResolution, noEmit (+9 more)
 
 ### Community 18 - "Community 18"
-Cohesion: 0.20
-Nodes (10): runScript(), hostPath(), RunResult, runScript(), runHook(), runHook(), runScript(), SCRIPT (+2 more)
+Cohesion: 0.13
+Nodes (16): runScript(), RunResult, runScript(), { code, stderr }, idx, projectFile, REQUIRED_SECTIONS, runHook() (+8 more)
 
 ### Community 19 - "Community 19"
 Cohesion: 0.11
@@ -360,8 +361,8 @@ Cohesion: 0.20
 Nodes (11): ROOT_FILES, shouldSkipFile(), SKIP_PATH_SEGMENTS, validateContent(), validateFile(), base, hintList, HookInput (+3 more)
 
 ### Community 39 - "Community 39"
-Cohesion: 0.15
-Nodes (13): isMainModule(), backupDir, dest, formatTimestamp(), HookInput, input, listBackups(), pruneBackups() (+5 more)
+Cohesion: 0.14
+Nodes (14): isMainModule(), backupDir, dest, formatTimestamp(), HookInput, input, listBackups(), pruneBackups() (+6 more)
 
 ### Community 40 - "Community 40"
 Cohesion: 0.14
@@ -668,8 +669,8 @@ Cohesion: 0.18
 Nodes (10): code:sqlite-query (SELECT created_at, type, title, content), code:sqlite-query (SELECT created_at, title, content), code:sqlite-query (SELECT label, type, source_file), code:sqlite-query (SELECT n.label as 'Nota', n.type as 'Tipo'), 🧠 Hive-Mind Dashboard, 🕸️ Neurônios Órfãos (Sem conexões), ⚡ Otimizações de Terminal (RTK), 📊 Status do Cérebro (+2 more)
 
 ### Community 148 - "Community 148"
-Cohesion: 0.18
-Nodes (7): after, before, SCRIPT, SCRIPT_DIR, { stdout, code }, { stdout, stderr, code }, VAULT_ROOT
+Cohesion: 0.17
+Nodes (8): after, before, runHook(), SCRIPT, SCRIPT_DIR, { stdout, code }, { stdout, stderr, code }, VAULT_ROOT
 
 ### Community 150 - "Community 150"
 Cohesion: 0.18
@@ -680,8 +681,8 @@ Cohesion: 0.22
 Nodes (9): Cards View, code:yaml (views:), code:yaml (views:), code:yaml (views:), code:yaml (views:), List View, Map View, Table View (+1 more)
 
 ### Community 152 - "Community 152"
-Cohesion: 0.22
-Nodes (8): { code, stderr }, idx, projectFile, REQUIRED_SECTIONS, SCRIPT, SCRIPT_DIR, { stdout }, { stdout, stderr, code }
+Cohesion: 0.32
+Nodes (6): buildQmdCommand(), require, resolveQmdEntry(), entry, input, out
 
 ### Community 153 - "Community 153"
 Cohesion: 0.25
@@ -703,6 +704,10 @@ Nodes (5): checklist, HookInput, input, SCRIPT_DIR, WORKER_PATH
 Cohesion: 0.40
 Nodes (5): code:yaml (# CORRECT: Calculate days between dates), code:yaml (# Duration units: y/year/years, M/month/months, d/day/days,), Date Arithmetic, Duration Type, Key Functions
 
+### Community 158 - "Community 158"
+Cohesion: 0.50
+Nodes (3): Current State, Last Update: 2026-05-24 22:37, Last Update: 2026-06-11 16:58
+
 ### Community 159 - "Community 159"
 Cohesion: 0.50
 Nodes (4): code:yaml (# Single filter), Filter Operators, Filter Structure, Filter Syntax
@@ -715,25 +720,29 @@ Nodes (4): File Properties Reference, Properties, The `this` Keyword, Three Type
 Cohesion: 0.36
 Nodes (5): anyWordMatch(), compileMatcher(), SIGNAL_MATCHERS, Signal, SIGNALS
 
+### Community 192 - "Community 192"
+Cohesion: 0.50
+Nodes (4): Decisions, Learnings, Session: 2026-06-11 16:58, Summary
+
 ## Knowledge Gaps
-- **943 isolated node(s):** `brain/North Star.md`, `brain/Memories.md`, `brain/Key Decisions.md`, `brain/Patterns.md`, `brain/Gotchas.md` (+938 more)
+- **947 isolated node(s):** `brain/North Star.md`, `brain/Memories.md`, `brain/Key Decisions.md`, `brain/Patterns.md`, `brain/Gotchas.md` (+942 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **33 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **32 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Current State` connect `Community 158` to `Community 72`, `Community 73`, `Community 98`, `Community 99`, `Community 100`, `Community 101`, `Community 102`, `Community 103`, `Community 104`, `Community 105`, `Community 106`, `Community 107`, `Community 108`, `Community 109`, `Community 110`, `Community 111`, `Community 112`, `Community 113`, `Community 114`?**
-  _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `resolveQmdEntry()` connect `Community 1` to `Community 2`, `Community 148`, `Community 14`?**
+- **Why does `Current State` connect `Community 158` to `Community 192`, `Community 72`, `Community 73`, `Community 98`, `Community 99`, `Community 100`, `Community 101`, `Community 102`, `Community 103`, `Community 104`, `Community 105`, `Community 106`, `Community 107`, `Community 108`, `Community 109`, `Community 110`, `Community 111`, `Community 112`, `Community 113`, `Community 114`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
 - **Why does `escapeRegex()` connect `Community 5` to `Community 2`, `Community 179`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
+- **Why does `resolveQmdEntry()` connect `Community 152` to `Community 1`, `Community 2`, `Community 148`, `Community 14`?**
+  _High betweenness centrality (0.002) - this node is a cross-community bridge._
 - **What connects `brain/North Star.md`, `brain/Memories.md`, `brain/Key Decisions.md` to the rest of the system?**
-  _947 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _951 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.13725490196078433 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.14285714285714285 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
-  _Cohesion score 0.09619450317124736 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09494949494949495 - nodes in this community are weakly interconnected._
 - **Should `Community 3` be split into smaller, more focused modules?**
   _Cohesion score 0.047619047619047616 - nodes in this community are weakly interconnected._

@@ -1,4 +1,4 @@
-## Last Update: 2026-05-24 22:37
+## Last Update: 2026-06-11 21:07
 
 ---
 tags: [memory, current-state]
@@ -260,3 +260,23 @@ Resumo de teste da API
 - Nenhum aprendizado registrado
 ### Summary
 Sessão remota via rede
+
+
+## Session: 2026-06-11 16:58
+
+### Decisions
+- Nenhuma decisão registrada
+### Learnings
+- Nenhum aprendizado registrado
+### Summary
+Push dos 10 commits locais para o repositório origin/main após auditoria e testes bem-sucedidos.
+
+
+## Session: 2026-06-11 21:07
+
+### Decisions
+- Nenhuma decisão registrada
+### Learnings
+- Nenhum aprendizado registrado
+### Summary
+Corrigido erro de shape no modelo Ideogram 4 através de detecção dinâmica da dimensão llm_features_dim e ajuste na precedência de configuração de modelos no ComfyUI.

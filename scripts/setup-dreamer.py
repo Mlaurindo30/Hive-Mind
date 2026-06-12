@@ -2,6 +2,8 @@
 """
 Hive-Mind — Brain Selector & Auto-Discovery
 Interface unificada para configurar chaves e escolher modelos em tempo real.
+Suporta configuração de LLM por papel (Dreamer, Graphify, Vision, Síntese P2P)
+com herança do Dreamer e fallback opcional por papel.
 """
 
 import os
@@ -22,7 +24,34 @@ from core.auth import PROVIDERS_CONFIG, save_env, load_env, discover_models_real
 GREEN = "\033[0;32m"; YELLOW = "\033[1;33m"; BLUE = "\033[1;34m"; RED = "\033[0;31m"
 BOLD = "\033[1m"; NC = "\033[0m"
 
+# Papéis configuráveis (id, rótulo). O Dreamer é a base de herança dos demais.
+ROLES = [
+    ("dreamer",   "Dreamer (pipeline principal)"),
+    ("graphify",  "Graphify (grafo de conhecimento)"),
+    ("vision",    "Vision (estágio visual)"),
+    ("synthesis", "Síntese P2P (dialética)"),
+]
+
 def clear(): os.system('clear' if os.name == 'posix' else 'cls')
+
+def role_var(role: str, suffix: str) -> str:
+    return f"HIVE_{role.upper()}_{suffix}"
+
+def describe_role(role: str, env: Dict[str, str]) -> str:
+    """Valor atual do papel: modelo próprio, 'herda do Dreamer' ou 'Nenhum'."""
+    p = env.get(role_var(role, "PROVIDER"))
+    m = env.get(role_var(role, "MODEL"))
+    if p and m:
+        desc = f"{GREEN}{m}{NC} ({p})"
+    elif role == "dreamer":
+        desc = f"{YELLOW}Nenhum{NC}"
+    else:
+        desc = f"{BLUE}herda do Dreamer{NC}"
+    fb_p = env.get(role_var(role, "FALLBACK_PROVIDER"))
+    fb_m = env.get(role_var(role, "FALLBACK_MODEL"))
+    if fb_p and fb_m:
+        desc += f" | fallback: {fb_m} ({fb_p})"
+    return desc
 
 def is_provider_configured(p_name: str, env: Dict[str, str]) -> bool:
     cfg = PROVIDERS_CONFIG[p_name]
@@ -38,43 +67,63 @@ def main_menu():
         print(f"{BOLD}{BLUE}╔══════════════════════════════════════════════════════╗{NC}")
         print(f"{BOLD}{BLUE}║          🧠 HIVE-MIND: SELETOR DE INTELIGÊNCIA       ║{NC}")
         print(f"{BOLD}{BLUE}╚══════════════════════════════════════════════════════╝{NC}")
-        
+
         env = load_env()
-        active_provider = env.get("HIVE_DREAMER_PROVIDER", "Nenhum")
-        active_model = env.get("HIVE_DREAMER_MODEL", "Nenhum")
-        
-        print(f"\n{BOLD}Cérebro Atual:{NC} {GREEN}{active_model}{NC} ({active_provider})")
-        print("-" * 50)
-        
-        print(f"\n{BOLD}Provedores Disponíveis:{NC}")
-        providers = list(PROVIDERS_CONFIG.keys())
-        for i, p in enumerate(providers):
-            status = f"{GREEN}[CONFIGURADO]{NC}" if is_provider_configured(p, env) else f"{YELLOW}[PENDENTE]{NC}"
-            print(f"  {i+1:2}) {p:15} {status}")
-            
+        print(f"\n{BOLD}Qual papel deseja configurar?{NC}")
+        for i, (rid, label) in enumerate(ROLES):
+            print(f"  {i+1}) {label:34} {describe_role(rid, env)}")
+
         print(f"\n  0) Sair")
-        
-        choice = input(f"\nSelecione um Provedor (ou 0): ")
+
+        choice = input(f"\nSelecione um papel (ou 0): ").strip()
         if choice == "0": break
-        
+
         try:
-            p_name = providers[int(choice)-1]
-            manage_provider(p_name)
+            role = ROLES[int(choice)-1][0]
+            provider_menu(role)
         except (ValueError, IndexError):
             pass
 
-def manage_provider(p_name: str):
+def provider_menu(role: str, fallback: bool = False):
+    clear()
+    kind = "FALLBACK do papel" if fallback else "papel"
+    print(f"{BOLD}{BLUE}--- Configurando {kind} {role.upper()} ---{NC}")
+
+    env = load_env()
+    active_provider = env.get("HIVE_DREAMER_PROVIDER", "Nenhum")
+    active_model = env.get("HIVE_DREAMER_MODEL", "Nenhum")
+    print(f"\n{BOLD}Cérebro do Dreamer (base de herança):{NC} {GREEN}{active_model}{NC} ({active_provider})")
+    print("-" * 50)
+
+    print(f"\n{BOLD}Provedores Disponíveis:{NC}")
+    providers = list(PROVIDERS_CONFIG.keys())
+    for i, p in enumerate(providers):
+        status = f"{GREEN}[CONFIGURADO]{NC}" if is_provider_configured(p, env) else f"{YELLOW}[PENDENTE]{NC}"
+        print(f"  {i+1:2}) {p:15} {status}")
+
+    print(f"\n  0) Voltar")
+
+    choice = input(f"\nSelecione um Provedor (ou 0): ").strip()
+    if choice == "0": return
+
+    try:
+        p_name = providers[int(choice)-1]
+        manage_provider(p_name, role, fallback)
+    except (ValueError, IndexError):
+        pass
+
+def manage_provider(p_name: str, role: str, fallback: bool = False):
     cfg = PROVIDERS_CONFIG[p_name]
     env = load_env()
-    
+
     # SE JÁ ESTIVER CONFIGURADO, VAI DIRETO PARA LISTAGEM DE MODELOS
     if is_provider_configured(p_name, env):
-        show_model_selection(p_name)
+        show_model_selection(p_name, role, fallback)
         return
 
     auth_types = cfg["auth_type"]
     selected_auth = auth_types[0]
-    
+
     if len(auth_types) > 1:
         clear()
         print(f"{BOLD}--- Métodos de Autenticação para {p_name.upper()} ---{NC}")
@@ -89,7 +138,7 @@ def manage_provider(p_name: str):
         clear()
         print(f"{BOLD}{BLUE}Iniciando fluxo OAuth para {p_name.upper()}...{NC}")
         init_data = get_oauth_credentials(p_name)
-        
+
         if not init_data or "error" in init_data:
             print(f"{RED}Erro: {init_data.get('error', 'Falha ao iniciar')}{NC}")
             input("\nEnter para voltar...")
@@ -111,7 +160,7 @@ def manage_provider(p_name: str):
             input("\nEnter para voltar...")
             return
         print(f"\n{GREEN}✓ Login realizado com sucesso!{NC}")
-        
+
     elif selected_auth == "api_key":
         clear()
         print(f"{BOLD}--- Configurando {p_name.upper()} ---{NC}")
@@ -122,15 +171,15 @@ def manage_provider(p_name: str):
         print(f"{GREEN}✓ Chave salva!{NC}")
         os.environ[cfg['env_var']] = key
 
-    show_model_selection(p_name)
+    show_model_selection(p_name, role, fallback)
 
-def show_model_selection(p_name: str):
+def show_model_selection(p_name: str, role: str, fallback: bool = False):
     clear()
     print(f"{BOLD}{BLUE}🔍 Escaneando modelos em {p_name.upper()}...{NC}")
-    
+
     all_models = discover_models_realtime()
     p_models = [m for m in all_models if m['provider'] == p_name]
-    
+
     if not p_models:
         print(f"\n{RED}✗ Nenhum modelo encontrado.{NC}")
         print(f"Dica: Se você acabou de logar, tente 'Re-autenticar' no menu do provedor.")
@@ -139,31 +188,41 @@ def show_model_selection(p_name: str):
         print(f"2) Re-configurar / Re-logar")
         print(f"0) Voltar")
         choice = input("\nEscolha: ")
-        if choice == "1": show_model_selection(p_name)
+        if choice == "1": show_model_selection(p_name, role, fallback)
         elif choice == "2":
             # Força remoção de tokens/chaves para re-configurar
             env = load_env()
             cfg = PROVIDERS_CONFIG[p_name]
             if f"{p_name.upper()}_ACCESS_TOKEN" in env: save_env(f"{p_name.upper()}_ACCESS_TOKEN", "")
             if cfg['env_var'] in env: save_env(cfg['env_var'], "")
-            manage_provider(p_name)
+            manage_provider(p_name, role, fallback)
         return
 
     print(f"\n{BOLD}Modelos detectados em {p_name}:{NC}")
     for i, m in enumerate(p_models):
         print(f"  {i+1:2}) {m['id']}")
     print(f"\n  0) Voltar")
-    
+
     m_choice = input(f"\nEscolha o modelo: ")
     if m_choice == "0": return
-    
+
     try:
         selected = p_models[int(m_choice)-1]
-        save_env("HIVE_DREAMER_PROVIDER", selected['provider'])
-        save_env("HIVE_DREAMER_MODEL", selected['id'])
-        print(f"\n{GREEN}{BOLD}✓ Hive-Mind atualizado: {selected['id']}{NC}")
-        input("\nEnter para continuar...")
-    except: pass
+    except (ValueError, IndexError):
+        return
+
+    prefix = "FALLBACK_" if fallback else ""
+    save_env(role_var(role, f"{prefix}PROVIDER"), selected['provider'])
+    save_env(role_var(role, f"{prefix}MODEL"), selected['id'])
+    target = f"fallback do papel {role.upper()}" if fallback else f"papel {role.upper()}"
+    print(f"\n{GREEN}{BOLD}✓ Hive-Mind atualizado ({target}): {selected['id']}{NC}")
+
+    if not fallback:
+        ask = input(f"\nDefinir um modelo de FALLBACK para o papel {role.upper()}? (s/N — Enter pula): ").strip().lower()
+        if ask in ("s", "sim", "y", "yes"):
+            provider_menu(role, fallback=True)
+            return
+    input("\nEnter para continuar...")
 
 if __name__ == "__main__":
     try: main_menu()

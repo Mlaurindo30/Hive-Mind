@@ -745,8 +745,8 @@
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/brain/Current State.md": {
-    "mtime": 1779673026.156354,
-    "ast_hash": "a300fd7e814869a8418fa4399b00794b",
+    "mtime": 1781207922.284486,
+    "ast_hash": "a83447adbd2143a91ea892f204a9d0fc",
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atoms/Agent-Loop-Protocol.md": {
@@ -835,8 +835,8 @@
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/install.sh": {
-    "mtime": 1781195277.104007,
-    "ast_hash": "c02dcbe27a0e7b12ecbabf8af8268a6c",
+    "mtime": 1781200256.8020017,
+    "ast_hash": "e208c393478666836aa5e3969f946d68",
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/tests/__init__.py": {
@@ -1240,8 +1240,8 @@
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/AGENTS.md": {
-    "mtime": 1781139916.4330022,
-    "ast_hash": "fc4e02947386491a4991a15602bc524a",
+    "mtime": 1781200346.7434492,
+    "ast_hash": "9540a81d607ae9ed7fe68ca3e3d574e4",
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/AGENT_BOOTSTRAP.md": {
@@ -1442,6 +1442,11 @@
   "/home/michel/Documentos/Projects/Hive-Mind/.github/workflows/test.yml": {
     "mtime": 1779558809.4501808,
     "ast_hash": "3da4c21b658b6413da35de7d9f726c86",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/scripts/register-mcp.sh": {
+    "mtime": 1781200236.1790047,
+    "ast_hash": "271534f0a1b8c1ee82719eb1de88dfb2",
     "semantic_hash": ""
   }
 }

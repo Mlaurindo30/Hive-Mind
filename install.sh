@@ -587,7 +587,9 @@ if [ -n "$PROVIDER" ] && [ -n "$MODEL" ]; then
     [ -f "$PROJECT_ROOT/.env" ] || cp "$PROJECT_ROOT/.env.example" "$PROJECT_ROOT/.env"
     # Salva no .env usando python
     python3 -c "import sys; sys.path.append('$PROJECT_ROOT'); from core.auth import save_env; save_env('HIVE_DREAMER_PROVIDER', '$PROVIDER'); save_env('HIVE_DREAMER_MODEL', '$MODEL')"
-    echo -e "  ${GREEN}✓${NC} Provedor e modelo salvos."
+    echo -e "  ${GREEN}✓${NC} Provedor e modelo salvos (papel Dreamer)."
+    echo -e "  Os papéis Graphify, Vision e Síntese herdam este modelo por padrão;"
+    echo -e "  ajuste por papel (e fallbacks) com: python3 scripts/setup-dreamer.py"
 else
     echo -e "  Nenhum provedor/modelo de IA fornecido via argumentos."
     echo -e "  A configuração poderá ser realizada ao final da instalação ou posteriormente."

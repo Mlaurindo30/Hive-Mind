@@ -9,8 +9,11 @@ _HERE = Path(__file__).resolve().parent
 SINAPSE_HOME = str(_HERE.parent)
 sys.path.append(SINAPSE_HOME)
 
+import pytest
+
 from core.database import get_connection
 
+@pytest.mark.skip(reason="integration: requer API key de LLM real (chama o Ciclo de Síntese)")
 def test_synthesis():
     conn = get_connection()
     

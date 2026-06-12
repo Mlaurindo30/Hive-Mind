@@ -7,7 +7,6 @@ Pipeline ETL determinístico: Ingestão -> Distiller -> Validator -> Router.
 import os
 import sys
 import json
-import requests
 import sqlite3
 import yaml
 import time
@@ -53,105 +52,40 @@ synthesis_prompt = load_yaml(PROMPTS_DIR / "synthesis_prompt.yaml")["system_prom
 vision_prompt = load_yaml(PROMPTS_DIR / "vision_prompt.yaml")["system_prompt"]
 
 # ---------------------------------------------------------------------------
-# Chamada Segura a LLM com JSON Schema Pydantic
+# Chamada Segura a LLM — config por papel (core.auth) + cliente (core.llm_client)
 # ---------------------------------------------------------------------------
-LLM_PROVIDER = os.environ.get("HIVE_DREAMER_PROVIDER")
-LLM_MODEL = os.environ.get("HIVE_DREAMER_MODEL")
+from core.auth import get_role_config
+from core.llm_client import (
+    call_llm_structured as _call_llm_structured,
+    call_llm_with_fallback,
+    classify_llm_error,
+)
 
-def call_llm_structured(prompt: str, system_prompt: str, response_model: Any, image_path: Optional[str] = None) -> Any:
-    """Chama a LLM e força o retorno no formato Pydantic usando JSON Schema. Suporta imagem opcional."""
-    from core.auth import get_credentials, refresh_oauth_token
-    import base64
-    creds = get_credentials(LLM_PROVIDER)
-    if not creds: raise Exception(f"Credenciais para '{LLM_PROVIDER}' não encontradas.")
-    
-    schema = response_model.model_json_schema()
-    
-    def _do_request(auth_creds):
-        if LLM_PROVIDER == "google" or LLM_PROVIDER == "gemini":
-            url = f"{auth_creds['url']}/models/{LLM_MODEL}:generateContent"
-            headers = {"Authorization": f"Bearer {auth_creds['key']}"} if auth_creds['type'] == "oauth" else {}
-            if auth_creds['type'] != "oauth": url += f"?key={auth_creds['key']}"
-            
-            parts = [{"text": f"{system_prompt}\n\n{prompt}"}]
-            if image_path:
-                with open(image_path, "rb") as image_file:
-                    image_data = base64.b64encode(image_file.read()).decode('utf-8')
-                    parts.append({
-                        "inlineData": {
-                            "mimeType": "image/png",
-                            "data": image_data
-                        }
-                    })
+# Cérebro ativo do pipeline principal (papel "dreamer"). As globais existem
+# para que o fallback possa ser ativado em runtime (_activate_dreamer_fallback).
+_dreamer_cfg = get_role_config("dreamer") or {}
+LLM_PROVIDER = _dreamer_cfg.get("provider")
+LLM_MODEL = _dreamer_cfg.get("model")
 
-            # Gemini JSON Schema format
-            payload = {
-                "contents": [{"parts": parts}],
-                "generationConfig": {
-                    "temperature": 0.1,
-                    "responseMimeType": "application/json",
-                    "responseSchema": schema
-                }
-            }
-            resp = requests.post(url, json=payload, headers=headers, timeout=60)
-            if resp.status_code in [401, 403] and auth_creds['type'] == "oauth": return None
-            return resp
-            
-        else: # OpenAI-compatible
-            url = f"{auth_creds['url']}/chat/completions"
-            headers = {"Authorization": f"Bearer {auth_creds['key']}"} if auth_creds['type'] != "local" else {}
-            if LLM_PROVIDER == "openai" and auth_creds['type'] == "oauth": headers["originator"] = "openclaw"
-            
-            payload = {
-                "model": LLM_MODEL,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.1,
-                # OpenAI Structured Outputs Format
-                "response_format": {
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": response_model.__name__,
-                        "schema": schema,
-                        "strict": True
-                    }
-                }
-            }
-            # Se for provedor local que não suporta 'strict' do OpenAI
-            if auth_creds['type'] == "local" or LLM_PROVIDER in ["anthropic", "openrouter", "deepseek"]:
-                payload["response_format"] = {"type": "json_object"}
-                payload["messages"][0]["content"] += f"\n\nOUTPUT MUST MATCH THIS JSON SCHEMA EXACTLY:\n{json.dumps(schema)}"
+def call_llm_structured(prompt: str, system_prompt: str, response_model: Any,
+                        image_path: Optional[str] = None,
+                        provider: Optional[str] = None,
+                        model: Optional[str] = None) -> Any:
+    """Wrapper fino: usa o cérebro ativo do Dreamer (globais) como padrão."""
+    return _call_llm_structured(prompt, system_prompt, response_model, image_path=image_path,
+                                provider=provider or LLM_PROVIDER, model=model or LLM_MODEL)
 
-            resp = requests.post(url, json=payload, headers=headers, timeout=120)
-            if resp.status_code in [401, 403] and auth_creds['type'] == "oauth": return None
-            return resp
-
-    response = _do_request(creds)
-    if response is None:
-        new_token = refresh_oauth_token(LLM_PROVIDER)
-        if new_token:
-            creds['key'] = new_token
-            response = _do_request(creds)
-        else: raise Exception("Falha ao renovar token OAuth.")
-
-    if not response.ok: raise Exception(f"API Error ({response.status_code}): {response.text}")
-    
-    # Parse e Validação Pydantic
-    try:
-        if LLM_PROVIDER == "google" or LLM_PROVIDER == "gemini":
-            raw_text = response.json()['candidates'][0]['content']['parts'][0]['text']
-        else:
-            raw_text = response.json()['choices'][0]['message']['content']
-            
-        # Clean potential markdown wrappers
-        match = re.search(r"```json\s*(.*?)\s*```", raw_text, re.DOTALL)
-        if match: raw_text = match.group(1)
-        
-        return response_model.model_validate_json(raw_text.strip())
-    except Exception as e:
-        raise Exception(f"Falha de validação Pydantic no retorno da LLM: {e}\nTexto Bruto: {raw_text[:200]}")
+def _activate_dreamer_fallback(reason: str) -> bool:
+    """Alterna o cérebro ativo do Dreamer para o fallback. True se alternou."""
+    global LLM_PROVIDER, LLM_MODEL
+    cfg = get_role_config("dreamer") or {}
+    fb_p, fb_m = cfg.get("fallback_provider"), cfg.get("fallback_model")
+    if not fb_p or not fb_m or (LLM_PROVIDER, LLM_MODEL) == (fb_p, fb_m):
+        return False
+    print(f"  [Fallback] Papel 'dreamer': alternando de {LLM_PROVIDER}/{LLM_MODEL} "
+          f"para {fb_p}/{fb_m} ({reason})")
+    LLM_PROVIDER, LLM_MODEL = fb_p, fb_m
+    return True
 
 # ---------------------------------------------------------------------------
 # Pipeline ETL Multi-Agente
@@ -209,9 +143,27 @@ def agent_distill_and_validate(logs_context: str) -> tuple:
                 feedback = json.dumps([f.model_dump() for f in failures], indent=2)
                 
         except Exception as e:
-            print(f"  [Error] Falha no pipeline LLM: {e}")
-            time.sleep(2)
-            
+            kind = classify_llm_error(e)
+            if kind == "auth":
+                # Permanente (401/402/403, saldo/quota): sem retry — fallback direto
+                print(f"  [Error] Falha de auth/saldo no pipeline LLM: {e}")
+                if _activate_dreamer_fallback("auth/saldo"):
+                    attempt -= 1  # fallback direto não consome tentativa
+                    continue
+                print("  [Aviso] Sem fallback configurado para o papel 'dreamer' — quarentena.")
+                return None, "failed"
+            if kind == "validation":
+                # Qualidade, não disponibilidade: retry no MESMO modelo, nunca fallback
+                print(f"  [Error] Falha de validação no pipeline LLM (retry no mesmo modelo): {e}")
+                time.sleep(2)
+                continue
+            # Transitória (timeout/conexão/429/5xx): backoff; esgotou → fallback
+            print(f"  [Error] Falha transitória no pipeline LLM: {e}")
+            if attempt >= max_retries and _activate_dreamer_fallback("falha transitória persistente"):
+                attempt = 0
+                continue
+            time.sleep(min(2 ** attempt, 8))
+
     print(f"  [Pipeline] Falha crítica após {max_retries} tentativas. Enviando para quarentena.")
     return None, "failed"
 
@@ -223,12 +175,27 @@ def agent_route(facts: List[Any]) -> Optional[RouterOutput]:
     existing_topics = [d.name for d in atlas_root.iterdir() if d.is_dir()] if atlas_root.exists() else []
     
     prompt = f"TÓPICOS EXISTENTES NO ATLAS:\n{existing_topics}\n\nFATOS A SEREM ROTEADOS:\n{json.dumps([f.model_dump() for f in facts], indent=2)}"
-    
-    try:
-        return call_llm_structured(prompt, router_prompt, RouterOutput)
-    except Exception as e:
-        print(f"  [Error] Falha no Roteador: {e}")
-        return None
+
+    max_attempts = 3
+    attempt = 0
+    while attempt < max_attempts:
+        attempt += 1
+        try:
+            return call_llm_structured(prompt, router_prompt, RouterOutput)
+        except Exception as e:
+            kind = classify_llm_error(e)
+            print(f"  [Error] Falha no Roteador ({kind}): {e}")
+            if kind == "auth":
+                if _activate_dreamer_fallback("auth/saldo no Roteador"):
+                    attempt -= 1  # fallback direto não consome tentativa
+                    continue
+                return None
+            if kind == "transient" and attempt >= max_attempts and \
+                    _activate_dreamer_fallback("falha transitória no Roteador"):
+                attempt = 0
+                continue
+            time.sleep(min(2 ** attempt, 8))
+    return None
 
 # ---------------------------------------------------------------------------
 # Estágio de Síntese Dialética (Autonomous Synthesizer)
@@ -258,7 +225,10 @@ def run_synthesis_cycle():
         prompt = f"TÓPICO: {neuron_id}\nVERSÃO A (Tese):\n{amb['content_a']}\n\nVERSÃO B (Antítese):\n{amb['content_b']}\n\nCATEGORIA DIFF: {diff_result.category}\nRACIOCÍNIO DIFF: {diff_result.reasoning}"
         
         try:
-            synthesis: SynthesisOutput = call_llm_structured(prompt, synthesis_prompt, SynthesisOutput)
+            # Papel "synthesis": herda do Dreamer se não houver HIVE_SYNTHESIS_*
+            synthesis: SynthesisOutput = call_llm_with_fallback(
+                "synthesis", prompt, synthesis_prompt, SynthesisOutput
+            )
             
             if synthesis.conflict_resolved:
                 # 3. Atualizar Atlas (Markdown)
@@ -361,11 +331,12 @@ def run_visual_dream_stage():
         print(f"  [Vision] Processando: {img_path.name}...")
         
         try:
-            # 2. Chamar LLM Vision
-            analysis: VisionAnalysis = call_llm_structured(
-                prompt="Analise esta imagem capturada.",
-                system_prompt=vision_prompt,
-                response_model=VisionAnalysis,
+            # 2. Chamar LLM Vision — papel "vision" (herda do Dreamer se ausente)
+            analysis: VisionAnalysis = call_llm_with_fallback(
+                "vision",
+                "Analise esta imagem capturada.",
+                vision_prompt,
+                VisionAnalysis,
                 image_path=str(img_path)
             )
             
