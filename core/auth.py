@@ -331,6 +331,16 @@ def get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]:
         raise ValueError("Papel de LLM inválido: informe um nome não vazio (ex.: 'dreamer').")
     key = role.strip().upper().replace("-", "_")
 
+    # Papel fora do conjunto canônico herda do Dreamer silenciosamente — um
+    # typo ("graphfy") passaria despercebido. Avisa sem bloquear.
+    if key.lower() not in HIVE_LLM_ROLES:
+        print(
+            f"[get_role_config] Aviso: papel '{role}' não é canônico "
+            f"({', '.join(HIVE_LLM_ROLES)}) — herdando config do Dreamer. "
+            f"Verifique se não é um typo.",
+            file=sys.stderr,
+        )
+
     def _v(name: str) -> Optional[str]:
         val = (os.environ.get(name) or "").strip()
         return val or None

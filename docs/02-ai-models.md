@@ -19,18 +19,46 @@ Em ambos os casos, a escolha do modelo é **configurável pelo usuário** via va
 
 O Dream Cycle usa LLM para: Distiller (extração de fatos), Validator (verificação de qualidade), Router (classificação para Atlas), e Síntese Dialética (resolução de conflitos P2P).
 
-### 2.1 Configuração
+### 2.1 Configuração por papel (roles)
+
+Cada papel que consome LLM tem configuração própria, com herança do Dreamer e fallback opt-in (regras completas em [`01-architecture.md`](01-architecture.md) §10.1 e ADR-009):
 
 ```bash
-# No .env
+# No .env — caso mínimo: só o Dreamer (todos os papéis herdam dele)
 HIVE_DREAMER_PROVIDER=google
 HIVE_DREAMER_MODEL=gemini-2.0-flash
+
+# Caso diferenciado: extração barata no Graphify + fallback local no Dreamer
+HIVE_GRAPHIFY_PROVIDER=ollama
+HIVE_GRAPHIFY_MODEL=qwen2.5-coder:3b
+HIVE_DREAMER_FALLBACK_PROVIDER=ollama
+HIVE_DREAMER_FALLBACK_MODEL=qwen2.5-coder:7b
 ```
 
-O script `setup-dreamer.py` / `setup-dreamer.sh` oferece UI interativa para:
-- listar modelos disponíveis por provider (via API em tempo real)
-- testar conectividade antes de salvar
-- detectar e exibir saldo disponível (DeepSeek, OpenRouter)
+| Papel | Quem usa | Perfil de chamada |
+|-------|----------|-------------------|
+| `dreamer` | Distiller, Validator, Router | Raciocínio — qualidade importa |
+| `graphify` | Extração de entidades/relações na indexação | Volume — custo importa |
+| `vision` | Descrição de screenshots (Phase 10) | Requer modelo multimodal |
+| `synthesis` | Síntese Dialética P2P | Raciocínio crítico — decide a verdade |
+
+O script `setup-dreamer.py` / `setup-dreamer.sh` oferece UI interativa que pergunta **qual papel configurar**, exibe o valor atual (ou "herda do Dreamer"), e oferece o fluxo opcional de fallback (Enter pula). Também:
+- lista modelos disponíveis por provider (via API em tempo real)
+- testa conectividade antes de salvar
+- detecta e exibe saldo disponível (DeepSeek, OpenRouter)
+
+### 2.1.1 Classificação de erros e política de fallback
+
+Implementada em `core/llm_client.py` (`classify_llm_error()` + `call_llm_with_fallback()`):
+
+| Classe de erro | Exemplos | Ação |
+|----------------|----------|------|
+| **Transitório** | timeout, erro de conexão, HTTP 429, 5xx | retry com backoff `min(2^n, 8s)` → fallback (se definido) → quarentena `archived=2` |
+| **Auth/saldo** | HTTP 401/402/403, "insufficient balance/quota", saldo insuficiente | fallback **direto, sem retry** → senão quarentena + warning |
+| **Validação Pydantic** | saída da LLM reprovada no schema | retry no **mesmo modelo** → quarentena. **NUNCA dispara fallback** (problema de qualidade, não disponibilidade) |
+| **Desconhecido** | qualquer outra exceção | tratado como transitório |
+
+Quando o fallback é acionado, o log registra: `[Fallback] Papel 'X': alternando de A/B para C/D (motivo)`. Em todos os caminhos de falha final, a observação vai para quarentena (`archived=2`) — **nada é perdido** (ADR-008).
 
 ### 2.2 Tabela de Provedores
 
@@ -75,20 +103,23 @@ Isso garante que qualquer provider (Ollama local ou Anthropic cloud) produza a m
 | `qwen2.5-coder:3b` | Ollama local | `--backend ollama` | Média (local, gratuito) |
 | `tree-sitter + regex` | Determinístico | `--backend ast` | Estrutural (sem LLM) |
 
-**Cadeia de fallback:**
+**Seleção do backend (via papel `graphify`):**
+
+O `scripts/build-graph.sh` lê `HIVE_GRAPHIFY_PROVIDER/MODEL` do `.env` (com herança de `HIVE_DREAMER_*` se ausente) e mapeia o provedor para o backend do graphify:
 
 ```
-GOOGLE_API_KEY presente?
-    Sim → Gemini 2.5 Flash (cloud, NER de alta qualidade)
-     │
-    Não ↓
-Ollama rodando em :11434?
-    Sim → Qwen 2.5 Coder 3B (local, gratuito, CPU-ok)
-     │
-    Não ↓
-Fallback determinístico → tree-sitter + regex
-    (extrai funções, classes, imports, WikiLinks, frontmatter YAML)
-    (sempre funciona, sem dependência externa)
+HIVE_GRAPHIFY_* (ou herdado do Dreamer) definido?
+    │
+    ├── Sim → mapeia provedor → backend:
+    │     google → gemini       anthropic → claude
+    │     openai → openai       deepseek  → deepseek
+    │     ollama → ollama       lmstudio  → ollama (OLLAMA_BASE_URL=127.0.0.1:1234/v1)
+    │     huggingface/qwen/nvidia/openrouter → sem equivalente,
+    │                                          AST-only com aviso
+    │
+    └── Não → fallback determinístico: tree-sitter + regex (AST-only)
+              (extrai funções, classes, imports, WikiLinks, frontmatter YAML)
+              (sempre funciona, sem dependência externa)
 ```
 
 ### 3.2 Embeddings (sqlite-vec, 384 dimensões)

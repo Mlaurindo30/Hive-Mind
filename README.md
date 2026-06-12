@@ -166,12 +166,12 @@ Consolidação offline: o que o agente vive durante o dia (observações brutas)
   ambiguities (P2P)──► semantic_diff ──► merge | choose | branch
 ```
 
-- **Agnóstico a provedor:** modelo definido por `HIVE_DREAMER_PROVIDER/MODEL` no `.env`. Suporte a Google/Gemini, OpenAI, Anthropic, DeepSeek, OpenRouter, NVIDIA, HuggingFace, Qwen, LM Studio e Ollama (local).
-- **Fail-safe:** pipeline que falha envia dados para quarentena (`archived=2`), nunca os descarta.
+- **Agnóstico a provedor, por papel:** cada papel (`dreamer`, `graphify`, `vision`, `synthesis`) escolhe provedor+modelo via `HIVE_{ROLE}_PROVIDER/MODEL` no `.env`, com herança do Dreamer e fallback opt-in (`HIVE_{ROLE}_FALLBACK_*`). Suporte a Google/Gemini, OpenAI, Anthropic, DeepSeek, OpenRouter, NVIDIA, HuggingFace, Qwen, LM Studio e Ollama (local). Detalhes: [`docs/01-architecture.md`](docs/01-architecture.md) §10.1 e ADR-009.
+- **Fail-safe:** pipeline que falha envia dados para quarentena (`archived=2`), nunca os descarta. Erros transitórios fazem retry com backoff; falha de validação Pydantic nunca dispara fallback.
 - **Multimodal:** screenshots e PDFs/DOCX entram no mesmo pipeline que os logs.
 
 ```bash
-./scripts/setup-dreamer.sh   # configurar provedor/modelo
+./scripts/setup-dreamer.sh   # configurar LLM por papel (+ fallback opcional)
 python3 scripts/dream_cycle.py  # disparar consolidação
 ```
 
@@ -249,6 +249,8 @@ cp .env.example .env
 |----------|--------------|-----------|
 | `HIVE_DREAMER_PROVIDER` | Para o Dream Cycle | Provedor do LLM (`deepseek`, `google`, `ollama`...) |
 | `HIVE_DREAMER_MODEL` | Para o Dream Cycle | Modelo (`deepseek-chat`, `gemini-2.0-flash`...) |
+| `HIVE_{GRAPHIFY,VISION,SYNTHESIS}_PROVIDER/MODEL` | Não (herdam do Dreamer) | LLM próprio por papel |
+| `HIVE_{ROLE}_FALLBACK_PROVIDER/MODEL` | Não (opt-in) | Fallback explícito se o primário falhar |
 | `HIVE_MIND_API_KEY` | Para a REST API | Token Bearer — API não inicia sem ela (fail-closed) |
 | `HIVE_MIND_API_PORT` | Não (default 37702) | Porta da REST API |
 | `HIVE_MIND_MASTER_KEY` | Para vault de segredos | Chave de criptografia em nível de campo |
@@ -430,7 +432,7 @@ Setup completo: [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md)
 | 11 | Deep Reflection — Planner + memória de intenção + grafo de causalidade | 📋 Planejado |
 | 12 | Federated Swarm — compartilhamento seletivo entre enxames + privacidade | 📋 Planejado |
 
-Detalhes: [`PROJECT_STATUS.md`](PROJECT_STATUS.md) · [`IMPLEMENTATION.md`](IMPLEMENTATION.md) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+Detalhes: [`PROJECT_STATUS.md`](PROJECT_STATUS.md) · [`IMPLEMENTATION.md`](IMPLEMENTATION.md) · [`docs/01-architecture.md`](docs/01-architecture.md)
 
 ---
 
@@ -438,7 +440,7 @@ Detalhes: [`PROJECT_STATUS.md`](PROJECT_STATUS.md) · [`IMPLEMENTATION.md`](IMPL
 
 | Documento | Conteúdo |
 |-----------|----------|
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Referência canônica de arquitetura |
+| [`docs/01-architecture.md`](docs/01-architecture.md) | Referência canônica de arquitetura |
 | [`docs/README.md`](docs/README.md) | Índice completo da documentação técnica |
 | [`AGENTS.md`](AGENTS.md) | Guia para agentes de IA |
 | [`docs/01-architecture.md`](docs/01-architecture.md) | ADRs, fluxos, decisões de design |

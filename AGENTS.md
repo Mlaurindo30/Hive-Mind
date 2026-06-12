@@ -2,7 +2,7 @@
 
 > Guia para agentes de IA que trabalham **neste repositório**.
 > Formato cross-agent: Hermes, Claude Code, Codex CLI, Kilo Code, OpenClaw, Copilot, Gemini CLI.
-> Última revisão: 2026-06-10 · Referência canônica de arquitetura: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+> Última revisão: 2026-06-12 · Referência canônica de arquitetura: [`docs/01-architecture.md`](docs/01-architecture.md)
 
 ---
 
@@ -56,7 +56,7 @@ Agente registra log  ──┘       Router + Síntese Dialética──┘   Neu
 python3 scripts/dream_cycle.py          # Ciclo de consolidação (Dream Cycle)
 python3 scripts/audit_memory.py --fix   # Auditoria de integridade (P2P)
 python3 scripts/generate_portal.py      # Portal visual (Obsidian Canvas)
-./scripts/setup-dreamer.sh              # Configurar provedor/modelo do Dreamer
+./scripts/setup-dreamer.sh              # Configurar LLM por papel (Dreamer/Graphify/Vision/Síntese + fallback)
 ./scripts/recover.sh                    # Disaster recovery
 python3 scripts/sinapse-api.py          # REST API (requer HIVE_MIND_API_KEY)
 ```
