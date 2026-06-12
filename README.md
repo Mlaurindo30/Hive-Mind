@@ -13,8 +13,86 @@ Múltiplos agentes (Claude Code, Codex CLI, Cursor, Gemini CLI, Hermes, OpenClaw
 
 ---
 
+## Início Rápido — Configure com seu Agente de IA
+
+Copie o prompt abaixo e cole no seu agente (Claude Code, Codex CLI, Gemini CLI, Cursor, etc.). Ele fará tudo automaticamente.
+
+### Prompt de Instalação Inicial
+
+```
+Você vai instalar e configurar o Hive-Mind nesta máquina.
+Repositório: https://github.com/Mlaurindo30/sinapse_agent
+
+Siga esta sequência exata, confirmando cada passo antes de avançar:
+
+1. Clone o repositório (se ainda não foi feito):
+   git clone https://github.com/Mlaurindo30/sinapse_agent.git ~/hive-mind
+   cd ~/hive-mind
+
+2. Execute o instalador em modo não-interativo:
+   ./install.sh --non-interactive
+
+3. Crie o arquivo de configuração:
+   cp .env.example .env
+
+4. Edite o .env e preencha no mínimo estas variáveis:
+   - HIVE_DREAMER_PROVIDER   → provedor do LLM (ex: google, openai, anthropic, ollama)
+   - HIVE_DREAMER_MODEL      → modelo (ex: gemini-2.0-flash, gpt-4o-mini, claude-haiku-4-5-20251001)
+   - Chave de API do provedor escolhido (ex: GOOGLE_API_KEY)
+   - HIVE_MIND_API_KEY       → token secreto para a REST API (qualquer string segura)
+   - HIVE_MIND_MASTER_KEY    → gere com:
+     python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+5. Inicialize o banco de dados:
+   python3 core/database.py
+
+6. Construa o grafo de conhecimento inicial:
+   ./scripts/build-graph.sh
+
+7. Valide a instalação:
+   python3 scripts/sinapse-write.py health
+
+8. Registre o MCP em todos os agentes detectados nesta máquina:
+   ./scripts/register-mcp.sh
+
+Se tudo passar, o Hive-Mind está pronto. Reinicie este agente para carregar as 9 tools do sinapse-memory.
+```
+
+### Prompt de Registro do MCP (instalação já feita)
+
+```
+Registre o Hive-Mind como servidor MCP em todos os agentes de IA instalados nesta máquina.
+
+Entre na pasta do projeto e execute:
+   cd ~/hive-mind
+   ./scripts/register-mcp.sh
+
+O script detecta automaticamente Claude Code, Codex CLI, Gemini CLI, Cursor, VS Code/Copilot,
+Kilo Code, Roo Code, Kiro, OpenCode e outros. Faz merge seguro no JSON de cada agente —
+nunca sobrescreve outros MCP servers já registrados.
+
+Para verificar o status sem alterar nada:
+   ./scripts/register-mcp.sh --check
+
+Após registrar, reinicie o agente e confirme com: "use a tool sinapse_health"
+
+Tools disponíveis após o registro:
+  sinapse_query              — busca híbrida na memória (vetorial + FTS + grafo)
+  sinapse_save_decision      — salva decisão permanente no vault
+  sinapse_save_learning      — salva aprendizado/insight
+  sinapse_temporal_search    — busca por período de tempo
+  sinapse_temporal_save      — salva observação com timestamp
+  sinapse_health             — verifica saúde de todos os backends
+  sinapse_session_end        — consolida e encerra sessão
+  sinapse_zettelkasten_split — fragmenta nota longa em átomos linkados
+  sinapse_capture_screen     — captura screenshot e salva em visual_memories
+```
+
+---
+
 ## Sumário
 
+- [Início Rápido — Configure com seu Agente de IA](#início-rápido--configure-com-seu-agente-de-ia)
 - [Visão Geral da Arquitetura](#visão-geral-da-arquitetura)
 - [Componentes](#componentes)
 - [O Ciclo de Sonho (Hive-Dreamer)](#o-ciclo-de-sonho-hive-dreamer)
