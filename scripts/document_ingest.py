@@ -133,5 +133,77 @@ def run_ingestion():
     conn.close()
     print(f"=== Ingestão Concluída ({processed} documentos) ===")
 
+def ingest_single_file(f_path: Path) -> bool:
+    """Process a single PDF or DOCX file directly, without requiring it to be in the inbox.
+
+    Returns True on success, False on error.
+    """
+    f_path = f_path.resolve()
+    if not f_path.exists():
+        print(f"  [!] File not found: {f_path}", file=sys.stderr)
+        return False
+    if f_path.suffix.lower() not in (".pdf", ".docx"):
+        print(f"  [!] Unsupported file type: {f_path.suffix}", file=sys.stderr)
+        return False
+
+    print(f"  [Document] Processando: {f_path.name}...")
+
+    with open(f_path, "rb") as f:
+        file_hash = hashlib.sha256(f.read()).hexdigest()
+
+    if f_path.suffix.lower() == ".pdf":
+        content = extract_pdf_text(f_path)
+    else:
+        content = extract_docx_text(f_path)
+
+    if content.startswith("Erro"):
+        print(f"    [!] {content}", file=sys.stderr)
+        return False
+
+    conn = get_connection()
+    doc_id = f"doc-{file_hash[:12]}"
+    doc_metadata = {
+        "source": "document_ingest",
+        "original_name": f_path.name,
+        "ingested_at": datetime.now().isoformat()
+    }
+    conn.execute("""
+        INSERT OR REPLACE INTO document_memories (id, file_path, file_hash, metadata)
+        VALUES (?, ?, ?, ?)
+    """, (doc_id, str(f_path.name), file_hash, json.dumps(doc_metadata)))
+
+    obs_id = str(hashlib.sha256(f_path.name.encode()).hexdigest()[:8])
+    metadata = {
+        "source": "document_ingest",
+        "file_hash": file_hash,
+        "original_name": f_path.name,
+        "ingested_at": datetime.now().isoformat()
+    }
+    conn.execute("""
+        INSERT OR IGNORE INTO observations (id, type, title, content, metadata, archived)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (
+        f"doc-{obs_id}-{file_hash[:8]}",
+        "document_ingest",
+        f"Documento: {f_path.name}",
+        content,
+        json.dumps(metadata),
+        0
+    ))
+
+    conn.commit()
+    conn.close()
+    print(f"    [+] Ingerido: {f_path.name}")
+    return True
+
+
 if __name__ == "__main__":
-    run_ingestion()
+    import argparse
+    parser = argparse.ArgumentParser(description="Hive-Mind document ingestion")
+    parser.add_argument("--file", metavar="PATH", help="Ingest a single PDF or DOCX file directly")
+    args = parser.parse_args()
+    if args.file:
+        ok = ingest_single_file(Path(args.file))
+        sys.exit(0 if ok else 1)
+    else:
+        run_ingestion()
