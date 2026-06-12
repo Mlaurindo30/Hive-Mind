@@ -121,9 +121,9 @@ PROVIDERS_CONFIG = {
     },
     "ollama": {
         "env_var": "OLLAMA_LOCAL",
-        "base_url": "http://localhost:11434",
+        "base_url": "http://localhost:11434/v1",
         "auth_type": ["local"],
-        "doc": "Ollama Local"
+        "doc": "Ollama Local (OpenAI-compat em /v1)"
     }
 }
 
@@ -151,18 +151,40 @@ def start_loopback_server(port):
     return server
 
 # --- Funções Core ---
-def load_env():
-    if not ENV_FILE.exists(): return {}
-    vars = {}
+def load_env() -> dict:
+    """Carrega o .env do projeto para ``os.environ`` (sem sobrescrever vars já exportadas).
+
+    Comportamento:
+      - Lê ``ENV_FILE`` (uma linha por vez, ignora comentários com ``#``).
+      - Usa ``partition("=")`` para tolerar valores que contenham ``=``.
+      - Remove aspas opcionais em volta do valor (convenção comum de .env).
+      - Injeta no ``os.environ`` com ``setdefault`` → variáveis já definidas
+        no shell do operador têm precedência sobre o .env (contrato esperado).
+      - Retorna o dicionário lido para diagnóstico / testes.
+
+    Nota: ``_env()`` (acima) faz parsing linha-a-linha em cada chamada e é
+    usada por ``PROVIDERS_CONFIG`` na importação (linha 47-48). Mantida como
+    fallback para chaves que não estão no ambiente carregado.
+    """
+    if not ENV_FILE.exists():
+        return {}
+    vars_ = {}
     try:
         with open(ENV_FILE, "r") as f:
             for line in f:
                 line = line.strip()
                 if "=" in line and not line.startswith("#"):
-                    parts = line.split("=", 1)
-                    if len(parts) == 2: vars[parts[0]] = parts[1]
-    except OSError: pass
-    return vars
+                    # partition é tolerante a valores com '=' no meio (ex.: URLs)
+                    k, _, v = line.partition("=")
+                    if k and v:
+                        v = v.strip().strip('"').strip("'")
+                        vars_[k] = v
+    except OSError:
+        pass
+    # CRÍTICO: injetar de fato no ambiente. setdefault → o shell vence sobre o .env.
+    for k, v in vars_.items():
+        os.environ.setdefault(k, v)
+    return vars_
 
 def save_env(key: str, value: str):
     lines = []
@@ -280,6 +302,63 @@ def refresh_oauth_token(provider_name: str):
         return data["access_token"]
     return None
 
+# Papéis canônicos de LLM do Hive-Mind. Outros nomes também são aceitos por
+# get_role_config (qualquer papel sem vars próprias herda do Dreamer).
+HIVE_LLM_ROLES = ("dreamer", "graphify", "vision", "synthesis")
+
+def get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]:
+    """Resolve a configuração de LLM de um papel, com herança e fallback explícito.
+
+    Resolução (lê exclusivamente os.environ — carregue o .env antes; o
+    dream_cycle.py já faz isso via dotenv):
+      1. HIVE_{ROLE}_PROVIDER / HIVE_{ROLE}_MODEL, se AMBOS definidos;
+      2. senão herda HIVE_DREAMER_PROVIDER / HIVE_DREAMER_MODEL.
+
+    Fallback (opcional, sempre o par PROVIDER+MODEL completo):
+      - papel com primário próprio usa apenas o seu HIVE_{ROLE}_FALLBACK_*
+        (ou nenhum) — nunca herda o fallback do Dreamer;
+      - papel que herda o primário do Dreamer herda também o fallback do
+        Dreamer (a menos que tenha HIVE_{ROLE}_FALLBACK_* explícito).
+
+    Chaves de API nunca são duplicadas por papel: são sempre resolvidas via
+    PROVIDERS_CONFIG pelo nome do provedor (ver get_credentials).
+
+    Retorna {"provider", "model", "fallback_provider", "fallback_model"}
+    (fallbacks podem ser None), ou None se nem o papel nem o Dreamer
+    estiverem configurados.
+    """
+    if not isinstance(role, str) or not role.strip():
+        raise ValueError("Papel de LLM inválido: informe um nome não vazio (ex.: 'dreamer').")
+    key = role.strip().upper().replace("-", "_")
+
+    def _v(name: str) -> Optional[str]:
+        val = (os.environ.get(name) or "").strip()
+        return val or None
+
+    provider = _v(f"HIVE_{key}_PROVIDER")
+    model = _v(f"HIVE_{key}_MODEL")
+    fb_provider = _v(f"HIVE_{key}_FALLBACK_PROVIDER")
+    fb_model = _v(f"HIVE_{key}_FALLBACK_MODEL")
+
+    if not (provider and model) and key != "DREAMER":
+        # Herda o primário do Dreamer — e, sem fallback próprio, o fallback dele
+        provider = _v("HIVE_DREAMER_PROVIDER")
+        model = _v("HIVE_DREAMER_MODEL")
+        if not (fb_provider and fb_model):
+            fb_provider = _v("HIVE_DREAMER_FALLBACK_PROVIDER")
+            fb_model = _v("HIVE_DREAMER_FALLBACK_MODEL")
+
+    if not (fb_provider and fb_model):
+        fb_provider = fb_model = None
+    if not (provider and model):
+        return None
+    return {
+        "provider": provider,
+        "model": model,
+        "fallback_provider": fb_provider,
+        "fallback_model": fb_model,
+    }
+
 def get_credentials(provider_name: str, prefer_oauth: bool = True) -> Optional[Dict[str, Any]]:
     cfg = PROVIDERS_CONFIG.get(provider_name)
     if not cfg: return None
@@ -350,10 +429,14 @@ def discover_models_realtime():
                     break
 
                 elif name == "ollama":
-                    resp = requests.get(f"{creds['url']}/api/tags", timeout=5)
+                    # Ollama expõe /api/tags (nativo) e /v1/models (OpenAI-compat).
+                    # Como creds['url'] termina em /v1, /v1/api/tags → 404.
+                    # Usa OpenAI-compat: o formato bate com o resto do pipeline.
+                    url = f"{creds['url']}/models"
+                    resp = requests.get(url, timeout=5)
                     if resp.ok:
-                        for m in resp.json().get('models', []):
-                            all_discovered.append({"id": m['name'], "provider": name, "display": f"[{name}] {m['name']}"})
+                        for m in resp.json().get('data', []):
+                            all_discovered.append({"id": m['id'], "provider": name, "display": f"[{name}] {m['id']}"})
                         break
                 
                 elif name in ["anthropic", "huggingface"]:
