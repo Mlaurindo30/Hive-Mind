@@ -1,7 +1,7 @@
 # 06 — Análise de Gaps e Status de Auditoria
 
-> **Hive-Mind v2.0.0** — Auditoria técnica, gaps do instalador e status de correções.
-> **Última atualização:** 2026-06-10 | **Total de testes:** 116
+> **Hive-Mind v3.0.0** — Auditoria técnica, gaps do instalador e status de correções.
+> **Última atualização:** 2026-06-13 | **Total de testes:** 191
 
 ---
 
@@ -144,11 +144,12 @@ O `install.sh` (10 passos, 625 linhas) foi auditado contra a implementação rea
 
 | Métrica | Valor |
 |---------|-------|
-| Total de testes | **116** |
+| Total de testes | **191** |
 | Smoke tests | 8 |
 | Testes unitários | 72 |
 | Testes de integração | 28 |
 | Testes e2e | 8 |
+| Novos testes (HM-11/HM-12) | **75** |
 | Cobertura (estimada) | ~78% |
 | Testes que chamam LLM real | **0** (apenas `test_synthesis.py` de integração, com flag explícita) |
 | Testes que usam `hive_mind.db` real | **0** (in-memory SQLite) |
@@ -191,3 +192,30 @@ O `install.sh` (10 passos, 625 linhas) foi auditado contra a implementação rea
 | 🟢 BAIXA | Teste e2e para fluxo P2P completo (Syncthing → audit → merge) |
 | 🟢 BAIXA | Benchmark de performance (KNN 10k vetores, FTS5 100k docs) |
 | 🟢 BAIXA | Test fixtures compartilhadas em `tests/conftest.py` |
+
+---
+
+## 6. Status HM-11 e HM-12 (2026-06-13)
+
+Fases entregues após a auditoria v2.0.0:
+
+| Fase | Nome | Status | Testes |
+|------|------|--------|--------|
+| HM-11 | Deep Reflection | ✅ ENTREGUE | incluídos nos 191 |
+| HM-12 | Federated Swarm | ✅ ENTREGUE | incluídos nos 191 |
+
+### Módulos adicionados (HM-11 / HM-12)
+
+| Módulo / Artefato | Descrição |
+|-------------------|-----------|
+| `core/hnsw_index.py` | Índice HNSW incremental (`hnswlib>=0.8.0`) |
+| `scripts/planner.py` | Decomposição de objetivos via LLM + tabela `goals` |
+| `core/signing.py` | Keypair Ed25519 — sign/verify neuron |
+| `core/redactor.py` | PII auto-redação (8 categorias, stdlib only) |
+| `causal_edges` table | Grafo de causalidade com BFS 2-hop |
+| `goal_id` / `why` cols em `observations` | Intent Memory |
+| `visibility` col em `neurons` | Filtro `private/shared/public` |
+| `POST /api/v1/neurons/export` | Export federado com visibility filter |
+| MCP tool `sinapse_plan_goal` | Decomposição de objetivo via MCP |
+
+**Total de testes (2026-06-13):** 191 passando, 0 skipped.

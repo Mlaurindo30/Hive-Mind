@@ -1,8 +1,8 @@
 # Hive-Mind — Documentação Técnica
 
-> **Versão:** 2.0.0 | **Atualizado:** 2026-06-10
+> **Versão:** 3.0.0 | **Atualizado:** 2026-06-13
 > **Stack:** Python 3.10+ (core/pipeline) · TypeScript/Bun (claude-mem) · Rust (RTK) · SQLite (`sqlite-vec` + FTS5)
-> **Status:** Fase 10 (Deep Portal — multimodal) em finalização | **Testes:** 116 coletáveis
+> **Status:** Fase HM-12 (Federated Swarm) entregue | **Testes:** 191 passando
 
 ---
 
@@ -24,7 +24,7 @@
 | 6 | [Análise de Gaps — install.sh](06-gap-analysis.md) | Auditoria técnica (C1-C5), gaps do instalador, métricas de testes | Desenvolvedores |
 | 7 | [Setup de Sincronização P2P](07-p2p-sync-setup.md) | Syncthing, UUID v4, SHA-256, Síntese Dialética (Phase 9) | DevOps |
 
-> Todos os documentos 01–07 foram reescritos para v2.0.0 em 2026-06-10. Em caso de conflito entre eles, **[01-architecture.md](01-architecture.md) prevalece**.
+> Todos os documentos 01–07 foram reescritos para v3.0.0 em 2026-06-13. Em caso de conflito entre eles, **[01-architecture.md](01-architecture.md) prevalece**.
 
 ## Relatórios e planos
 

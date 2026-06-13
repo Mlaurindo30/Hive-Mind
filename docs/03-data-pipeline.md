@@ -1,12 +1,12 @@
 # 03 — Pipeline de Dados
 
-> **Hive-Mind v2.0.0** — Fluxo completo: coleta → indexação em tempo real → Dream Cycle → consulta.
+> **Hive-Mind v3.0.0** — Fluxo completo: coleta → indexação em tempo real → Dream Cycle → consulta → Deep Reflection → Federated Export.
 
 ---
 
 ## 1. Visão Geral
 
-O pipeline v2.0.0 tem dois fluxos paralelos:
+O pipeline v3.0.0 tem dois fluxos paralelos e três camadas adicionais (HM-11 e HM-12):
 
 ```
   ┌────────────────────────────────────────────────────────────────────────┐
@@ -21,6 +21,16 @@ O pipeline v2.0.0 tem dois fluxos paralelos:
   │       │                                   ▼                           │
   │       │              [ INDEXAÇÃO REAL-TIME ] → hive_mind.db           │
   │       │               neurons + synapses + FTS5 + sqlite-vec          │
+  │       │                           │                                   │
+  │       │                           ├──→ HNSW Index (hnsw_neurons.idx)  │
+  │       │                           │    (incremental, fastembed 384d)  │
+  │       │                           │                                   │
+  │       │                           ├──→ causal_edges (grafo causa→     │
+  │       │                           │    efeito entre neurons)          │
+  │       │                           │                                   │
+  │       │                           └──→ goals (planner via             │
+  │       │                                sinapse_plan_goal)             │
+  │       │                                observations.goal_id / why     │
   │       │                                                                │
   │       ▼                                                                │
   │  [ CONSULTA ] ← UMC SQL / FTS5 / KNN / claude-mem / NeuralMemory      │
@@ -96,13 +106,15 @@ O `watchdog` monitora `cerebro/` continuamente. Qualquer mudança dispara reinde
          ▼ (watchdog FileModifiedEvent, ~2s)
   Graphify reindexa arquivo:
     ├── Extrai entidades + relações (LLM ou tree-sitter)
-    ├── Gera embedding 384d (all-MiniLM-L6-v2)
-    ├── UPDATE neurons SET title, content, hash, embedding
+    ├── Gera embedding 384d (all-MiniLM-L6-v2 via fastembed)
+    ├── UPDATE neurons SET title, content, hash, embedding, indexed_at
     ├── UPDATE/INSERT synapses (WikiLinks como edges)
     ├── UPDATE search_fts (trigger automático via SQL)
-    └── UPDATE search_vec (vec0, HNSW)
+    ├── UPDATE search_vec (vec0, HNSW sqlite-vec)
+    └── INSERT/UPDATE hnsw_neurons.idx  ← core/hnsw_index.py
+         (incremental, M=16, ef_construction=200, espaço cosseno)
 
-  Resultado: hive_mind.db atualizado em memória e em disco (WAL mode)
+  Resultado: hive_mind.db + hnsw_neurons.idx atualizados em disco (WAL mode)
 ```
 
 ---
@@ -204,9 +216,105 @@ O Dream Cycle processa observations brutas e as eleva a fatos estruturados no At
 
 ---
 
-## 5. Etapa 4 — Consulta
+## 5. HM-11 — Deep Reflection (Intent Memory + Causalidade)
 
-### 5.1 Backends Paralelos
+### 5.1 Planner de Objetivos
+
+O `scripts/planner.py` recebe um objetivo em linguagem natural, chama o LLM e retorna uma lista de steps atômicos (`GoalStep`). Cada goal é persistido na tabela `goals` e exposto via MCP tool `sinapse_plan_goal`.
+
+```
+  OBJETIVO DO USUÁRIO
+        │
+        ▼
+  sinapse_plan_goal (MCP tool)
+        │
+        ▼
+  scripts/planner.py
+        │
+        ├── prompt + objetivo → LLM
+        │
+        ▼
+  GoalStep[] (steps atômicos)
+        │
+        ├──→ INSERT goals TABLE (hive_mind.db)
+        │
+        └──→ observations criadas com:
+               goal_id  → referência ao goal ativo
+               why      → justificativa / intenção
+```
+
+### 5.2 Grafo de Causalidade
+
+A tabela `causal_edges` registra arestas causa → efeito entre neurons. A função `get_causal_neighbors(conn, neuron_id, hops=2)` percorre o grafo via BFS para recuperar vizinhos causais até 2 hops.
+
+```
+  neurons
+     │
+     ▼
+  causal_edges (causa_id → efeito_id)
+     │
+     ▼
+  get_causal_neighbors(conn, neuron_id, hops=2)
+     │   BFS no grafo de causalidade
+     ▼
+  vizinhos causais (até 2 hops)
+```
+
+### 5.3 Intent Metadata em Observations
+
+Cada observação pode referenciar um objetivo ativo via colunas adicionais:
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| `goal_id` | TEXT (FK) | Referência ao goal ativo em `goals.id` |
+| `why` | TEXT | Justificativa / intenção da observação |
+
+---
+
+## 6. HM-12 — Federated Swarm (Export Federado)
+
+### 6.1 Visibilidade de Neurons
+
+A coluna `visibility` em `neurons` controla quais neurons podem ser exportados:
+
+| Valor | Descrição |
+|-------|-----------|
+| `private` | Padrão. Não exportado. |
+| `shared` | Exportável para parceiros autorizados. |
+| `public` | Exportável sem restrição de destinatário. |
+
+### 6.2 Endpoint de Export
+
+`POST /api/v1/neurons/export` — autenticado via Bearer token.
+
+Filtros aceitos: `type`, `created_after`. Opções: `redact` (remoção de PII) e/ou `sign` (assinatura Ed25519).
+
+```
+  POST /api/v1/neurons/export
+        │
+        ▼
+  SELECT neurons WHERE visibility IN ('shared', 'public')
+        │  + filtros: type, created_after
+        │
+        ├─ redact_neuron()   ← core/redactor.py
+        │   PII irreversível: API tokens, email, IPv4/6,
+        │   paths absolutos, SSH keys, CPF/CNPJ, telefone
+        │   (aplicado sobre content e label; não modifica local)
+        │
+        ├─ sign_neuron()     ← core/signing.py
+        │   Ed25519 keypair (config/keys/, gitignored)
+        │   Assina JSON canônico (exclui timestamps e campos _prefixados)
+        │   verify_neuron() para validação pelo receptor
+        │
+        └─ JSON response
+             { neurons[], signature?, pubkey_fingerprint? }
+```
+
+---
+
+## 7. Etapa 4 — Consulta
+
+### 7.1 Backends Paralelos
 
 ```python
 def _query_vault_knowledge(query: str, timeout=8.0) -> Optional[str]:
@@ -231,7 +339,7 @@ def _query_vault_knowledge(query: str, timeout=8.0) -> Optional[str]:
     return format(top_n=5, max_chars=3000, results=deduped)
 ```
 
-### 5.2 Busca Vetorial (KNN)
+### 7.2 Busca Vetorial (KNN)
 
 ```sql
 SELECT n.id, n.title, n.content, n.source_file,
@@ -244,7 +352,7 @@ LIMIT 5
 
 `query_vec` = `all-MiniLM-L6-v2.encode(query)` — vetor 384d gerado no momento da query.
 
-### 5.3 Circuit Breaker
+### 7.3 Circuit Breaker
 
 | Estado | Condição | Comportamento |
 |--------|---------|---------------|
@@ -256,7 +364,7 @@ Apenas exceções Python e timeouts contam como falha — resultados vazios (nã
 
 ---
 
-## 6. Frequência de Atualização
+## 8. Frequência de Atualização
 
 | Pipeline | Frequência | Gatilho |
 |----------|-----------|---------|
@@ -268,15 +376,31 @@ Apenas exceções Python e timeouts contam como falha — resultados vazios (nã
 
 ---
 
-## 7. Volume de Dados
+## 9. Volume de Dados
 
 | Métrica | Valor típico |
 |---------|-------------|
 | neurons no UMC | 1.200+ |
 | synapses no UMC | 1.300+ |
+| causal_edges no UMC | cresce com uso |
+| goals (planner) | por sessão de planejamento |
 | observations pendentes (por sessão) | 5-30 |
 | atlas/*.md (fatos consolidados) | cresce com uso |
 | Tamanho do hive_mind.db | 50-200MB |
+| Tamanho do hnsw_neurons.idx | ~5-20MB (depende de neurons) |
 | Tempo de reindexação por arquivo | ~1-3s |
 | Tempo de busca KNN (10k vetores) | ~5ms |
+| Tempo de busca HNSW | ~1-2ms |
 | Tempo de busca FTS5 | ~2ms |
+
+### Tabelas do Banco (hive_mind.db)
+
+| Tabela | Propósito | Fase |
+|--------|-----------|------|
+| `neurons` | Nós de conhecimento (com `visibility` em v3) | base |
+| `synapses` | Arestas WikiLink entre neurons | base |
+| `observations` | Dados brutos com `goal_id`/`why` (HM-11) | base + HM-11 |
+| `search_fts` | Índice Full-Text Search (FTS5) | base |
+| `search_vec` | Índice vetorial (vec0 sqlite-vec) | base |
+| `causal_edges` | Grafo de causalidade causa→efeito | HM-11 |
+| `goals` | Objetivos decompostos pelo planner | HM-11 |
