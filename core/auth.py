@@ -394,8 +394,13 @@ def get_credentials(provider_name: str, prefer_oauth: bool = True) -> Optional[D
 # NÃO funciona com token OAuth; o Codex expõe a lista da conta aqui.
 _OPENAI_CODEX_MODELS_URL = "https://chatgpt.com/backend-api/codex/models?client_version=1.0.0"
 
-# Fallback curado quando o backend Codex não responde a lista (offline/expirado).
-_OPENAI_CODEX_CURATED = ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"]
+# Catálogo curado do Codex: modelos que a conta consegue USAR mesmo quando o
+# backend não os expõe na listagem (gpt-5.3-codex etc.). Unido aos modelos
+# vivos da conta; também serve de fallback quando o backend está offline.
+_OPENAI_CODEX_CURATED = [
+    "gpt-5.5", "gpt-5.4", "gpt-5.4-mini",
+    "gpt-5.3-codex", "gpt-5.3-codex-spark", "gpt-5.2-codex",
+]
 
 
 def discover_models_realtime(only_provider: str = None):
@@ -451,10 +456,13 @@ def discover_models_realtime(only_provider: str = None):
                                         found.append(slug)
                         except Exception as e:
                             print(f"[auth] Falha ao listar modelos Codex (OAuth): {e}", file=sys.stderr)
-                        # Fallback curado quando o backend não devolve a lista.
-                        if not found:
-                            found = list(_OPENAI_CODEX_CURATED)
-                        for m_id in found:
+                        # Une os modelos vivos da conta com o catálogo curado do
+                        # Codex (gpt-5.3-codex etc.), preservando os vivos primeiro.
+                        merged = list(found)
+                        for m_id in _OPENAI_CODEX_CURATED:
+                            if m_id not in merged:
+                                merged.append(m_id)
+                        for m_id in merged:
                             all_discovered.append({"id": m_id, "provider": name, "display": f"[{name}] {m_id}"})
                         break
                     else:
