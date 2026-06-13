@@ -99,6 +99,23 @@ RestartSec=5
 [Install]
 WantedBy=default.target
 """,
+        "sinapse-post-reboot-validation.service": f"""[Unit]
+Description=Hive-Mind post-reboot production validation
+Wants=sinapse-claude-mem.service sinapse-sqlite-vec.service sinapse-graphify-watch.service
+After=sinapse-claude-mem.service sinapse-sqlite-vec.service sinapse-graphify-watch.service sinapse-api.service
+ConditionPathExists={path}/logs/pre-reboot.json
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=PATH={path}/.venv/bin:{path}/.tools/bin:{path}/rtk/target/release:/usr/bin:/bin
+ExecStart={path}/.venv/bin/python {path}/scripts/validate_after_reboot.py validate
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target
+""",
     }
 
 
@@ -175,15 +192,35 @@ def check() -> int:
     return 1 if failed else 0
 
 
+def arm_post_reboot() -> int:
+    install(start=False)
+    subprocess.run(
+        (
+            str(ROOT / ".venv" / "bin" / "python"),
+            str(ROOT / "scripts" / "validate_after_reboot.py"),
+            "prepare",
+        ),
+        check=True,
+        text=True,
+    )
+    systemctl("reset-failed", "sinapse-post-reboot-validation.service", check=False)
+    systemctl("enable", "sinapse-post-reboot-validation.service")
+    print("[services] post-reboot validation armed")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
     install_cmd = sub.add_parser("install")
     install_cmd.add_argument("--no-start", action="store_true")
     sub.add_parser("check")
+    sub.add_parser("arm-post-reboot")
     args = parser.parse_args()
     if args.command == "install":
         return install(start=not args.no_start)
+    if args.command == "arm-post-reboot":
+        return arm_post_reboot()
     return check()
 
 
