@@ -36,6 +36,5 @@ else
     echo "[sinapse] Modo stdio (para clientes MCP como Hermes, Claude, Cursor, etc.)"
 fi
 
-# Usa o ambiente virtual do sqlite-vec para garantir dependências
 export SINAPSE_HOME="$PROJECT_ROOT"
-exec "$PROJECT_ROOT/.venv-sqlite-vec/bin/python3" "$SCRIPT_DIR/sinapse-mcp.py"
+exec "$PROJECT_ROOT/.venv/bin/python" "$SCRIPT_DIR/sinapse-mcp.py"

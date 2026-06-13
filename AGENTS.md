@@ -88,7 +88,7 @@ python3 scripts/sinapse-write.py health
 ./scripts/register-mcp.sh --check   # só mostra o status, sem modificar
 ```
 
-O script é idempotente e faz **merge** no JSON de cada agente — nunca apaga outros MCP servers já registrados. Agentes suportados na detecção automática: Claude Code, Codex CLI, Gemini CLI, Qwen Code, Kimi Code, Kiro, Kilo Code, Roo Code, VS Code/Copilot, Cursor, OpenCode, OpenClaw. Após registrar, **reinicie o agente** para ele carregar as 9 tools e valide pedindo: "use a tool sinapse_health".
+O script é idempotente e faz **merge** no JSON de cada agente — nunca apaga outros MCP servers já registrados. Agentes suportados na detecção automática: Claude Code, Codex CLI, Gemini CLI, Qwen Code, Kimi Code, Kiro, Kilo Code, Roo Code, VS Code/Copilot, Cursor, OpenCode, OpenClaw. Após registrar, **reinicie o agente** para ele carregar as 10 tools e valide pedindo: "use a tool sinapse_health".
 
 ---
 
@@ -97,7 +97,7 @@ O script é idempotente e faz **merge** no JSON de cada agente — nunca apaga o
 | Método | Agentes | Como funciona |
 |--------|---------|---------------|
 | **Plugin nativo** | Hermes | `register(ctx)` → hooks `pre_gateway_dispatch`, `post_tool_call`, `on_session_end` |
-| **MCP server** | Claude Code, Codex CLI, Cursor, Kilo Code, OpenClaw, Copilot, Gemini CLI, ZooCode, Aider | `scripts/sinapse-mcp.py` → 9 tools via stdio JSON-RPC |
+| **MCP server** | Claude Code, Codex CLI, Cursor, Kilo Code, OpenClaw, Copilot, Gemini CLI, ZooCode, Aider | `scripts/sinapse-mcp.py` → 10 tools via stdio JSON-RPC |
 | **CLI standalone** | Qualquer agente com shell | `scripts/sinapse-write.py` → `decision`, `learning`, `query`, `health`, `session-end` |
 | **REST API** | Agentes remotos / VPS | `scripts/sinapse-api.py` → Bearer auth, porta 37702 |
 

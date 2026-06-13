@@ -6,8 +6,8 @@
 # Uso: ./install.sh [--force] [--skip-agent <nome>] [--with-tests]
 #
 # O que este script faz:
-#   1. Verifica dependências (Python 3.10+, uv/pipx, Node 18+, Bun, Ollama opcional)
-#   2. Instala dependências Python (requirements.txt: API, Core/UMC, Watcher, HM-11/12 Vector+Analytics, Multimodal)
+#   1. Verifica dependências (uv, Node 18+, Bun, Ollama opcional)
+#   2. Sincroniza o ambiente Python local e reproduzível (.venv + uv.lock)
 #   3. Instala Graphify (graphifyy[all]) e indexa o vault cerebro/ (Gemini→Ollama→AST)
 #   4. Registra skills nos agentes detectados (Hermes, Claude, Codex, etc.)
 #   5. Configura claude-mem, instala dependências, inicia worker (systemd)
@@ -36,6 +36,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 VAULT_DIR="$PROJECT_ROOT/cerebro"
 GRAPHIFY_OUT="$VAULT_DIR/graphify-out"
+TOOLS_DIR="$PROJECT_ROOT/.tools/bin"
+export SINAPSE_HOME="$PROJECT_ROOT"
 
 # ── Flags ───────────────────────────────────────────────────────────────────
 FORCE=false
@@ -69,37 +71,15 @@ echo ""
 # =============================================================================
 echo -e "${BOLD}[1/12] Verificando dependências...${NC}"
 
-# Python
-if ! command -v python3 &>/dev/null; then
-    echo -e "${RED}Erro:${NC} python3 não encontrado. Instale Python 3.10+."
-    exit 1
-fi
-PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-echo -e "  ${GREEN}✓${NC} Python $PYTHON_VERSION"
-
-# Validar versão mínima (3.10+)
-PYTHON_MAJOR=$(echo "$PYTHON_VERSION" | cut -d. -f1)
-PYTHON_MINOR=$(echo "$PYTHON_VERSION" | cut -d. -f2)
-if [ "$PYTHON_MAJOR" -lt 3 ] || { [ "$PYTHON_MAJOR" -eq 3 ] && [ "$PYTHON_MINOR" -lt 10 ]; }; then
-    echo -e "  ${RED}Erro:${NC} Python $PYTHON_VERSION é muito antigo. Necessário Python 3.10+."
-    exit 1
-fi
-
-# uv (preferred) ou pipx
-INSTALL_METHOD=""
+# uv é a única ferramenta de instalação Python aceita. O Python do sistema
+# não participa do runtime e nenhum fallback global é permitido.
 if command -v uv &>/dev/null; then
-    INSTALL_METHOD="uv"
     echo -e "  ${GREEN}✓${NC} uv $(uv --version 2>/dev/null | awk '{print $2}')"
-elif command -v pipx &>/dev/null; then
-    INSTALL_METHOD="pipx"
-    echo -e "  ${GREEN}✓${NC} pipx detectado"
 else
-    echo -e "  ${YELLOW}⚠${NC}  uv/pipx não encontrados. Instalando uv..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    export PATH="$HOME/.local/bin:$PATH"
-    INSTALL_METHOD="uv"
-    echo -e "  ${GREEN}✓${NC} uv instalado"
+    echo -e "${RED}Erro:${NC} uv não encontrado. Instale uv antes de executar este instalador."
+    exit 1
 fi
+BOOTSTRAP_PYTHON="$(uv python find 3.12)"
 
 # Node (para claude-mem)
 NODE_OK=false
@@ -116,6 +96,13 @@ BUN_OK=false
 if command -v bun &>/dev/null; then
     echo -e "  ${GREEN}✓${NC} Bun $(bun --version 2>/dev/null)"
     BUN_OK=true
+    mkdir -p "$TOOLS_DIR"
+    BUN_SOURCE="$(command -v bun)"
+    if [ "$BUN_SOURCE" != "$TOOLS_DIR/bun" ]; then
+        cp "$BUN_SOURCE" "$TOOLS_DIR/bun"
+        chmod 0755 "$TOOLS_DIR/bun"
+    fi
+    BUN_BIN="$TOOLS_DIR/bun"
 else
     echo -e "  ${YELLOW}⚠${NC}  Bun não encontrado. Alguns recursos do claude-mem podem falhar."
 fi
@@ -123,7 +110,7 @@ fi
 # Ollama (opcional, para extração semântica local)
 OLLAMA_OK=false
 if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
-    OLLAMA_MODELS=$(curl -s http://localhost:11434/api/tags | python3 -c "import json,sys; print(len(json.load(sys.stdin)['models']))" 2>/dev/null || echo "?")
+    OLLAMA_MODELS=$(curl -s http://localhost:11434/api/tags | "$BOOTSTRAP_PYTHON" -c "import json,sys; print(len(json.load(sys.stdin)['models']))" 2>/dev/null || echo "?")
     echo -e "  ${GREEN}✓${NC} Ollama detectado ($OLLAMA_MODELS modelos)"
     OLLAMA_OK=true
 else
@@ -132,34 +119,23 @@ fi
 
 echo ""
 
-# =============================================================================
-# 2. DEPENDÊNCIAS PYTHON (requirements.txt)
-# =============================================================================
-echo -e "${BOLD}[2/12] Instalando dependências Python (requirements.txt)...${NC}"
+# Os componentes editáveis precisam existir antes do uv sync. O manifesto fixa
+# commits exatos e preserva checkouts locais já modificados.
+"$BOOTSTRAP_PYTHON" "$PROJECT_ROOT/scripts/components.py" bootstrap
 
-# Cobre todos os componentes: API REST (fastapi/uvicorn/slowapi/cryptography),
-# Core/UMC (pydantic/pyyaml/numpy/sqlite-vec/fastembed), Watcher (watchdog),
-# HM-11/12 Federated Swarm (hnswlib/duckdb) e Multimodal Fase 10 (mss/PyMuPDF/python-docx).
-if [ -f "$PROJECT_ROOT/requirements.txt" ]; then
-    if [ "$INSTALL_METHOD" = "uv" ]; then
-        uv pip install -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
-        pip install --user -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
-        pip install --break-system-packages -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
-        pip install -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || true
-    else
-        pip install --user -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
-        pip install --break-system-packages -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
-        pip install -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || true
-    fi
-    # Sanity check: módulos críticos para API e UMC
-    if python3 -c "import fastapi, yaml, pydantic" 2>/dev/null; then
-        echo -e "  ${GREEN}✓${NC} Dependências Python instaladas (requirements.txt)"
-    else
-        echo -e "  ${YELLOW}⚠${NC}  Algumas dependências Python podem não ter sido instaladas. Rode manualmente: pip install -r requirements.txt"
-    fi
-else
-    echo -e "  ${YELLOW}⚠${NC}  requirements.txt não encontrado em $PROJECT_ROOT — pulando."
-fi
+# =============================================================================
+# 2. AMBIENTE PYTHON LOCAL
+# =============================================================================
+echo -e "${BOLD}[2/12] Sincronizando ambiente Python local (.venv)...${NC}"
+uv sync --frozen --all-groups
+PYTHON="$PROJECT_ROOT/.venv/bin/python"
+GRAPHIFY="$PROJECT_ROOT/.venv/bin/graphify"
+NMEM="$PROJECT_ROOT/.venv/bin/nmem"
+export PATH="$PROJECT_ROOT/.venv/bin:$PROJECT_ROOT/rtk/target/release:$PATH"
+"$PYTHON" -c "import fastapi, yaml, pydantic, graphify, neural_memory, sqlite_vec"
+mkdir -p "$PROJECT_ROOT/claude-mem/data/models" "$PROJECT_ROOT/neural-memory/data"
+"$PYTHON" "$PROJECT_ROOT/scripts/setup_umc.py" >/dev/null
+echo -e "  ${GREEN}✓${NC} Python $("$PYTHON" -c 'import sys; print(sys.version.split()[0])') em $PROJECT_ROOT/.venv"
 
 echo ""
 
@@ -170,29 +146,7 @@ echo -e "${BOLD}[3/12] Instalando Graphify (source local)...${NC}"
 
 GRAPHIFY_SRC="$PROJECT_ROOT/graphify"
 
-if [ ! -f "$GRAPHIFY_SRC/pyproject.toml" ]; then
-    echo -e "  Clonando Graphify de github.com/safishamsi/graphify..."
-    git clone --depth 1 https://github.com/safishamsi/graphify.git "$GRAPHIFY_SRC" 2>&1 | tail -1
-fi
-
-# Instalar do source em modo editável (pip install -e)
-if $FORCE || ! python3 -c "import graphify" 2>/dev/null; then
-    if [ "$INSTALL_METHOD" = "uv" ]; then
-        uv pip install -e "$GRAPHIFY_SRC[all]" 2>/dev/null || \
-        pip install -e "$GRAPHIFY_SRC[all]"
-    else
-        pip install -e "$GRAPHIFY_SRC[all]"
-    fi
-    # Garantir pyyaml (usado pelo plugin sinapse-memory)
-    if [ "$INSTALL_METHOD" = "uv" ]; then
-        python3 -c "import yaml" 2>/dev/null || uv pip install pyyaml --quiet 2>/dev/null || pip3 install pyyaml --quiet 2>/dev/null || pip install pyyaml --quiet 2>/dev/null || true
-    else
-        python3 -c "import yaml" 2>/dev/null || pip3 install pyyaml --quiet 2>/dev/null || pip install pyyaml --quiet 2>/dev/null || true
-    fi
-    echo -e "  ${GREEN}✓${NC} graphify instalado do source ($GRAPHIFY_SRC)"
-else
-    echo -e "  ${GREEN}✓${NC} graphify já instalado"
-fi
+echo -e "  ${GREEN}✓${NC} graphify resolvido do source local ($GRAPHIFY_SRC)"
 
 # Dependências Python (requirements.txt) já instaladas na etapa 2.
 
@@ -200,22 +154,23 @@ fi
 echo -e "  Indexando vault cerebro/..."
 if [ -n "${GOOGLE_API_KEY:-}" ] || [ -n "${GEMINI_API_KEY:-}" ]; then
     echo -e "  Usando Gemini para extração semântica..."
-    graphify "$VAULT_DIR" 2>&1 | tail -3
+    "$GRAPHIFY" "$VAULT_DIR" 2>&1 | tail -3
 elif [ "${SINAPSE_OLLAMA:-0}" = "1" ] && curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
     echo -e "  Ollama detectado. Usando qwen2.5-coder:3b para extração semântica..."
-    OLLAMA_MODEL=qwen2.5-coder:3b graphify "$VAULT_DIR" --backend ollama 2>&1 | tail -3
+    OLLAMA_MODEL=qwen2.5-coder:3b "$GRAPHIFY" "$VAULT_DIR" --backend ollama 2>&1 | tail -3
 else
     echo -e "  Usando AST-only rápido (tree-sitter + Leiden clustering)..."
-    graphify update "$VAULT_DIR" 2>&1 | tail -3
+    "$GRAPHIFY" update "$VAULT_DIR" 2>&1 | tail -3
 fi
 
 if [ -f "$GRAPHIFY_OUT/graph.json" ]; then
-    NODE_COUNT=$(python3 -c "import json; g=json.load(open('$GRAPHIFY_OUT/graph.json')); print(len(g.get('nodes',[])))" 2>/dev/null || echo "?")
+    NODE_COUNT=$("$PYTHON" -c "import json; g=json.load(open('$GRAPHIFY_OUT/graph.json')); print(len(g.get('nodes',[])))" 2>/dev/null || echo "?")
     echo -e "  ${GREEN}✓${NC} Knowledge graph gerado ($NODE_COUNT nodes)"
 else
     echo -e "  ${RED}✗${NC} Falha ao gerar graph.json"
     exit 1
 fi
+"$PYTHON" "$PROJECT_ROOT/scripts/build_hnsw.py"
 
 echo ""
 
@@ -316,50 +271,14 @@ echo -e "${BOLD}[5/12] Configurando claude-mem (source local)...${NC}"
 if $NODE_OK; then
     CLAUDE_MEM_DIR="$PROJECT_ROOT/claude-mem"
 
-    if [ ! -f "$CLAUDE_MEM_DIR/package.json" ]; then
-        echo -e "  Clonando claude-mem de github.com/thedotmack/claude-mem..."
-        git clone --depth 1 https://github.com/thedotmack/claude-mem.git "$CLAUDE_MEM_DIR" 2>&1 | tail -1
+    if ! $BUN_OK; then
+        echo -e "  ${RED}✗${NC} Bun é obrigatório para o runtime do claude-mem."
+        exit 1
     fi
-
-    # Compilar do source local
-    cd "$CLAUDE_MEM_DIR"
-    if [ ! -d "node_modules" ] || $FORCE; then
-        echo -e "  Instalando dependências..."
-        npm install --silent 2>/dev/null || {
-            echo -e "  ${YELLOW}⚠${NC}  npm install falhou. Tentando com Bun..."
-            if $BUN_OK; then
-                bun install 2>/dev/null || echo -e "  ${RED}✗${NC} Instalação do claude-mem falhou"
-            fi
-        }
-    fi
-    npm run build 2>&1 | tail -1
+    cd "$CLAUDE_MEM_DIR/plugin"
+    "$BUN_BIN" install --frozen-lockfile
     cd "$PROJECT_ROOT"
-    echo -e "  ${GREEN}✓${NC} claude-mem compilado do source"
-
-    # Iniciar worker como systemd user service
-    if command -v systemctl &>/dev/null; then
-        SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
-        mkdir -p "$SYSTEMD_USER_DIR"
-        cat > "$SYSTEMD_USER_DIR/sinapse-claude-mem.service" << SERVICE_EOF
-[Unit]
-Description=Sinapse Agent — claude-mem Worker
-After=network.target
-
-[Service]
-Type=simple
-Environment=CLAUDE_MEM_DATA_DIR=$PROJECT_ROOT/claude-mem/data
-ExecStart=$HOME/.bun/bin/bun $PROJECT_ROOT/claude-mem/plugin/scripts/worker-service.cjs
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-SERVICE_EOF
-        systemctl --user daemon-reload 2>/dev/null || true
-        systemctl --user enable sinapse-claude-mem.service 2>/dev/null || true
-        systemctl --user start sinapse-claude-mem.service 2>/dev/null || true
-        echo -e "  ${GREEN}✓${NC} claude-mem worker (systemd user service)"
-    fi
+    echo -e "  ${GREEN}✓${NC} claude-mem runtime instalado pelo lockfile local"
 
     # Copiar config MCP
     if command -v hermes &>/dev/null; then
@@ -378,27 +297,11 @@ echo -e "${BOLD}[6/12] Instalando NeuralMemory (spreading activation, source loc
 
 NEURAL_MEMORY_SRC="$PROJECT_ROOT/neural-memory"
 
-if [ ! -f "$NEURAL_MEMORY_SRC/pyproject.toml" ]; then
-    echo -e "  Clonando NeuralMemory de github.com/nhadaututtheky/neural-memory..."
-    git clone --depth 1 https://github.com/nhadaututtheky/neural-memory.git "$NEURAL_MEMORY_SRC" 2>&1 | tail -1
-fi
-
-# Instalar do source em modo editável
-if $FORCE || ! python3 -c "import neural_memory" 2>/dev/null; then
-    if [ "$INSTALL_METHOD" = "uv" ]; then
-        uv pip install -e "$NEURAL_MEMORY_SRC" 2>/dev/null || \
-        pip install -e "$NEURAL_MEMORY_SRC" --break-system-packages
-    else
-        pip install -e "$NEURAL_MEMORY_SRC" --break-system-packages
-    fi
-    echo -e "  ${GREEN}✓${NC} NeuralMemory instalado do source ($NEURAL_MEMORY_SRC)"
-else
-    echo -e "  ${GREEN}✓${NC} NeuralMemory já instalado"
-fi
+echo -e "  ${GREEN}✓${NC} NeuralMemory resolvido do source local ($NEURAL_MEMORY_SRC)"
 
 # Verificar se o CLI está disponível
-if command -v nmem &>/dev/null; then
-    echo -e "  ${GREEN}✓${NC} nmem $(nmem --version 2>/dev/null || echo 'OK')"
+if [ -x "$NMEM" ]; then
+    echo -e "  ${GREEN}✓${NC} nmem $("$NMEM" --version 2>/dev/null || echo 'OK')"
 else
     echo -e "  ${YELLOW}⊘${NC}  nmem CLI não encontrado. Verifique PATH: ~/.local/bin"
 fi
@@ -411,34 +314,32 @@ echo ""
 echo -e "${BOLD}[7/12] Compilando RTK (source local)...${NC}"
 
 RTK_SRC="$PROJECT_ROOT/rtk"
+RUST_TOOLCHAIN="1.95.0"
+CARGO_BIN="$(command -v cargo 2>/dev/null || true)"
 
-if [ ! -f "$RTK_SRC/Cargo.toml" ]; then
-    echo -e "  Clonando RTK de github.com/rtk-ai/rtk..."
-    git clone --depth 1 https://github.com/rtk-ai/rtk.git "$RTK_SRC" 2>&1 | tail -1
-fi
-
-# Verificar Rust
-if ! command -v cargo &>/dev/null; then
-    echo -e "  Instalando Rust (rustup)..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y 2>&1 | tail -1
-    export PATH="$HOME/.cargo/bin:$PATH"
-    echo -e "  ${GREEN}✓${NC} Rust instalado"
+# Um binário cargo sem toolchain funcional não é suficiente. Nesse caso,
+# instala toolchain fixado dentro do projeto, sem alterar o HOME do usuário.
+if [ -z "$CARGO_BIN" ] || ! "$CARGO_BIN" --version >/dev/null 2>&1; then
+    echo -e "  Instalando Rust $RUST_TOOLCHAIN em .tools..."
+    export RUSTUP_HOME="$PROJECT_ROOT/.tools/rustup"
+    export CARGO_HOME="$PROJECT_ROOT/.tools/cargo"
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --profile minimal --default-toolchain "$RUST_TOOLCHAIN" --no-modify-path
+    CARGO_BIN="$CARGO_HOME/bin/cargo"
+    echo -e "  ${GREEN}✓${NC} Rust local instalado"
 fi
 
 # Compilar do source
 cd "$RTK_SRC"
 if $FORCE || [ ! -f "target/release/rtk" ]; then
     echo -e "  Compilando RTK (cargo build --release)..."
-    cargo build --release 2>&1 | tail -1
+    "$CARGO_BIN" build --locked --release 2>&1 | tail -1
     echo -e "  ${GREEN}✓${NC} RTK compilado"
 else
     echo -e "  ${GREEN}✓${NC} RTK já compilado"
 fi
 
-# Instalar binário
-mkdir -p "$HOME/.local/bin"
-cp "$RTK_SRC/target/release/rtk" "$HOME/.local/bin/rtk" 2>/dev/null || true
-echo -e "  ${GREEN}✓${NC} RTK $(./target/release/rtk --version 2>/dev/null | awk '{print $2}') instalado"
+echo -e "  ${GREEN}✓${NC} RTK $(./target/release/rtk --version 2>/dev/null | awk '{print $2}') disponível no projeto"
 
 # Plugin Hermes — hook nativo do RTK
 if [ -d "$HOME/.hermes/plugins/" ]; then
@@ -508,13 +409,20 @@ echo -e "${BOLD}[9/12] Configurando cron de sync...${NC}"
 CRON_JOB="0 */6 * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && ./scripts/build-graph.sh >> logs/sync.log 2>&1"
 
 if command -v crontab &>/dev/null; then
-    # Verificar se já existe
-    if crontab -l 2>/dev/null | grep -q "sinapse_agent"; then
-        echo -e "  ${GREEN}✓${NC} Cron já configurado"
-    else
-        (crontab -l 2>/dev/null || true; echo "# sinapse_agent — sync vault → graph a cada 6h"; echo "$CRON_JOB") | crontab -
-        echo -e "  ${GREEN}✓${NC} Cron configurado (a cada 6h)"
-    fi
+    # Remove variantes legadas/duplicadas e instala uma única entrada canônica.
+    CRON_TMP=$(mktemp)
+    crontab -l 2>/dev/null \
+        | grep -vF "# Hive-Mind — sync vault → graph a cada 6h" \
+        | grep -vF "# sinapse_agent — sync vault → graph a cada 6h" \
+        | grep -vF "./scripts/build-graph.sh" \
+        > "$CRON_TMP" || true
+    {
+        cat "$CRON_TMP"
+        echo "# Hive-Mind — sync vault → graph a cada 6h"
+        echo "$CRON_JOB"
+    } | crontab -
+    rm -f "$CRON_TMP"
+    echo -e "  ${GREEN}✓${NC} Cron configurado sem duplicatas (a cada 6h)"
 else
     echo -e "  ${YELLOW}⊘${NC}  crontab não disponível. Use ./scripts/build-graph.sh manualmente."
 fi
@@ -597,7 +505,7 @@ if [ -n "$PROVIDER" ] && [ -n "$MODEL" ]; then
     # Garante que o .env existe
     [ -f "$PROJECT_ROOT/.env" ] || cp "$PROJECT_ROOT/.env.example" "$PROJECT_ROOT/.env"
     # Salva no .env usando python
-    python3 -c "import sys; sys.path.append('$PROJECT_ROOT'); from core.auth import save_env; save_env('HIVE_DREAMER_PROVIDER', '$PROVIDER'); save_env('HIVE_DREAMER_MODEL', '$MODEL')"
+    "$PYTHON" -c "import sys; sys.path.append('$PROJECT_ROOT'); from core.auth import save_env; save_env('HIVE_DREAMER_PROVIDER', '$PROVIDER'); save_env('HIVE_DREAMER_MODEL', '$MODEL')"
     echo -e "  ${GREEN}✓${NC} Provedor e modelo salvos (papel Dreamer)."
     echo -e "  Os papéis Graphify, Vision e Síntese herdam este modelo por padrão;"
     echo -e "  ajuste por papel (e fallbacks) com: python3 scripts/setup-brain.py"
@@ -630,7 +538,8 @@ fi
 echo ""
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}Verificando integridade...${NC}"
-if python3 "$PROJECT_ROOT/scripts/sinapse-write.py" health >/dev/null 2>&1; then
+"$PYTHON" "$PROJECT_ROOT/scripts/install_services.py" install
+if "$PYTHON" "$PROJECT_ROOT/scripts/sinapse-write.py" health >/dev/null 2>&1; then
     echo -e "  ${GREEN}✓${NC} Health check: backends operacionais"
 else
     echo -e "  ${YELLOW}⊘${NC}  Health check: alguns backends offline"
@@ -682,7 +591,7 @@ echo -e "         Gemini é usado para extração semântica de alta qualidade."
 echo ""
 if $OLLAMA_OK; then
     echo -e "  ${BOLD}Modelos Ollama instalados:${NC}"
-    curl -s http://localhost:11434/api/tags 2>/dev/null | python3 -c "
+    curl -s http://localhost:11434/api/tags 2>/dev/null | "$PYTHON" -c "
 import json, sys
 for m in json.load(sys.stdin)['models']:
     print(f'         {m[\"name\"]:35s} {m[\"size\"]/1e9:.1f}GB')
@@ -713,4 +622,3 @@ if [ "$HAS_DREAMER" = "false" ] && [ "$NON_INTERACTIVE" = "false" ] && [ -t 0 ];
         echo ""
     fi
 fi
-

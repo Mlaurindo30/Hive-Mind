@@ -108,6 +108,7 @@ app = FastAPI(
     description="Interface com Criptografia de Segredos para o Cérebro de IA",
     version="1.4.0",
 )
+PROCESS_STARTED_AT = time.monotonic()
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -167,6 +168,51 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
 def get_health(request: Request):
     return {"status": "online", "engine": "Hive-Mind Vault Ready"}
 
+
+@app.get("/api/v1/metrics", dependencies=[Depends(verify_api_key)])
+@limiter.limit("30/minute")
+def get_metrics(request: Request):
+    """Operational metrics without exposing neuron or observation contents."""
+    conn = get_connection()
+    try:
+        counts = {}
+        for table in (
+            "neurons",
+            "synapses",
+            "observations",
+            "search_fts",
+            "search_vec",
+            "goals",
+            "causal_edges",
+        ):
+            exists = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE name=? AND type IN ('table','view')",
+                (table,),
+            ).fetchone()
+            if exists:
+                counts[table] = conn.execute(
+                    f"SELECT COUNT(*) FROM {table}"
+                ).fetchone()[0]
+        foreign_keys = len(conn.execute("PRAGMA foreign_key_check").fetchall())
+        integrity = conn.execute("PRAGMA quick_check").fetchone()[0]
+    finally:
+        conn.close()
+
+    return {
+        "status": "online" if integrity == "ok" and foreign_keys == 0 else "degraded",
+        "uptime_seconds": round(time.monotonic() - PROCESS_STARTED_AT, 3),
+        "pid": os.getpid(),
+        "database": {
+            "quick_check": integrity,
+            "foreign_key_violations": foreign_keys,
+            "counts": counts,
+        },
+        "indexes": {
+            "hnsw": (_ROOT / "hnsw_neurons.idx").is_file(),
+            "hnsw_map": (_ROOT / "hnsw_neurons.map.json").is_file(),
+        },
+    }
+
 @app.post("/api/v1/observations", dependencies=[Depends(verify_api_key)])
 @limiter.limit("20/minute")
 def post_observation(request: Request, body: Any = Body(...)):
@@ -184,6 +230,9 @@ def post_observation(request: Request, body: Any = Body(...)):
         project = data.get("project")
         session_id = data.get("session_id")
         agent_id = data.get("agent_id", "unknown-agent")
+        goal_id = data.get("goal_id")
+        why = data.get("why")
+        intent_source = data.get("intent_source", "api")
         
         # Hardening: Criptografar segredos e mover para o Vault
         safe_title = encrypt_and_vault(title)
@@ -196,6 +245,9 @@ def post_observation(request: Request, body: Any = Body(...)):
             "type": kind,
             "project": project,
             "session_id": session_id,
+            "goal_id": goal_id,
+            "why": why,
+            "intent_source": intent_source,
             "metadata": json.dumps({"agent": agent_id, "timestamp": datetime.now().isoformat(), "hardened": True})
         })
         conn.commit()
@@ -258,6 +310,11 @@ class NeuronExportRequest(BaseModel):
     redact: Optional[bool] = True
 
 
+class NeuronImportRequest(BaseModel):
+    source_fingerprint: str
+    neurons: List[Dict[str, Any]]
+
+
 @app.post("/api/v1/neurons/export", dependencies=[Depends(verify_api_key)])
 @limiter.limit("10/minute")
 def post_neurons_export(request: Request, body: NeuronExportRequest):
@@ -269,7 +326,15 @@ def post_neurons_export(request: Request, body: NeuronExportRequest):
 
         conn = get_connection()
         try:
-            query = "SELECT * FROM neurons WHERE visibility IN ('shared', 'public')"
+            query = """
+                SELECT * FROM neurons
+                WHERE visibility IN ('shared', 'public')
+                  AND (
+                    metadata IS NULL
+                    OR json_valid(metadata) = 0
+                    OR COALESCE(json_extract(metadata, '$.federated'), 0) = 0
+                  )
+            """
             params: List[Any] = []
 
             if filters.get("type"):
@@ -291,20 +356,12 @@ def post_neurons_export(request: Request, body: NeuronExportRequest):
             neuron = dict(row)
 
             if do_redact:
-                try:
-                    from core.redactor import redact_neuron
-                    neuron = redact_neuron(neuron)
-                except (ImportError, Exception) as e:
-                    import logging
-                    logging.getLogger(__name__).warning("redact_neuron unavailable: %s", e)
+                from core.redactor import redact_neuron
+                neuron = redact_neuron(neuron)
 
             if do_sign:
-                try:
-                    from core.signing import sign_neuron
-                    neuron = sign_neuron(neuron, "default")
-                except (ImportError, Exception) as e:
-                    import logging
-                    logging.getLogger(__name__).warning("sign_neuron unavailable: %s", e)
+                from core.signing import sign_neuron
+                neuron = sign_neuron(neuron, "default")
 
             neurons.append(neuron)
 
@@ -318,6 +375,36 @@ def post_neurons_export(request: Request, body: NeuronExportRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/neurons/import", dependencies=[Depends(verify_api_key)])
+@limiter.limit("10/minute")
+def post_neurons_import(request: Request, body: NeuronImportRequest):
+    """Import only valid, signed neurons from a pre-trusted peer key."""
+    try:
+        from core.federation import import_signed_neurons
+
+        conn = get_connection()
+        try:
+            imported = import_signed_neurons(
+                conn,
+                body.neurons,
+                body.source_fingerprint,
+                _ROOT,
+                commit=False,
+            )
+            from core.indexing import index_neuron_ids
+
+            index_neuron_ids(conn, imported)
+        finally:
+            conn.close()
+        return {"imported": imported, "count": len(imported)}
+    except (PermissionError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.get("/api/v1/vault/{secret_id}", dependencies=[Depends(verify_api_key)])
@@ -355,6 +442,6 @@ if __name__ == "__main__":
     import uvicorn
     # Fail-closed: valida a chave de API antes de subir o servidor
     get_expected_api_key()
-    host = os.environ.get("HIVE_MIND_API_HOST", "0.0.0.0")
+    host = os.environ.get("HIVE_MIND_API_HOST", "127.0.0.1")
     port = int(os.environ.get("HIVE_MIND_API_PORT", "37702"))
     uvicorn.run(app, host=host, port=port)

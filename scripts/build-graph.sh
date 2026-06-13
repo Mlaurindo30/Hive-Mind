@@ -7,6 +7,8 @@ set -euo pipefail
 SINAPSE_HOME="${SINAPSE_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 VAULT_DIR="$SINAPSE_HOME/cerebro"
 GRAPH_OUT="$VAULT_DIR/graphify-out"
+PYTHON="$SINAPSE_HOME/.venv/bin/python"
+export PATH="$SINAPSE_HOME/.venv/bin:$SINAPSE_HOME/rtk/target/release:/usr/local/bin:/usr/bin:/bin"
 
 cd "$SINAPSE_HOME" || exit 1
 
@@ -88,24 +90,13 @@ else
 fi
 
 # Incremental HNSW update
-python3 -c "
+"$PYTHON" -c "
 import sys; sys.path.insert(0, '$(dirname "$0")/..')
 try:
     from core.hnsw_index import incremental_update
-    from core.database import get_connection
+    from core.database import embed_text, get_connection
     conn = get_connection()
-    # Use a simple hash-based pseudo-embedding for offline builds
-    def hash_embed(text):
-        import hashlib
-        h = int(hashlib.sha256(text.encode()).hexdigest(), 16)
-        import struct
-        vals = []
-        for i in range(384):
-            h, rem = divmod(h, 256)
-            vals.append((rem - 128) / 128.0)
-        norm = sum(v*v for v in vals)**0.5 or 1.0
-        return [v/norm for v in vals]
-    n = incremental_update(conn, hash_embed)
+    n = incremental_update(conn, embed_text)
     conn.close()
     print(f'HNSW: {n} neurons indexed')
 except Exception as e:
@@ -113,8 +104,8 @@ except Exception as e:
 " 2>/dev/null || true
 
 # Verificar se o novo graph.json é válido
-if python3 -c "import json; json.load(open('$GRAPH_OUT/graph.json'))" 2>/dev/null; then
-    NODES=$(python3 -c "import json;g=json.load(open('$GRAPH_OUT/graph.json'));print(len(g.get('nodes',[])))")
+if "$PYTHON" -c "import json; json.load(open('$GRAPH_OUT/graph.json'))" 2>/dev/null; then
+    NODES=$("$PYTHON" -c "import json;g=json.load(open('$GRAPH_OUT/graph.json'));print(len(g.get('nodes',[])))")
     echo "graph.json valid — $NODES nodes — build completo"
 else
     echo "ERRO: graph.json inválido, restaurando backup" >&2

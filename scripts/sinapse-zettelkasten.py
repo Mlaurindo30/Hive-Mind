@@ -18,6 +18,7 @@ import tempfile
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from typing import List, Optional
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 

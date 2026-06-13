@@ -1,28 +1,40 @@
+"""Integração: REST API (scripts/sinapse-api.py) — contrato ATUAL.
+
+Valida os endpoints reais da API de nuvem com FastAPI TestClient:
+  - GET  /api/v1/health           (público)
+  - POST /api/v1/query            (autenticado, leitura)
+  - POST /api/v1/neurons/export   (autenticado, leitura)
+  - POST /api/v1/observations     (autenticado — só checa enforcement de auth)
+
+Foco em auth e endpoints de leitura para não poluir o banco real.
+Gated por HIVE_RUN_INTEGRATION=1 (ver tests/integration/__init__.py / conftest).
+"""
+
 import os
-import sys
-import time
-import threading
-
-API_KEY = "integration_test_secret_key_123"
-
-# Configura as variáveis de ambiente ANTES de carregar o módulo
-os.environ["SINAPSE_API_KEY"] = API_KEY
-os.environ["SINAPSE_DRY_RUN"] = "true"
 
 import pytest
+
+# Chave de API definida ANTES de carregar o módulo (a API lê HIVE_MIND_API_KEY).
+API_KEY = "integration_test_secret_key_123"
+os.environ["HIVE_MIND_API_KEY"] = API_KEY
+
+if os.environ.get("HIVE_RUN_INTEGRATION") != "1":
+    pytest.skip(
+        "Integração real desabilitada. Defina HIVE_RUN_INTEGRATION=1 para rodar.",
+        allow_module_level=True,
+    )
+
 from pathlib import Path
 import importlib.util
 
-# Dependências opcionais da API — pula o módulo inteiro se ausentes,
-# em vez de quebrar a coleta do pytest.
+# Dependências opcionais da API — pula o módulo inteiro se ausentes.
 pytest.importorskip("fastapi")
 pytest.importorskip("slowapi")
 pytest.importorskip("cryptography")
-uvicorn = pytest.importorskip("uvicorn")
 
 from fastapi.testclient import TestClient
 
-# Carrega scripts/sinapse-api.py dinamicamente para obter a instância da app
+# Carrega scripts/sinapse-api.py dinamicamente para obter a instância da app.
 _api_script = Path(__file__).resolve().parents[2] / "scripts" / "sinapse-api.py"
 spec = importlib.util.spec_from_file_location("sinapse_api", _api_script)
 api_mod = importlib.util.module_from_spec(spec)
@@ -30,148 +42,76 @@ try:
     spec.loader.exec_module(api_mod)
 except ImportError as exc:  # dependência transitiva ausente
     pytest.skip(f"Dependência da API ausente: {exc}", allow_module_level=True)
-app = api_mod.app
 
+app = api_mod.app
 client = TestClient(app)
 
-
-class BackgroundServer(threading.Thread):
-    def __init__(self, app, host="127.0.0.1", port=8001):
-        super().__init__()
-        config = uvicorn.Config(app, host=host, port=port, log_level="error")
-        self.server = uvicorn.Server(config)
-        self.daemon = True
-
-    def run(self):
-        self.server.run()
-
-    def stop(self):
-        self.server.should_exit = True
+_AUTH = {"Authorization": f"Bearer {API_KEY}"}
 
 
-@pytest.fixture(autouse=True)
-def force_dry_run_for_api_tests():
-    orig_dry_run = api_mod.sm.DRY_RUN
-    api_mod.sm.DRY_RUN = True
-    yield
-    api_mod.sm.DRY_RUN = orig_dry_run
+def test_health_is_public():
+    """GET /api/v1/health é público e responde online."""
+    r = client.get("/api/v1/health")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["status"] == "online"
 
 
-def test_unauthorized_access():
+def test_query_requires_auth():
+    """POST /api/v1/query sem token → 401/403."""
+    r = client.post("/api/v1/query", json={"query": "x"})
+    assert r.status_code in (401, 403)
 
-    """Garante que chamadas sem token ou com token inválido recebem 401/403."""
-    # Sem header
-    response = client.get("/api/v1/health")
-    assert response.status_code in (401, 403)
-
-    # Token inválido
-    headers = {"Authorization": "Bearer wrong_token"}
-    response = client.get("/api/v1/health", headers=headers)
-    assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid or missing API key"
-
-
-def test_health_endpoint():
-    """Valida o endpoint /api/v1/health com autenticação válida."""
-    headers = {"Authorization": f"Bearer {API_KEY}"}
-    response = client.get("/api/v1/health", headers=headers)
-    assert response.status_code == 200
-    data = response.json()
-    assert "healthy" in data
-    assert "backends" in data
+    r = client.post(
+        "/api/v1/query",
+        json={"query": "x"},
+        headers={"Authorization": "Bearer wrong_token"},
+    )
+    assert r.status_code == 401
 
 
-def test_query_endpoint():
-    """Valida o endpoint /api/v1/query."""
-    headers = {"Authorization": f"Bearer {API_KEY}"}
-    payload = {"query": "teste de busca da API"}
-    response = client.post("/api/v1/query", json=payload, headers=headers)
-    assert response.status_code == 200
-    data = response.json()
-    assert "observations" in data or "nodes" in data or "edges" in data
+def test_observations_requires_auth():
+    """POST /api/v1/observations sem token → 401/403 (não grava nada)."""
+    r = client.post("/api/v1/observations", json={"title": "t", "content": "c"})
+    assert r.status_code in (401, 403)
 
 
-def test_decision_endpoint():
-    """Valida gravação de decisão pelo endpoint /api/v1/decision (em DRY_RUN)."""
-    headers = {"Authorization": f"Bearer {API_KEY}"}
-    payload = {
-        "title": "Decisão via API",
-        "content": "Esta decisão foi salva através do endpoint REST da API de nuvem."
-    }
-    response = client.post("/api/v1/decision", json=payload, headers=headers)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["saved"] is True
-    assert "dry-run" in data["path"]
+def test_export_requires_auth():
+    """POST /api/v1/neurons/export sem token → 401/403."""
+    r = client.post("/api/v1/neurons/export", json={})
+    assert r.status_code in (401, 403)
 
 
-def test_learning_endpoint():
-    """Valida gravação de aprendizado pelo endpoint /api/v1/learning (em DRY_RUN)."""
-    headers = {"Authorization": f"Bearer {API_KEY}"}
-    payload = {
-        "title": "Aprendizado via API",
-        "content": "Novo padrão identificado no fluxo de testes de integração da API REST."
-    }
-    response = client.post("/api/v1/learning", json=payload, headers=headers)
-    assert response.status_code == 200
-    data = response.json()
-    assert data["saved"] is True
-    assert "dry-run" in data["path"]
+def test_metrics_requires_auth():
+    r = client.get("/api/v1/metrics")
+    assert r.status_code in (401, 403)
 
 
-def test_session_end_endpoint():
-    """Valida o fechamento de sessão pelo endpoint /api/v1/session-end."""
-    headers = {"Authorization": f"Bearer {API_KEY}"}
-    payload = {
-        "summary": "Resumo de teste da API",
-        "decisions": ["/path/to/decision1.md"],
-        "learnings": ["/path/to/learning1.md"]
-    }
-    response = client.post("/api/v1/session-end", json=payload, headers=headers)
-    assert response.status_code == 200
-    assert response.json()["updated"] is True
+def test_query_endpoint_authenticated():
+    """POST /api/v1/query autenticado retorna a lista de resultados."""
+    r = client.post("/api/v1/query", json={"query": "memory", "limit": 3}, headers=_AUTH)
+    assert r.status_code == 200
+    data = r.json()
+    assert "results" in data
+    assert isinstance(data["results"], list)
 
 
-def test_cloud_routing_e2e():
-    """Valida o ciclo completo local -> HTTP -> Cloud API -> local (com servidor em thread de background)."""
-    # 1. Inicia o servidor FastAPI em background
-    server = BackgroundServer(app, host="127.0.0.1", port=8001)
-    server.start()
-    time.sleep(0.5)  # Aguarda inicialização
-
-    # 2. Configura o plugin para usar o redirecionamento cloud
-    orig_config = dict(api_mod.sm._config)
-    orig_dry_run = api_mod.sm.DRY_RUN
-
-    # Configuração temporária apontando para o servidor local mockado em background
-    api_mod.sm._config["cloud"] = {
-        "enabled": True,
-        "url": "http://127.0.0.1:8001",
-        "api_key": API_KEY,
-    }
-    # Servidor remoto em background e cliente têm DRY_RUN=True, então não gravará nada real!
+def test_export_endpoint_authenticated():
+    """POST /api/v1/neurons/export autenticado retorna o envelope de export."""
+    r = client.post("/api/v1/neurons/export", json={"redact": True}, headers=_AUTH)
+    assert r.status_code == 200
+    data = r.json()
+    assert "neurons" in data
+    assert "count" in data
+    assert isinstance(data["neurons"], list)
 
 
-    try:
-        # A chamada de busca local deve passar pelo redirecionamento HTTP e retornar do servidor em background
-        res = api_mod.sm._query_vault_knowledge("busca teste via rede")
-        assert res is not None
-        assert "observations" in res or "nodes" in res or "edges" in res
-
-
-        # A gravação de decisão local deve ser delegada via HTTP para a API de nuvem (que roda em DRY_RUN)
-        dec_path = api_mod.sm._save_decision("Decisão Remota", "Conteúdo remoto via rede")
-        assert dec_path is not None
-        assert "dry-run" in dec_path
-
-        # O fechamento de sessão deve ir via rede
-        # Passando listas vazias que são serializadas
-        api_mod.sm._update_current_state([], [], "Sessão remota via rede")
-
-    finally:
-        # Restaura a configuração e para o servidor
-        api_mod.sm._config.clear()
-        api_mod.sm._config.update(orig_config)
-        api_mod.sm.DRY_RUN = orig_dry_run
-        server.stop()
-        server.join(timeout=2)
+def test_metrics_endpoint_authenticated():
+    r = client.get("/api/v1/metrics", headers=_AUTH)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["status"] in {"online", "degraded"}
+    assert data["uptime_seconds"] >= 0
+    assert data["database"]["quick_check"] == "ok"
+    assert data["database"]["foreign_key_violations"] == 0
+    assert data["indexes"]["hnsw"] is True

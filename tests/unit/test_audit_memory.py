@@ -108,7 +108,7 @@ class TestSyncConflictDetection:
             from scripts import audit_memory
             # Reset the module-level constant so it uses our tmp_path
             audit_memory.SINAPSE_HOME = str(tmp_path)
-            audit_memory.run_audit(fix=False)
+            audit_memory.run_audit(fix=True)
 
         assert len(registered_calls) == 1, "Exactly one conflict should have been registered"
         assert registered_calls[0] == "my-neuron"
@@ -136,7 +136,7 @@ class TestSyncConflictDetection:
              patch("scripts.audit_memory.register_ambiguity", side_effect=fake_register_ambiguity):
             from scripts import audit_memory
             audit_memory.SINAPSE_HOME = str(tmp_path)
-            audit_memory.run_audit(fix=False)
+            audit_memory.run_audit(fix=True)
 
         assert len(registered_calls) == 0, "A normal .md file must not be treated as a conflict"
 
@@ -163,7 +163,7 @@ class TestSyncConflictDetection:
              patch("scripts.audit_memory.register_ambiguity", side_effect=fake_register_ambiguity):
             from scripts import audit_memory
             audit_memory.SINAPSE_HOME = str(tmp_path)
-            audit_memory.run_audit(fix=False)
+            audit_memory.run_audit(fix=True)
 
         assert not conflict_path.exists(), "Conflict file should be moved out of atlas"
         assert (conflicts_dir / conflict_name).exists(), "Conflict file should land in cerebro/conflicts/"
@@ -200,12 +200,35 @@ class TestSyncConflictDetection:
              patch("scripts.audit_memory.register_ambiguity", side_effect=fake_register):
             from scripts import audit_memory
             audit_memory.SINAPSE_HOME = str(tmp_path)
-            audit_memory.run_audit(fix=False)
+            audit_memory.run_audit(fix=True)
 
         assert len(register_calls) == 1, "register_ambiguity must be called exactly once"
         assert register_calls[0]["neuron_id"] == "amb-neuron", (
             f"Expected neuron_id='amb-neuron', got {register_calls[0]['neuron_id']!r}"
         )
+
+    def test_read_only_mode_does_not_register_or_move_conflict(self, tmp_path):
+        atlas = _make_vault(tmp_path)
+        conflict_name = "readonly.sync-conflict-20260613-120000-HOST.md"
+        conflict_path = atlas / conflict_name
+        conflict_path.write_text("# Conflict\n\nDivergent.", encoding="utf-8")
+
+        mem_conn = _make_audit_db()
+        mem_conn.execute(
+            "INSERT INTO neurons (id, label, type, content, hash) VALUES (?, ?, ?, ?, ?)",
+            ("readonly", "Readonly", "fact", "Original.", "original-hash"),
+        )
+        mem_conn.commit()
+
+        with patch("scripts.audit_memory.get_connection", return_value=mem_conn), \
+             patch("scripts.audit_memory.register_ambiguity") as register:
+            from scripts import audit_memory
+            audit_memory.SINAPSE_HOME = str(tmp_path)
+            audit_memory.run_audit(fix=False)
+
+        register.assert_not_called()
+        assert conflict_path.exists()
+        assert not (tmp_path / "cerebro" / "conflicts" / conflict_name).exists()
 
 
 class TestConflictFileNaming:

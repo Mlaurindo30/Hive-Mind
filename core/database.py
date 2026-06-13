@@ -28,8 +28,21 @@ def get_embedder():
     """Retorna o modelo de embedding (lazy load)."""
     global _embedder
     if _embedder is None and TextEmbedding:
-        _embedder = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        cache_dir = Path(SINAPSE_HOME) / "claude-mem" / "data" / "models"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        _embedder = TextEmbedding(
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            cache_dir=str(cache_dir),
+        )
     return _embedder
+
+
+def embed_text(text):
+    """Gera o vetor canônico 384d usado por sqlite-vec e HNSW."""
+    embedder = get_embedder()
+    if embedder is None:
+        raise RuntimeError("fastembed não está disponível no ambiente do projeto")
+    return list(embedder.embed([text[:5000]]))[0].tolist()
 
 def serialize_f32(vector):
     """Serializa uma lista de floats para o formato f32 do sqlite-vec."""
@@ -49,7 +62,11 @@ def get_connection():
     conn.execute("PRAGMA busy_timeout = 5000;")
 
     if sqlite_vec:
-        sqlite_vec.load(conn)
+        conn.enable_load_extension(True)
+        try:
+            sqlite_vec.load(conn)
+        finally:
+            conn.enable_load_extension(False)
     return conn
 
 def execute_insert(conn, table, data):
@@ -117,7 +134,18 @@ def register_ambiguity(neuron_id, version_a, version_b):
     finally:
         conn.close()
 
-def add_observation(title, content, obs_type="event", project=None, session_id=None, neuron_id=None, metadata=None):
+def add_observation(
+    title,
+    content,
+    obs_type="event",
+    project=None,
+    session_id=None,
+    neuron_id=None,
+    metadata=None,
+    goal_id=None,
+    why=None,
+    intent_source=None,
+):
     """
     Função de conveniência para adicionar uma observação com UUID automático.
     """
@@ -132,7 +160,10 @@ def add_observation(title, content, obs_type="event", project=None, session_id=N
             "neuron_id": neuron_id,
             "metadata": json.dumps(metadata) if metadata else None,
             "archived": 0,
-            "created_at": datetime.now().isoformat()
+            "created_at": datetime.now().isoformat(),
+            "goal_id": goal_id,
+            "why": why,
+            "intent_source": intent_source,
         }
         obs_id = execute_insert(conn, "observations", data)
         conn.commit()
@@ -190,6 +221,18 @@ def ensure_migrations(conn):
         conn.execute("ALTER TABLE observations ADD COLUMN goal_id TEXT")
     if "why" not in existing_cols:
         conn.execute("ALTER TABLE observations ADD COLUMN why TEXT")
+    if "intent_source" not in existing_cols:
+        conn.execute("ALTER TABLE observations ADD COLUMN intent_source TEXT")
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS goals (
+            id TEXT PRIMARY KEY,
+            description TEXT NOT NULL,
+            steps_json TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
 
     # Phase HM-11: Causal graph table
     conn.execute("""

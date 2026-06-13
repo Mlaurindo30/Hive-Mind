@@ -54,7 +54,7 @@ Execução:            RTK (Rust) → hook pre_tool_call no Hermes
 Associativa:         NeuralMemory (Python) → spreading activation
 Consolidação:        dream_cycle.py → Distiller→Validator→Router→Síntese (LLM multi-provedor)
 Tempo real:          Watcher (watchdog) → Obsidian→SQLite em ~2s
-Acesso:              MCP (9 tools) · plugin Hermes · CLI · REST FastAPI :37702
+Acesso:              MCP (10 tools) · plugin Hermes · CLI · REST FastAPI :37702
 Distribuição:        Syncthing (P2P) + UUID v4 + SHA-256 + Síntese Dialética
 Fonte de verdade:    cerebro/ (Obsidian) — frontmatter YAML + WikiLinks
 ```

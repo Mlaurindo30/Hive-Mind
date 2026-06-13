@@ -188,7 +188,7 @@ O cron de rebuild a cada 6h da v1.x foi **removido** — o Watcher cobre a atual
   │   └── schemas/                   Modelos Pydantic do Dream Cycle
   ├── scripts/
   │   ├── dream_cycle.py             Pipeline de consolidação offline
-  │   ├── sinapse-mcp.py             MCP server (9 tools, stdio)
+  │   ├── sinapse-mcp.py             MCP server (10 tools, stdio)
   │   ├── sinapse-api.py             REST API FastAPI (:37702)
   │   ├── sinapse-write.py           CLI standalone
   │   ├── sinapse-hook.py            Hook universal (Claude Code / Codex)

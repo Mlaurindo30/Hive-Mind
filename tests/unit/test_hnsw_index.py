@@ -185,3 +185,46 @@ class TestWithMockedIndex:
 
         assert count == 3
         assert embed_fn.call_count == 3
+
+    def test_saved_map_is_loaded_with_index(self, tmp_path):
+        import core.hnsw_index as mod
+
+        if mod._hnswlib is None:
+            pytest.skip("hnswlib not installed")
+
+        conn = _make_neurons_db(tmp_path, [{"id": "persisted", "content": "alpha"}])
+        assert mod.rebuild_from_db(conn, lambda _: [0.1] * 384) == 1
+
+        mod._INDEX = None
+        mod._id_to_label = {}
+        mod._label_to_id = {}
+        mod._next_label = 0
+        assert mod.load_or_create()
+        assert mod.search([0.1] * 384, k=1)[0]["neuron_id"] == "persisted"
+
+    def test_upsert_vectors_persists_indexed_at(self):
+        import core.hnsw_index as mod
+
+        if mod._hnswlib is None:
+            pytest.skip("hnswlib not installed")
+        conn = _make_neurons_db(Path("."), [{"id": "n1", "content": "alpha"}])
+        assert mod.upsert_vectors(conn, {"n1": [0.2] * 384}) == 1
+        assert conn.execute(
+            "SELECT indexed_at FROM neurons WHERE id='n1'"
+        ).fetchone()["indexed_at"]
+
+    def test_rebuild_from_vectors_preserves_id_mapping(self):
+        import core.hnsw_index as mod
+
+        if mod._hnswlib is None:
+            pytest.skip("hnswlib not installed")
+        conn = _make_neurons_db(
+            Path("."),
+            [{"id": "first", "content": "same"}, {"id": "second", "content": "same"}],
+        )
+        count = mod.rebuild_from_vectors(
+            conn,
+            {"second": [0.0] * 383 + [1.0], "first": [1.0] + [0.0] * 383},
+        )
+        assert count == 2
+        assert mod.search([1.0] + [0.0] * 383, k=1)[0]["neuron_id"] == "first"

@@ -26,11 +26,18 @@ from fastembed import TextEmbedding
 # Config
 # ---------------------------------------------------------------------------
 
-CLAUDE_MEM_DB = os.environ.get(
-    "CLAUDE_MEM_DB",
-    os.path.expanduser("~/.claude-mem/claude-mem.db"),
-)
+CLAUDE_MEM_DB = os.environ.get("CLAUDE_MEM_DB")
+if not CLAUDE_MEM_DB:
+    raise RuntimeError(
+        "CLAUDE_MEM_DB is required; refusing to fall back to a global database"
+    )
 PORT = int(os.environ.get("VEC_WORKER_PORT", "37701"))
+MODEL_CACHE_DIR = Path(
+    os.environ.get(
+        "FASTEMBED_CACHE_PATH",
+        str(Path(CLAUDE_MEM_DB).resolve().parent / "models"),
+    )
+).resolve()
 DIMENSIONS = 384  # all-MiniLM-L6-v2
 TOP_K = 10
 
@@ -44,8 +51,16 @@ _embedder: TextEmbedding | None = None
 def get_embedder() -> TextEmbedding:
     global _embedder
     if _embedder is None:
-        print(f"[vec-worker] Loading embedding model (all-MiniLM-L6-v2)...", flush=True)
-        _embedder = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        MODEL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        print(
+            "[vec-worker] Loading embedding model "
+            f"(all-MiniLM-L6-v2) from {MODEL_CACHE_DIR}...",
+            flush=True,
+        )
+        _embedder = TextEmbedding(
+            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            cache_dir=str(MODEL_CACHE_DIR),
+        )
     return _embedder
 
 

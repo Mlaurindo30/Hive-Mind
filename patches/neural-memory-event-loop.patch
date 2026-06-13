@@ -1,0 +1,33 @@
+diff --git a/src/neural_memory/utils/sandbox.py b/src/neural_memory/utils/sandbox.py
+index e4325cf..be856dc 100644
+--- a/src/neural_memory/utils/sandbox.py
++++ b/src/neural_memory/utils/sandbox.py
+@@ -111,0 +112,2 @@ def probe_aiosqlite_compat(
++        asyncio.get_running_loop()
++    except RuntimeError:
+@@ -113,5 +115,4 @@ def probe_aiosqlite_compat(
+-    except RuntimeError as exc:
+-        # Called from inside a running event loop (rare — library misuse).
+-        # We can't safely probe; default to OK and let the caller surface
+-        # any actual aiosqlite error itself.
+-        logger.debug("Cannot probe aiosqlite from running loop: %s", exc)
++    else:
++        # Do not construct _probe_coro before this check: asyncio.run would
++        # reject it and leave an un-awaited coroutine warning behind.
++        logger.debug("Cannot probe aiosqlite from a running event loop")
+diff --git a/tests/unit/test_sandbox_probe.py b/tests/unit/test_sandbox_probe.py
+index 252a7f0..d1fdf35 100644
+--- a/tests/unit/test_sandbox_probe.py
++++ b/tests/unit/test_sandbox_probe.py
+@@ -55,0 +56,11 @@ class TestProbeBasics:
++    def test_running_loop_does_not_construct_probe_coroutine(self) -> None:
++        async def _invoke() -> sandbox.ProbeResult:
++            with patch.object(sandbox, "_probe_coro") as probe:
++                result = sandbox.probe_aiosqlite_compat(force=True)
++                probe.assert_not_called()
++                return result
++
++        result = asyncio.run(_invoke())
++        assert result.ok
++        assert "already in event loop" in result.detail
++

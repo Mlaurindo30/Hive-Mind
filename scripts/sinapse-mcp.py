@@ -4,13 +4,13 @@ Sinapse Agent — MCP Server (stdio)
 Expoe ferramentas de leitura e escrita do vault para qualquer agente MCP.
 
 Uso:
-  python3 scripts/sinapse-mcp.py
+  .venv/bin/python scripts/sinapse-mcp.py
 
 Config MCP do agente:
   {
     "mcpServers": {
       "sinapse-memory": {
-        "command": "python3",
+        "command": "<SINAPSE_HOME>/.venv/bin/python",
         "args": ["scripts/sinapse-mcp.py"],
         "cwd": "<SINAPSE_HOME>",
         "transport": "stdio"

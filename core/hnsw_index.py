@@ -7,6 +7,8 @@ Depends on: hnswlib (optional). If not installed, all functions degrade graceful
 
 import logging
 import os
+import json
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -42,6 +44,24 @@ def _get_index_path() -> Path:
     return _INDEX_PATH
 
 
+def _get_map_path() -> Path:
+    return _get_index_path().with_suffix(".map.json")
+
+
+def _load_id_map() -> None:
+    global _id_to_label, _label_to_id, _next_label
+    map_path = _get_map_path()
+    if not map_path.exists():
+        _id_to_label = {}
+        _label_to_id = {}
+        _next_label = 0
+        return
+    data = json.loads(map_path.read_text())
+    _id_to_label = {str(k): int(v) for k, v in data.get("id_to_label", {}).items()}
+    _label_to_id = {label: neuron_id for neuron_id, label in _id_to_label.items()}
+    _next_label = max(_label_to_id, default=-1) + 1
+
+
 def load_or_create(dim: int | None = None) -> bool:
     """Load existing index from disk or create a new one. Returns True on success."""
     global _INDEX, _DIM, _id_to_label, _label_to_id, _next_label
@@ -60,6 +80,12 @@ def load_or_create(dim: int | None = None) -> bool:
         try:
             index.load_index(str(idx_path), max_elements=0)
             _INDEX = index
+            _load_id_map()
+            if index.get_current_count() != len(_label_to_id):
+                raise ValueError(
+                    "HNSW index/map count mismatch: "
+                    f"{index.get_current_count()} != {len(_label_to_id)}"
+                )
             logger.debug("HNSW: loaded index from %s", idx_path)
             return True
         except Exception as exc:
@@ -80,15 +106,40 @@ def load_or_create(dim: int | None = None) -> bool:
 
 
 def _save_index() -> None:
-    """Persist index to disk (best-effort)."""
+    """Persist index and label map with atomic replacements."""
     if _INDEX is None:
         return
+    idx_tmp = None
+    map_tmp = None
     try:
         idx_path = _get_index_path()
         idx_path.parent.mkdir(parents=True, exist_ok=True)
-        _INDEX.save_index(str(idx_path))
+        idx_fd, idx_name = tempfile.mkstemp(
+            prefix=f".{idx_path.name}.", dir=idx_path.parent
+        )
+        os.close(idx_fd)
+        idx_tmp = Path(idx_name)
+        map_path = _get_map_path()
+        map_fd, map_name = tempfile.mkstemp(
+            prefix=f".{map_path.name}.", dir=map_path.parent
+        )
+        os.close(map_fd)
+        map_tmp = Path(map_name)
+
+        _INDEX.save_index(str(idx_tmp))
+        map_tmp.write_text(
+            json.dumps({"id_to_label": _id_to_label}, sort_keys=True) + "\n"
+        )
+        os.replace(idx_tmp, idx_path)
+        os.replace(map_tmp, map_path)
     except Exception as exc:
         logger.warning("HNSW: could not save index: %s", exc)
+        raise
+    finally:
+        if idx_tmp is not None:
+            idx_tmp.unlink(missing_ok=True)
+        if map_tmp is not None:
+            map_tmp.unlink(missing_ok=True)
 
 
 def add_neuron(neuron_id: str, vector: list[float], conn=None) -> bool:
@@ -148,7 +199,7 @@ def search(query_vector: list[float], k: int = 10) -> list[dict]:
         return []
 
 
-def rebuild_from_db(conn, embed_fn) -> int:
+def rebuild_from_db(conn, embed_fn, *, commit: bool = True) -> int:
     """Rebuild full index from all neurons using embed_fn(text) -> list[float]. Returns count indexed."""
     global _INDEX, _id_to_label, _label_to_id, _next_label
 
@@ -178,10 +229,40 @@ def rebuild_from_db(conn, embed_fn) -> int:
             logger.warning("HNSW: rebuild skipped neuron %s: %s", nid, exc)
 
     _save_index()
+    if commit:
+        conn.commit()
     return count
 
 
-def incremental_update(conn, embed_fn) -> int:
+def rebuild_from_vectors(
+    conn,
+    vectors: dict[str, list[float]],
+    *,
+    commit: bool = True,
+) -> int:
+    """Rebuild the complete index from canonical vectors keyed by neuron ID."""
+    global _INDEX, _id_to_label, _label_to_id, _next_label
+
+    if _hnswlib is None or not vectors:
+        return 0
+    _INDEX = _hnswlib.Index(space="cosine", dim=_DIM)
+    _INDEX.init_index(max_elements=max(len(vectors), 100), ef_construction=200, M=16)
+    _INDEX.set_ef(50)
+    _id_to_label = {}
+    _label_to_id = {}
+    _next_label = 0
+
+    count = 0
+    for neuron_id, vector in vectors.items():
+        if add_neuron(neuron_id, vector, conn=conn):
+            count += 1
+    _save_index()
+    if commit:
+        conn.commit()
+    return count
+
+
+def incremental_update(conn, embed_fn, *, commit: bool = True) -> int:
     """Index neurons where indexed_at IS NULL. Returns count newly indexed."""
     if _hnswlib is None:
         return 0
@@ -206,5 +287,30 @@ def incremental_update(conn, embed_fn) -> int:
 
     if count > 0:
         _save_index()
+        if commit:
+            conn.commit()
 
+    return count
+
+
+def upsert_vectors(
+    conn,
+    vectors: dict[str, list[float]],
+    *,
+    commit: bool = True,
+) -> int:
+    """Add or replace already-computed vectors and persist the index."""
+    if _hnswlib is None or not vectors:
+        return 0
+    if _INDEX is None and not load_or_create():
+        return 0
+
+    count = 0
+    for neuron_id, vector in vectors.items():
+        if add_neuron(neuron_id, vector, conn=conn):
+            count += 1
+    if count:
+        _save_index()
+        if commit:
+            conn.commit()
     return count

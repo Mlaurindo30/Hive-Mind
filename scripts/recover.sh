@@ -1,48 +1,37 @@
 #!/bin/bash
-# Sinapse Agent — Disaster Recovery
-# Uso: bash scripts/recover.sh
+# Hive-Mind disaster recovery with consistent SQLite backup/restore.
 
 set -euo pipefail
 SINAPSE_HOME="${SINAPSE_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
-echo "=== Sinapse Agent — Disaster Recovery ==="
+PYTHON="$SINAPSE_HOME/.venv/bin/python"
+RECOVERY="$SINAPSE_HOME/scripts/recovery.py"
+export PATH="$SINAPSE_HOME/.venv/bin:$SINAPSE_HOME/rtk/target/release:/usr/local/bin:/usr/bin:/bin"
 
-# 1. Verificar graph.json
-if [ ! -f "$SINAPSE_HOME/cerebro/graphify-out/graph.json" ]; then
-    echo "[1/5] graph.json ausente — rebuild..."
-    cd "$SINAPSE_HOME" && graphify update cerebro/ 2>&1
-fi
-
-# 2. Verificar backup
-if [ -f "$SINAPSE_HOME/cerebro/graphify-out/graph.json.bak" ]; then
-    echo "[2/5] Backup encontrado — verificando integridade..."
-    python3 -c "import json; json.load(open('$SINAPSE_HOME/cerebro/graphify-out/graph.json.bak'))" 2>/dev/null && \
-        echo "  backup válido" || echo "  backup corrompido"
-fi
-
-# 3. Reiniciar worker claude-mem
-echo "[3/5] Reiniciando worker..."
-systemctl --user restart sinapse-claude-mem.service 2>/dev/null || \
-    echo "  systemd indisponível — inicie manualmente"
-
-# 4. Health check
-echo "[4/5] Health check..."
-sleep 2
-if curl -s --max-time 3 http://127.0.0.1:37700/health | grep -q '"status":"ok"'; then
-    echo "  ✓ worker healthy"
-else
-    echo "  ✗ worker não respondeu"
-fi
-
-# 5. Verificar plugin
-echo "[5/5] Verificando plugin..."
-python3 -c "
-import sys; sys.path.insert(0, '$SINAPSE_HOME/plugins/hermes')
-from importlib import import_module
-m = import_module('sinapse-memory')
-status = m.health_check()
-print(f'  Backends: {status[\"backends\"]}')
-print(f'  Graph nodes: {status[\"vault\"][\"graph_nodes\"]}')
-" 2>/dev/null || echo "  ✗ Plugin não carregou"
-
-echo ""
-echo "Recovery concluído."
+case "${1:-verify}" in
+    backup)
+        exec "$PYTHON" "$RECOVERY" backup "${@:2}"
+        ;;
+    verify)
+        exec "$PYTHON" "$RECOVERY" verify "${@:2}"
+        ;;
+    rebuild-indexes)
+        exec "$PYTHON" "$RECOVERY" rebuild-indexes "${@:2}"
+        ;;
+    restore)
+        if [[ $# -lt 2 ]]; then
+            echo "Uso: $0 restore BACKUP_DB [--rebuild-indexes]" >&2
+            exit 2
+        fi
+        backup="$2"
+        shift 2
+        systemctl --user stop sinapse-graphify-watch.service sinapse-api.service 2>/dev/null || true
+        trap 'systemctl --user start sinapse-graphify-watch.service sinapse-api.service 2>/dev/null || true' EXIT
+        "$PYTHON" "$RECOVERY" restore "$backup" "$@"
+        systemctl --user start sinapse-graphify-watch.service sinapse-api.service 2>/dev/null || true
+        trap - EXIT
+        ;;
+    *)
+        echo "Uso: $0 {backup|verify|rebuild-indexes|restore BACKUP_DB}" >&2
+        exit 2
+        ;;
+esac

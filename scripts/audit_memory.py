@@ -145,7 +145,8 @@ def run_audit(fix=False):
 
     # 2. Conflict Ingestion Loop
     conflicts_dir = Path(SINAPSE_HOME) / "cerebro" / "conflicts"
-    conflicts_dir.mkdir(parents=True, exist_ok=True)
+    if fix:
+        conflicts_dir.mkdir(parents=True, exist_ok=True)
     
     import json
     for conflict_file in atlas_root.rglob("*.sync-conflict-*.md"):
@@ -172,24 +173,27 @@ def run_audit(fix=False):
                     "metadata": conf_fm
                 }
                 
-                try:
-                    register_ambiguity(neuron_id, version_a, version_b)
-                    stats["conflicts_registered"] += 1
-                    print(f"  [C] Conflito registrado: {neuron_id} ({conflict_file.name})")
-                except Exception as e:
-                    print(f"  [!] Erro ao registrar conflito para {neuron_id}: {e}")
+                if fix:
+                    try:
+                        register_ambiguity(neuron_id, version_a, version_b)
+                        stats["conflicts_registered"] += 1
+                        print(f"  [C] Conflito registrado: {neuron_id} ({conflict_file.name})")
+                    except Exception as e:
+                        print(f"  [!] Erro ao registrar conflito para {neuron_id}: {e}")
+                else:
+                    print(f"  [C] Conflito detectado: {neuron_id} ({conflict_file.name})")
             else:
                 print(f"  [C] Conflito idêntico ao DB: {neuron_id} (Ignorando)")
         else:
             print(f"  [C] Conflito para neurônio AUSENTE: {neuron_id} (Ignorando)")
             
-        # Sempre move o arquivo de conflito para conflicts/ para limpar o Atlas
-        dest = conflicts_dir / conflict_file.name
-        try:
-            shutil.move(str(conflict_file), str(dest))
-            print(f"      -> Movido para cerebro/conflicts/")
-        except Exception as e:
-            print(f"      [!] Erro ao mover arquivo de conflito: {e}")
+        if fix:
+            dest = conflicts_dir / conflict_file.name
+            try:
+                shutil.move(str(conflict_file), str(dest))
+                print(f"      -> Movido para cerebro/conflicts/")
+            except Exception as e:
+                print(f"      [!] Erro ao mover arquivo de conflito: {e}")
 
     conn.close()
     

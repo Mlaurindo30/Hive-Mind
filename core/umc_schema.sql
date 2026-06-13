@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS neurons (
     community INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    visibility TEXT DEFAULT 'private'
+    visibility TEXT DEFAULT 'private',
+    indexed_at TIMESTAMP
 );
 
 -- Structural Layer (Synapses)
@@ -42,7 +43,11 @@ CREATE TABLE IF NOT EXISTS observations (
     metadata JSON,
     uuid TEXT,           -- Phase 8: P2P/Syncthing sync identifier
     source_machine TEXT, -- Phase 8: originating machine hostname
-    FOREIGN KEY(neuron_id) REFERENCES neurons(id) ON DELETE SET NULL
+    goal_id TEXT,        -- HM-11: objective that motivated the observation
+    why TEXT,            -- HM-11: explicit intent/reason
+    intent_source TEXT,  -- user, planner, dream_cycle, agent
+    FOREIGN KEY(neuron_id) REFERENCES neurons(id) ON DELETE SET NULL,
+    FOREIGN KEY(goal_id) REFERENCES goals(id) ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_observations_archived ON observations(archived);
@@ -135,6 +140,15 @@ CREATE TABLE IF NOT EXISTS causal_edges (
 );
 CREATE INDEX IF NOT EXISTS idx_causal_cause ON causal_edges(cause_neuron_id);
 CREATE INDEX IF NOT EXISTS idx_causal_effect ON causal_edges(effect_neuron_id);
+
+-- Phase HM-11: Intent Memory plans
+CREATE TABLE IF NOT EXISTS goals (
+    id TEXT PRIMARY KEY,
+    description TEXT NOT NULL,
+    steps_json TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 
 -- PRAGMAS for performance
 PRAGMA journal_mode = WAL;

@@ -39,7 +39,7 @@ Se estiver rodando em modo headless/CI (sem terminal interativo):
   HIVE_DREAMER_PROVIDER=google HIVE_DREAMER_MODEL=gemini-2.0-flash \
   GOOGLE_API_KEY=<sua_chave> ./install.sh --non-interactive
 
-Após a instalação, reinicie este agente para carregar as 9 tools do sinapse-memory.
+Após a instalação, reinicie este agente para carregar as 10 tools do sinapse-memory.
 ```
 
 ### Prompt de Registro do MCP (projeto já instalado)
@@ -109,7 +109,7 @@ Tools disponíveis:
   ┌───────────────────────────────┐   ┌─────────────────────────────┐
   │   sinapse-mcp.py              │   │   sinapse-memory.py          │
   │   MCP Server · stdio          │   │   Plugin Hermes/Thoth        │
-  │   9 tools · JSON-RPC          │   │   pre_gateway_dispatch       │
+  │   10 tools · JSON-RPC          │   │   pre_gateway_dispatch       │
   │                               │   │   post_tool_call             │
   │   sinapse-write.py (CLI)      │   │   on_session_end             │
   │   sinapse-api.py (REST :37702)│   │                              │
@@ -183,7 +183,7 @@ Tools disponíveis:
 | Captura Visual | `scripts/visual_capture.py` | Python/mss | Screenshots → `visual_memories` |
 | Portal Visual | `scripts/generate_portal.py` | Python | Gera `portal.canvas` (Obsidian Canvas) |
 | REST API | `scripts/sinapse-api.py` | FastAPI | Acesso remoto autenticado ao UMC (porta 37702) |
-| MCP Server | `scripts/sinapse-mcp.py` | Python | 9 tools via stdio JSON-RPC |
+| MCP Server | `scripts/sinapse-mcp.py` | Python | 10 tools via stdio JSON-RPC |
 | CLI | `scripts/sinapse-write.py` | Python | Subcomandos: decision, learning, query, health, session-end |
 | Graphify | `graphify/` | Python | Indexador estrutural do vault |
 | claude-mem | `claude-mem/` | TypeScript/Bun | Tracking de eventos de agentes (porta 37700) |

@@ -9,4 +9,4 @@ if [ ! -f "$GRAPH_PATH" ]; then
     exit 1
 fi
 
-exec python3 -m graphify.serve "$GRAPH_PATH" "$@"
+exec "$SINAPSE_HOME/.venv/bin/python" -m graphify.serve "$GRAPH_PATH" "$@"

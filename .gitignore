@@ -47,6 +47,8 @@ rtk/
 .env
 *.secret
 config/keys/
+config/component-lock-backups/
+.tools/
 
 # ── Bancos de dados locais (memória pessoal — nunca commitar) ───────
 hive_mind.db

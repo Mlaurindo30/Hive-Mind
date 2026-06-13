@@ -36,12 +36,17 @@ class TestHybridSearch(unittest.TestCase):
         self._orig_graph = sm.GRAPH_JSON
         self._orig_fs_cache = sm._FS_CACHE.copy()
         self._orig_fs_time = sm._FS_CACHE_TIME
+        self._orig_umc = sm._backend_umc
 
         # Point plugin ao vault tmp
         sm.VAULT_DIR = self.vault_dir
         sm.GRAPH_JSON = os.path.join(self.vault_dir, "graph.json")
         sm._FS_CACHE.clear()
         sm._FS_CACHE_TIME = 0
+        # Neutraliza o UMC: o core backend_filesystem agora tenta UMC/FTS5
+        # primeiro (otimização). Estes testes isolam o backend FILESYSTEM,
+        # então desabilitamos o UMC para exercitar o walk de disco do vault tmp.
+        sm._backend_umc = lambda q: None
 
     def tearDown(self):
         shutil.rmtree(self.tmpdir)
@@ -49,6 +54,7 @@ class TestHybridSearch(unittest.TestCase):
         sm.GRAPH_JSON = self._orig_graph
         sm._FS_CACHE = self._orig_fs_cache
         sm._FS_CACHE_TIME = self._orig_fs_time
+        sm._backend_umc = self._orig_umc
 
     def test_newly_written_note_found(self):
         """Nota escrita agora é encontrada pelo filesystem (gap de 6h eliminado)."""

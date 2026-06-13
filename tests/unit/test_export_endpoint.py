@@ -89,8 +89,14 @@ def _make_conn(rows=None):
     if rows:
         for r in rows:
             conn.execute(
-                "INSERT INTO neurons (id, label, type, visibility) VALUES (?, ?, ?, ?)",
-                (r["id"], r["label"], r["type"], r["visibility"]),
+                "INSERT INTO neurons (id, label, type, visibility, metadata) VALUES (?, ?, ?, ?, ?)",
+                (
+                    r["id"],
+                    r["label"],
+                    r["type"],
+                    r["visibility"],
+                    r.get("metadata"),
+                ),
             )
     conn.commit()
     return conn
@@ -166,6 +172,32 @@ class TestExportEndpoint:
         assert data["count"] == 1
         assert data["neurons"][0]["id"] == "f1"
 
+    def test_export_does_not_relay_federated_neurons(self, api_mod, client):
+        rows = [
+            {
+                "id": "local",
+                "label": "local",
+                "type": "fact",
+                "visibility": "shared",
+            },
+            {
+                "id": "federated:peer:n1",
+                "label": "relayed",
+                "type": "fact",
+                "visibility": "shared",
+                "metadata": json.dumps({"federated": True}),
+            },
+        ]
+        conn = _make_conn(rows)
+        with patch.object(api_mod, "get_connection", return_value=conn):
+            resp = client.post(
+                "/api/v1/neurons/export",
+                json={"redact": False},
+                headers=_auth_headers(),
+            )
+        assert resp.status_code == 200
+        assert [item["id"] for item in resp.json()["neurons"]] == ["local"]
+
     def test_export_redact_called(self, api_mod, client):
         """redact_neuron must be called once per exported neuron when redact=True."""
         rows = [
@@ -208,3 +240,47 @@ class TestExportEndpoint:
         data = resp.json()
         assert mock_sign.call_count == 1
         assert data["neurons"][0]["_signature"] == "sig"
+
+    def test_export_fails_closed_when_redaction_fails(self, api_mod, client):
+        rows = [
+            {"id": "r1", "label": "secret", "type": "fact", "visibility": "shared"},
+        ]
+        conn = _make_conn(rows)
+        fake_redactor = MagicMock()
+        fake_redactor.redact_neuron.side_effect = RuntimeError("redactor unavailable")
+
+        with patch.object(api_mod, "get_connection", return_value=conn):
+            with patch.dict("sys.modules", {"core.redactor": fake_redactor}):
+                resp = client.post(
+                    "/api/v1/neurons/export",
+                    json={"redact": True},
+                    headers=_auth_headers(),
+                )
+
+        assert resp.status_code == 500
+        assert "redactor unavailable" in resp.json()["detail"]
+        assert "neurons" not in resp.json()
+
+    def test_export_fails_closed_when_signing_fails(self, api_mod, client):
+        rows = [
+            {"id": "s1", "label": "shared", "type": "fact", "visibility": "shared"},
+        ]
+        conn = _make_conn(rows)
+        fake_signing = MagicMock()
+        fake_signing.sign_neuron.side_effect = FileNotFoundError("private key missing")
+        fake_redactor = MagicMock(redact_neuron=lambda neuron: neuron)
+
+        with patch.object(api_mod, "get_connection", return_value=conn):
+            with patch.dict(
+                "sys.modules",
+                {"core.signing": fake_signing, "core.redactor": fake_redactor},
+            ):
+                resp = client.post(
+                    "/api/v1/neurons/export",
+                    json={"sign": True, "redact": True},
+                    headers=_auth_headers(),
+                )
+
+        assert resp.status_code == 500
+        assert "private key missing" in resp.json()["detail"]
+        assert "neurons" not in resp.json()

@@ -57,7 +57,7 @@
                        ▼                         │             ▼
   ┌────────────────────────────────┐             │  ┌──────────────────────┐
   │  sinapse-mcp.py (MCP Server)  │             │  │ sinapse-memory.py    │
-  │  9 tools · stdio JSON-RPC     │             │  │ Plugin Hermes         │
+  │  10 tools · stdio JSON-RPC     │             │  │ Plugin Hermes         │
   │                               │             │  │ pre_gateway_dispatch │
   │  sinapse-write.py (CLI)        │             │  │ post_tool_call       │
   │  sinapse-api.py (REST :37702)  │             │  │ on_session_end       │

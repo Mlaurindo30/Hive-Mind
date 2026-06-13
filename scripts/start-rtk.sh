@@ -12,9 +12,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 echo "[sinapse] Verificando RTK..."
+export PATH="$PROJECT_ROOT/rtk/target/release:/usr/local/bin:/usr/bin:/bin"
 
 if ! command -v rtk &>/dev/null; then
-    echo "[sinapse] RTK não instalado. Execute: pip install rtk"
+    echo "[sinapse] RTK local não compilado. Execute: cargo build --release --manifest-path rtk/Cargo.toml"
     exit 1
 fi
 
@@ -30,7 +31,7 @@ else
     mkdir -p "$HERMES_PLUGIN_DIR"
     cp "$PROJECT_ROOT/rtk/hermes-plugin/"* "$HERMES_PLUGIN_DIR/" 2>/dev/null || {
         echo "[sinapse] ✗ Plugin RTK não encontrado no projeto."
-        echo "[sinapse]   Execute: pip install rtk && rtk hermes install"
+        echo "[sinapse]   Compile o checkout local e valide rtk/target/release/rtk."
         exit 1
     }
     echo "[sinapse] ✓ Plugin copiado. Reinicie o Hermes para ativar."

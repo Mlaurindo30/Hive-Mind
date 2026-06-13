@@ -40,3 +40,14 @@ def ensure_backends():
         )
 
     return True
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Fail the integration suite when every collected test was skipped."""
+    reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+    if reporter is None:
+        return
+    passed = len(reporter.stats.get("passed", []))
+    skipped = len(reporter.stats.get("skipped", []))
+    if passed == 0 and skipped > 0:
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED

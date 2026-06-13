@@ -14,6 +14,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(dirname "$SCRIPT_DIR")}"
+PYTHON="$PROJECT_ROOT/.venv/bin/python"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -30,13 +31,13 @@ merge_mcp_server() {
     local FILE="$1"
     local ROOT_KEY="${2:-mcpServers}"
     mkdir -p "$(dirname "$FILE")"
-    MCP_TARGET_FILE="$FILE" MCP_ROOT_KEY="$ROOT_KEY" MCP_PROJECT_ROOT="$PROJECT_ROOT" python3 - << 'PYEOF'
+    MCP_TARGET_FILE="$FILE" MCP_ROOT_KEY="$ROOT_KEY" MCP_PROJECT_ROOT="$PROJECT_ROOT" "$PYTHON" - << 'PYEOF'
 import json, os
 path = os.environ["MCP_TARGET_FILE"]
 root_key = os.environ["MCP_ROOT_KEY"]
 project_root = os.environ["MCP_PROJECT_ROOT"]
 entry = {
-    "command": "python3",
+    "command": f"{project_root}/.venv/bin/python",
     "args": [f"{project_root}/scripts/sinapse-mcp.py"],
     "cwd": project_root,
 }
@@ -62,7 +63,7 @@ PYEOF
 has_registration() {
     local FILE="$1"
     local ROOT_KEY="${2:-mcpServers}"
-    [ -f "$FILE" ] && python3 -c "
+    [ -f "$FILE" ] && "$PYTHON" -c "
 import json, sys
 try:
     cfg = json.load(open('$FILE'))
@@ -166,6 +167,6 @@ fi
 if $CHECK_ONLY; then
     echo "$AGENTS_FOUND agente(s) detectado(s). Rode sem --check para registrar."
 else
-    echo "$AGENTS_FOUND agente(s) registrado(s). Reinicie cada agente para carregar as 9 tools."
-    echo "Teste em qualquer agente: peça \"use a tool sinapse_health\"."
+    echo "$AGENTS_FOUND agente(s) registrado(s). Reinicie cada agente para carregar as 10 tools."
+echo "Teste em qualquer agente: peça \"use a tool sinapse_health\"."
 fi

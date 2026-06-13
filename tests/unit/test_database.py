@@ -18,7 +18,13 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from core.database import ensure_migrations, generate_uuid, execute_insert, serialize_f32
+from core.database import (
+    add_observation,
+    ensure_migrations,
+    execute_insert,
+    generate_uuid,
+    serialize_f32,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +147,52 @@ class TestEnsureMigrations:
         ).fetchall()
         index_names = [row[0] for row in indices]
         assert "idx_observations_archived" in index_names
+
+    def test_ensure_migrations_adds_intent_memory_schema(self):
+        conn = sqlite3.connect(":memory:")
+        _make_observations_table(conn)
+
+        ensure_migrations(conn)
+
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(observations)")}
+        assert {"goal_id", "why", "intent_source"} <= cols
+        assert conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='goals'"
+        ).fetchone()
+
+
+def test_add_observation_persists_intent_fields(monkeypatch, tmp_path):
+    import core.database as db_module
+
+    db_path = tmp_path / "intent.db"
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    _make_observations_table(conn)
+    ensure_migrations(conn)
+    conn.close()
+
+    def _connect():
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    monkeypatch.setattr(db_module, "get_connection", _connect)
+
+    observation_id = add_observation(
+        "Production gate",
+        "Finish P0",
+        goal_id="goal-1",
+        why="Make deployment safe",
+        intent_source="user",
+    )
+
+    check = _connect()
+    row = check.execute(
+        "SELECT goal_id, why, intent_source FROM observations WHERE id=?",
+        (observation_id,),
+    ).fetchone()
+    assert tuple(row) == ("goal-1", "Make deployment safe", "user")
+    check.close()
 
 
 # ---------------------------------------------------------------------------
