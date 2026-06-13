@@ -456,13 +456,17 @@ def discover_models_realtime(only_provider: str = None):
                                         found.append(slug)
                         except Exception as e:
                             print(f"[auth] Falha ao listar modelos Codex (OAuth): {e}", file=sys.stderr)
-                        # Mostra SÓ o que a conta OAuth realmente expõe. Catálogo
-                        # curado é usado apenas como fallback quando o backend
-                        # está inacessível (offline/expirado) — não injetado por
-                        # cima da lista real (a descoberta reflete o auth ativo).
-                        if not found:
-                            found = list(_OPENAI_CODEX_CURATED)
-                        for m_id in found:
+                        # A listagem do backend só traz os modelos "featured"
+                        # atuais (gpt-5.4/5.5...), mas a conta OAuth consegue
+                        # CHAMAR os codex mais antigos (gpt-5.3-codex etc.) —
+                        # como o codex CLI/openclaw/hermes expõem. Une os vivos
+                        # com o catálogo curado do Codex (mundo OAuth, não API key),
+                        # preservando os vivos primeiro.
+                        merged = list(found)
+                        for m_id in _OPENAI_CODEX_CURATED:
+                            if m_id not in merged:
+                                merged.append(m_id)
+                        for m_id in merged:
                             all_discovered.append({"id": m_id, "provider": name, "display": f"[{name}] {m_id}"})
                         break
                     else:
