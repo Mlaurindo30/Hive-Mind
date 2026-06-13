@@ -1,6 +1,6 @@
 # Arquitetura — Hive-Mind v2.0.0
 
-> Referência canônica de arquitetura. Atualizado em 2026-06-10.
+> Referência canônica de arquitetura. Atualizado em 2026-06-13.
 > Para uso rápido: [`../README.md`](../README.md) · Para guia de agentes: [`../AGENTS.md`](../AGENTS.md)
 
 ---
@@ -23,7 +23,10 @@
 14. [Testes e Qualidade](#14-testes-e-qualidade)
 15. [Disaster Recovery](#15-disaster-recovery)
 16. [Referência de Configuração](#16-referência-de-configuração)
-17. [Decisões de Design (ADRs)](#17-decisões-de-design-adrs)
+17. [Fase HM-11: Deep Reflection](#17-fase-hm-11-deep-reflection-raciocínio-de-longo-prazo)
+18. [Fase HM-12: Federated Swarm](#18-fase-hm-12-enxame-federado-federated-swarm)
+19. [Decisões de Design (ADRs)](#19-decisões-de-design-adrs)
+20. [Governança de Fases](#20-governança-de-fases)
 
 ---
 
@@ -130,6 +133,9 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
   hash         SHA-256           content
   metadata     JSON              archived      0=pendente 1=ok 2=quarentena
   community    Leiden cluster    neuron_id     FK→neurons (opcional)
+  visibility   private|shared|   goal_id       FK→goals (HM-11)
+               public (HM-12)    why           TEXT (HM-11)
+  indexed_at   TIMESTAMP (HM-11)
   created_at
   updated_at                     ambiguities (UUID v4)
        │                         ────────────────────
@@ -141,16 +147,26 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
   label                           content_b
   content                         status   pending|synthesized|branched
   tokenize=unicode61
-                                 visual_memories / document_memories
-  search_vec (vec0)              ──────────────────────────────────
-  ──────────────────             id, path, description/summary
-  neuron_id   PK                 topics, hash (dedup), neuron_id FK
-  embedding   FLOAT[384]
-                                 vault (segredos cifrados)
-  synapses (UUID v4)             ───────────────────────
-  ─────────────────              id             PK
-  id          PK                 encrypted_secret  BLOB (Fernet)
-  source_id   FK→neurons         metadata          JSON
+                                 causal_edges (HM-11)
+  search_vec (vec0)              ────────────────────
+  ──────────────────             id             PK
+  neuron_id   PK                 cause_neuron_id FK→neurons
+  embedding   FLOAT[384]         effect_neuron_id FK→neurons
+                                 label, confidence, source
+                                 (índices em causa e efeito)
+
+  goals (HM-11)                  visual_memories / document_memories
+  ─────────────                  ──────────────────────────────────
+  id          PK                 id, path, description/summary
+  description                    topics, hash (dedup), neuron_id FK
+  steps_json  TEXT (JSON)
+  status      active|…           vault (segredos cifrados)
+  created_at                     ───────────────────────
+                                 id             PK
+  synapses (UUID v4)             encrypted_secret  BLOB (Fernet)
+  ─────────────────              metadata          JSON
+  id          PK
+  source_id   FK→neurons
   target_id   FK→neurons
   relation    TEXT
   weight      FLOAT
@@ -418,6 +434,7 @@ stdio JSON-RPC, compatível com qualquer cliente MCP.
 | `sinapse_temporal_save` | `(content, type?)` | Observação (fallback: vault) |
 | `sinapse_zettelkasten_split` | `(file_path)` | Nota monolítica → notas atômicas Zettelkasten |
 | `sinapse_capture_screen` | `(description?)` | Screenshot → `visual_memories` |
+| `sinapse_plan_goal` | `(goal, context?)` | Decompõe objetivo em passos atômicos e salva no Intent Memory |
 
 **Configs MCP por agente** (templates em `mcp/`):
 Claude Code: `~/.claude/.mcp.json` · Codex: `~/.codex/mcp.json` · Cursor: `.cursor/mcp.json` · Gemini: `~/.gemini/settings.json`
@@ -442,15 +459,16 @@ def register(ctx):
 FastAPI, porta `HIVE_MIND_API_PORT` (default **37702**). Fail-closed sem `HIVE_MIND_API_KEY`.
 
 ```
-  ┌────────────────────┬───────────┬─────────┬───────────────────────────┐
-  │ Endpoint           │ Método    │ Auth    │ Rate      │ Descrição      │
-  ├────────────────────┼───────────┼─────────┼───────────┼────────────────┤
-  │ /api/v1/health     │ GET       │ —       │ 60/min    │ Health check   │
-  │ /api/v1/observati. │ POST      │ Bearer  │ 20/min    │ Nova observação│
-  │ /api/v1/query      │ POST      │ Bearer  │ 30/min    │ Busca híbrida  │
-  │ /api/v1/semantic/. │ GET       │ Bearer  │ —         │ Vizinhos sem.  │
-  │ /api/v1/vault/{id} │ GET       │ Bearer  │ 10/min    │ Segredo cifrado│
-  └────────────────────┴───────────┴─────────┴───────────┴────────────────┘
+  ┌────────────────────────┬────────┬────────┬──────────┬────────────────────────────────────────────┐
+  │ Endpoint               │ Método │ Auth   │ Rate     │ Descrição                                  │
+  ├────────────────────────┼────────┼────────┼──────────┼────────────────────────────────────────────┤
+  │ /api/v1/health         │ GET    │ —      │ 60/min   │ Health check                               │
+  │ /api/v1/observations   │ POST   │ Bearer │ 20/min   │ Nova observação                            │
+  │ /api/v1/query          │ POST   │ Bearer │ 30/min   │ Busca híbrida                              │
+  │ /api/v1/semantic/…     │ GET    │ Bearer │ —        │ Vizinhos semânticos                        │
+  │ /api/v1/vault/{id}     │ GET    │ Bearer │ 10/min   │ Segredo cifrado                            │
+  │ /api/v1/neurons/export │ POST   │ Bearer │ 10/min   │ Export neurônios shared/public (HM-12)     │
+  └────────────────────────┴────────┴────────┴──────────┴────────────────────────────────────────────┘
 ```
 
 ---
@@ -620,7 +638,7 @@ Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiL
 | E2E | `tests/e2e/` | Backends reais | Sessão completa, degradação graceful, concorrência, recovery, edge cases |
 | Síntese | `tests/test_synthesis.py` | **Sim** | `run_synthesis_cycle()` com modelo real do `.env` |
 
-**116 testes coletáveis** (2026-06-10). Regra: testes unitários nunca chamam LLM — testam a lógica ao redor do modelo, não o modelo.
+**191 testes coletáveis** (2026-06-13). Regra: testes unitários nunca chamam LLM — testam a lógica ao redor do modelo, não o modelo.
 
 ---
 
@@ -673,7 +691,105 @@ cron:           # sync_schedule ("0 */6 * * *"), rebuild_schedule ("0 2 * * 0")
 
 ---
 
-## 17. Decisões de Design (ADRs)
+## 17. Fase HM-11: Deep Reflection (Raciocínio de Longo Prazo)
+
+### Intent Memory (goal_id / why)
+
+Cada observação pode agora carregar as colunas `goal_id` (FK para a tabela `goals`) e `why` (motivo textual). O `DistillerOutput` (`core/schemas/dream_models.py`) também expõe esses dois campos opcionais, de modo que cada conjunto de fatos extraídos numa sessão do Dream Cycle fica vinculado ao objetivo ativo que os motivou.
+
+### Agente Planner (`scripts/planner.py`)
+
+Decomposição de objetivos em passos atômicos via LLM com saída Pydantic validada.
+
+| Função | Assinatura | O que faz |
+|--------|-----------|-----------|
+| `decompose_goal` | `(goal, context?) → list[dict]` | Chama o LLM com prompt estruturado; retorna lista de passos `{id, action, why, depends_on}`; em caso de falha retorna passo fallback com o objetivo original |
+| `save_goal` | `(goal, steps, db_conn?) → goal_id` | Persiste objetivo e JSON dos passos na tabela `goals`; cria a tabela se não existir (idempotente) |
+
+Schemas: `GoalStep` (id, action, why, depends_on) e `GoalPlan` (lista de GoalStep). O tool MCP `sinapse_plan_goal` expõe os dois numa chamada só (`goal` obrigatório, `context` opcional).
+
+### Grafo de Causalidade (`core/database.py`)
+
+Tabela `causal_edges` registra relações causa→efeito entre neurônios. A função `get_causal_neighbors(conn, neuron_id, hops=2)` faz BFS multi-hop retornando `[{neuron_id, label, confidence}]`. Índices em `cause_neuron_id` e `effect_neuron_id` para queries eficientes. Migração aplicada automaticamente via `ensure_migrations()`.
+
+### Índice HNSW Incremental (`core/hnsw_index.py`)
+
+Índice vetorial baseado em `hnswlib` (coseno, 384 dimensões por padrão via `HNSW_DIM`), persistido em `hnsw_neurons.idx` na mesma pasta do `hive_mind.db`. Degrada gracefully se `hnswlib` não estiver instalado (aviso de log, sem crash).
+
+| Função | O que faz |
+|--------|-----------|
+| `load_or_create(dim?)` | Carrega índice do disco ou cria novo (max_elements=10 000, M=16, ef_construction=200) |
+| `add_neuron(neuron_id, vector, conn?)` | Adiciona/atualiza vetor; marca `indexed_at` no DB se conn fornecido; expande o índice automaticamente quando cheio |
+| `search(query_vector, k=10)` | Retorna top-k vizinhos `[{neuron_id, distance}]` |
+| `rebuild_from_db(conn, embed_fn)` | Reconstrói índice completo a partir de todos os neurônios com conteúdo |
+| `incremental_update(conn, embed_fn)` | Indexa apenas neurônios com `indexed_at IS NULL`; persiste ao disco se indexou ao menos um |
+
+---
+
+## 18. Fase HM-12: Enxame Federado (Federated Swarm)
+
+### Modelo de Visibilidade
+
+Coluna `visibility TEXT DEFAULT 'private'` em `neurons`. Três valores possíveis:
+
+| Valor | Significado |
+|-------|-------------|
+| `private` | Exclusivo da máquina local — nunca exportado |
+| `shared` | Pode ser exportado para outros nós confiáveis |
+| `public` | Pode ser exportado irrestritamente |
+
+O endpoint de export filtra automaticamente para `visibility IN ('shared', 'public')`.
+
+### Endpoint de Export (`POST /api/v1/neurons/export`)
+
+Requer Bearer token + rate-limit 10/min. Corpo da requisição:
+
+```json
+{
+  "filters": { "type": "fact", "created_after": "2026-01-01" },
+  "sign": false,
+  "redact": true
+}
+```
+
+Retorna `{ neurons, count, exported_at, schema_version: "1.0" }`. Redação ativada por padrão (`redact=true`). Assinatura desativada por padrão (`sign=false`).
+
+### Assinatura Ed25519 (`core/signing.py`)
+
+Chaves PEM armazenadas em `config/keys/` (`SINAPSE_HOME/config/keys/`). Chave privada criada com `chmod 0600`.
+
+| Função | O que faz |
+|--------|-----------|
+| `generate_keypair(name="default")` | Gera par Ed25519 e persiste como `{name}_privkey.pem` / `{name}_pubkey.pem`; retorna `{name, fingerprint, pubkey_path}` |
+| `load_private_key(name)` / `load_public_key(name)` | Carrega PEM do disco |
+| `sign_neuron(neuron, key_name)` | Retorna cópia do neurônio com `_signature` (base64 Ed25519) e `_pubkey_fingerprint` (SHA-256 hex do DER público) |
+| `verify_neuron(neuron, pubkey)` | Verifica assinatura; retorna `True`/`False`; nunca levanta em assinatura inválida |
+| `fingerprint(pubkey)` | SHA-256 hex do DER da chave pública |
+
+O payload canônico exclui campos voláteis (`created_at`, `updated_at`, `indexed_at`) e campos de assinatura para garantir determinismo entre nós.
+
+### Redação de PII (`core/redactor.py`)
+
+Redação irreversível aplicada ao `content` e `label` dos neurônios antes do export. Neurônios locais nunca são modificados.
+
+| Função | O que faz |
+|--------|-----------|
+| `redact_for_export(text)` | Aplica todas as regras em sequência; retorna novo string sem PII |
+| `redact_neuron(neuron)` | Deep-copy do dict; redige `content` e `label`; demais campos passam intactos |
+
+8 categorias de regras (ordem importa — mais específicas antes):
+1. Tokens de API (`sk-*`, `GOCSPX-*`, `ghp_*`, JWTs, `Bearer …`)
+2. E-mails
+3. IPv4
+4. IPv6
+5. Paths absolutos (`/home/`, `/root/`, `/Users/`, `/var/`)
+6. Blocos de chave privada SSH/PEM
+7. CPF / CNPJ (antes de telefone para evitar sobreposição)
+8. Telefones (broad pattern, roda por último)
+
+---
+
+## 19. Decisões de Design (ADRs)
 
 Registro das decisões arquiteturais que moldaram o design atual. Cada ADR documenta o contexto, a decisão tomada, o rationale e os trade-offs aceitos.
 
@@ -733,7 +849,7 @@ Registro das decisões arquiteturais que moldaram o design atual. Cada ADR docum
 
 ---
 
-## 18. Governança de Fases
+## 20. Governança de Fases
 
 ### Namespace de Fases
 
@@ -761,8 +877,8 @@ Violações desta regra foram a causa da divergência entre estado declarado e e
 |------|------|--------|
 | HM-01 a HM-09 | Fundação (UMC, busca, P2P, síntese) | ✅ Concluída |
 | HM-10 | Deep Portal (multimodal) | ✅ Concluída |
-| HM-11 | Deep Reflection (raciocínio longo prazo) | ⏳ Planejada — ver `docs/plans/2026-06-12-inovacao-tecnologias-emergentes.md` |
-| HM-12 | Federated Swarm (marketplace de memórias) | ⏳ Planejada — idem |
+| HM-11 | Deep Reflection (raciocínio longo prazo) | ✅ Concluída |
+| HM-12 | Federated Swarm (compartilhamento seletivo) | ✅ Concluída |
 
 ### Arquivos de Vault com Convenção Antiga
 
