@@ -2,10 +2,10 @@
 
 > **Camada de memória universal, persistente e local-first para enxames de agentes de IA.**
 
-[![Status](https://img.shields.io/badge/status-Fase%2010%20(Multimodal)-blue)]()
+[![Status](https://img.shields.io/badge/status-Fase%20HM--12%20(Federated%20Swarm)-blue)]()
 [![Python](https://img.shields.io/badge/python-3.10%2B-green)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-lightgrey)]()
-[![Tests](https://img.shields.io/badge/tests-116%20coletáveis-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-191%20passando-brightgreen)]()
 
 O **Hive-Mind** resolve a amnésia entre sessões dos agentes de IA. Tudo o que os agentes **fazem** (logs), **veem** (capturas de tela), **leem** (PDF/DOCX) e **decidem** é consolidado em um único cérebro persistente — o **Unified Memory Core (UMC)** — e materializado em linguagem natural num vault Obsidian (`cerebro/`), a fonte única de verdade legível por humanos e agentes.
 
@@ -231,6 +231,21 @@ Consolidação offline: o que o agente vive durante o dia (observações brutas)
 - **Fail-safe:** pipeline que falha envia dados para quarentena (`archived=2`), nunca os descarta. Erros transitórios fazem retry com backoff; falha de validação Pydantic nunca dispara fallback.
 - **Multimodal:** screenshots e PDFs/DOCX entram no mesmo pipeline que os logs.
 
+### HM-11 — Deep Reflection
+
+- **`scripts/planner.py`** — decomposição de objetivos em etapas (`decompose_goal`, `save_goal`); exposto como MCP tool `sinapse_plan_goal`.
+- **`core/hnsw_index.py`** — índice vetorial incremental HNSW (hnswlib, espaço coseno); coluna `indexed_at` nas neurons atualizada a cada inserção.
+- **Grafo de causalidade** — tabela `causal_edges` no UMC + `get_causal_neighbors()` (BFS em `core/database.py`); campos `goal_id` e `why` em observations e `DistillerOutput`.
+
+### HM-12 — Federated Swarm
+
+- **`core/signing.py`** — geração de par Ed25519, `sign_neuron()` / `verify_neuron()`; chaves persistidas em `config/keys/` (gitignored).
+- **`core/redactor.py`** — `redact_for_export()` / `redact_neuron()`; cobre 8 categorias de PII antes de qualquer exportação.
+- **`POST /api/v1/neurons/export`** — exporta neurons por visibilidade (`private`/`shared`/`public`), com filtros de tipo/data, assinatura Ed25519 e redação automática de PII.
+- **`scripts/syncthing_watcher.py`** — detecção de conflitos Syncthing em tempo real via REST API (`.sync-conflict-*`).
+- **`scripts/hive_analytics.py`** — camada analítica DuckDB; queries `growth`, `top_topics`, `quarantine_rate`, `intent_by_goal`.
+- **`core/memory/`** — pacote de 13 módulos resultante do refactor do monólito `sinapse-memory.py`.
+
 ```bash
 ./scripts/setup-dreamer.sh   # configurar LLM por papel (+ fallback opcional)
 python3 scripts/dream_cycle.py  # disparar consolidação
@@ -246,6 +261,8 @@ python3 scripts/dream_cycle.py  # disparar consolidação
 |-------------|--------------|-----------|
 | Python 3.10+ | Sim | UMC, Dream Cycle, MCP, API |
 | SQLite 3 + sqlite-vec | Sim (instalado via pip) | UMC |
+| hnswlib | Sim (pip) | Índice HNSW incremental (HM-11) |
+| duckdb | Sim (pip) | Analytics layer (HM-12) |
 | Node.js 18+ / Bun 1.0+ | Para claude-mem | Camada temporal |
 | Rust (cargo) | Para RTK | Camada de execução |
 | Ollama | Opcional | LLM/embeddings locais |
@@ -363,6 +380,7 @@ flatpak run md.obsidian.Obsidian --vault ~/Documentos/Projects/Hive-Mind/cerebro
 | `sinapse_temporal_save` | Salva observação (com fallback para o vault) |
 | `sinapse_zettelkasten_split` | Particiona notas monolíticas em notas atômicas |
 | `sinapse_capture_screen` | Captura tela → memória visual |
+| `sinapse_plan_goal` | Decompõe objetivo em etapas e persiste no UMC (HM-11) |
 
 **Configuração MCP por agente** (templates em `mcp/`):
 
@@ -393,6 +411,7 @@ python3 scripts/sinapse-api.py    # porta 37702
 | `/api/v1/query` | POST | 30/min | Busca híbrida remota |
 | `/api/v1/semantic/related` | GET | — | Vizinhos semânticos de um arquivo |
 | `/api/v1/vault/{secret_id}` | GET | 10/min | Recupera segredo cifrado |
+| `/api/v1/neurons/export` | POST | 20/min | Exporta neurons por visibilidade, com assinatura Ed25519 e redação de PII |
 
 Chaveamento local → cloud no `sinapse.yaml`:
 ```yaml
@@ -448,7 +467,7 @@ Setup completo: [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md)
 | E2E | Sessão completa, degradação, concorrência, recovery | Backends reais |
 | Síntese (`test_synthesis.py`) | `run_synthesis_cycle()` ponta a ponta | **Sim** |
 
-**116 testes coletáveis.** Testes unitários nunca chamam LLM — testam a lógica ao redor do modelo, não o modelo.
+**191 testes passando.** Testes unitários nunca chamam LLM — testam a lógica ao redor do modelo, não o modelo.
 
 ---
 
@@ -489,9 +508,9 @@ Setup completo: [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md)
 | 7 | Ciclo de Sonho — Hive-Dreamer | ✅ Concluído |
 | 8 | Enxame multi-máquina (P2P / UUID v4 / Syncthing) | ✅ Concluído |
 | 9 | Fusão semântica e consenso (Síntese Dialética) | ✅ Concluído |
-| 10 | Deep Portal — memória visual e documental | 🔄 Em finalização |
-| 11 | Deep Reflection — Planner + memória de intenção + grafo de causalidade | 📋 Planejado |
-| 12 | Federated Swarm — compartilhamento seletivo entre enxames + privacidade | 📋 Planejado |
+| 10 | Deep Portal — memória visual e documental | ✅ Concluído |
+| HM-11 | Deep Reflection — Planner + memória de intenção + grafo de causalidade | ✅ Concluído |
+| HM-12 | Federated Swarm — compartilhamento seletivo entre enxames + privacidade | ✅ Concluído |
 
 Detalhes: [`PROJECT_STATUS.md`](PROJECT_STATUS.md) · [`IMPLEMENTATION.md`](IMPLEMENTATION.md) · [`docs/01-architecture.md`](docs/01-architecture.md)
 

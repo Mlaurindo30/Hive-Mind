@@ -7,7 +7,7 @@
 #
 # O que este script faz:
 #   1. Verifica dependências (Python 3.10+, uv/pipx, Node 18+, Bun, Ollama opcional)
-#   2. Instala dependências Python (requirements.txt: API, Core/UMC, Watcher, Multimodal)
+#   2. Instala dependências Python (requirements.txt: API, Core/UMC, Watcher, HM-11/12 Vector+Analytics, Multimodal)
 #   3. Instala Graphify (graphifyy[all]) e indexa o vault cerebro/ (Gemini→Ollama→AST)
 #   4. Registra skills nos agentes detectados (Hermes, Claude, Codex, etc.)
 #   5. Configura claude-mem, instala dependências, inicia worker (systemd)
@@ -138,8 +138,8 @@ echo ""
 echo -e "${BOLD}[2/12] Instalando dependências Python (requirements.txt)...${NC}"
 
 # Cobre todos os componentes: API REST (fastapi/uvicorn/slowapi/cryptography),
-# Core/UMC (pydantic/pyyaml/numpy/sqlite-vec/fastembed), Watcher (watchdog)
-# e Multimodal Fase 10 (mss/PyMuPDF/python-docx).
+# Core/UMC (pydantic/pyyaml/numpy/sqlite-vec/fastembed), Watcher (watchdog),
+# HM-11/12 Federated Swarm (hnswlib/duckdb) e Multimodal Fase 10 (mss/PyMuPDF/python-docx).
 if [ -f "$PROJECT_ROOT/requirements.txt" ]; then
     if [ "$INSTALL_METHOD" = "uv" ]; then
         uv pip install -r "$PROJECT_ROOT/requirements.txt" --quiet 2>/dev/null || \
