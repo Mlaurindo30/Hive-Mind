@@ -54,12 +54,17 @@ vision_prompt = load_yaml(PROMPTS_DIR / "vision_prompt.yaml")["system_prompt"]
 # ---------------------------------------------------------------------------
 # Chamada Segura a LLM — config por papel (core.auth) + cliente (core.llm_client)
 # ---------------------------------------------------------------------------
-from core.auth import get_role_config
+from core.auth import get_role_config, load_env
 from core.llm_client import (
     call_llm_structured as _call_llm_structured,
     call_llm_with_fallback,
     classify_llm_error,
 )
+
+# Garante que o .env está no os.environ antes de qualquer leitura de config.
+# O try/except dotenv acima falha silenciosamente quando python-dotenv não está
+# instalado, portanto usamos o load_env() nativo do core.auth como garantia.
+load_env()
 
 # Cérebro ativo do pipeline principal (papel "dreamer"). As globais existem
 # para que o fallback possa ser ativado em runtime (_activate_dreamer_fallback).
