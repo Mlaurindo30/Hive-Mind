@@ -12,6 +12,46 @@
 - Keep files under 500 lines
 - Validate input at system boundaries
 
+## Definition of Done (DoD) — Obrigatório em Todo Sprint
+
+**Um sprint SÓ está completo quando os 4 itens abaixo estiverem concluídos:**
+
+| # | Critério | Verificação |
+|---|----------|-------------|
+| 1 | **Código** — implementado e revisado | Todos os arquivos commitados |
+| 2 | **Testes** — passando, 0 skipped, 0 falhas | `python -m pytest tests/unit/ -q` verde |
+| 3 | **Docs** — `docs/01-architecture.md` e `PROJECT_STATUS.md` atualizados para cada novo módulo, endpoint e schema adicionado | grep do módulo nos docs retorna resultado |
+| 4 | **Relatório de entrega** — sumário explícito com: o que foi construído, interfaces públicas, config necessária, commits | Publicado ao usuário antes de fechar o sprint |
+
+### Agente de Documentação Paralelo (MANDATÓRIO)
+
+**A partir do kickoff de qualquer sprint com 2+ arquivos novos, spawnar em paralelo:**
+
+```javascript
+Agent({
+  name: "agent-docs",
+  run_in_background: true,
+  prompt: `Você é o agente de documentação do sprint [NOME].
+  Após cada módulo ser commitado pelo lead agent, leia o arquivo novo,
+  extraia: propósito, interface pública (assinaturas), configuração (env vars, paths), dependências.
+  Atualize docs/01-architecture.md e docs/plans/PROJECT_STATUS.md.
+  Nunca toque em arquivos .py ou de teste.
+  Ao final, reporte ao lead o que foi documentado.`
+})
+```
+
+### Checklist de Fechamento de Sprint
+
+Antes de commitar o último artefato, verificar:
+- [ ] `python -m pytest tests/unit/ -q` → tudo verde, 0 skipped
+- [ ] `grep -l "[novo-modulo]" docs/` → docs atualizados
+- [ ] Relatório de entrega escrito (4 colunas: item, arquivo, interface, status)
+- [ ] `git log --oneline -1` mostra commit semântico correto
+
+**Se qualquer item estiver faltando: não fechar o sprint. Corrigir primeiro.**
+
+---
+
 ## Agent Comms (SendMessage-First Coordination)
 
 Named agents coordinate via `SendMessage`, not polling or shared state.
