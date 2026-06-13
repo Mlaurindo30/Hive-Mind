@@ -160,6 +160,24 @@ TOOLS = [
                 }
             }
         }
+    },
+    {
+        "name": "sinapse_plan_goal",
+        "description": "Decompõe um objetivo em passos atômicos e salva no Intent Memory",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "goal": {
+                    "type": "string",
+                    "description": "Objetivo a ser decomposto em passos atômicos"
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Contexto adicional opcional para auxiliar na decomposição"
+                }
+            },
+            "required": ["goal"]
+        }
     }
 ]
 
@@ -177,6 +195,7 @@ HANDLERS = {
     "sinapse_temporal_save": lambda args: _temporal_save(args.get("content", ""), args.get("kind", "change")),
     "sinapse_zettelkasten_split": lambda args: _zettelkasten_split(args.get("source_file", ""), args.get("output_dir", "cerebro/atoms")),
     "sinapse_capture_screen": lambda args: _capture_screen(args.get("description", "")),
+    "sinapse_plan_goal": lambda args: _plan_goal(args.get("goal", ""), args.get("context")),
 }
 
 
@@ -285,6 +304,21 @@ def _temporal_save(content, kind="change"):
         return {"saved": True, "backend": "vault (fallback)", "content": content[:100]}
     except Exception as e:
         return {"saved": False, "error": str(e)}
+
+
+def _plan_goal(goal: str, context=None):
+    """Decompõe objetivo em passos via planner e persiste no Intent Memory."""
+    import importlib.util
+    import os
+    scripts_dir = os.path.dirname(__file__)
+    planner_path = os.path.join(scripts_dir, "planner.py")
+    spec = importlib.util.spec_from_file_location("planner", planner_path)
+    planner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(planner)
+
+    steps = planner.decompose_goal(goal, context)
+    goal_id = planner.save_goal(goal, steps)
+    return {"goal_id": goal_id, "steps": steps}
 
 
 def handle_request(req: dict) -> dict | None:

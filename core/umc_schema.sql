@@ -122,6 +122,19 @@ CREATE TABLE IF NOT EXISTS document_memories (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Phase HM-11: Causal Graph
+CREATE TABLE IF NOT EXISTS causal_edges (
+    id TEXT PRIMARY KEY,
+    cause_neuron_id TEXT NOT NULL REFERENCES neurons(id),
+    effect_neuron_id TEXT NOT NULL REFERENCES neurons(id),
+    label TEXT,
+    confidence REAL DEFAULT 1.0 CHECK(confidence BETWEEN 0.0 AND 1.0),
+    source TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_causal_cause ON causal_edges(cause_neuron_id);
+CREATE INDEX IF NOT EXISTS idx_causal_effect ON causal_edges(effect_neuron_id);
+
 -- PRAGMAS for performance
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;

@@ -35,6 +35,7 @@ class TestSinapseMCP:
             "sinapse_temporal_save",
             "sinapse_zettelkasten_split",
             "sinapse_capture_screen",
+            "sinapse_plan_goal",
         }
 
     def test_health_tool(self):

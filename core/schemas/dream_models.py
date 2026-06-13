@@ -32,6 +32,8 @@ class ExtractedFact(BaseModel):
 
 class DistillerOutput(BaseModel):
     facts: List[ExtractedFact] = Field(description="Lista de fatos atômicos extraídos da sessão.")
+    goal_id: Optional[str] = Field(None, description="ID do objetivo ativo que guiou esta extração.")
+    why: Optional[str] = Field(None, description="Por que estes fatos servem ao objetivo atual.")
 
     @model_validator(mode="after")
     def facts_not_empty(self) -> "DistillerOutput":

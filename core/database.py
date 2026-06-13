@@ -185,6 +185,32 @@ def ensure_migrations(conn):
         hostname = socket.gethostname()
         conn.execute(f"ALTER TABLE observations ADD COLUMN source_machine TEXT DEFAULT '{hostname}'")
 
+    # Phase HM-11: Intent Memory columns
+    if "goal_id" not in existing_cols:
+        conn.execute("ALTER TABLE observations ADD COLUMN goal_id TEXT")
+    if "why" not in existing_cols:
+        conn.execute("ALTER TABLE observations ADD COLUMN why TEXT")
+
+    # Phase HM-11: Causal graph table
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS causal_edges (
+            id TEXT PRIMARY KEY,
+            cause_neuron_id TEXT NOT NULL,
+            effect_neuron_id TEXT NOT NULL,
+            label TEXT,
+            confidence REAL DEFAULT 1.0,
+            source TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_causal_cause ON causal_edges(cause_neuron_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_causal_effect ON causal_edges(effect_neuron_id)")
+
+    # Phase B4: HNSW indexed_at tracking
+    neuron_cols = {r[1] for r in conn.execute("PRAGMA table_info(neurons)").fetchall()}
+    if neuron_cols and "indexed_at" not in neuron_cols:
+        conn.execute("ALTER TABLE neurons ADD COLUMN indexed_at TIMESTAMP")
+
     conn.commit()
 
 def init_db():
@@ -217,6 +243,34 @@ def _reciprocal_rank_fusion(ranked_lists: list, k: int = 60) -> list:
         for rank, item_id in enumerate(ranked, start=1):
             scores[item_id] += 1.0 / (k + rank)
     return sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+
+
+def get_causal_neighbors(conn, neuron_id: str, hops: int = 2) -> list[dict]:
+    """Return up to `hops`-hop causal neighbors of a neuron (BFS over causal_edges)."""
+    visited = {neuron_id}
+    frontier = [neuron_id]
+    results = []
+    for _ in range(hops):
+        if not frontier:
+            break
+        placeholders = ",".join("?" * len(frontier))
+        rows = conn.execute(
+            f"SELECT effect_neuron_id, label, confidence FROM causal_edges WHERE cause_neuron_id IN ({placeholders})",
+            frontier,
+        ).fetchall()
+        new_frontier = []
+        for row in rows:
+            eid = row[0] if isinstance(row, (list, tuple)) else row["effect_neuron_id"]
+            if eid not in visited:
+                visited.add(eid)
+                new_frontier.append(eid)
+                results.append({
+                    "neuron_id": eid,
+                    "label": row[1] if isinstance(row, (list, tuple)) else row["label"],
+                    "confidence": row[2] if isinstance(row, (list, tuple)) else row["confidence"],
+                })
+        frontier = new_frontier
+    return results
 
 
 def query_hybrid(query_text, limit=10):

@@ -87,6 +87,31 @@ else
     echo "[graphify] Nenhum papel Graphify/Dreamer configurado — modo AST-only."
 fi
 
+# Incremental HNSW update
+python3 -c "
+import sys; sys.path.insert(0, '$(dirname "$0")/..')
+try:
+    from core.hnsw_index import incremental_update
+    from core.database import get_connection
+    conn = get_connection()
+    # Use a simple hash-based pseudo-embedding for offline builds
+    def hash_embed(text):
+        import hashlib
+        h = int(hashlib.sha256(text.encode()).hexdigest(), 16)
+        import struct
+        vals = []
+        for i in range(384):
+            h, rem = divmod(h, 256)
+            vals.append((rem - 128) / 128.0)
+        norm = sum(v*v for v in vals)**0.5 or 1.0
+        return [v/norm for v in vals]
+    n = incremental_update(conn, hash_embed)
+    conn.close()
+    print(f'HNSW: {n} neurons indexed')
+except Exception as e:
+    print(f'HNSW skip: {e}')
+" 2>/dev/null || true
+
 # Verificar se o novo graph.json é válido
 if python3 -c "import json; json.load(open('$GRAPH_OUT/graph.json'))" 2>/dev/null; then
     NODES=$(python3 -c "import json;g=json.load(open('$GRAPH_OUT/graph.json'));print(len(g.get('nodes',[])))")
@@ -99,3 +124,13 @@ else
     fi
     exit 1
 fi
+
+# Export causal edges
+DB_PATH="$SINAPSE_HOME/hive_mind.db"
+if [ -f "$DB_PATH" ]; then
+    sqlite3 "$DB_PATH" "SELECT json_object('id', id, 'cause', cause_neuron_id, 'effect', effect_neuron_id, 'label', label, 'confidence', confidence) FROM causal_edges;" \
+      | jq -s '.' > "$GRAPH_OUT/causal_edges.json" 2>/dev/null || echo '[]' > "$GRAPH_OUT/causal_edges.json"
+else
+    echo '[]' > "$GRAPH_OUT/causal_edges.json"
+fi
+echo "Causal edges exported to $GRAPH_OUT/causal_edges.json"
