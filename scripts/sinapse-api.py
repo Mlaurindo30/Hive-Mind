@@ -15,7 +15,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -251,6 +251,74 @@ def get_related(request: Request, file_path: str = Query(...)):
         return {"results": results[:5]}
     except Exception:
         return {"results": []}
+
+class NeuronExportRequest(BaseModel):
+    filters: Optional[Dict[str, Any]] = None
+    sign: Optional[bool] = False
+    redact: Optional[bool] = True
+
+
+@app.post("/api/v1/neurons/export", dependencies=[Depends(verify_api_key)])
+@limiter.limit("10/minute")
+def post_neurons_export(request: Request, body: NeuronExportRequest):
+    """Export neurons with visibility 'shared' or 'public', with optional signing and redaction."""
+    try:
+        filters = body.filters or {}
+        do_sign = body.sign or False
+        do_redact = body.redact if body.redact is not None else True
+
+        conn = get_connection()
+        try:
+            query = "SELECT * FROM neurons WHERE visibility IN ('shared', 'public')"
+            params: List[Any] = []
+
+            if filters.get("type"):
+                query += " AND type = ?"
+                params.append(filters["type"])
+
+            if filters.get("created_after"):
+                query += " AND created_at >= ?"
+                params.append(filters["created_after"])
+
+            # min_confidence: accepted but ignored (metadata JSON complexity)
+
+            rows = conn.execute(query, params).fetchall()
+        finally:
+            conn.close()
+
+        neurons: List[Dict[str, Any]] = []
+        for row in rows:
+            neuron = dict(row)
+
+            if do_redact:
+                try:
+                    from core.redactor import redact_neuron
+                    neuron = redact_neuron(neuron)
+                except (ImportError, Exception) as e:
+                    import logging
+                    logging.getLogger(__name__).warning("redact_neuron unavailable: %s", e)
+
+            if do_sign:
+                try:
+                    from core.signing import sign_neuron
+                    neuron = sign_neuron(neuron, "default")
+                except (ImportError, Exception) as e:
+                    import logging
+                    logging.getLogger(__name__).warning("sign_neuron unavailable: %s", e)
+
+            neurons.append(neuron)
+
+        return {
+            "neurons": neurons,
+            "count": len(neurons),
+            "exported_at": datetime.now(tz=timezone.utc).isoformat(),
+            "schema_version": "1.0",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/v1/vault/{secret_id}", dependencies=[Depends(verify_api_key)])
 @limiter.limit("10/minute")

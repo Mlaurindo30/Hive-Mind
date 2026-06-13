@@ -211,6 +211,10 @@ def ensure_migrations(conn):
     if neuron_cols and "indexed_at" not in neuron_cols:
         conn.execute("ALTER TABLE neurons ADD COLUMN indexed_at TIMESTAMP")
 
+    # Phase HM-12: Federated Swarm — selective sharing
+    if neuron_cols and "visibility" not in neuron_cols:
+        conn.execute("ALTER TABLE neurons ADD COLUMN visibility TEXT DEFAULT 'private'")
+
     conn.commit()
 
 def init_db():
