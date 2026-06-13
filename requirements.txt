@@ -15,6 +15,9 @@ sqlite-vec>=0.1.1
 fastembed>=0.2
 # Watcher
 watchdog>=3.0
+# HM-11/12: Vector index + Analytics
+hnswlib>=0.8.0
+duckdb>=0.10
 # Multimodal (Fase 10)
 mss>=9.0
 PyMuPDF>=1.23
