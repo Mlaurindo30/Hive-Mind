@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS neurons (
     metadata JSON,
     community INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    visibility TEXT DEFAULT 'private'
 );
 
 -- Structural Layer (Synapses)

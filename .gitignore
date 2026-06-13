@@ -46,6 +46,7 @@ rtk/
 # ── Secrets ─────────────────────────────────────────────────────────
 .env
 *.secret
+config/keys/
 
 # ── Bancos de dados locais (memória pessoal — nunca commitar) ───────
 hive_mind.db
