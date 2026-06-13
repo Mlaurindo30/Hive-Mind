@@ -1,6 +1,6 @@
 # 05 — Blueprints e Fluxogramas
 
-> **Hive-Mind v2.0.0** — Diagramas de arquitetura e fluxos em ASCII (compatível com qualquer editor Markdown).
+> **Hive-Mind v3.0.0** — Diagramas de arquitetura e fluxos em ASCII (compatível com qualquer editor Markdown).
 
 ---
 
@@ -25,6 +25,7 @@
   │                              │                                    │
   │                       sinapse-api.py                              │
   │                       (REST :37702)                               │
+  │                       POST /export  (HM-12, visibility filter)   │
   │                       sinapse-write.py                            │
   │                       (CLI standalone)                            │
   └──────────────────────────────┬────────────────────────────────────┘
@@ -36,7 +37,9 @@
   │  │ UMC (SQLite)  │  │  claude-mem │  │  Neural  │  │   RTK   │  │
   │  │ FTS5 + vec    │  │  :37700     │  │  Memory  │  │  (Rust) │  │
   │  │ neurons +     │  │  temporal   │  │ spreading│  │  shell  │  │
-  │  │ synapses      │  │  tracking   │  │activation│  │  optim. │  │
+  │  │ synapses +    │  │  tracking   │  │activation│  │  optim. │  │
+  │  │ causal_edges +│  │             │  │          │  │         │  │
+  │  │ goals (HM-11) │  │             │  │          │  │         │  │
   │  └───────┬───────┘  └──────┬──────┘  └────┬─────┘  └─────────┘  │
   └──────────┼─────────────────┼──────────────┼──────────────────────┘
              │                 │              │
@@ -46,7 +49,9 @@
   │   hive_mind.db          cerebro/              backups/            │
   │   (UMC — SQLite +       (Vault Obsidian)      (daily cp)          │
   │    sqlite-vec)          atlas/ brain/                             │
-  │                         work/active/                              │
+  │   hnsw_neurons.idx      work/active/                              │
+  │   (HNSW incremental,    config/keys/                              │
+  │    HM-11)               (Ed25519, gitignored)                     │
   └───────────────────────────────────────────────────────────────────┘
 ```
 
@@ -300,6 +305,7 @@
   │  REST API (cloud mode)                                         │
   │  sinapse-api.py :37702 (Bearer token)                          │
   │  /api/v1/query  /api/v1/observations  /api/v1/health           │
+  │  /api/v1/neurons/export  (HM-12, visibility filter + redact)   │
   └────────────────────────────────────────────────────────────────┘
                                    │
                                    ▼
@@ -374,7 +380,89 @@
 
 ---
 
-## 10. Deploy VPS
+## 10. HM-11 — Intent & Causality Flow
+
+```
+  OBJETIVO DO USUARIO
+        |
+        v
+  [ sinapse_plan_goal ] --- LLM ---> steps (GoalStep[])
+        |                                  |
+        v                                  v
+  goals TABLE                    observations (goal_id, why)
+
+  neurons ---> causal_edges ---> get_causal_neighbors (BFS 2-hop)
+               (causa_id,
+                efeito_id)
+```
+
+Componentes envolvidos:
+
+| Componente | Arquivo | Responsabilidade |
+|------------|---------|-----------------|
+| Planner | `scripts/planner.py` | Decompoe objetivo em GoalStep[] via LLM |
+| MCP tool | `sinapse_plan_goal` | Expoe o planner como tool MCP |
+| Tabela goals | `hive_mind.db` | Persiste objetivos e steps |
+| Intent metadata | `observations.goal_id`, `.why` | Liga observacao ao objetivo ativo |
+| Causal graph | `causal_edges` | Aresta causa -> efeito entre neurons |
+| BFS causal | `get_causal_neighbors()` | Recupera vizinhos causais ate 2 hops |
+| HNSW Index | `core/hnsw_index.py` | Indice incremental, grava `indexed_at` |
+
+---
+
+## 11. HM-12 — Federated Export Flow
+
+```
+  POST /api/v1/neurons/export
+        |
+        v
+  visibility IN ('shared', 'public')
+  + filtros opcionais: type, created_after
+        |
+        |-- redact_neuron()  <-- core/redactor.py  (PII removal)
+        |   API tokens, email, IPv4/6, paths absolutos,
+        |   SSH keys, CPF/CNPJ, telefone
+        |   (nao modifica o neuron local)
+        |
+        |-- sign_neuron()    <-- core/signing.py   (Ed25519)
+        |   JSON canonico (exclui timestamps e campos _prefixados)
+        |   verify_neuron() para validacao pelo receptor
+        |   Keys em config/keys/ (gitignored)
+        |
+        v
+  JSON response
+  { neurons[], signature?, pubkey_fingerprint? }
+```
+
+Componentes envolvidos:
+
+| Componente | Arquivo | Responsabilidade |
+|------------|---------|-----------------|
+| Export endpoint | `sinapse-api.py` | `POST /api/v1/neurons/export`, autenticado |
+| Visibility filter | `neurons.visibility` | `private` (default) / `shared` / `public` |
+| Redactor | `core/redactor.py` | Remove PII irreversivelmente antes do export |
+| Signing | `core/signing.py` | Ed25519 keypair, assina/verifica JSON canonico |
+
+---
+
+## 12. Componentes — Visao Geral v3.0.0
+
+| Componente | Arquivo | Fase | Descricao |
+|------------|---------|------|-----------|
+| UMC core | `hive_mind.py` | base | SQLite + FTS5 + sqlite-vec |
+| Graphify watcher | `graphify/` | base | Indexacao em tempo real |
+| Dream Cycle | `scripts/dream_cycle.py` | base | Consolidacao offline |
+| sinapse-api | `sinapse-api.py` | base | REST :37702 |
+| sinapse-mcp | `sinapse-mcp.py` | base | MCP stdio (9+ tools) |
+| sinapse-hook | `sinapse-hook.py` | base | Hooks universais |
+| HNSW Index | `core/hnsw_index.py` | HM-11 | Indice incremental fastembed 384d |
+| Planner | `scripts/planner.py` | HM-11 | Decompositor de objetivos via LLM |
+| Signing | `core/signing.py` | HM-12 | Ed25519 assinatura/verificacao |
+| Redactor | `core/redactor.py` | HM-12 | Remocao irreversivel de PII |
+
+---
+
+## 13. Deploy VPS
 
 ```
   Internet

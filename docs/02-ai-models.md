@@ -1,6 +1,6 @@
 # 02 — Modelos de IA e Provedores
 
-> **Hive-Mind v2.0.0** — Modelos, embeddings, provedores do Hive-Dreamer e cadeia de fallback.
+> **Hive-Mind v3.0.0** — Modelos, embeddings, provedores do Hive-Dreamer e cadeia de fallback.
 
 ---
 
@@ -41,6 +41,7 @@ HIVE_DREAMER_FALLBACK_MODEL=qwen2.5-coder:7b
 | `graphify` | Extração de entidades/relações na indexação | Volume — custo importa |
 | `vision` | Descrição de screenshots (Phase 10) | Requer modelo multimodal |
 | `synthesis` | Síntese Dialética P2P | Raciocínio crítico — decide a verdade |
+| `planner` | Decomposição de objetivos (`sinapse_plan_goal`, `scripts/planner.py`) | Raciocínio estrutural — gera árvore de goals; herda de `HIVE_DREAMER_*` |
 
 O script `setup-dreamer.py` / `setup-dreamer.sh` oferece UI interativa que pergunta **qual papel configurar**, exibe o valor atual (ou "herda do Dreamer"), e oferece o fluxo opcional de fallback (Enter pula). Também:
 - lista modelos disponíveis por provider (via API em tempo real)
@@ -130,6 +131,8 @@ HIVE_GRAPHIFY_* (ou herdado do Dreamer) definido?
 | `all-MiniLM-L6-v2` | 384 | Busca semântica de observações | sqlite-vec HNSW |
 
 O modelo é carregado via `fastembed` (ou `sentence-transformers`), roda localmente (~80MB), e não requer API key. Os vetores são persistidos na tabela virtual `search_vec` (vec0, 384d) dentro do `hive_mind.db`.
+
+A partir da HM-11, o módulo `core/hnsw_index.py` mantém um índice HNSW incremental (via `hnswlib`) sobre os mesmos vetores 384d gerados pelo `fastembed`. O índice é atualizado a cada ingestão sem reconstrução completa, reduzindo a latência de busca KNN para ~1ms em coleções grandes.
 
 **Por que all-MiniLM-L6-v2 em vez de BGE-M3?**
 - BGE-M3 (1024d) era usado na v1.x com ChromaDB separado

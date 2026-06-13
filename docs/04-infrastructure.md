@@ -1,6 +1,6 @@
 # 04 — Infraestrutura e Configuração
 
-> **Hive-Mind v2.0.0** — Requisitos, serviços, portas, variáveis de ambiente e operações.
+> **Hive-Mind v3.0.0** — Requisitos, serviços, portas, variáveis de ambiente e operações.
 
 ---
 
@@ -33,6 +33,8 @@
 | `mss` | ≥9.0 | Captura de screenshots |
 | `pyyaml` | ≥6.0 | Parsing de frontmatter YAML |
 | `httpx` | ≥0.27 | Cliente HTTP assíncrono (cloud mode) |
+| `hnswlib` | ≥0.8.0 | Índice HNSW incremental para busca vetorial (HM-11) |
+| `duckdb` | ≥0.10 | Analytics read-only sobre hive_mind.db (HM-11) |
 
 ---
 
@@ -180,6 +182,9 @@ O cron de rebuild a cada 6h da v1.x foi **removido** — o Watcher cobre a atual
   │   ├── umc_schema.sql             DDL completo do banco
   │   ├── database.py                Pool de conexões (WAL, busy_timeout=5000)
   │   ├── auth.py                    Auth de 10 provedores LLM
+  │   ├── hnsw_index.py              Índice HNSW vetorial incremental (210 linhas) — HM-11
+  │   ├── signing.py                 Ed25519 sign/verify neuron (153 linhas) — HM-12
+  │   ├── redactor.py                PII redaction regex, 8 categorias (68 linhas) — HM-12
   │   └── schemas/                   Modelos Pydantic do Dream Cycle
   ├── scripts/
   │   ├── dream_cycle.py             Pipeline de consolidação offline
@@ -192,6 +197,7 @@ O cron de rebuild a cada 6h da v1.x foi **removido** — o Watcher cobre a atual
   │   ├── document_ingest.py         Ingestão PDF/DOCX → observations
   │   ├── visual_capture.py          Screenshots → visual_memories
   │   ├── generate_portal.py         Gerador de portal.canvas (Obsidian)
+  │   ├── planner.py                 Decomposição de objetivos — LLM + goals table (128 linhas) — HM-12
   │   ├── setup-dreamer.py           UI de configuração do Hive-Dreamer
   │   ├── setup-dreamer.sh           Wrapper shell do setup-dreamer.py
   │   ├── start-watcher.sh           Inicia Watcher em background
@@ -203,16 +209,24 @@ O cron de rebuild a cada 6h da v1.x foi **removido** — o Watcher cobre a atual
   ├── claude-mem/                    Tracking temporal TypeScript/Bun
   ├── rtk/                           Shell optimizer Rust
   ├── neural-memory/                 Spreading activation recall
-  ├── tests/                         116 testes (smoke/unit/integration/e2e)
+  ├── tests/                         191 testes (smoke/unit/integration/e2e)
   ├── mcp/                           Templates de config MCP por agente
   ├── docs/                          Esta documentação
-  ├── hive_mind.db                   Unified Memory Core (SQLite + sqlite-vec)
+  ├── hive_mind.db                   Unified Memory Core (SQLite + sqlite-vec) — v3: causal_edges, goals, visibility
   ├── sinapse.yaml                   Configuração central
   ├── .env                           Segredos locais (gitignored)
   ├── .env.example                   Template de variáveis (commitado)
   ├── requirements.txt               Dependências Python
   └── install.sh                     Instalador (10 etapas)
 ```
+
+### 6.1 Schema UMC — Tabelas e Colunas Notáveis (v3.0.0)
+
+| Tabela / Coluna | Tipo | Adicionado | Descrição |
+|----------------|------|-----------|-----------|
+| `causal_edges` | tabela | HM-12 | Grafo causal entre neurônios (source_id, target_id, weight, relation_type) |
+| `goals` | tabela | HM-12 | Objetivos decompostos pelo Planner (id, description, status, parent_id) |
+| `neurons.visibility` | coluna | HM-12 | Visibilidade do neurônio: `private`, `shared`, `public` |
 
 ---
 

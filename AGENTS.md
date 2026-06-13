@@ -6,7 +6,7 @@
 
 ---
 
-## 1. O que é o Hive-Mind v2.0.0
+## 1. O que é o Hive-Mind v3.0.0
 
 Infraestrutura de **inteligência coletiva e multimodal**: unifica o que o agente faz, vê e lê em um único cérebro persistente e distribuído.
 
@@ -135,7 +135,7 @@ bash tests/smoke/test_smoke.sh        # mínimo aceitável se a suíte for longa
 | Integration | `python3 -m pytest tests/integration/ -v` | Backends reais |
 | E2E | `python3 -m pytest tests/e2e/ -v` | Sistema completo |
 
-**116 testes coletáveis** (contagem de 2026-06-10).
+**191 testes passando** (contagem de 2026-06-13, 0 skipped).
 
 ### Disaster recovery
 
