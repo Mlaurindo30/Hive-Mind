@@ -1,8 +1,8 @@
 # Documento de Acompanhamento de Projeto: Hive-Mind
 
 **Gerente de Projeto / Engenheiro Responsável:** Gemini CLI
-**Data da última atualização:** 10 de Junho de 2026
-**Status Global:** Fase 10 em finalização (Multimodal)
+**Data da última atualização:** 13 de Junho de 2026
+**Status Global:** Fases HM-11 e HM-12 entregues (191 testes passando)
 
 ---
 
@@ -79,17 +79,23 @@
 
 ## 3. Estrutura de Fases Subsequentes
 
-### Fase HM-11: Raciocínio de Longo Prazo (Deep Reflection)
-- **Deliverables:**
-    - Agente "Planner" que utiliza o Atlas para decompor objetivos complexos.
-    - Memória de Intenção: Salvar não apenas o que foi feito, mas *por que* foi feito.
-    - Integração de Grafo de Causaridade no UMC.
+### ✅ Fase HM-11: Raciocínio de Longo Prazo (Deep Reflection)
+- **Status:** ENTREGUE
+- **Entregas:**
+    - `scripts/planner.py` — `decompose_goal()` decompõe objetivos em passos atômicos via LLM; `save_goal()` persiste plano na tabela `goals`; schemas Pydantic `GoalPlan`/`GoalStep`.
+    - `core/hnsw_index.py` — índice vetorial incremental HNSW (hnswlib): `load_or_create()`, `add_neuron()`, `search()`, `rebuild_from_db()`, `incremental_update()`; persistido em `hnsw_neurons.idx`.
+    - `core/database.py` — `get_causal_neighbors()` BFS multi-hop sobre `causal_edges`; migração idempotente da tabela `causal_edges` com índices em causa e efeito; colunas `goal_id`/`why` em `observations`; coluna `indexed_at` em `neurons`.
+    - `core/schemas/dream_models.py` — `DistillerOutput` agora carrega `goal_id` e `why` opcionais, ligando cada extração ao objetivo ativo.
+    - MCP tool `sinapse_plan_goal` (`scripts/sinapse-mcp.py`) — expõe `decompose_goal` + `save_goal` como tool MCP com campos `goal` (obrigatório) e `context` (opcional).
 
-### Fase HM-12: Marketplace de Memórias (Federated Swarm)
-- **Deliverables:**
-    - Protocolo de compartilhamento seletivo de neurônios entre diferentes usuários/enxames.
-    - Assinaturas de integridade via chaves públicas (Web of Trust).
-    - Camada de privacidade para redação automática de dados sensíveis em memórias compartilhadas.
+### ✅ Fase HM-12: Enxame Federado (Federated Swarm)
+- **Status:** ENTREGUE
+- **Entregas:**
+    - `core/signing.py` — assinatura Ed25519: `generate_keypair()`, `load_private_key()`, `load_public_key()`, `sign_neuron()`, `verify_neuron()`, `fingerprint()`; chaves PEM em `config/keys/` (privkey com chmod 0600).
+    - `core/redactor.py` — redação automática de PII: `redact_for_export()` e `redact_neuron()`; 8 categorias de regras (tokens de API, e-mails, IPs, paths, chaves SSH, CPF/CNPJ, telefones).
+    - `scripts/sinapse-api.py` — novo endpoint `POST /api/v1/neurons/export` (Bearer + rate-limit 10/min): filtros por `type`/`created_after`, redação automática habilitada por padrão, assinatura opcional; retorna `neurons`, `count`, `exported_at`, `schema_version`.
+    - `core/database.py` — coluna `visibility TEXT DEFAULT 'private'` em `neurons`; migração idempotente via `ensure_migrations()`.
+    - `core/umc_schema.sql` — coluna `visibility` em `neurons` e tabela `causal_edges` integradas ao schema base.
 
 ---
 
