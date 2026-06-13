@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status, Request
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, status, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -169,7 +169,7 @@ def get_health(request: Request):
 
 @app.post("/api/v1/observations", dependencies=[Depends(verify_api_key)])
 @limiter.limit("20/minute")
-def post_observation(request: Request, body: Any):
+def post_observation(request: Request, body: Any = Body(...)):
     """
     Gravação de observações com CRIPTOGRAFIA AUTOMÁTICA DE SEGREDOS.
     Nota: body é Any para flexibilidade, mas esperamos os campos de ObservationRequest.
@@ -214,7 +214,7 @@ def post_observation(request: Request, body: Any):
 
 @app.post("/api/v1/query", dependencies=[Depends(verify_api_key)])
 @limiter.limit("30/minute")
-def post_query(request: Request, body: Any):
+def post_query(request: Request, body: Any = Body(...)):
     """Consulta híbrida protegida."""
     try:
         data = body.dict() if hasattr(body, "dict") else dict(body)

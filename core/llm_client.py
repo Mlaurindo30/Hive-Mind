@@ -229,13 +229,21 @@ def call_llm_structured(prompt: str, system_prompt: str, response_model: Any,
             return resp
 
     response = _do_request(creds)
-    if response is None:
+    if response is None and creds.get("type") == "oauth":
+        # 1ª tentativa: renovar o token OAuth.
         new_token = refresh_oauth_token(provider)
         if new_token:
-            creds['key'] = new_token
+            creds["key"] = new_token
             response = _do_request(creds)
-        else:
-            raise Exception("Falha ao renovar token OAuth.")
+        # 2ª tentativa: se o refresh não devolveu token OU o token renovado
+        # também foi rejeitado (401/403 → response None de novo), cai para a
+        # API key se o provedor tiver uma configurada. Cobre o caso do refresh
+        # token revogado/expirado quando há GEMINI_API_KEY/GOOGLE_API_KEY válida.
+        if response is None:
+            api_creds = get_credentials(provider, prefer_oauth=False)
+            if api_creds and api_creds.get("type") == "api_key":
+                creds = api_creds
+                response = _do_request(creds)
 
     if response is None:
         # Renovação OAuth não devolveu novo token, ou _do_request persistiu
