@@ -730,3 +730,46 @@ Registro das decisões arquiteturais que moldaram o design atual. Cada ADR docum
 **Decisão:** cada papel que consome LLM (`dreamer`, `graphify`, `vision`, `synthesis`) tem configuração própria via `HIVE_{ROLE}_PROVIDER/MODEL`, com herança do Dreamer quando ausente e fallback **opt-in** via `HIVE_{ROLE}_FALLBACK_PROVIDER/MODEL`. Resolução centralizada em `get_role_config()` (`core/auth.py`); chamadas e política de retry/fallback centralizadas em `core/llm_client.py`.
 **Rationale:** os papéis têm perfis opostos — extração de entidades (milhares de chamadas baratas e frequentes) e síntese dialética (poucas chamadas que exigem raciocínio forte) não podem ser servidos pelo mesmo modelo sem desperdício ou perda de qualidade. A **cascata automática de provedores foi rejeitada** por violar a soberania do usuário: a Síntese Dialética decide qual versão da memória é a verdade e não pode trocar de modelo silenciosamente. O fallback existe apenas quando o usuário o define explicitamente. Falha de **validação Pydantic nunca dispara fallback** — é problema de qualidade da saída, não de disponibilidade; trocar de modelo às cegas mascararia o problema. Chaves de API permanecem uma por provedor (nunca por papel), evitando duplicação de segredos.
 **Trade-off:** mais variáveis de ambiente (até 16 com fallbacks); mitigado pela herança — o caso mínimo continua sendo 2 variáveis (`HIVE_DREAMER_PROVIDER/MODEL`).
+
+---
+
+## 18. Governança de Fases
+
+### Namespace de Fases
+
+Cada projeto usa um prefixo único para evitar colisão de numeração:
+
+| Projeto | Prefixo | Exemplo |
+|---------|---------|---------|
+| Hive-Mind | `HM-` | HM-10, HM-11, HM-12 |
+| Thoth | `TH-` | TH-33, TH-34 |
+| Ruflo | `RF-` | RF-01, RF-02 |
+
+### Regra de Conclusão de Fase
+
+Nenhuma fase pode ser marcada como `✅ Concluída` sem:
+
+1. **Commit** — todos os arquivos da entrega versionados no git
+2. **Teste** — pelo menos um teste cobrindo o caminho principal da entrega
+3. **CI verde** — suíte de testes passando no momento do merge
+
+Violações desta regra foram a causa da divergência entre estado declarado e estado real identificada na auditoria de 2026-06-10.
+
+### Status Atual das Fases HM-
+
+| Fase | Nome | Status |
+|------|------|--------|
+| HM-01 a HM-09 | Fundação (UMC, busca, P2P, síntese) | ✅ Concluída |
+| HM-10 | Deep Portal (multimodal) | ✅ Concluída |
+| HM-11 | Deep Reflection (raciocínio longo prazo) | ⏳ Planejada — ver `docs/plans/2026-06-12-inovacao-tecnologias-emergentes.md` |
+| HM-12 | Federated Swarm (marketplace de memórias) | ⏳ Planejada — idem |
+
+### Arquivos de Vault com Convenção Antiga
+
+Os seguintes arquivos em `cerebro/work/active/` usam a numeração antiga sem prefixo e devem ser
+renomeados na próxima edição manual do vault (NÃO pelo git — o vault é sincronizado pelo Syncthing):
+
+- `2026-06-01-PHASE-33-TTS-Integration-Closeout-Final.md` (prefixo correto: TH-33)
+- `2026-06-02-PHASE-34-Disk-Cache-persistente-para-TTS-design-rationale-e.md` (prefixo correto: TH-34)
+- `2026-06-02-PHASE-34-FFmpeg-Transcoding-no-Thoth-Telegram-Voice-Bubble.md` (prefixo correto: TH-34)
+- `2026-05-30-Implementacao-das-4-Fases-do-Sinapse-Agent.md` (fases do Sinapse Agent sem prefixo de projeto)

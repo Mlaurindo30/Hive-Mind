@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Literal, Optional
 
 # ==============================================================================
@@ -16,8 +16,28 @@ class ExtractedFact(BaseModel):
         description="Citações exatas (literais) dos logs que provam este fato. Obrigatório para aterramento (grounding)."
     )
 
+    @field_validator("content")
+    @classmethod
+    def content_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("content não pode ser vazio ou apenas whitespace")
+        return v.strip()
+
+    @field_validator("label")
+    @classmethod
+    def label_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("label não pode ser vazio ou apenas whitespace")
+        return v.strip()
+
 class DistillerOutput(BaseModel):
     facts: List[ExtractedFact] = Field(description="Lista de fatos atômicos extraídos da sessão.")
+
+    @model_validator(mode="after")
+    def facts_not_empty(self) -> "DistillerOutput":
+        if not self.facts:
+            raise ValueError("facts deve conter ao menos 1 item")
+        return self
 
 # ==============================================================================
 # 2. Validator Models (Verificação de Alucinação)
@@ -31,11 +51,24 @@ class FactValidation(BaseModel):
     )
     reason_summary: str = Field(description="Uma frase auditável justificando a decisão. Sem chain-of-thought.")
 
+    @field_validator("reason_summary")
+    @classmethod
+    def reason_summary_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("reason_summary não pode ser vazio ou apenas whitespace")
+        return v.strip()
+
 class ValidatorOutput(BaseModel):
     validations: List[FactValidation] = Field(description="Resultado da validação para cada fato submetido.")
     global_status: Literal["pass", "retry", "abort"] = Field(
         description="Status da etapa. Se houver falhas críticas, solicita retry."
     )
+
+    @model_validator(mode="after")
+    def validations_not_empty(self) -> "ValidatorOutput":
+        if not self.validations:
+            raise ValueError("validations deve conter ao menos 1 item")
+        return self
 
 # ==============================================================================
 # 3. Router Models (Taxonomia Determinística)
@@ -49,5 +82,18 @@ class RoutedFact(BaseModel):
         description="append (juntar a uma nota existente), create_new (nova nota âncora), merge (fundir com fato existente)."
     )
 
+    @field_validator("topic")
+    @classmethod
+    def topic_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("topic não pode ser vazio ou apenas whitespace")
+        return v.strip()
+
 class RouterOutput(BaseModel):
     routed_facts: List[RoutedFact]
+
+    @model_validator(mode="after")
+    def routed_facts_not_empty(self) -> "RouterOutput":
+        if not self.routed_facts:
+            raise ValueError("routed_facts deve conter ao menos 1 item")
+        return self

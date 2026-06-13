@@ -203,69 +203,79 @@ def init_db():
     finally:
         conn.close()
 
+def _reciprocal_rank_fusion(ranked_lists: list, k: int = 60) -> list:
+    """
+    Reciprocal Rank Fusion (Cormack et al. 2009).
+
+    ranked_lists: list of ordered lists of neuron_id strings.
+    Returns a list of neuron_ids sorted by descending RRF score.
+    k=60 is the standard value from the literature.
+    """
+    from collections import defaultdict
+    scores: dict = defaultdict(float)
+    for ranked in ranked_lists:
+        for rank, item_id in enumerate(ranked, start=1):
+            scores[item_id] += 1.0 / (k + rank)
+    return sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+
+
 def query_hybrid(query_text, limit=10):
-    """Realiza busca híbrida (FTS5 + Vetorial) usando RRF (ou combinação simples)."""
+    """Realiza busca hibrida (FTS5 + Vetorial) com Reciprocal Rank Fusion."""
     conn = get_connection()
-    
-    # 1. Busca FTS5 (Texto Exato)
-    fts_results = conn.execute("""
-        SELECT neuron_id, bm25(search_fts) as score
-        FROM search_fts
-        WHERE search_fts MATCH ?
-        ORDER BY score
-        LIMIT ?
-    """, (query_text, limit * 2)).fetchall()
-    
-    # 2. Busca Vetorial (Semântica)
-    vec_results = []
+
+    # 1. Busca FTS5 (Texto Exato) — lista ordenada de IDs
+    try:
+        fts_rows = conn.execute("""
+            SELECT neuron_id, bm25(search_fts) as score
+            FROM search_fts
+            WHERE search_fts MATCH ?
+            ORDER BY score
+            LIMIT ?
+        """, (query_text, limit * 2)).fetchall()
+        fts_ids = [row['neuron_id'] for row in fts_rows]
+    except Exception as e:
+        print(f"[umc] Erro na busca FTS5: {e}")
+        fts_ids = []
+
+    # 2. Busca Vetorial (Semantica) — lista ordenada de IDs
+    vec_ids = []
     embedder = get_embedder()
     if embedder:
         try:
             query_vec = list(embedder.embed(query_text))[0].tolist()
             serialized = serialize_f32(query_vec)
-            
-            vec_results = conn.execute("""
+            vec_rows = conn.execute("""
                 SELECT neuron_id, distance as score
                 FROM search_vec
                 WHERE embedding MATCH ?
                     AND k = ?
                 ORDER BY distance
             """, (serialized, limit * 2)).fetchall()
+            vec_ids = [row['neuron_id'] for row in vec_rows]
         except Exception as e:
             print(f"[umc] Erro na busca vetorial: {e}")
 
-    # 3. Combinar resultados (simplificado para MVP)
-    # Por enquanto, pegamos os IDs únicos de ambos
-    seen_ids = set()
-    combined_ids = []
-    
-    # Prioridade para FTS (exato)
-    for row in fts_results:
-        if row['neuron_id'] not in seen_ids:
-            seen_ids.add(row['neuron_id'])
-            combined_ids.append(row['neuron_id'])
-            
-    # Adiciona hits vetoriais
-    for row in vec_results:
-        if row['neuron_id'] not in seen_ids:
-            seen_ids.add(row['neuron_id'])
-            combined_ids.append(row['neuron_id'])
+    # 3. Combinar com RRF — produz ranking global unico
+    ranked_lists = [lst for lst in [fts_ids, vec_ids] if lst]
+    if ranked_lists:
+        combined_ids = _reciprocal_rank_fusion(ranked_lists)
+    else:
+        combined_ids = []
 
-    # 4. Hidratar neurônios (um único SELECT ... IN, preservando a ordem combinada)
+    # 4. Hidratar neuronios (um unico SELECT ... IN, preservando a ordem RRF)
     results = []
     top_ids = combined_ids[:limit]
     if top_ids:
         placeholders = ', '.join(['?'] * len(top_ids))
-        rows = conn.execute(f"SELECT * FROM neurons WHERE id IN ({placeholders})", top_ids).fetchall()
-        rows_by_id = {row['id']: row for row in rows}
+        rows = conn.execute(
+            f"SELECT * FROM neurons WHERE id IN ({placeholders})", top_ids
+        ).fetchall()
+        rows_by_id = {row['id']: dict(row) for row in rows}
         for nid in top_ids:
             neuron = rows_by_id.get(nid)
             if neuron:
-                results.append(dict(neuron))
+                results.append(neuron)
 
-    # 5. Adicionar observações recentes relacionadas (opcional)
-    # TODO: Relacionar observações via neuron_id ou busca textual
-            
     conn.close()
     return results
 

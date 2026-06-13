@@ -12,6 +12,7 @@ import yaml
 import time
 import re
 import hashlib
+import pydantic
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -147,6 +148,10 @@ def agent_distill_and_validate(logs_context: str) -> tuple:
                 print(f"  [Validator] Falha! {len(failures)} alucinações ou fatos não aterrados detectados.")
                 feedback = json.dumps([f.model_dump() for f in failures], indent=2)
                 
+        except pydantic.ValidationError as e:
+            print(f"  [Error] ValidationError em modelo Pydantic (Distiller/Validator): {e.errors()}")
+            time.sleep(2)
+            continue
         except Exception as e:
             kind = classify_llm_error(e)
             if kind == "auth":
@@ -187,6 +192,10 @@ def agent_route(facts: List[Any]) -> Optional[RouterOutput]:
         attempt += 1
         try:
             return call_llm_structured(prompt, router_prompt, RouterOutput)
+        except pydantic.ValidationError as e:
+            print(f"  [Error] ValidationError em RouterOutput: {e.errors()}")
+            time.sleep(2)
+            continue
         except Exception as e:
             kind = classify_llm_error(e)
             print(f"  [Error] Falha no Roteador ({kind}): {e}")
@@ -300,6 +309,8 @@ def run_synthesis_cycle():
             else:
                 print(f"  [!] Conflito não resolvido pela LLM: {synthesis.logic_applied}")
                 
+        except pydantic.ValidationError as e:
+            print(f"  [Error] ValidationError em SynthesisOutput para {neuron_id}: {e.errors()}")
         except Exception as e:
             print(f"  [Error] Falha na síntese de {neuron_id}: {e}")
 
@@ -391,6 +402,8 @@ source_image: {img_path.name}
             processed_count += 1
             print(f"  [+] Memória visual indexada: {note_file.name}")
             
+        except pydantic.ValidationError as e:
+            print(f"  [Error] ValidationError em VisionAnalysis para {img_path.name}: {e.errors()}")
         except Exception as e:
             print(f"  [Error] Falha ao processar {img_path.name}: {e}")
 

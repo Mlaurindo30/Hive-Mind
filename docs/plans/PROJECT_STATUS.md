@@ -79,13 +79,13 @@
 
 ## 3. Estrutura de Fases Subsequentes
 
-### Fase 11: Raciocínio de Longo Prazo (Deep Reflection)
+### Fase HM-11: Raciocínio de Longo Prazo (Deep Reflection)
 - **Deliverables:**
     - Agente "Planner" que utiliza o Atlas para decompor objetivos complexos.
     - Memória de Intenção: Salvar não apenas o que foi feito, mas *por que* foi feito.
     - Integração de Grafo de Causaridade no UMC.
 
-### Fase 12: Marketplace de Memórias (Federated Swarm)
+### Fase HM-12: Marketplace de Memórias (Federated Swarm)
 - **Deliverables:**
     - Protocolo de compartilhamento seletivo de neurônios entre diferentes usuários/enxames.
     - Assinaturas de integridade via chaves públicas (Web of Trust).
@@ -94,6 +94,8 @@
 ---
 
 ## 4. Pendências e Próximas Ações Imediatas
+
+**Convenção:** Usar prefixo HM-/TH-/RF- em todos os novos arquivos de planejamento de fases.
 
 1.  **AÇÃO:** Implementar `scripts/document_ingest.py` (Suporte PDF/DOCX).
 2.  **AÇÃO:** Atualizar `dream_cycle.py` para processar a fila de documentos.
