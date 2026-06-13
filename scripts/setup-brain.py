@@ -274,7 +274,7 @@ def show_model_selection(p_name: str, role: str, fallback: bool = False):
     clear()
     print(f"{BOLD}{BLUE}🔍 Escaneando modelos em {p_name.upper()}...{NC}")
 
-    all_models = discover_models_realtime()
+    all_models = discover_models_realtime(only_provider=p_name)
     p_models = [m for m in all_models if m['provider'] == p_name]
 
     if not p_models:

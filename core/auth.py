@@ -390,10 +390,17 @@ def get_credentials(provider_name: str, prefer_oauth: bool = True) -> Optional[D
     if "local" in cfg["auth_type"]: return {"key": "local", "url": cfg["base_url"], "type": "local"}
     return None
 
-def discover_models_realtime():
-    """Varre as APIs configuradas e retorna a lista REAL de modelos."""
+def discover_models_realtime(only_provider: str = None):
+    """Varre as APIs configuradas e retorna a lista REAL de modelos.
+
+    Se ``only_provider`` for informado, varre apenas esse provedor — evita
+    ruído de conexão (ex.: lmstudio/ollama local offline) ao configurar um
+    provedor específico no Brain Selector.
+    """
     all_discovered = []
     for name, cfg in PROVIDERS_CONFIG.items():
+        if only_provider and name != only_provider:
+            continue
         # Google: Tenta API Key primeiro porque o OAuth de redirecionamento bloqueia listagem
         creds_to_try = [get_credentials(name, prefer_oauth=False), get_credentials(name, prefer_oauth=True)] if name == "google" else [get_credentials(name)]
             
