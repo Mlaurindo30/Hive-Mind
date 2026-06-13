@@ -32,7 +32,7 @@ registro nos agentes detectados (Claude Code, Codex, Cursor, Gemini CLI, VS Code
 e health check final.
 
 Ao terminar, o próprio instalador pergunta se deseja configurar o provedor LLM
-(Gemini, OpenAI, Anthropic, Ollama...) via setup-dreamer.sh. Responda S e siga
+(Gemini, OpenAI, Anthropic, Ollama...) via setup-brain.sh. Responda S e siga
 o menu para escolher provedor, modelo e chaves de API.
 
 Se estiver rodando em modo headless/CI (sem terminal interativo):
@@ -175,7 +175,7 @@ Tools disponíveis:
 | Autenticação LLM | `core/auth.py` | Python | 10 provedores (API key + OAuth), refresh, descoberta de modelos |
 | Schemas Pydantic | `core/schemas/` | Python | Saída estruturada: Distiller, Validator, Router, Synthesis, Vision |
 | Hive-Dreamer | `scripts/dream_cycle.py` | Python | Consolidação: observações → fatos validados → Atlas |
-| Brain Selector | `scripts/setup-dreamer.sh` | Python | UI terminal: escolhe provedor/modelo do Dreamer |
+| Brain Selector | `scripts/setup-brain.sh` | Python | UI terminal: configura provedor/modelo/auth de TODOS os papéis (Dreamer/Graphify/Vision/Síntese) + fallback |
 | Watcher | `scripts/start-watcher.sh` | Python/watchdog | Sync em tempo real Obsidian → SQLite (~2s) |
 | Auditor P2P | `scripts/audit_memory.py` | Python | Integridade vault ↔ SQLite |
 | Diff Semântico | `scripts/semantic_diff.py` | Python | Classifica conflitos P2P (vetorial + LLM) |
@@ -247,7 +247,7 @@ Consolidação offline: o que o agente vive durante o dia (observações brutas)
 - **`core/memory/`** — pacote de 13 módulos resultante do refactor do monólito `sinapse-memory.py`.
 
 ```bash
-./scripts/setup-dreamer.sh   # configurar LLM por papel (+ fallback opcional)
+./scripts/setup-brain.sh   # configurar LLM por papel (+ fallback opcional)
 python3 scripts/dream_cycle.py  # disparar consolidação
 ```
 
@@ -335,7 +335,7 @@ cp .env.example .env
 | `GOOGLE_OAUTH_CLIENT_ID/SECRET` | Para OAuth Google | Credenciais OAuth (nunca hardcoded) |
 | `<PROVIDER>_API_KEY` | Por provedor | `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `NVIDIA_API_KEY`... |
 
-> `.env` está no `.gitignore` e nunca deve ser commitado. Use `./scripts/setup-dreamer.sh` para gerenciar credenciais interativamente.
+> `.env` está no `.gitignore` e nunca deve ser commitado. Use `./scripts/setup-brain.sh` para gerenciar credenciais interativamente.
 
 ---
 
@@ -485,7 +485,7 @@ Setup completo: [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md)
 
 | Problema | Solução |
 |----------|---------|
-| Dream Cycle não roda | `./scripts/setup-dreamer.sh` → verificar provedor/modelo/saldo |
+| Dream Cycle não roda | `./scripts/setup-brain.sh` → verificar provedor/modelo/saldo |
 | Watcher não sincroniza | `./scripts/start-watcher.sh`; checar `watcher.log` |
 | API não inicia | Definir `HIVE_MIND_API_KEY` no ambiente |
 | MCP não conecta | Verificar config do agente (ex: `~/.claude/.mcp.json`) e path do `sinapse-mcp.py` |

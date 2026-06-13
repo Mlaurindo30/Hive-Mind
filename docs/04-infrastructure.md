@@ -198,8 +198,8 @@ O cron de rebuild a cada 6h da v1.x foi **removido** — o Watcher cobre a atual
   │   ├── visual_capture.py          Screenshots → visual_memories
   │   ├── generate_portal.py         Gerador de portal.canvas (Obsidian)
   │   ├── planner.py                 Decomposição de objetivos — LLM + goals table (128 linhas) — HM-12
-  │   ├── setup-dreamer.py           UI de configuração do Hive-Dreamer
-  │   ├── setup-dreamer.sh           Wrapper shell do setup-dreamer.py
+  │   ├── setup-brain.py           UI de configuração do Hive-Dreamer
+  │   ├── setup-brain.sh           Wrapper shell do setup-brain.py
   │   ├── start-watcher.sh           Inicia Watcher em background
   │   └── recover.sh                 Disaster recovery (rebuild do UMC)
   ├── plugins/

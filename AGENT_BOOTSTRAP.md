@@ -42,7 +42,7 @@ chmod +x install.sh
 ./install.sh --non-interactive --with-tests
 ```
 
-*Nota: A flag `--non-interactive` pula a abertura do menu Python interativo (`setup-dreamer.py`) que travaria a entrada padrão (stdin).*
+*Nota: A flag `--non-interactive` pula a abertura do menu Python interativo (`setup-brain.py`) que travaria a entrada padrão (stdin).*
 
 ---
 
