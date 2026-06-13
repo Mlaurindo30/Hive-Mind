@@ -112,15 +112,142 @@ def provider_menu(role: str, fallback: bool = False):
     except (ValueError, IndexError):
         pass
 
+def _mask_secret(value: str) -> str:
+    """Mascara um segredo para exibição (mostra prefixo/sufixo curtos)."""
+    if not value:
+        return ""
+    if len(value) <= 10:
+        return value[:2] + "…"
+    return f"{value[:6]}…{value[-4:]}"
+
+def describe_provider_credential(p_name: str, env: Dict[str, str]) -> str:
+    """Descreve a credencial ativa do provedor (método + valor mascarado)."""
+    cfg = PROVIDERS_CONFIG[p_name]
+    token = env.get(f"{p_name.upper()}_ACCESS_TOKEN")
+    key = env.get(cfg["env_var"]) or env.get(cfg.get("alt_env_var", ""))
+    parts = []
+    if token:
+        parts.append(f"OAuth (conta logada, token {_mask_secret(token)})")
+    if key:
+        parts.append(f"API key {_mask_secret(key)}")
+    if "local" in cfg["auth_type"] and not parts:
+        parts.append("local (sem credencial)")
+    return " + ".join(parts) if parts else f"{YELLOW}não configurado{NC}"
+
+def _oauth_login(p_name: str) -> bool:
+    """Executa o fluxo OAuth interativo. Retorna True em sucesso.
+
+    Como o auth_url usa prompt=consent, re-logar permite escolher OUTRA conta.
+    """
+    clear()
+    print(f"{BOLD}{BLUE}Iniciando fluxo OAuth para {p_name.upper()}...{NC}")
+    init_data = get_oauth_credentials(p_name)
+    if not init_data or "error" in init_data:
+        msg = init_data.get('error', 'Falha ao iniciar') if init_data else 'Falha ao iniciar'
+        print(f"{RED}Erro: {msg}{NC}")
+        input("\nEnter para voltar...")
+        return False
+
+    if init_data.get("type") == "loopback":
+        print(f"\n{YELLOW}Abrindo navegador para autorização...{NC}")
+        print(f"Se não abrir automaticamente, acesse:\n{BOLD}{init_data['auth_url']}{NC}")
+        webbrowser.open(init_data['auth_url'])
+        print(f"\n{BLUE}Aguardando aprovação no Localhost...{NC}")
+    else:
+        print(f"\n1. Acesse: {BOLD}{YELLOW}{init_data['verification_url']}{NC}")
+        print(f"2. Digite o código: {BOLD}{GREEN}{init_data['user_code']}{NC}")
+        print(f"\n{BLUE}Aguardando autorização (esta janela será atualizada)...{NC}")
+
+    token_data = poll_oauth_token(p_name, init_data)
+    if "error" in token_data:
+        print(f"{RED}Falha: {token_data['error']}{NC}")
+        input("\nEnter para voltar...")
+        return False
+    print(f"\n{GREEN}✓ Login realizado com sucesso!{NC}")
+    return True
+
+def _api_key_entry(p_name: str) -> bool:
+    """Pede e salva a API key do provedor. Retorna True em sucesso."""
+    cfg = PROVIDERS_CONFIG[p_name]
+    clear()
+    print(f"{BOLD}--- API Key de {p_name.upper()} ---{NC}")
+    print(f"Obtenha sua chave em: {YELLOW}{cfg['doc']}{NC}")
+    key = input(f"\nInsira a API Key (ou Enter para cancelar): ").strip()
+    if not key:
+        return False
+    save_env(cfg['env_var'], key)
+    os.environ[cfg['env_var']] = key
+    print(f"{GREEN}✓ Chave salva!{NC}")
+    return True
+
+def _clear_credentials(p_name: str):
+    """Remove tokens OAuth e API key do provedor no .env e no ambiente."""
+    cfg = PROVIDERS_CONFIG[p_name]
+    for var in (f"{p_name.upper()}_ACCESS_TOKEN", f"{p_name.upper()}_REFRESH_TOKEN",
+                cfg["env_var"], cfg.get("alt_env_var", "")):
+        if not var:
+            continue
+        save_env(var, "")
+        os.environ.pop(var, None)
+
+def configured_provider_menu(p_name: str, role: str, fallback: bool = False):
+    """Menu para provedor JÁ configurado: trocar API key, re-logar OAuth, remover."""
+    cfg = PROVIDERS_CONFIG[p_name]
+    while True:
+        clear()
+        env = load_env()
+        print(f"{BOLD}{BLUE}--- {p_name.upper()} (já configurado) ---{NC}")
+        print(f"\nCredencial atual: {describe_provider_credential(p_name, env)}")
+        print("-" * 50)
+        print(f"\n  1) Usar / escolher modelo")
+        opts = {"1": "models"}
+        n = 2
+        if "api_key" in cfg["auth_type"]:
+            print(f"  {n}) Trocar a API key")
+            opts[str(n)] = "api_key"; n += 1
+        if "oauth" in cfg["auth_type"]:
+            print(f"  {n}) Re-logar OAuth (entrar com OUTRA conta)")
+            opts[str(n)] = "oauth"; n += 1
+        print(f"  {n}) Remover credenciais deste provedor")
+        opts[str(n)] = "remove"
+        print(f"\n  0) Voltar")
+
+        choice = input(f"\nEscolha: ").strip()
+        if choice == "0":
+            return
+        action = opts.get(choice)
+        if action == "models":
+            show_model_selection(p_name, role, fallback)
+            return
+        elif action == "api_key":
+            _api_key_entry(p_name)
+            input("\nEnter para continuar...")
+        elif action == "oauth":
+            # Re-login: limpa tokens antigos para forçar nova autorização/conta.
+            save_env(f"{p_name.upper()}_ACCESS_TOKEN", "")
+            save_env(f"{p_name.upper()}_REFRESH_TOKEN", "")
+            os.environ.pop(f"{p_name.upper()}_ACCESS_TOKEN", None)
+            os.environ.pop(f"{p_name.upper()}_REFRESH_TOKEN", None)
+            _oauth_login(p_name)
+            input("\nEnter para continuar...")
+        elif action == "remove":
+            confirm = input(f"{YELLOW}Remover TODAS as credenciais de {p_name}? (s/N): {NC}").strip().lower()
+            if confirm in ("s", "sim", "y", "yes"):
+                _clear_credentials(p_name)
+                print(f"{GREEN}✓ Credenciais removidas.{NC}")
+                input("\nEnter para continuar...")
+                return
+
 def manage_provider(p_name: str, role: str, fallback: bool = False):
     cfg = PROVIDERS_CONFIG[p_name]
     env = load_env()
 
-    # SE JÁ ESTIVER CONFIGURADO, VAI DIRETO PARA LISTAGEM DE MODELOS
+    # Provedor JÁ configurado → menu de gestão (trocar key, re-logar, remover, usar)
     if is_provider_configured(p_name, env):
-        show_model_selection(p_name, role, fallback)
+        configured_provider_menu(p_name, role, fallback)
         return
 
+    # Provedor novo → escolhe método de auth e autentica
     auth_types = cfg["auth_type"]
     selected_auth = auth_types[0]
 
@@ -135,41 +262,11 @@ def manage_provider(p_name: str, role: str, fallback: bool = False):
             except: pass
 
     if selected_auth == "oauth":
-        clear()
-        print(f"{BOLD}{BLUE}Iniciando fluxo OAuth para {p_name.upper()}...{NC}")
-        init_data = get_oauth_credentials(p_name)
-
-        if not init_data or "error" in init_data:
-            print(f"{RED}Erro: {init_data.get('error', 'Falha ao iniciar')}{NC}")
-            input("\nEnter para voltar...")
+        if not _oauth_login(p_name):
             return
-
-        if init_data.get("type") == "loopback":
-            print(f"\n{YELLOW}Abrindo navegador para autorização...{NC}")
-            print(f"Se não abrir automaticamente, acesse:\n{BOLD}{init_data['auth_url']}{NC}")
-            webbrowser.open(init_data['auth_url'])
-            print(f"\n{BLUE}Aguardando aprovação no Localhost...{NC}")
-        else:
-            print(f"\n1. Acesse: {BOLD}{YELLOW}{init_data['verification_url']}{NC}")
-            print(f"2. Digite o código: {BOLD}{GREEN}{init_data['user_code']}{NC}")
-            print(f"\n{BLUE}Aguardando autorização (esta janela será atualizada)...{NC}")
-
-        token_data = poll_oauth_token(p_name, init_data)
-        if "error" in token_data:
-            print(f"{RED}Falha: {token_data['error']}{NC}")
-            input("\nEnter para voltar...")
-            return
-        print(f"\n{GREEN}✓ Login realizado com sucesso!{NC}")
-
     elif selected_auth == "api_key":
-        clear()
-        print(f"{BOLD}--- Configurando {p_name.upper()} ---{NC}")
-        print(f"Obtenha sua chave em: {YELLOW}{cfg['doc']}{NC}")
-        key = input(f"\nInsira a API Key (ou Enter para cancelar): ").strip()
-        if not key: return
-        save_env(cfg['env_var'], key)
-        print(f"{GREEN}✓ Chave salva!{NC}")
-        os.environ[cfg['env_var']] = key
+        if not _api_key_entry(p_name):
+            return
 
     show_model_selection(p_name, role, fallback)
 
