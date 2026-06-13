@@ -11,7 +11,7 @@ O Hive-Mind **não treina modelos próprios**. Usa modelos de terceiros em dois 
 1. **Graphify** — indexação estrutural do vault (extração de entidades e relações)
 2. **Hive-Dreamer** — consolidação semântica offline (Dream Cycle, fases 7-10)
 
-Em ambos os casos, a escolha do modelo é **configurável pelo usuário** via variáveis de ambiente e via o script `setup-dreamer.sh`. Nenhum modelo é hardcoded.
+Em ambos os casos, a escolha do modelo é **configurável pelo usuário** via variáveis de ambiente e via o script `setup-brain.sh`. Nenhum modelo é hardcoded.
 
 ---
 
@@ -43,7 +43,7 @@ HIVE_DREAMER_FALLBACK_MODEL=qwen2.5-coder:7b
 | `synthesis` | Síntese Dialética P2P | Raciocínio crítico — decide a verdade |
 | `planner` | Decomposição de objetivos (`sinapse_plan_goal`, `scripts/planner.py`) | Raciocínio estrutural — gera árvore de goals; herda de `HIVE_DREAMER_*` |
 
-O script `setup-dreamer.py` / `setup-dreamer.sh` oferece UI interativa que pergunta **qual papel configurar**, exibe o valor atual (ou "herda do Dreamer"), e oferece o fluxo opcional de fallback (Enter pula). Também:
+O script `setup-brain.py` / `setup-brain.sh` oferece UI interativa que pergunta **qual papel configurar**, exibe o valor atual (ou "herda do Dreamer"), e oferece o fluxo opcional de fallback (Enter pula). Também:
 - lista modelos disponíveis por provider (via API em tempo real)
 - testa conectividade antes de salvar
 - detecta e exibe saldo disponível (DeepSeek, OpenRouter)

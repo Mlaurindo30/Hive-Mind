@@ -56,7 +56,7 @@ Agente registra log  ──┘       Router + Síntese Dialética──┘   Neu
 python3 scripts/dream_cycle.py          # Ciclo de consolidação (Dream Cycle)
 python3 scripts/audit_memory.py --fix   # Auditoria de integridade (P2P)
 python3 scripts/generate_portal.py      # Portal visual (Obsidian Canvas)
-./scripts/setup-dreamer.sh              # Configurar LLM por papel (Dreamer/Graphify/Vision/Síntese + fallback)
+./scripts/setup-brain.sh              # Configurar LLM por papel (Dreamer/Graphify/Vision/Síntese + fallback)
 ./scripts/recover.sh                    # Disaster recovery
 python3 scripts/sinapse-api.py          # REST API (requer HIVE_MIND_API_KEY)
 ```
@@ -75,7 +75,7 @@ git clone <repo-url> ~/Hive-Mind && cd ~/Hive-Mind
 ./install.sh
 
 # 3. Configurar o LLM do Dream Cycle (interativo)
-./scripts/setup-dreamer.sh
+./scripts/setup-brain.sh
 
 # 4. Verificar saúde
 python3 scripts/sinapse-write.py health

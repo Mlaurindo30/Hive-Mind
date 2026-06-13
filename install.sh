@@ -600,7 +600,7 @@ if [ -n "$PROVIDER" ] && [ -n "$MODEL" ]; then
     python3 -c "import sys; sys.path.append('$PROJECT_ROOT'); from core.auth import save_env; save_env('HIVE_DREAMER_PROVIDER', '$PROVIDER'); save_env('HIVE_DREAMER_MODEL', '$MODEL')"
     echo -e "  ${GREEN}✓${NC} Provedor e modelo salvos (papel Dreamer)."
     echo -e "  Os papéis Graphify, Vision e Síntese herdam este modelo por padrão;"
-    echo -e "  ajuste por papel (e fallbacks) com: python3 scripts/setup-dreamer.py"
+    echo -e "  ajuste por papel (e fallbacks) com: python3 scripts/setup-brain.py"
 else
     echo -e "  Nenhum provedor/modelo de IA fornecido via argumentos."
     echo -e "  A configuração poderá ser realizada ao final da instalação ou posteriormente."
@@ -700,16 +700,16 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
 fi
 
 if [ "$HAS_DREAMER" = "false" ] && [ "$NON_INTERACTIVE" = "false" ] && [ -t 0 ]; then
-    echo -e "${BOLD}${YELLOW}Configuração do Dreamer (Inteligência do Ciclo de Sonho):${NC}"
-    echo -e "  O Ciclo de Sonho consolida e destila seus aprendizados de forma autônoma."
-    echo -e "  Para funcionar, ele precisa de um modelo de linguagem (Gemini, OpenAI, Ollama, etc.) configurado."
+    echo -e "${BOLD}${YELLOW}Configuração da Inteligência (Brain Selector — todos os papéis):${NC}"
+    echo -e "  Configura provedor/modelo/auth de TODOS os papéis: Dreamer, Graphify, Vision e Síntese."
+    echo -e "  Cada papel pode usar um modelo próprio (Gemini, OpenAI, Ollama, etc.) com fallback opcional."
     echo ""
     read -p "  Deseja configurar o seu modelo e chaves de IA interativamente agora? [S/n] " -n 1 -r
     echo ""
     if [[ $REPLY =~ ^[SsYy]$ ]] || [ -z "$REPLY" ]; then
-        "$PROJECT_ROOT/scripts/setup-dreamer.sh"
+        "$PROJECT_ROOT/scripts/setup-brain.sh"
     else
-        echo -e "  Você pode realizar essa configuração mais tarde rodando: ${BOLD}./scripts/setup-dreamer.sh${NC}"
+        echo -e "  Você pode realizar essa configuração mais tarde rodando: ${BOLD}./scripts/setup-brain.sh${NC}"
         echo ""
     fi
 fi

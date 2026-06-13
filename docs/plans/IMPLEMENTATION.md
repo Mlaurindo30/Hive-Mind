@@ -28,7 +28,7 @@ O projeto **Hive-Mind** é a evolução do Sinapse Agent. O objetivo é criar um
 - **Sincronização com o Vault:** Escrita automática de memórias consolidadas em `brain/Consolidated.md`.
 - **OAuth Inquebrável:** Fluxo Loopback para Google e Codex-Handshake para OpenAI, permitindo login via terminal.
 - **Auto-Discovery de Elite:** Descoberta dinâmica de modelos (incluindo Codex 5.x) em tempo real.
-- **UX Maestro:** Interface `setup-dreamer.sh` unificada para todos os provedores.
+- **UX Maestro:** Interface `setup-brain.sh` unificada para todos os provedores.
 **Vantagem:** O Ciclo de Sonho agora funciona de ponta a ponta, transformando a atividade diária do agente em conhecimento persistente e legível no Obsidian.
 
 ### Fase 8 — Enxame Multi-Máquina (P2P Sync) - CONCLUÍDO

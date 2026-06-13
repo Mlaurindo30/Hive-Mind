@@ -39,7 +39,7 @@
     - Motor `dream_cycle.py` para extração de fatos e preferências.
     - Suporte agnóstico a provedores (Google, OpenAI, Anthropic, DeepSeek, Ollama).
     - Fluxo de OAuth inquebrável para Google e Codex.
-    - Script `setup-dreamer.py` para configuração de soberania do usuário sobre modelos.
+    - Script `setup-brain.py` para configuração de soberania do usuário sobre modelos.
 
 ### Fase 8: Enxame Multi-Máquina (P2P Sync)
 - **Status:** CONCLUÍDO
