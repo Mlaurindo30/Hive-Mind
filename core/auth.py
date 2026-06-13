@@ -390,6 +390,14 @@ def get_credentials(provider_name: str, prefer_oauth: bool = True) -> Optional[D
     if "local" in cfg["auth_type"]: return {"key": "local", "url": cfg["base_url"], "type": "local"}
     return None
 
+# Endpoint de modelos do backend Codex (OAuth ChatGPT) — api.openai.com/v1/models
+# NÃO funciona com token OAuth; o Codex expõe a lista da conta aqui.
+_OPENAI_CODEX_MODELS_URL = "https://chatgpt.com/backend-api/codex/models?client_version=1.0.0"
+
+# Fallback curado quando o backend Codex não responde a lista (offline/expirado).
+_OPENAI_CODEX_CURATED = ["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex"]
+
+
 def discover_models_realtime(only_provider: str = None):
     """Varre as APIs configuradas e retorna a lista REAL de modelos.
 
@@ -422,28 +430,42 @@ def discover_models_realtime(only_provider: str = None):
                         break
 
                 elif name == "openai":
-                    # Descoberta de Elite: Codex exige injeção e headers de integridade
-                    url = f"{creds['url']}/models"
-                    headers = {"Authorization": f"Bearer {creds['key']}"}
-                    if creds['type'] == "oauth": headers.update(cfg["oauth"].get("headers", {}))
-                    resp = requests.get(url, headers=headers, timeout=10)
-                    
-                    # 1. Tenta listar o que o token permitir
-                    if resp.ok:
-                        for m in resp.json().get('data', []):
-                            all_discovered.append({"id": m['id'], "provider": name, "display": f"[{name}] {m['id']}"})
-                    
-                    # 2. Injeta os modelos de Elite do Codex mapeados no OpenClaw (opt-in via env)
-                    if os.environ.get("HIVE_DREAMER_INJECT_CODEX_ELITES", "").lower() in ("1", "true", "yes"):
-                        codex_elites = [
-                            "gpt-5.5", "gpt-5.5-pro",
-                            "gpt-5.4", "gpt-5.4-pro", "gpt-5.4-mini", "gpt-5.4-nano",
-                            "gpt-5.3-codex", "gpt-5.3-chat-latest",
-                            "gpt-4o", "gpt-4o-mini", "o1-preview", "o1-mini"
-                        ]
-                        for m_id in codex_elites:
-                            all_discovered.append({"id": m_id, "provider": name, "display": f"[{name}] {m_id} (Codex)"})
-                    break
+                    if creds['type'] == "oauth":
+                        # OAuth do ChatGPT/Codex NÃO lista via api.openai.com/v1/models.
+                        # O backend do Codex expõe os modelos da conta em endpoint próprio.
+                        headers = {"Authorization": f"Bearer {creds['key']}"}
+                        headers.update(cfg["oauth"].get("headers", {}))
+                        found = []
+                        try:
+                            resp = requests.get(_OPENAI_CODEX_MODELS_URL, headers=headers, timeout=10)
+                            if resp.ok:
+                                data = resp.json()
+                                entries = data.get("models", []) if isinstance(data, dict) else []
+                                for item in entries:
+                                    if not isinstance(item, dict):
+                                        continue
+                                    slug = (item.get("slug") or "").strip()
+                                    # Ignora modelos ocultos (ex.: codex-auto-review) que
+                                    # não são modelos de chat de uso geral.
+                                    if slug and item.get("visibility") != "hide":
+                                        found.append(slug)
+                        except Exception as e:
+                            print(f"[auth] Falha ao listar modelos Codex (OAuth): {e}", file=sys.stderr)
+                        # Fallback curado quando o backend não devolve a lista.
+                        if not found:
+                            found = list(_OPENAI_CODEX_CURATED)
+                        for m_id in found:
+                            all_discovered.append({"id": m_id, "provider": name, "display": f"[{name}] {m_id}"})
+                        break
+                    else:
+                        # API key: lista padrão via api.openai.com/v1/models
+                        url = f"{creds['url']}/models"
+                        headers = {"Authorization": f"Bearer {creds['key']}"}
+                        resp = requests.get(url, headers=headers, timeout=10)
+                        if resp.ok:
+                            for m in resp.json().get('data', []):
+                                all_discovered.append({"id": m['id'], "provider": name, "display": f"[{name}] {m['id']}"})
+                        break
 
                 elif name == "ollama":
                     # Ollama expõe /api/tags (nativo) e /v1/models (OpenAI-compat).
