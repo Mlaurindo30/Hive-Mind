@@ -1,6 +1,7 @@
 name: Hive-Mind Test Suite
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
