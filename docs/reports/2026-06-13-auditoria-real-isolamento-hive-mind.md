@@ -169,12 +169,15 @@ foram executados com os serviços do checkout principal parados.
 
 - GitHub Actions agora instala versões fixas de uv, Bun e Rust, executa
   bootstrap dos componentes, build do RTK, worker real e `tests/run_all.sh`.
-- O push de `d1b5eb9` disparou o run remoto
-  [27484471086](https://github.com/Mlaurindo30/sinapse_agent/actions/runs/27484471086).
-  O GitHub não iniciou nenhuma etapa e registrou a anotação: a conta está
-  bloqueada por problema de cobrança. Portanto, a CI remota permanece sem
+- O workflow aceita execução por push, pull request, agenda e
+  `workflow_dispatch`.
+- O push de `ac830bc` disparou o run remoto
+  [27484539248](https://github.com/Mlaurindo30/sinapse_agent/actions/runs/27484539248).
+  O GitHub não iniciou nenhuma etapa e registrou novamente a anotação: a conta
+  está bloqueada por problema de cobrança. Portanto, a CI remota permanece sem
   evidência verde por bloqueio administrativo externo, não por falha observada
-  no workflow.
+  no workflow. A credencial CLI disponível não possui permissão administrativa
+  para disparar manualmente o workflow.
 - Recovery possui backup SQLite consistente, manifestos, restore atômico,
   rebuild de FTS/sqlite-vec/HNSW e verificação de integridade.
 - `/api/v1/metrics` exige Bearer token e publica uptime, PID, contagens,
