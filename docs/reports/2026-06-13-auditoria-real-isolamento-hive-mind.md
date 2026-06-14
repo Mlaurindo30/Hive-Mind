@@ -19,6 +19,13 @@ As portas `37700`, `37701` e `37702` escutam apenas em `127.0.0.1`. O
 Claude-Mem executa por `.tools/bin/bun`; os serviços Python executam pela
 `.venv`.
 
+O diretório global foi removido somente após o delta final. O snapshot
+auditável está em
+`claude-mem/data/backups/cutover-20260613-153528/global-final.db`, com modo
+`0400`, `integrity_check=ok`, 159 observações, 205 prompts, 5 resumos e 25
+sessões. O arquivo completo da instalação global também foi preservado em
+`global-claude-mem-final.tar.gz`, modo `0400`, com SHA-256 registrado.
+
 ## 2. Respostas sobre instalação e atualização
 
 - O Claude-Mem é instalado do repositório fixado no manifesto, não via `npx`.
@@ -162,6 +169,12 @@ foram executados com os serviços do checkout principal parados.
 
 - GitHub Actions agora instala versões fixas de uv, Bun e Rust, executa
   bootstrap dos componentes, build do RTK, worker real e `tests/run_all.sh`.
+- O push de `d1b5eb9` disparou o run remoto
+  [27484471086](https://github.com/Mlaurindo30/sinapse_agent/actions/runs/27484471086).
+  O GitHub não iniciou nenhuma etapa e registrou a anotação: a conta está
+  bloqueada por problema de cobrança. Portanto, a CI remota permanece sem
+  evidência verde por bloqueio administrativo externo, não por falha observada
+  no workflow.
 - Recovery possui backup SQLite consistente, manifestos, restore atômico,
   rebuild de FTS/sqlite-vec/HNSW e verificação de integridade.
 - `/api/v1/metrics` exige Bearer token e publica uptime, PID, contagens,
@@ -183,7 +196,7 @@ executáveis RTK usados em operação ficam no projeto.
 | Risco | Impacto | Situação |
 |---|---|---|
 | Regressão futura de boot | médio | unidade pós-reboot versionada e executada |
-| Workflow GitHub ainda não executado no remoto | médio | YAML validado localmente |
+| Conta GitHub bloqueada por cobrança | médio | job remoto nem inicia; desbloqueio administrativo necessário |
 | OAuth externo pode expirar ou ser revogado | médio | refresh e fallback testados |
 | Warning Starlette/httpx | baixo | sem falha funcional |
 | Update real de upstream não exercitado | médio | operação é explícita e fail-fast |
