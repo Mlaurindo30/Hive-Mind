@@ -121,9 +121,14 @@ def listening_ports(expected_ports: tuple[int, ...] = PORTS) -> dict[str, str]:
 
 
 def claude_mem_database() -> dict[str, int | str]:
+    import sqlite_vec
+
     db_path = ROOT / "claude-mem" / "data" / "claude-mem.db"
     conn = sqlite3.connect(db_path)
     try:
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        conn.enable_load_extension(False)
         integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
         foreign_keys = len(conn.execute("PRAGMA foreign_key_check").fetchall())
         observations = conn.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
@@ -145,6 +150,11 @@ def global_claude_mem_references() -> list[dict[str, str | int]]:
     for proc in Path("/proc").iterdir():
         if not proc.name.isdigit():
             continue
+        try:
+            if proc.stat().st_uid != os.getuid():
+                continue
+        except OSError:
+            continue
         matches: set[str] = set()
         for link in (proc / "cwd", proc / "exe"):
             try:
@@ -160,7 +170,7 @@ def global_claude_mem_references() -> list[dict[str, str | int]]:
         if forbidden in cmdline:
             matches.add(cmdline)
         try:
-            file_descriptors = (proc / "fd").iterdir()
+            file_descriptors = list((proc / "fd").iterdir())
         except OSError:
             file_descriptors = ()
         for descriptor in file_descriptors:

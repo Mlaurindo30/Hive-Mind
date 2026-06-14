@@ -43,3 +43,54 @@ def test_prepare_records_current_boot(monkeypatch, tmp_path):
     monkeypatch.setattr(MODULE, "boot_id", lambda: "boot-before")
     assert MODULE.prepare() == 0
     assert '"boot_id": "boot-before"' in marker.read_text()
+
+
+def test_claude_mem_database_loads_sqlite_vec(monkeypatch, tmp_path):
+    import sqlite_vec
+
+    db_dir = tmp_path / "claude-mem" / "data"
+    db_dir.mkdir(parents=True)
+    db_path = db_dir / "claude-mem.db"
+    connection = MODULE.sqlite3.connect(db_path)
+    connection.execute("CREATE TABLE observations(id INTEGER PRIMARY KEY)")
+    connection.enable_load_extension(True)
+    sqlite_vec.load(connection)
+    connection.enable_load_extension(False)
+    connection.execute("CREATE VIRTUAL TABLE vec_observations USING vec0(embedding float[2])")
+    connection.execute("INSERT INTO observations DEFAULT VALUES")
+    connection.execute(
+        "INSERT INTO vec_observations(rowid, embedding) VALUES (1, ?)",
+        (b"\x00" * 8,),
+    )
+    connection.commit()
+    connection.close()
+
+    monkeypatch.setattr(MODULE, "ROOT", tmp_path)
+    result = MODULE.claude_mem_database()
+    assert result["integrity_check"] == "ok"
+    assert result["observations"] == 1
+    assert result["vectors"] == 1
+
+
+def test_global_reference_scan_ignores_inaccessible_processes(monkeypatch, tmp_path):
+    proc_root = tmp_path / "proc"
+    proc_root.mkdir()
+    inaccessible = proc_root / "123"
+    inaccessible.mkdir()
+    (inaccessible / "fd").mkdir()
+
+    original_path = MODULE.Path
+
+    class ProcPath(original_path):
+        def iterdir(self):
+            if str(self) == "/proc":
+                return iter((inaccessible,))
+            return super().iterdir()
+
+    monkeypatch.setattr(MODULE, "Path", ProcPath)
+    monkeypatch.setattr(
+        MODULE.os,
+        "readlink",
+        lambda path: (_ for _ in ()).throw(PermissionError()),
+    )
+    assert MODULE.global_claude_mem_references() == []

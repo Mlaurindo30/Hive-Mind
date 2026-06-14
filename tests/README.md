@@ -39,17 +39,17 @@ bash tests/smoke/test_smoke.sh
 
 ### Testes unitários
 ```bash
-python3 -m pytest tests/unit/ -v
+uv run pytest tests/unit/ -v
 ```
 
 ### Testes de integração (requer backends reais)
 ```bash
-python3 -m pytest tests/integration/ -v --run-integration
+HIVE_RUN_INTEGRATION=1 uv run pytest tests/integration/ -v
 ```
 
 ### Testes end-to-end (sistema completo)
 ```bash
-python3 -m pytest tests/e2e/ -v --run-e2e
+uv run pytest tests/e2e/ -v
 ```
 
 ### Suite completa
@@ -79,4 +79,4 @@ python3 -m pytest tests/e2e/ -v --run-e2e
 2. Crie classe `Test<Nome>` no arquivo correspondente
 3. Use fixtures de `tests/conftest.py` para `temp_vault` e `sample_graph`
 4. Use `monkeypatch.setattr("sinapse_memory.CONSTANTE", valor)` para injeção
-5. Execute `python3 -m pytest tests/unit/test_meu_teste.py -v` para validar
+5. Execute `uv run pytest tests/unit/test_meu_teste.py -v` para validar

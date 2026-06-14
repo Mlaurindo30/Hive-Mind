@@ -3,8 +3,8 @@
 **Data:** 13 de junho de 2026
 **Checkout:** `/home/michel/Documentos/Projects/Hive-Mind`
 **Baseline Git:** `7f3b394`
-**Prontidão antes do reboot:** **92%**
-**Classificação:** candidato a produção local, pendente validação pós-reboot e CI remoto
+**Prontidão após reboot:** **96%**
+**Classificação:** apto para produção local controlada; CI remoto ainda não comprovado
 
 ## 1. Resumo executivo
 
@@ -66,7 +66,7 @@ Estado final verificado do UMC:
 |---|---:|
 | Neurônios | 3.384 |
 | Sinapses | 1.762 |
-| Observações | 289 |
+| Observações | 311 |
 | FTS | 3.384 |
 | Vetores sqlite-vec | 3.384 |
 | Goals | 1 |
@@ -83,6 +83,10 @@ Estado final verificado do UMC:
 Intent Memory foi materializada com um goal real de prontidão operacional,
 uma observação contendo `goal_id`, `why` e `intent_source`, dois fatos
 operacionais e uma relação causal.
+
+Após o reboot, o UMC continha 311 observações. O crescimento ocorreu por
+atividade normal dos agentes; as contagens estruturais e os índices
+permaneceram consistentes.
 
 ## 6. Correções críticas
 
@@ -109,11 +113,29 @@ operacionais e uma relação causal.
 | Suíte | Resultado |
 |---|---|
 | Smoke com PATH restrito | 16 passed |
-| Unitários | 206 passed |
+| Unitários | 210 passed |
 | Integração real | 35 passed, 1 skip legítimo |
 | E2E | 22 passed |
 | Graphify watcher | 20 passed |
 | NeuralMemory sandbox | 25 passed |
+
+### Reboot real
+
+- `boot_id` anterior: `b669eff1-746d-452f-8045-ce7ac4c28bc1`
+- `boot_id` validado: `260c49ad-15cb-465b-bda7-acb5753aeff8`
+- quatro serviços ativos, todos com `NRestarts=0`;
+- portas `37700`, `37701` e `37702` apenas em `127.0.0.1`;
+- UMC: `integrity_check=ok`, `quick_check=ok`, zero FKs inválidas;
+- UMC: 3.384 neurônios, 3.384 FTS e 3.384 vetores;
+- Claude-Mem: 159 observações, 159 vetores e zero FKs inválidas;
+- nenhum processo do usuário referencia `~/.claude-mem`;
+- smoke pós-reboot: 16 passed.
+
+A unidade versionada `sinapse-post-reboot-validation.service` grava a
+evidência em `logs/post-reboot-validation.json`. A primeira execução revelou
+duas falhas no próprio validador, carregamento ausente de `sqlite-vec` e
+tratamento incompleto de permissões em `/proc`; ambas foram corrigidas,
+cobertas por testes e a unidade foi reexecutada com sucesso.
 
 ### Instalação limpa descartável
 
@@ -160,7 +182,7 @@ executáveis RTK usados em operação ficam no projeto.
 
 | Risco | Impacto | Situação |
 |---|---|---|
-| Reboot completo ainda não executado | alto | último gate local |
+| Regressão futura de boot | médio | unidade pós-reboot versionada e executada |
 | Workflow GitHub ainda não executado no remoto | médio | YAML validado localmente |
 | OAuth externo pode expirar ou ser revogado | médio | refresh e fallback testados |
 | Warning Starlette/httpx | baixo | sem falha funcional |
@@ -168,10 +190,11 @@ executáveis RTK usados em operação ficam no projeto.
 
 ## 11. Prontidão
 
-**92% antes do reboot.**
+**96% após reboot real.**
 
 O projeto já atende instalação reproduzível, isolamento, dados íntegros,
 serviços locais, recovery, observabilidade, Intent Memory, causalidade, HNSW e
-federação bidirecional. Os pontos restantes são validação pós-reboot e execução
-do workflow no GitHub. O percentual deve subir após o reboot controlado e não
-deve chegar a 100% sem CI remoto verde e validação periódica de credenciais.
+federação bidirecional. O gate local de reboot foi concluído. O percentual não
+chega a 100% porque o workflow ainda precisa ficar verde no GitHub e
+credenciais OAuth externas exigem validação periódica fora do controle do
+checkout.
