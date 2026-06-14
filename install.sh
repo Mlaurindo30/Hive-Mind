@@ -79,23 +79,26 @@ else
     echo -e "${RED}Erro:${NC} uv não encontrado. Instale uv antes de executar este instalador."
     exit 1
 fi
+uv python install 3.12
 BOOTSTRAP_PYTHON="$(uv python find 3.12)"
 
-# Node (para claude-mem)
-NODE_OK=false
+# Node 18+ é requisito do runtime completo e dos smoke tests.
 if command -v node &>/dev/null; then
     NODE_VERSION=$(node --version | sed 's/v//')
+    NODE_MAJOR="${NODE_VERSION%%.*}"
+    if [ "$NODE_MAJOR" -lt 18 ]; then
+        echo -e "${RED}Erro:${NC} Node 18+ é obrigatório (encontrado: $NODE_VERSION)."
+        exit 1
+    fi
     echo -e "  ${GREEN}✓${NC} Node $NODE_VERSION"
-    NODE_OK=true
 else
-    echo -e "  ${YELLOW}⚠${NC}  Node não encontrado. claude-mem será pulado."
+    echo -e "${RED}Erro:${NC} Node 18+ é obrigatório para o claude-mem."
+    exit 1
 fi
 
-# Bun (para claude-mem dependências)
-BUN_OK=false
+# Bun é copiado para .tools/bin e usado pelo runtime project-local.
 if command -v bun &>/dev/null; then
     echo -e "  ${GREEN}✓${NC} Bun $(bun --version 2>/dev/null)"
-    BUN_OK=true
     mkdir -p "$TOOLS_DIR"
     BUN_SOURCE="$(command -v bun)"
     if [ "$BUN_SOURCE" != "$TOOLS_DIR/bun" ]; then
@@ -104,7 +107,8 @@ if command -v bun &>/dev/null; then
     fi
     BUN_BIN="$TOOLS_DIR/bun"
 else
-    echo -e "  ${YELLOW}⚠${NC}  Bun não encontrado. Alguns recursos do claude-mem podem falhar."
+    echo -e "${RED}Erro:${NC} Bun é obrigatório para o runtime project-local do claude-mem."
+    exit 1
 fi
 
 # Ollama (opcional, para extração semântica local)
@@ -268,24 +272,15 @@ echo ""
 # =============================================================================
 echo -e "${BOLD}[5/12] Configurando claude-mem (source local)...${NC}"
 
-if $NODE_OK; then
-    CLAUDE_MEM_DIR="$PROJECT_ROOT/claude-mem"
+CLAUDE_MEM_DIR="$PROJECT_ROOT/claude-mem"
+cd "$CLAUDE_MEM_DIR/plugin"
+"$BUN_BIN" install --frozen-lockfile
+cd "$PROJECT_ROOT"
+echo -e "  ${GREEN}✓${NC} claude-mem runtime instalado pelo lockfile local"
 
-    if ! $BUN_OK; then
-        echo -e "  ${RED}✗${NC} Bun é obrigatório para o runtime do claude-mem."
-        exit 1
-    fi
-    cd "$CLAUDE_MEM_DIR/plugin"
-    "$BUN_BIN" install --frozen-lockfile
-    cd "$PROJECT_ROOT"
-    echo -e "  ${GREEN}✓${NC} claude-mem runtime instalado pelo lockfile local"
-
-    # Copiar config MCP
-    if command -v hermes &>/dev/null; then
-        cp "$PROJECT_ROOT/mcp/claude-mem.json" "$HOME/.hermes/mcp/claude-mem.json" 2>/dev/null || true
-    fi
-else
-    echo -e "  ${YELLOW}⊘${NC}  claude-mem pulado (Node não encontrado)"
+# Copiar config MCP
+if command -v hermes &>/dev/null; then
+    cp "$PROJECT_ROOT/mcp/claude-mem.json" "$HOME/.hermes/mcp/claude-mem.json" 2>/dev/null || true
 fi
 
 echo ""

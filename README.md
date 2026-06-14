@@ -3,9 +3,9 @@
 > **Camada de memória universal, persistente e local-first para enxames de agentes de IA.**
 
 [![Status](https://img.shields.io/badge/status-Fase%20HM--12%20(Federated%20Swarm)-blue)]()
-[![Python](https://img.shields.io/badge/python-3.10%2B-green)]()
+[![Python](https://img.shields.io/badge/python-3.12-green)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-lightgrey)]()
-[![Tests](https://img.shields.io/badge/tests-191%20passando-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-211%20unitários-brightgreen)]()
 
 O **Hive-Mind** resolve a amnésia entre sessões dos agentes de IA. Tudo o que os agentes **fazem** (logs), **veem** (capturas de tela), **leem** (PDF/DOCX) e **decidem** é consolidado em um único cérebro persistente — o **Unified Memory Core (UMC)** — e materializado em linguagem natural num vault Obsidian (`cerebro/`), a fonte única de verdade legível por humanos e agentes.
 
@@ -24,12 +24,11 @@ Clone e instale o Hive-Mind nesta máquina.
 
   git clone https://github.com/Mlaurindo30/sinapse_agent.git ~/hive-mind
   cd ~/hive-mind
-  ./install.sh
+  ./install.sh --with-tests
 
-O instalador cuida de tudo em 12 etapas: dependências Python/Node/Rust, graphify,
-claude-mem, neural-memory, RTK, servidores MCP, cron de sync, plugin sinapse-memory,
-registro nos agentes detectados (Claude Code, Codex, Cursor, Gemini CLI, VS Code...)
-e health check final.
+Pré-requisitos: Linux com systemd de usuário, Git, curl, uv, Node 18+, Bun e
+acesso à internet. O instalador cria o Python 3.12 gerenciado por uv, `.venv`,
+Graphify, claude-mem, NeuralMemory, RTK, serviços, índices e registros MCP.
 
 Ao terminar, o próprio instalador pergunta se deseja configurar o provedor LLM
 (Gemini, OpenAI, Anthropic, Ollama...) via setup-brain.sh. Responda S e siga
@@ -39,7 +38,9 @@ Se estiver rodando em modo headless/CI (sem terminal interativo):
   HIVE_DREAMER_PROVIDER=google HIVE_DREAMER_MODEL=gemini-2.0-flash \
   GOOGLE_API_KEY=<sua_chave> ./install.sh --non-interactive
 
-Após a instalação, reinicie este agente para carregar as 10 tools do sinapse-memory.
+Após a instalação, reinicie este agente. No Codex serão registrados:
+sinapse-memory, claude-mem-local e neural-memory-local. O primeiro expõe as
+10 tools unificadas do Hive-Mind.
 ```
 
 ### Prompt de Registro do MCP (projeto já instalado)
@@ -52,7 +53,7 @@ Registre o Hive-Mind como servidor MCP em todos os agentes de IA desta máquina.
 
 Detecta e registra automaticamente: Claude Code, Codex CLI, Gemini CLI, Cursor,
 VS Code/Copilot, Kilo Code, Roo Code, Kiro, OpenCode e outros.
-Faz merge seguro no JSON de cada agente — nunca sobrescreve outros MCP servers.
+Faz merge seguro dos três MCPs project-local e nunca remove servidores alheios.
 
 Para verificar status sem modificar nada:
   ./scripts/register-mcp.sh --check
@@ -298,19 +299,21 @@ O **Hive-Mind** é totalmente suportado no Windows através do **WSL2** (Windows
 
 ---
 
-O `install.sh` executa 10 etapas:
+O `install.sh` executa 12 etapas:
 
 ```
-  [1/10] Verificação de dependências (Python 3.10+, Node, Rust, SQLite)
-  [2/10] Dependências Python (requirements.txt via pip/uv)
-  [3/10] Instalação do Graphify (do source)
-  [4/10] Registro nos agentes detectados (Claude Code, Codex, Cursor...)
-  [5/10] Configuração do claude-mem (do source, worker Bun)
-  [6/10] Instalação do NeuralMemory (source local)
-  [7/10] Configuração do RTK (compilação Rust)
-  [8/10] Configuração MCP (templates em mcp/ → config de cada agente)
-  [9/10] Cron de sync periódico (6h rebuild + domingo rebuild completo)
-  [10/10] Plugin sinapse-memory (cópia para ~/.hermes/plugins/)
+  [1/12] Pré-requisitos e Python 3.12 gerenciado por uv
+  [2/12] Ambiente Python reproduzível (.venv + uv.lock)
+  [3/12] Graphify local e índices FTS/sqlite-vec/HNSW
+  [4/12] Skills nos agentes detectados
+  [5/12] Claude-Mem local pelo bun.lock
+  [6/12] NeuralMemory local
+  [7/12] RTK fixado e compilado
+  [8/12] MCP do Hermes
+  [9/12] Cron único de sincronização
+  [10/12] Plugin sinapse-memory do Hermes
+  [11/12] Configuração de inteligência
+  [12/12] Três MCPs project-local nos agentes externos e serviços
 ```
 
 ---
