@@ -71,8 +71,8 @@ Sequência completa para colocar o Hive-Mind funcionando do zero:
 # 1. Clonar o repositório
 git clone <repo-url> ~/Hive-Mind && cd ~/Hive-Mind
 
-# 2. Instalação completa (deps, UMC, watcher, cron, MCP nos agentes detectados)
-./install.sh
+# 2. Instalação completa e validação real
+./install.sh --with-tests
 
 # 3. Configurar o LLM do Dream Cycle (interativo)
 ./scripts/setup-brain.sh
@@ -88,7 +88,11 @@ python3 scripts/sinapse-write.py health
 ./scripts/register-mcp.sh --check   # só mostra o status, sem modificar
 ```
 
-O script é idempotente e faz **merge** no JSON de cada agente — nunca apaga outros MCP servers já registrados. Agentes suportados na detecção automática: Claude Code, Codex CLI, Gemini CLI, Qwen Code, Kimi Code, Kiro, Kilo Code, Roo Code, VS Code/Copilot, Cursor, OpenCode, OpenClaw. Após registrar, **reinicie o agente** para ele carregar as 10 tools e valide pedindo: "use a tool sinapse_health".
+O script é idempotente e registra `sinapse-memory`, `claude-mem-local` e
+`neural-memory-local`, sem apagar outros MCP servers. Agentes suportados na
+detecção automática: Claude Code, Codex CLI, Gemini CLI, Qwen Code, Kimi Code,
+Kiro, Kilo Code, Roo Code, VS Code/Copilot, Cursor, OpenCode e OpenClaw. Após
+registrar, **reinicie o agente** e valide pedindo: "use a tool sinapse_health".
 
 ---
 

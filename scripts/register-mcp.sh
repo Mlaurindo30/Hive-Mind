@@ -23,8 +23,8 @@ NC='\033[0m'
 CHECK_ONLY=false
 [ "${1:-}" = "--check" ] && CHECK_ONLY=true
 
-# Merge seguro: adiciona/atualiza apenas a chave sinapse-memory no JSON do
-# agente, preservando quaisquer outros MCP servers registrados pelo usuário.
+# Merge seguro: adiciona/atualiza os três servidores project-local do
+# Hive-Mind, preservando quaisquer outros MCP servers registrados pelo usuário.
 # Uso: merge_mcp_server <arquivo> [chave_raiz]
 #   chave_raiz padrão: mcpServers — VS Code (.vscode/mcp.json) usa "servers"
 merge_mcp_server() {
@@ -36,13 +36,23 @@ import json, os
 path = os.environ["MCP_TARGET_FILE"]
 root_key = os.environ["MCP_ROOT_KEY"]
 project_root = os.environ["MCP_PROJECT_ROOT"]
-entry = {
-    "command": f"{project_root}/.venv/bin/python",
-    "args": [f"{project_root}/scripts/sinapse-mcp.py"],
-    "cwd": project_root,
+entries = {
+    "sinapse-memory": {
+        "command": f"{project_root}/.venv/bin/python",
+        "args": [f"{project_root}/scripts/sinapse-mcp.py"],
+        "cwd": project_root,
+    },
+    "claude-mem-local": {
+        "command": f"{project_root}/scripts/claude-mem-local.sh",
+        "args": ["mcp-server"],
+        "cwd": project_root,
+    },
+    "neural-memory-local": {
+        "command": f"{project_root}/scripts/neural-memory-local.sh",
+        "args": [],
+        "cwd": project_root,
+    },
 }
-if root_key == "servers":
-    entry["type"] = "stdio"
 cfg = {}
 if os.path.exists(path):
     try:
@@ -52,14 +62,18 @@ if os.path.exists(path):
         cfg = {}
 if not isinstance(cfg, dict):
     cfg = {}
-cfg.setdefault(root_key, {})["sinapse-memory"] = entry
+servers = cfg.setdefault(root_key, {})
+for name, entry in entries.items():
+    if root_key == "servers":
+        entry["type"] = "stdio"
+    servers[name] = entry
 with open(path, "w") as f:
     json.dump(cfg, f, indent=2)
     f.write("\n")
 PYEOF
 }
 
-# Verifica se um arquivo já tem o registro sinapse-memory
+# Verifica se um arquivo já tem os três registros project-local.
 has_registration() {
     local FILE="$1"
     local ROOT_KEY="${2:-mcpServers}"
@@ -67,10 +81,39 @@ has_registration() {
 import json, sys
 try:
     cfg = json.load(open('$FILE'))
-    sys.exit(0 if 'sinapse-memory' in cfg.get('$ROOT_KEY', {}) else 1)
+    expected = {'sinapse-memory', 'claude-mem-local', 'neural-memory-local'}
+    sys.exit(0 if expected <= set(cfg.get('$ROOT_KEY', {})) else 1)
 except Exception:
     sys.exit(1)
 " 2>/dev/null
+}
+
+register_codex() {
+    if $CHECK_ONLY; then
+        local missing=0
+        for server in sinapse-memory claude-mem-local neural-memory-local; do
+            codex mcp get "$server" >/dev/null 2>&1 || missing=1
+        done
+        if [ "$missing" -eq 0 ]; then
+            echo -e "  ${GREEN}✓${NC} Codex CLI — 3 servidores registrados (~/.codex/config.toml)"
+        else
+            echo -e "  ${YELLOW}⊘${NC} Codex CLI — registro incompleto (~/.codex/config.toml)"
+        fi
+    else
+        for server in sinapse-memory claude-mem-local neural-memory-local; do
+            codex mcp remove "$server" >/dev/null 2>&1 || true
+        done
+        codex mcp add sinapse-memory -- \
+            "$PROJECT_ROOT/.venv/bin/python" "$PROJECT_ROOT/scripts/sinapse-mcp.py"
+        codex mcp add claude-mem-local -- \
+            "$PROJECT_ROOT/scripts/claude-mem-local.sh" mcp-server
+        codex mcp add neural-memory-local -- \
+            "$PROJECT_ROOT/scripts/neural-memory-local.sh"
+        # Mantém o JSON compatível com clientes Codex anteriores.
+        merge_mcp_server "$HOME/.codex/mcp.json"
+        echo -e "  ${GREEN}✓${NC} Codex CLI → 3 servidores project-local"
+    fi
+    ((++AGENTS_FOUND))
 }
 
 # register <nome> <arquivo> [chave_raiz]
@@ -101,7 +144,7 @@ fi
 
 # Codex CLI
 if command -v codex &>/dev/null; then
-    register "Codex CLI" "$HOME/.codex/mcp.json"
+    register_codex
 fi
 
 # Gemini CLI
@@ -167,6 +210,6 @@ fi
 if $CHECK_ONLY; then
     echo "$AGENTS_FOUND agente(s) detectado(s). Rode sem --check para registrar."
 else
-    echo "$AGENTS_FOUND agente(s) registrado(s). Reinicie cada agente para carregar as 10 tools."
+    echo "$AGENTS_FOUND agente(s) registrado(s). Reinicie cada agente para carregar os MCPs."
 echo "Teste em qualquer agente: peça \"use a tool sinapse_health\"."
 fi
