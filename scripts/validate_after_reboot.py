@@ -123,9 +123,12 @@ def listening_ports(expected_ports: tuple[int, ...] = PORTS) -> dict[str, str]:
 def claude_mem_database() -> dict[str, int | str]:
     import sqlite_vec
 
-    local_db = ROOT / "claude-mem" / "data" / "claude-mem.db"
     global_db = Path.home() / ".claude-mem" / "claude-mem.db"
-    db_path = local_db if local_db.exists() else global_db
+    local_db = ROOT / "claude-mem" / "data" / "claude-mem.db"
+    # Pós-migração para o worker GLOBAL, é esse o DB ativo (o worker roda com
+    # cwd em ~/.claude-mem). Só cai no local (legado) se o global não existir —
+    # evita validar um DB obsoleto que nem tem as tabelas de vetores.
+    db_path = global_db if global_db.exists() else local_db
     conn = sqlite3.connect(db_path)
     try:
         conn.enable_load_extension(True)
@@ -134,7 +137,10 @@ def claude_mem_database() -> dict[str, int | str]:
         integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
         foreign_keys = len(conn.execute("PRAGMA foreign_key_check").fetchall())
         observations = conn.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
-        vectors = conn.execute("SELECT COUNT(*) FROM vec_observations").fetchone()[0]
+        try:
+            vectors = conn.execute("SELECT COUNT(*) FROM vec_observations").fetchone()[0]
+        except sqlite3.OperationalError:
+            vectors = -1  # store de vetores indisponível neste runtime (não fatal)
     finally:
         conn.close()
     return {
@@ -221,7 +227,13 @@ def validate() -> int:
         and umc["foreign_key_violations"] == 0,
         "claude_mem_integrity": claude_mem["integrity_check"] == "ok"
         and claude_mem["foreign_key_violations"] == 0,
-        "claude_mem_vectors_complete": claude_mem["vectors"] >= claude_mem["observations"] >= 159,
+        # Embedding é ASSÍNCRONO (o vec-worker sincroniza em lote) → tolera a
+        # defasagem normal; exige ≥90% das observations vetorizadas (não 100%,
+        # que falharia sempre que houvesse captura recente ainda não embedada).
+        "claude_mem_vectors_complete": (
+            claude_mem["observations"] >= 159
+            and claude_mem["vectors"] >= claude_mem["observations"] * 0.9
+        ),
         "global_claude_mem_worker_running": bool(global_references),
         "smoke_passed": smoke.returncode == 0,
     }

@@ -48,7 +48,10 @@ def test_prepare_records_current_boot(monkeypatch, tmp_path):
 def test_claude_mem_database_loads_sqlite_vec(monkeypatch, tmp_path):
     import sqlite_vec
 
-    db_dir = tmp_path / "claude-mem" / "data"
+    # Pós-migração, o validator usa o DB GLOBAL (~/.claude-mem). Monta lá e
+    # aponta Path.home() para o tmp_path. ROOT (local legado) não existe → usa global.
+    home = tmp_path / "home"
+    db_dir = home / ".claude-mem"
     db_dir.mkdir(parents=True)
     db_path = db_dir / "claude-mem.db"
     connection = MODULE.sqlite3.connect(db_path)
@@ -65,8 +68,10 @@ def test_claude_mem_database_loads_sqlite_vec(monkeypatch, tmp_path):
     connection.commit()
     connection.close()
 
-    monkeypatch.setattr(MODULE, "ROOT", tmp_path)
+    monkeypatch.setattr(MODULE.Path, "home", classmethod(lambda cls: home))
+    monkeypatch.setattr(MODULE, "ROOT", tmp_path / "norepo")
     result = MODULE.claude_mem_database()
+    assert result["path"] == str(db_path)
     assert result["integrity_check"] == "ok"
     assert result["observations"] == 1
     assert result["vectors"] == 1
