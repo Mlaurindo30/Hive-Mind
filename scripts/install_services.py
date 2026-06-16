@@ -19,23 +19,22 @@ def unit_definitions() -> dict[str, str]:
     common_unit = "StartLimitIntervalSec=60\nStartLimitBurst=3"
     return {
         "sinapse-claude-mem.service": f"""[Unit]
-Description=Sinapse Agent - claude-mem Worker
+Description=Sinapse Agent - claude-mem Worker (global)
 After=network.target
 {common_unit}
 
 [Service]
 Type=simple
 UMask=0077
-WorkingDirectory={path}/claude-mem
-Environment=CLAUDE_MEM_DATA_DIR={path}/claude-mem/data
+WorkingDirectory=%h/.claude-mem
 Environment=CLAUDE_MEM_WORKER_HOST=127.0.0.1
 Environment=CLAUDE_MEM_WORKER_PORT=37700
 Environment=CLAUDE_MEM_CHROMA_ENABLED=false
 Environment=CLAUDE_MEM_MANAGED=true
-Environment=PATH={path}/claude-mem/plugin/node_modules/.bin:{path}/.tools/bin:{path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PATH={path}/.tools/bin:{path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart={path}/scripts/claude-mem-local.sh
 Restart=on-failure
-RestartSec=5
+RestartSec=2
 
 [Install]
 WantedBy=default.target
@@ -50,8 +49,8 @@ Type=simple
 UMask=0077
 WorkingDirectory={path}
 Environment=VEC_WORKER_PORT=37701
-Environment=CLAUDE_MEM_DB={path}/claude-mem/data/claude-mem.db
-Environment=FASTEMBED_CACHE_PATH={path}/claude-mem/data/models
+Environment=CLAUDE_MEM_DB=%h/.claude-mem/claude-mem.db
+Environment=FASTEMBED_CACHE_PATH=%h/.claude-mem/models
 Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart={path}/.venv/bin/python {path}/plugins/sqlite-vec-worker/worker.py
 Restart=on-failure
@@ -99,6 +98,48 @@ RestartSec=5
 [Install]
 WantedBy=default.target
 """,
+        "sinapse-capture-tailer.service": f"""[Unit]
+Description=Hive-Mind capture tailer (transcripts de agents → claude-mem)
+After=network.target sinapse-claude-mem.service
+StartLimitIntervalSec=0
+StartLimitBurst=0
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart={path}/.venv/bin/python {path}/scripts/capture-tailer.py --all --scan --since-hours 1
+""",
+        "sinapse-capture-realtime.service": f"""[Unit]
+Description=Hive-Mind capture realtime (inotify -> claude-mem, tempo real p/ copilot)
+After=network.target sinapse-claude-mem.service
+{common_unit}
+
+[Service]
+Type=simple
+UMask=0077
+WorkingDirectory={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart={path}/.venv/bin/python {path}/scripts/capture-realtime.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+""",
+        "sinapse-capture-tailer.timer": """[Unit]
+Description=Hive-Mind capture tailer schedule (near-realtime)
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+""",
         "sinapse-post-reboot-validation.service": f"""[Unit]
 Description=Hive-Mind post-reboot production validation
 Wants=sinapse-claude-mem.service sinapse-sqlite-vec.service sinapse-graphify-watch.service
@@ -123,7 +164,6 @@ def validate_runtime() -> None:
     required = (
         ROOT / ".venv" / "bin" / "python",
         ROOT / ".tools" / "bin" / "bun",
-        ROOT / "claude-mem" / "plugin" / "scripts" / "worker-service.cjs",
         ROOT / "hive_mind.db",
     )
     missing = [str(path) for path in required if not path.exists()]
@@ -160,6 +200,8 @@ def install(start: bool) -> int:
         "sinapse-claude-mem.service",
         "sinapse-sqlite-vec.service",
         "sinapse-graphify-watch.service",
+        "sinapse-capture-realtime.service",
+        "sinapse-capture-tailer.timer",
     ]
     if api_enabled():
         enabled.append("sinapse-api.service")

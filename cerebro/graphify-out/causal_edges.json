@@ -1,0 +1,9 @@
+[
+  {
+    "id": "causal:project-local-runtime:production-readiness",
+    "cause": "ops:project-local-runtime",
+    "effect": "ops:production-readiness-validation",
+    "label": "enables reproducible validation",
+    "confidence": 1.0
+  }
+]

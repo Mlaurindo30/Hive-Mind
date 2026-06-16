@@ -1,6 +1,6 @@
 import sqlite3
 
-from scripts.repair_claude_mem_fk import repair
+from scripts.repair_claude_mem_fk import backup_database, repair
 
 
 def test_repair_creates_session_without_deleting_children(tmp_path):
@@ -57,3 +57,23 @@ def test_repair_creates_session_without_deleting_children(tmp_path):
     assert conn.execute("SELECT COUNT(*) FROM sdk_sessions").fetchone()[0] == 1
     assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
     conn.close()
+
+
+def test_backup_database_prunes_old_files(tmp_path):
+    db = tmp_path / "claude-mem.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE t(id INTEGER PRIMARY KEY)")
+    conn.commit()
+
+    backup_dir = tmp_path / "backups" / "fk-repair"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stale = backup_dir / "claude-mem.before-fk-repair.20200101T000000Z.db"
+    stale.write_bytes(b"stale")
+
+    backup_path = backup_database(conn, db, keep_last=1)
+    conn.close()
+
+    backups = sorted(backup_dir.glob("claude-mem.before-fk-repair.*.db"))
+    assert len(backups) == 1
+    assert backups[0] == backup_path
+    assert not stale.exists()

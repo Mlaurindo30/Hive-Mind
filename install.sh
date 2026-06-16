@@ -10,7 +10,7 @@
 #   2. Sincroniza o ambiente Python local e reproduzível (.venv + uv.lock)
 #   3. Instala Graphify (graphifyy[all]) e indexa o vault cerebro/ (Gemini→Ollama→AST)
 #   4. Registra skills nos agentes detectados (Hermes, Claude, Codex, etc.)
-#   5. Configura claude-mem, instala dependências, inicia worker (systemd)
+#   5. Instala claude-mem global (npx nativo, dados em ~/.claude-mem, worker :37700)
 #   6. Instala NeuralMemory (nmem) — busca associativa com spreading activation
 #   7. Compila RTK do source (Rust) e instala plugin no Hermes
 #   8. Configura MCP servers (graphify + claude-mem) para Hermes
@@ -96,7 +96,7 @@ else
     exit 1
 fi
 
-# Bun é copiado para .tools/bin e usado pelo runtime project-local.
+# Bun é copiado para .tools/bin (runtime project-local, scripts auxiliares).
 if command -v bun &>/dev/null; then
     echo -e "  ${GREEN}✓${NC} Bun $(bun --version 2>/dev/null)"
     mkdir -p "$TOOLS_DIR"
@@ -137,7 +137,7 @@ GRAPHIFY="$PROJECT_ROOT/.venv/bin/graphify"
 NMEM="$PROJECT_ROOT/.venv/bin/nmem"
 export PATH="$PROJECT_ROOT/.venv/bin:$PROJECT_ROOT/rtk/target/release:$PATH"
 "$PYTHON" -c "import fastapi, yaml, pydantic, graphify, neural_memory, sqlite_vec"
-mkdir -p "$PROJECT_ROOT/claude-mem/data/models" "$PROJECT_ROOT/neural-memory/data"
+mkdir -p "$PROJECT_ROOT/neural-memory/data"
 "$PYTHON" "$PROJECT_ROOT/scripts/setup_umc.py" >/dev/null
 echo -e "  ${GREEN}✓${NC} Python $("$PYTHON" -c 'import sys; print(sys.version.split()[0])') em $PROJECT_ROOT/.venv"
 
@@ -268,21 +268,119 @@ fi
 echo ""
 
 # =============================================================================
-# 5. CONFIGURAÇÃO DO CLAUDE-MEM (do source clonado)
+# 5. INSTALAÇÃO DO CLAUDE-MEM GLOBAL (npx nativo, dados em ~/.claude-mem)
 # =============================================================================
-echo -e "${BOLD}[5/12] Configurando claude-mem (source local)...${NC}"
+echo -e "${BOLD}[5/12] Instalando claude-mem global (npx nativo)...${NC}"
 
-CLAUDE_MEM_DIR="$PROJECT_ROOT/claude-mem"
-cd "$CLAUDE_MEM_DIR/plugin"
-"$BUN_BIN" install --frozen-lockfile
-cd "$PROJECT_ROOT"
-echo -e "  ${GREEN}✓${NC} claude-mem runtime instalado pelo lockfile local"
+# O claude-mem agora é global: plugin em ~/.claude/plugins/marketplaces/thedotmack,
+# dados em ~/.claude-mem, hooks nativos por IDE, worker na porta 37700.
+# A instalação nativa (npx claude-mem@13.6 install) registra plugin + hooks
+# para cada IDE detectada. Rodamos uma vez por IDE relevante.
 
-# Copiar config MCP
-if command -v hermes &>/dev/null; then
-    cp "$PROJECT_ROOT/mcp/claude-mem.json" "$HOME/.hermes/mcp/claude-mem.json" 2>/dev/null || true
+CLAUDE_MEM_VERSION="13.6"
+CLAUDE_MEM_NPX="npx -y claude-mem@${CLAUDE_MEM_VERSION}"
+
+# Detecta IDEs instaladas (mesmos critérios do detectInstalledIDEs do claude-mem)
+# e roda o install nativo para CADA uma. Ids nativos: claude-code, gemini-cli,
+# codex-cli, cursor, windsurf, opencode, openclaw, goose.
+INSTALLED_IDES=()
+command -v claude &>/dev/null                                  && INSTALLED_IDES+=("claude-code")
+[ -d "$HOME/.gemini" ]                                         && INSTALLED_IDES+=("gemini-cli")
+[ -d "$HOME/.codex" ]                                          && INSTALLED_IDES+=("codex-cli")
+[ -d "$HOME/.cursor" ]                                         && INSTALLED_IDES+=("cursor")
+[ -d "$HOME/.codeium/windsurf" ]                              && INSTALLED_IDES+=("windsurf")
+{ command -v opencode &>/dev/null || [ -d "$HOME/.config/opencode" ]; } && INSTALLED_IDES+=("opencode")
+[ -d "$HOME/.openclaw" ]                                       && INSTALLED_IDES+=("openclaw")
+[ -d "$HOME/.config/goose" ]                                   && INSTALLED_IDES+=("goose")
+{ [ -d "$HOME/.copilot" ] || [ -d "$HOME/.github/copilot" ] || command -v copilot &>/dev/null; } && INSTALLED_IDES+=("copilot-cli")
+[ -d "$HOME/.gemini/antigravity-cli" ] || [ -d "$HOME/.antigravity" ] && INSTALLED_IDES+=("antigravity")
+
+if [ ${#INSTALLED_IDES[@]} -eq 0 ]; then
+    echo -e "  ${YELLOW}⊘${NC}  Nenhuma IDE detectada (Claude Code, Gemini, Codex, Cursor, Windsurf, OpenCode, OpenClaw...)."
+else
+    echo -e "  IDEs detectadas: ${INSTALLED_IDES[*]}"
+    
+    # Detecção inteligente do provedor de memória (evita bloqueios de cota do Claude)
+    MEM_PROVIDER="claude"
+    if [ -n "${GEMINI_API_KEY:-}" ] || [ -n "${GOOGLE_API_KEY:-}" ]; then
+        MEM_PROVIDER="gemini"
+        echo -e "  ${BLUE}ℹ${NC} Gemini API Key detectada. Configurando claude-mem para usar Gemini."
+    fi
+
+    for ide in "${INSTALLED_IDES[@]}"; do
+        echo -e "  Instalando hooks nativos para ${ide}..."
+        $CLAUDE_MEM_NPX install --ide "$ide" --runtime worker --provider "$MEM_PROVIDER" --no-auto-start 2>&1 | tail -2
+        echo -e "  ${GREEN}✓${NC} $ide configurado"
+        
+        if [ "$ide" = "copilot-cli" ]; then
+            # Tailer é a fonte oficial de captura do Copilot (IDE/CLI); não
+            # forçamos wrapper para evitar drift com binários reais do usuário.
+            if [ -L "$HOME/.local/bin/copilot" ] && [ "$(readlink -f "$HOME/.local/bin/copilot")" = "$PROJECT_ROOT/scripts/copilot-wrapper.sh" ]; then
+                rm -f "$HOME/.local/bin/copilot"
+                echo -e "  ${GREEN}✓${NC} wrapper legado do copilot removido (tailer oficial)"
+            fi
+            echo -e "  ${GREEN}✓${NC} captura do copilot via capture-tailer (transcripts da IDE e fallback CLI)"
+        fi
+    done
+
+    # Sincroniza a chave do Gemini com o settings.json do claude-mem global
+    if [ "$MEM_PROVIDER" = "gemini" ] && [ -d "$HOME/.claude-mem" ]; then
+        G_KEY="${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}"
+        if [ -f "$HOME/.claude-mem/settings.json" ] && [ -n "$G_KEY" ]; then
+            # Usa python para um merge de JSON seguro em vez de sed
+            "$PYTHON" -c "
+import json, os
+path = '$HOME/.claude-mem/settings.json'
+key = '$G_KEY'
+if os.path.exists(path):
+    with open(path, 'r') as f: data = json.load(f)
+    data['CLAUDE_MEM_GEMINI_API_KEY'] = key
+    data['CLAUDE_MEM_PROVIDER'] = 'gemini'
+    with open(path, 'w') as f: json.dump(data, f, indent=2)
+" 2>/dev/null && echo -e "  ${GREEN}✓${NC} Chave Gemini sincronizada com o worker global"
+        fi
+    fi
+    # Gemini moderno (>=0.4x) só executa hooks "confiados". O instalador nativo
+    # NÃO registra trust — fazemos isso aqui para captura sem intervenção manual.
+    if [ -d "$HOME/.gemini" ] && [ -x "$BUN_BIN" ]; then
+        "$BUN_BIN" - "$PROJECT_ROOT" <<'GEMTRUST' 2>/dev/null || true
+import {readFileSync,writeFileSync,existsSync} from "fs";import {homedir} from "os";import path from "path";
+const h=homedir();const sp=path.join(h,".gemini/settings.json");const tp=path.join(h,".gemini/trusted_hooks.json");
+if(!existsSync(sp))process.exit(0);
+const s=JSON.parse(readFileSync(sp,"utf8"));if(!s.hooks)process.exit(0);
+let t={};if(existsSync(tp)){try{t=JSON.parse(readFileSync(tp,"utf8"))}catch{}}
+const proj=process.argv[2]||process.cwd();const set=new Set(t[proj]||[]);
+for(const groups of Object.values(s.hooks))for(const g of groups)for(const hk of (g.hooks||[]))
+  if(hk&&hk.type==="command"&&hk.name)set.add(`${hk.name}:${hk.command??""}`);
+t[proj]=[...set].sort();writeFileSync(tp,JSON.stringify(t,null,2)+"\n");
+console.log("  gemini trusted_hooks atualizado");
+GEMTRUST
+        echo -e "  ${GREEN}✓${NC} Gemini trusted_hooks registrado"
+    fi
 fi
 
+# Migração de dados: se existe um db legado no projeto (de instalação anterior),
+# copia para ~/.claude-mem preservando o histórico.
+LEGACY_DB="$PROJECT_ROOT/claude-mem/data/claude-mem.db"
+if [ -f "$LEGACY_DB" ]; then
+    echo -e "  Db legado detectado no projeto ($(du -h "$LEGACY_DB" | cut -f1))."
+    echo -e "  Migrando para ~/.claude-mem/claude-mem.db..."
+    cp "$LEGACY_DB" "$HOME/.claude-mem/claude-mem.db"
+    if [ -f "$PROJECT_ROOT/claude-mem/data/claude-mem.db-wal" ]; then
+        cp "$PROJECT_ROOT/claude-mem/data/claude-mem.db-wal" "$HOME/.claude-mem/claude-mem.db-wal"
+        cp "$PROJECT_ROOT/claude-mem/data/claude-mem.db-shm" "$HOME/.claude-mem/claude-mem.db-shm" 2>/dev/null || true
+        sqlite3 "$HOME/.claude-mem/claude-mem.db" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
+    fi
+    echo -e "  ${GREEN}✓${NC} Histórico migrado ($(sqlite3 "$HOME/.claude-mem/claude-mem.db" "SELECT COUNT(*) FROM observations;" 2>/dev/null || echo "?") observações)"
+fi
+
+# Models (FastEmbed cache) — migrar se existir no projeto.
+if [ -d "$PROJECT_ROOT/claude-mem/data/models" ] && [ ! -d "$HOME/.claude-mem/models" ]; then
+    cp -rn "$PROJECT_ROOT/claude-mem/data/models" "$HOME/.claude-mem/models" 2>/dev/null || true
+    echo -e "  ${GREEN}✓${NC} Models migrados para ~/.claude-mem/models"
+fi
+
+echo -e "  ${GREEN}✓${NC} claude-mem global instalado (dados em ~/.claude-mem, worker :37700)"
 echo ""
 
 # =============================================================================
@@ -534,6 +632,12 @@ echo ""
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}Verificando integridade...${NC}"
 "$PYTHON" "$PROJECT_ROOT/scripts/install_services.py" install
+
+# Ponte de modelo: se o papel `claude_mem` foi configurado no setup-brain,
+# aplica esse provider/modelo no claude-mem (via /api/settings + seed). Sai
+# limpo se não houver papel configurado (usa o default do claude-mem). #modelo
+"$PYTHON" "$PROJECT_ROOT/scripts/sync-claude-mem-provider.py" 2>&1 | sed 's/^/  /' || true
+
 if "$PYTHON" "$PROJECT_ROOT/scripts/sinapse-write.py" health >/dev/null 2>&1; then
     echo -e "  ${GREEN}✓${NC} Health check: backends operacionais"
 else

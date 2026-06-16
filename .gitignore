@@ -29,10 +29,12 @@ Thumbs.db
 # ── Logs ───────────────────────────────────────────────────────────
 *.log
 logs/
+cerebro/thinking/session-logs/
 
 # ── Runtime data ───────────────────────────────────────────────────
 claude-mem/data/
 rtk/target/
+backups/
 
 # ── Hermes agent local ────────────────────────────────────────────
 .hermes/
@@ -45,6 +47,7 @@ rtk/
 
 # ── Secrets ─────────────────────────────────────────────────────────
 .env
+.env.*
 *.secret
 config/keys/
 config/component-lock-backups/
@@ -71,6 +74,16 @@ ruvector.db
 .swarm/
 .kilo/
 .mcp.json
+
+# ── Índices neurais (artefatos runtime — regenerados automaticamente) ─
+hnsw_neurons.idx
+hnsw_neurons.map.json
+*.neuralmemory/
+
+# ── Outputs de sessão (gerados em runtime, não fazem parte do código) ─
+council_responses.txt
+*.bak
+graphify-out/cache/
 
 # ── Arquivos temporários e de testes do workspace ────────────────────
 contrarian_prompt.md

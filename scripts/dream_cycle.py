@@ -416,16 +416,26 @@ source_image: {img_path.name}
 
 def run_dream_cycle():
     print(f"=== Hive-Mind: Ciclo de Sonho V2 (Corporate Grade) ===")
+    cycle_t0 = time.perf_counter()
+    stage_metrics: Dict[str, float] = {}
+
+    def mark_stage(stage_name: str, started_at: float) -> None:
+        stage_metrics[stage_name] = round((time.perf_counter() - started_at) * 1000.0, 3)
     
     # --- ESTÁGIO DE DOCUMENTOS (PDF/DOCX) ---
+    doc_t0 = time.perf_counter()
     try:
         from scripts.document_ingest import run_ingestion
         run_ingestion()
     except Exception as e:
         print(f"  [Error] Falha no estágio de documentos: {e}")
+    finally:
+        mark_stage("document_ingest_ms", doc_t0)
 
     # --- ESTÁGIO VISUAL ---
+    visual_t0 = time.perf_counter()
     run_visual_dream_stage()
+    mark_stage("visual_dream_ms", visual_t0)
     
     # --- INGESTÃO ---
     conn = get_connection()
@@ -462,12 +472,16 @@ def run_dream_cycle():
         conn.commit()
 
     # --- PIPELINE DE INTELIGÊNCIA ---
+    distill_t0 = time.perf_counter()
     distilled, distill_status = agent_distill_and_validate(logs_context)
+    mark_stage("distill_validate_ms", distill_t0)
 
     if distill_status == "failed":
         # Falha de pipeline (exceções após max_retries): quarentena para reprocessamento posterior
         _mark_observations(2)
         print(f"  [Pipeline] {len(obs_ids)} observações enviadas para quarentena (archived=2)")
+        stage_metrics["total_cycle_ms"] = round((time.perf_counter() - cycle_t0) * 1000.0, 3)
+        _persist_cycle_metrics(stage_metrics, status="failed")
         conn.close()
         return
 
@@ -475,15 +489,21 @@ def run_dream_cycle():
         # Sem fatos relevantes não é falha: marca como consolidado para não reprocessar
         _mark_observations(1)
         print("  [Final] Nenhum fato de longo prazo extraído desta sessão.")
+        stage_metrics["total_cycle_ms"] = round((time.perf_counter() - cycle_t0) * 1000.0, 3)
+        _persist_cycle_metrics(stage_metrics, status="empty")
         conn.close()
         return
 
+    route_t0 = time.perf_counter()
     routed = agent_route(distilled.facts)
+    mark_stage("route_ms", route_t0)
     if not routed or not routed.routed_facts:
         # Falha no roteador: quarentena (podem ser reprocessadas depois)
         _mark_observations(2)
         print(f"  [Pipeline] {len(obs_ids)} observações enviadas para quarentena (archived=2)")
         print("  [Final] Falha no roteamento semântico.")
+        stage_metrics["total_cycle_ms"] = round((time.perf_counter() - cycle_t0) * 1000.0, 3)
+        _persist_cycle_metrics(stage_metrics, status="failed")
         conn.close()
         return
 
@@ -494,6 +514,7 @@ def run_dream_cycle():
     # Dicionário mapeando fact_id -> fact Pydantic object
     fact_map = {f.id: f for f in distilled.facts}
     
+    storage_t0 = time.perf_counter()
     for r in routed.routed_facts:
         fact = fact_map.get(r.fact_id)
         if not fact: continue
@@ -531,15 +552,41 @@ source: hive-dreamer
             f.write(content)
             
         print(f"  [+] Nota {r.action}: {safe_topic}/{fact.id}.md")
+    mark_stage("atlas_persist_ms", storage_t0)
 
     # Roteamento bem-sucedido: marca observações como consolidadas (archived=1)
     _mark_observations(1)
 
     # --- SÍNTESE AUTÔNOMA (Fase 9) ---
+    synth_t0 = time.perf_counter()
     run_synthesis_cycle()
+    mark_stage("synthesis_ms", synth_t0)
+
+    stage_metrics["total_cycle_ms"] = round((time.perf_counter() - cycle_t0) * 1000.0, 3)
+    _persist_cycle_metrics(stage_metrics, status="ok")
 
     print("=== Ciclo de Sonho Concluído com Sucesso ===")
     conn.close()
+
+def _persist_cycle_metrics(metrics: Dict[str, float], status: str) -> None:
+    """Persiste métricas de latência do ciclo para observabilidade operacional."""
+    metrics_dir = Path(SINAPSE_HOME) / "logs" / "metrics"
+    metrics_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "status": status,
+        "captured_at": datetime.now().isoformat(),
+        "stages_ms": metrics,
+    }
+    latest = metrics_dir / "dream_cycle_latest.json"
+    history = metrics_dir / f"dream_cycle_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    with open(latest, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    with open(history, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    print(f"  [Metrics] Dream Cycle: {metrics}")
+
 
 if __name__ == "__main__":
     if not LLM_PROVIDER or not LLM_MODEL:

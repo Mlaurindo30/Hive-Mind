@@ -13,7 +13,7 @@ from pathlib import Path
 try:
     import duckdb
 except ImportError:
-    raise SystemExit("duckdb não instalado. Execute: pip install duckdb")
+    raise SystemExit("duckdb não instalado na .venv. Execute: uv sync --all-groups")
 
 try:
     import pandas as pd

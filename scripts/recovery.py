@@ -108,7 +108,16 @@ def verify_database(db_path: Path) -> dict:
         conn.close()
 
 
-def backup_database(db_path: Path, output_dir: Path) -> Path:
+def prune_backup_set(output_dir: Path, keep_last: int) -> None:
+    if keep_last < 1:
+        return
+    backups = sorted(output_dir.glob("hive_mind.*.db"), key=lambda p: p.name)
+    for stale_db in backups[:-keep_last]:
+        stale_db.unlink(missing_ok=True)
+        stale_db.with_suffix(".manifest.json").unlink(missing_ok=True)
+
+
+def backup_database(db_path: Path, output_dir: Path, keep_last: int = 10) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     destination = output_dir / f"hive_mind.{stamp}.db"
@@ -125,6 +134,7 @@ def backup_database(db_path: Path, output_dir: Path) -> Path:
     (destination.with_suffix(".manifest.json")).write_text(
         json.dumps(report, indent=2, ensure_ascii=False) + "\n"
     )
+    prune_backup_set(output_dir, keep_last)
     return destination
 
 
@@ -233,6 +243,11 @@ def main() -> int:
     backup_cmd = sub.add_parser("backup")
     backup_cmd.add_argument("--db", type=Path, default=DEFAULT_DB)
     backup_cmd.add_argument("--output", type=Path, default=ROOT / "backups")
+    backup_cmd.add_argument(
+        "--keep-backups",
+        type=int,
+        default=int(os.environ.get("HIVE_MIND_RECOVERY_BACKUPS_KEEP", "10")),
+    )
 
     restore_cmd = sub.add_parser("restore")
     restore_cmd.add_argument("backup", type=Path)
@@ -247,7 +262,11 @@ def main() -> int:
 
     args = parser.parse_args()
     if args.command == "backup":
-        path = backup_database(args.db.resolve(), args.output.resolve())
+        path = backup_database(
+            args.db.resolve(),
+            args.output.resolve(),
+            keep_last=args.keep_backups,
+        )
         print(path)
     elif args.command == "restore":
         restore_database(args.backup.resolve(), args.db.resolve())

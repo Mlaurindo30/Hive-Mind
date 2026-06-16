@@ -1,16 +1,16 @@
-# Graph Report - cerebro  (2026-06-11)
+# Graph Report - cerebro  (2026-06-15)
 
 ## Corpus Check
-- 82 files · ~32,557 words
+- 196 files · ~88,348 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1672 nodes · 1733 edges · 193 communities (161 shown, 32 thin omitted)
+- 1805 nodes · 1847 edges · 215 communities (173 shown, 42 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `917f686e`
+- Built from commit: `8fd9b873`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -177,22 +177,42 @@
 - [[_COMMUNITY_Community 190|Community 190]]
 - [[_COMMUNITY_Community 191|Community 191]]
 - [[_COMMUNITY_Community 192|Community 192]]
+- [[_COMMUNITY_Community 193|Community 193]]
+- [[_COMMUNITY_Community 194|Community 194]]
+- [[_COMMUNITY_Community 195|Community 195]]
+- [[_COMMUNITY_Community 196|Community 196]]
+- [[_COMMUNITY_Community 197|Community 197]]
+- [[_COMMUNITY_Community 198|Community 198]]
+- [[_COMMUNITY_Community 199|Community 199]]
+- [[_COMMUNITY_Community 200|Community 200]]
+- [[_COMMUNITY_Community 201|Community 201]]
+- [[_COMMUNITY_Community 202|Community 202]]
+- [[_COMMUNITY_Community 203|Community 203]]
+- [[_COMMUNITY_Community 204|Community 204]]
+- [[_COMMUNITY_Community 205|Community 205]]
+- [[_COMMUNITY_Community 206|Community 206]]
+- [[_COMMUNITY_Community 207|Community 207]]
+- [[_COMMUNITY_Community 208|Community 208]]
+- [[_COMMUNITY_Community 209|Community 209]]
+- [[_COMMUNITY_Community 210|Community 210]]
+- [[_COMMUNITY_Community 211|Community 211]]
+- [[_COMMUNITY_Community 212|Community 212]]
+- [[_COMMUNITY_Community 213|Community 213]]
+- [[_COMMUNITY_Community 214|Community 214]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `Patterns & Conventions` - 28 edges
-2. `Current State` - 22 edges
-3. `Sinapse Agent — Vault (AGENTS.md)` - 16 edges
-4. `Sinapse Agent — Vault (CLAUDE.md)` - 16 edges
+1. `Sessão Episódica: 2026-06-13 02:12` - 31 edges
+2. `Sessão Episódica: 2026-06-12 21:11` - 31 edges
+3. `Patterns & Conventions` - 28 edges
+4. `Current State` - 23 edges
 5. `compilerOptions` - 16 edges
-6. `Obsidian Bases Skill` - 15 edges
-7. `Obsidian Flavored Markdown Skill` - 15 edges
-8. `Functions Reference` - 14 edges
-9. `PHASE-34 Disk Cache persistente para TTS — design rationale e trade-offs` - 13 edges
-10. `Workflow` - 13 edges
+6. `Sinapse Agent — Vault (AGENTS.md)` - 16 edges
+7. `Sinapse Agent — Vault (CLAUDE.md)` - 16 edges
+8. `Obsidian Bases Skill` - 15 edges
+9. `Obsidian Flavored Markdown Skill` - 15 edges
+10. `Functions Reference` - 14 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `runHook()` --calls--> `runScript()`  [EXTRACTED]
-  .claude/scripts/tests/qmd-refresh.integration.test.ts → .claude/scripts/tests/_helpers.ts
 - `runHook()` --calls--> `runScript()`  [EXTRACTED]
   .claude/scripts/tests/session-start.integration.test.ts → .claude/scripts/tests/_helpers.ts
 - `runScript()` --calls--> `runScript()`  [EXTRACTED]
@@ -201,20 +221,22 @@
   .claude/scripts/tests/classify-message.test.ts → .claude/scripts/tests/_helpers.ts
 - `runScript()` --calls--> `runScript()`  [EXTRACTED]
   .claude/scripts/tests/stop-checklist.test.ts → .claude/scripts/tests/_helpers.ts
+- `runHook()` --calls--> `runScript()`  [EXTRACTED]
+  .claude/scripts/tests/qmd-refresh.integration.test.ts → .claude/scripts/tests/_helpers.ts
 
-## Communities (193 total, 32 thin omitted)
+## Communities (215 total, 42 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
 Nodes (11): code:yaml (# Global filters apply to ALL views in the base), code:markdown (![[MyBase.base]]), code:yaml (formulas:), Default Summary Formulas, Embedding Bases, Formula Syntax, Obsidian Bases Skill, References (+3 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.14
-Nodes (12): composeWorkerInvocations(), resolveVaultRoot(), invocations, MANIFEST_PATH, qmdIndex, result, SCRIPT_DIR, VAULT_ROOT (+4 more)
+Cohesion: 0.13
+Nodes (13): composeWorkerInvocations(), resolveVaultRoot(), qmdArgsWithIndex(), invocations, MANIFEST_PATH, qmdIndex, result, SCRIPT_DIR (+5 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.09
-Nodes (41): collectOpenTasks(), extractFrontmatterField(), findFrontmatterEnd(), formatActiveWork(), formatBrainIndex(), formatDateHeader(), formatRecentChanges(), hasBrainContent() (+33 more)
+Cohesion: 0.10
+Nodes (40): collectOpenTasks(), extractFrontmatterField(), findFrontmatterEnd(), formatActiveWork(), formatBrainIndex(), formatDateHeader(), formatRecentChanges(), hasBrainContent() (+32 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.05
@@ -275,10 +297,6 @@ Nodes (18): 10. Check for Mixed Context, 11. Check Claude Config, 12. Fix and Re
 ### Community 17 - "Community 17"
 Cohesion: 0.12
 Nodes (17): compilerOptions, allowImportingTsExtensions, exactOptionalPropertyTypes, isolatedModules, lib, module, moduleResolution, noEmit (+9 more)
-
-### Community 18 - "Community 18"
-Cohesion: 0.13
-Nodes (16): runScript(), RunResult, runScript(), { code, stderr }, idx, projectFile, REQUIRED_SECTIONS, runHook() (+8 more)
 
 ### Community 19 - "Community 19"
 Cohesion: 0.11
@@ -361,8 +379,8 @@ Cohesion: 0.20
 Nodes (11): ROOT_FILES, shouldSkipFile(), SKIP_PATH_SEGMENTS, validateContent(), validateFile(), base, hintList, HookInput (+3 more)
 
 ### Community 39 - "Community 39"
-Cohesion: 0.14
-Nodes (14): isMainModule(), backupDir, dest, formatTimestamp(), HookInput, input, listBackups(), pruneBackups() (+6 more)
+Cohesion: 0.17
+Nodes (12): isMainModule(), backupDir, dest, formatTimestamp(), HookInput, input, listBackups(), pruneBackups() (+4 more)
 
 ### Community 40 - "Community 40"
 Cohesion: 0.14
@@ -661,28 +679,20 @@ Cohesion: 0.40
 Nodes (3): Gotchas, Hermes Agent, Install
 
 ### Community 146 - "Community 146"
-Cohesion: 0.18
-Nodes (10): body, { code }, { code, stdout, stderr }, data, path, runOn(), runScript(), SCRIPT (+2 more)
+Cohesion: 0.25
+Nodes (8): runScript(), runScript(), runHook(), runHook(), runScript(), SCRIPT, { stdout }, { stdout, code }
 
 ### Community 147 - "Community 147"
 Cohesion: 0.18
 Nodes (10): code:sqlite-query (SELECT created_at, type, title, content), code:sqlite-query (SELECT created_at, title, content), code:sqlite-query (SELECT label, type, source_file), code:sqlite-query (SELECT n.label as 'Nota', n.type as 'Tipo'), 🧠 Hive-Mind Dashboard, 🕸️ Neurônios Órfãos (Sem conexões), ⚡ Otimizações de Terminal (RTK), 📊 Status do Cérebro (+2 more)
-
-### Community 148 - "Community 148"
-Cohesion: 0.17
-Nodes (8): after, before, runHook(), SCRIPT, SCRIPT_DIR, { stdout, code }, { stdout, stderr, code }, VAULT_ROOT
-
-### Community 150 - "Community 150"
-Cohesion: 0.18
-Nodes (10): allDeclared, DECLARED_OVERLAP_PAIRS, names, pairs, phraseToSignals, pu, required, shared (+2 more)
 
 ### Community 151 - "Community 151"
 Cohesion: 0.22
 Nodes (9): Cards View, code:yaml (views:), code:yaml (views:), code:yaml (views:), code:yaml (views:), List View, Map View, Table View (+1 more)
 
 ### Community 152 - "Community 152"
-Cohesion: 0.32
-Nodes (6): buildQmdCommand(), require, resolveQmdEntry(), entry, input, out
+Cohesion: 0.18
+Nodes (7): after, before, SCRIPT, SCRIPT_DIR, { stdout, code }, { stdout, stderr, code }, VAULT_ROOT
 
 ### Community 153 - "Community 153"
 Cohesion: 0.25
@@ -697,16 +707,16 @@ Cohesion: 0.33
 Nodes (5): 🔑 Autenticação, 🚀 Como expor para a Nuvem, 📡 Endpoints Disponíveis, Passo a Passo (Tailscale - Sugerido):, 🔐 Segurança do Hive-Mind Cloud
 
 ### Community 156 - "Community 156"
-Cohesion: 0.33
-Nodes (5): checklist, HookInput, input, SCRIPT_DIR, WORKER_PATH
+Cohesion: 0.18
+Nodes (10): body, { code }, { code, stdout, stderr }, data, path, runOn(), runScript(), SCRIPT (+2 more)
 
 ### Community 157 - "Community 157"
 Cohesion: 0.40
 Nodes (5): code:yaml (# CORRECT: Calculate days between dates), code:yaml (# Duration units: y/year/years, M/month/months, d/day/days,), Date Arithmetic, Duration Type, Key Functions
 
 ### Community 158 - "Community 158"
-Cohesion: 0.50
-Nodes (3): Current State, Last Update: 2026-05-24 22:37, Last Update: 2026-06-11 16:58
+Cohesion: 0.40
+Nodes (4): Current State, Last Update: 2026-05-24 22:37, Last Update: 2026-06-11 16:58, Last Update: 2026-06-11 21:07
 
 ### Community 159 - "Community 159"
 Cohesion: 0.50
@@ -716,33 +726,93 @@ Nodes (4): code:yaml (# Single filter), Filter Operators, Filter Structure, Filt
 Cohesion: 0.50
 Nodes (4): File Properties Reference, Properties, The `this` Keyword, Three Types of Properties
 
-### Community 179 - "Community 179"
-Cohesion: 0.36
-Nodes (5): anyWordMatch(), compileMatcher(), SIGNAL_MATCHERS, Signal, SIGNALS
-
 ### Community 192 - "Community 192"
 Cohesion: 0.50
 Nodes (4): Decisions, Learnings, Session: 2026-06-11 16:58, Summary
 
+### Community 194 - "Community 194"
+Cohesion: 0.33
+Nodes (5): code:text (The text in the image is not clear enough to transcribe accu), Descrição, Memória Visual: CAP-20260610-195656-test-capture, OCR (Texto Extraído), Tópicos Inferidos
+
+### Community 195 - "Community 195"
+Cohesion: 0.33
+Nodes (5): code:text (The image quality does not allow for Optical Character Recog), Descrição, Memória Visual: CAP-20260610-195934-MCP-Test-Capture, OCR (Texto Extraído), Tópicos Inferidos
+
+### Community 196 - "Community 196"
+Cohesion: 0.18
+Nodes (10): allDeclared, DECLARED_OVERLAP_PAIRS, names, pairs, phraseToSignals, pu, required, shared (+2 more)
+
+### Community 197 - "Community 197"
+Cohesion: 0.50
+Nodes (4): Decisions, Learnings, Session: 2026-06-11 21:07, Summary
+
+### Community 201 - "Community 201"
+Cohesion: 0.36
+Nodes (5): anyWordMatch(), compileMatcher(), SIGNAL_MATCHERS, Signal, SIGNALS
+
+### Community 202 - "Community 202"
+Cohesion: 0.33
+Nodes (5): checklist, HookInput, input, SCRIPT_DIR, WORKER_PATH
+
+### Community 204 - "Community 204"
+Cohesion: 0.06
+Nodes (31): [decision] A / B : C \ D: Content, [decision] AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB: Content, [decision] Decisão 0: Conteúdo 0, [decision] Decisão 1: Conteúdo 1, [decision] Decisão 2: Conteúdo 2, [decision] 🚀 Lançamento do produto: Conteúdo, [decision] MCP Decision: Test from MCP, [decision] Migrar servidor: Decisão: migrar para Hetzner (+23 more)
+
+### Community 205 - "Community 205"
+Cohesion: 0.06
+Nodes (31): [decision] A / B : C \ D: Content, [decision] AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB: Content, [decision] Decisão 0: Conteúdo da decisão 0, [decision] Decisão 1: Conteúdo da decisão 1, [decision] Decisão de Manter Processo ComfyUI (PID 54447) após Investigação de VRAM: O usuário questionou o consumo de 50% (5GB de 12GB) de sua VRAM. A investigação via nvidia-smi confirmou que o processo PID 54447 (ComfyUI) é o principal consumidor (4GB)., [decision] Fix Ideogram 4 shape mismatch by dynamic dimension detection: Identified shape mismatch in Ideogram 4 model (53248 vs 2560). Patched `comfy/model_detection.py` to dynamically detect `llm_features_dim` and `comfy/supported_models_base.py` to prevent default values from overwriting detected ones., [decision] 🚀 Lançamento do produto: Conteúdo, [decision] MCP Decision: Test from MCP (+23 more)
+
+### Community 206 - "Community 206"
+Cohesion: 0.22
+Nodes (8): { code, stderr }, idx, projectFile, REQUIRED_SECTIONS, SCRIPT, SCRIPT_DIR, { stdout }, { stdout, stderr, code }
+
+### Community 207 - "Community 207"
+Cohesion: 0.32
+Nodes (6): buildQmdCommand(), require, resolveQmdEntry(), entry, input, out
+
+### Community 208 - "Community 208"
+Cohesion: 0.29
+Nodes (6): [project_fact] Arquitetura Hive-Mind: Foi decidido que o sistema de autenticação usaria Localhost Loopback para o Google para evitar erros de client type., [project_fact] Modelos Codex: O enxame deve priorizar modelos da família GPT-5 para tarefas de codificação pesada., Sessão Episódica: 2026-06-10 11:51, [test] Log de Teste: Minha chave secreta é [REDACTED_API_KEY], [user_preference] Estilo de Código: O usuário prefere que todos os scripts Python usem type hints e docstrings no estilo Google., [user_preference] Preferência de Editor: O usuário demonstrou preferência por usar Neovim para edições rápidas e VS Code para refatorações complexas.
+
+### Community 209 - "Community 209"
+Cohesion: 0.40
+Nodes (4): [architecture] Hive-Mind Atlas: A taxonomia do Atlas Infinito é essencial para evitar o silo de informações cronológicas. Cada nó semântico agora mora em sua pasta., [failure_analysis] Erro de Polling OpenAI: Foi determinado que o erro deviceauth_authorization_pending requer um loop contínuo. A implementação atual trata isso com sucesso., [protocol] Segurança LLM: O Conselho exige auditoria 100% real de código. Modelos não devem supor nada sem testar na infraestrutura real., Sessão Episódica: 2026-06-10 12:25
+
+### Community 210 - "Community 210"
+Cohesion: 0.40
+Nodes (4): [architecture] Hive-Mind Atlas: A taxonomia do Atlas Infinito é essencial para evitar o silo de informações cronológicas. Cada nó semântico agora mora em sua pasta., [failure_analysis] Erro de Polling OpenAI: Foi determinado que o erro deviceauth_authorization_pending requer um loop contínuo. A implementação atual trata isso com sucesso., [protocol] Segurança LLM: O Conselho exige auditoria 100% real de código. Modelos não devem supor nada sem testar na infraestrutura real., Sessão Episódica: 2026-06-10 12:35
+
+### Community 211 - "Community 211"
+Cohesion: 0.40
+Nodes (4): [architecture] Hive-Mind Atlas: A taxonomia do Atlas Infinito é essencial para evitar o silo de informações cronológicas. Cada nó semântico agora mora em sua pasta., [failure_analysis] Erro de Polling OpenAI: Foi determinado que o erro deviceauth_authorization_pending requer um loop contínuo. A implementação atual trata isso com sucesso., [protocol] Segurança LLM: O Conselho exige auditoria 100% real de código. Modelos não devem supor nada sem testar na infraestrutura real., Sessão Episódica: 2026-06-10 12:50
+
+### Community 212 - "Community 212"
+Cohesion: 0.40
+Nodes (4): [architecture] Hive-Mind Atlas: A taxonomia do Atlas Infinito é essencial para evitar o silo de informações cronológicas. Cada nó semântico agora mora em sua pasta., [failure_analysis] Erro de Polling OpenAI: Foi determinado que o erro deviceauth_authorization_pending requer um loop contínuo. A implementação atual trata isso com sucesso., [protocol] Segurança LLM: O Conselho exige auditoria 100% real de código. Modelos não devem supor nada sem testar na infraestrutura real., Sessão Episódica: 2026-06-10 15:30
+
+### Community 213 - "Community 213"
+Cohesion: 0.50
+Nodes (3): hostPath(), RunResult, path
+
 ## Knowledge Gaps
-- **947 isolated node(s):** `brain/North Star.md`, `brain/Memories.md`, `brain/Key Decisions.md`, `brain/Patterns.md`, `brain/Gotchas.md` (+942 more)
+- **1044 isolated node(s):** `MCP Decision`, `brain/North Star.md`, `brain/Memories.md`, `brain/Key Decisions.md`, `brain/Patterns.md` (+1039 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **32 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **42 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Current State` connect `Community 158` to `Community 192`, `Community 72`, `Community 73`, `Community 98`, `Community 99`, `Community 100`, `Community 101`, `Community 102`, `Community 103`, `Community 104`, `Community 105`, `Community 106`, `Community 107`, `Community 108`, `Community 109`, `Community 110`, `Community 111`, `Community 112`, `Community 113`, `Community 114`?**
+- **Why does `escapeRegex()` connect `Community 5` to `Community 201`, `Community 2`?**
+  _High betweenness centrality (0.004) - this node is a cross-community bridge._
+- **Why does `runScript()` connect `Community 146` to `Community 6`, `Community 206`, `Community 213`, `Community 152`, `Community 156`?**
+  _High betweenness centrality (0.004) - this node is a cross-community bridge._
+- **Why does `Current State` connect `Community 158` to `Community 192`, `Community 197`, `Community 72`, `Community 73`, `Community 98`, `Community 99`, `Community 100`, `Community 101`, `Community 102`, `Community 103`, `Community 104`, `Community 105`, `Community 106`, `Community 107`, `Community 108`, `Community 109`, `Community 110`, `Community 111`, `Community 112`, `Community 113`, `Community 114`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `escapeRegex()` connect `Community 5` to `Community 2`, `Community 179`?**
-  _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `resolveQmdEntry()` connect `Community 152` to `Community 1`, `Community 2`, `Community 148`, `Community 14`?**
-  _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **What connects `brain/North Star.md`, `brain/Memories.md`, `brain/Key Decisions.md` to the rest of the system?**
-  _951 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `MCP Decision`, `brain/North Star.md`, `brain/Memories.md` to the rest of the system?**
+  _1048 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.14285714285714285 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.13333333333333333 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
-  _Cohesion score 0.09494949494949495 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.09619450317124736 - nodes in this community are weakly interconnected._
 - **Should `Community 3` be split into smaller, more focused modules?**
   _Cohesion score 0.047619047619047616 - nodes in this community are weakly interconnected._

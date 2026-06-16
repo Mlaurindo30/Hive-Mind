@@ -11,6 +11,7 @@ import concurrent.futures
 import subprocess
 import sys
 import traceback
+import time
 from typing import Any, Callable, Dict, List, Optional
 from urllib.error import URLError
 
@@ -54,6 +55,8 @@ def query_vault_knowledge(
             log_fn("info", "query_vault_knowledge_cloud", query=query[:60])
         return cloud_query_fn(query)
 
+    query_t0 = time.perf_counter()
+
     # Filtrar backends saudáveis
     healthy_backends = [
         b for b in read_backends
@@ -63,19 +66,21 @@ def query_vault_knowledge(
         return None
 
     results: Dict[str, Any] = {}
+    backend_latency_ms: Dict[str, float] = {}
 
     def _run_backend(backend_fn: Callable):
         name = backend_fn.__name__
+        t0 = time.perf_counter()
         try:
             res = backend_fn(query)
-            return name, res, False
+            return name, res, False, (time.perf_counter() - t0) * 1000.0
         except (URLError, OSError, subprocess.TimeoutExpired, FileNotFoundError):
-            return name, None, True
+            return name, None, True, (time.perf_counter() - t0) * 1000.0
         except Exception as e:
             if log_fn:
                 log_fn("error", "backend_error", backend=name, error=str(e))
             traceback.print_exc(file=sys.stderr)
-            return name, None, True
+            return name, None, True, (time.perf_counter() - t0) * 1000.0
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(healthy_backends)) as executor:
         futures = {executor.submit(_run_backend, b): b for b in healthy_backends}
@@ -87,7 +92,10 @@ def query_vault_knowledge(
 
         for future in done:
             try:
-                name, res, failed = future.result()
+                name, res, failed, elapsed_ms = future.result()
+                backend_latency_ms[name] = round(elapsed_ms, 3)
+                if log_fn:
+                    log_fn("info", "backend_latency", backend=name, latency_ms=round(elapsed_ms, 3))
                 if failed:
                     record_result_fn(name, False, backend_state)
                     continue
@@ -109,23 +117,37 @@ def query_vault_knowledge(
         for future in not_done:
             backend_fn = futures[future]
             name = backend_fn.__name__
+            backend_latency_ms[name] = round(global_query_timeout * 1000.0, 3)
             record_result_fn(name, False, backend_state)
             if log_fn:
                 log_fn("warn", "query_timeout", backend=name, query=query[:50])
+
+    query_elapsed_ms = round((time.perf_counter() - query_t0) * 1000.0, 3)
 
     if not results:
         return None
 
     if len(results) == 1:
-        return list(results.values())[0]
+        single = dict(list(results.values())[0])
+        single["latency_ms_by_backend"] = backend_latency_ms
+        single["query_latency_ms"] = query_elapsed_ms
+        return single
 
-    return _fuse_contexts(results, max_observations, max_nodes)
+    return _fuse_contexts(
+        results,
+        max_observations,
+        max_nodes,
+        backend_latency_ms=backend_latency_ms,
+        query_latency_ms=query_elapsed_ms,
+    )
 
 
 def _fuse_contexts(
     results: Dict[str, Dict[str, Any]],
     max_observations: int,
     max_nodes: int,
+    backend_latency_ms: Optional[Dict[str, float]] = None,
+    query_latency_ms: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Fusão híbrida de contexto com deduplicação cross-backend."""
     combined: Dict[str, Any] = {
@@ -169,5 +191,7 @@ def _fuse_contexts(
     combined["observations"] = combined["observations"][:max_observations]
     combined["nodes"] = combined["nodes"][:max_nodes]
     combined["edges"] = combined["edges"][:max_nodes]
+    combined["latency_ms_by_backend"] = backend_latency_ms or {}
+    combined["query_latency_ms"] = query_latency_ms
 
     return combined

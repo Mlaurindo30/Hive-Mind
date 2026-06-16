@@ -42,6 +42,8 @@ SINAPSE_HOME = os.environ.get("SINAPSE_HOME", _PROJECT_ROOT)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
+from core.memory.state import build_runtime_state, RuntimeState
+
 # Importa o core do UMC (opcional)
 try:
     from core.database import query_hybrid as _umc_query_hybrid
@@ -113,6 +115,21 @@ _READ_BACKENDS: List[Callable] = []
 # Buffers de sessão
 _session_decisions: List[str] = []
 _session_learnings: List[str] = []
+
+
+def _sync_runtime_state() -> RuntimeState:
+    """Materializa estado explícito a partir dos globals legados do módulo."""
+    return build_runtime_state(
+        backend_state=_backend_state,
+        graph_cache=_graph_cache,
+        graph_cache_time=_graph_cache_time,
+        fs_cache=_FS_CACHE,
+        fs_cache_time=_FS_CACHE_TIME,
+        read_backends=_READ_BACKENDS,
+        session_decisions=_session_decisions,
+        session_learnings=_session_learnings,
+        api_server_mode=API_SERVER_MODE,
+    )
 
 # ---------------------------------------------------------------------------
 # Config YAML
@@ -308,11 +325,12 @@ from core.memory.context_fusion import query_vault_knowledge as _core_query_vaul
 
 def _query_vault_knowledge(query: str) -> Optional[Dict[str, Any]]:
     """Orquestra todos os backends em paralelo com circuit breaker e global timeout."""
+    runtime = _sync_runtime_state()
     cloud_enabled = bool(_config.get("cloud", {}).get("enabled"))
     return _core_query_vault(
         query=query,
-        read_backends=_READ_BACKENDS,
-        backend_state=_backend_state,
+        read_backends=runtime.read_backends,
+        backend_state=runtime.backend_state,
         max_observations=MAX_OBSERVATIONS,
         max_nodes=MAX_NODES,
         global_query_timeout=GLOBAL_QUERY_TIMEOUT,
@@ -321,7 +339,7 @@ def _query_vault_knowledge(query: str) -> Optional[Dict[str, Any]]:
         log_fn=_log,
         cloud_enabled=cloud_enabled,
         cloud_query_fn=lambda q: _cloud_request("query", method="POST", data={"query": q}),
-        api_server_mode=API_SERVER_MODE,
+        api_server_mode=runtime.api_server_mode,
     )
 
 
@@ -384,21 +402,24 @@ def _pre_prompt_build(user_message: str = "", system_message: str = "",
 
 def _post_tool_use(tool_name: str = "", tool_args: Optional[Dict[str, Any]] = None,
                    tool_result: Any = None, **_kwargs: Any) -> None:
+    runtime = _sync_runtime_state()
     _core_post_tool_use(
         tool_name, tool_args, DECISION_TOOLS, LEARNING_SIGNALS,
-        _save_decision, _save_learning, _session_decisions, _session_learnings,
+        _save_decision, _save_learning, runtime.session_decisions, runtime.session_learnings,
     )
 
 
 def _post_session_end(session_summary: str = "", **_kwargs: Any) -> None:
+    runtime = _sync_runtime_state()
     _core_post_session_end(
-        session_summary, _session_decisions, _session_learnings, _update_current_state,
+        session_summary, runtime.session_decisions, runtime.session_learnings, _update_current_state,
     )
 
 
 def _on_session_finalize(session_id: str = "", platform: str = "", **_kwargs: Any) -> None:
+    runtime = _sync_runtime_state()
     _core_on_session_finalize(
-        session_id, platform, VAULT_DIR, _session_decisions, _session_learnings, _log,
+        session_id, platform, VAULT_DIR, runtime.session_decisions, runtime.session_learnings, _log,
     )
 
 
