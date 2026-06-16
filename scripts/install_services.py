@@ -157,6 +157,27 @@ RemainAfterExit=yes
 [Install]
 WantedBy=default.target
 """,
+        "sinapse-maintenance.service": f"""[Unit]
+Description=Sinapse claude-mem maintenance (compacta DB + GC dedup, SEM perder memória)
+After=sinapse-claude-mem.service
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart={path}/.venv/bin/python {path}/scripts/capture_maintenance.py
+""",
+        "sinapse-maintenance.timer": """[Unit]
+Description=Dispara a manutenção do claude-mem semanalmente (off-hours)
+
+[Timer]
+OnCalendar=Sun 04:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+""",
     }
 
 
@@ -202,6 +223,7 @@ def install(start: bool) -> int:
         "sinapse-graphify-watch.service",
         "sinapse-capture-realtime.service",
         "sinapse-capture-tailer.timer",
+        "sinapse-maintenance.timer",
     ]
     if api_enabled():
         enabled.append("sinapse-api.service")

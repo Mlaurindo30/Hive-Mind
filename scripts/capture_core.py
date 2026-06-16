@@ -159,6 +159,7 @@ def ingest(platform: str, sess: dict, state: dict) -> int:
         return 0
     skey = f"{platform}:{sid}"
     rec = state.setdefault(skey, {"inited": False, "seen": []})
+    rec["ts"] = int(time.time())   # marca atividade p/ o GC de manutenção (não é memória)
     seen = set(rec.get("seen") or [])
 
     def emit_prompt(text: str) -> bool:
