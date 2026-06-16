@@ -1,0 +1,24 @@
+# Graphify operational ignore rules.
+#
+# Keep this separate from .gitignore: Git may ignore working inboxes or local
+# artifacts that still need to be indexed into the Hive-Mind UMC.
+
+.git/
+.pytest_cache/
+.venv/
+.venv-sqlite-vec/
+.tools/
+node_modules/
+
+claude-mem/plugin/node_modules/
+claude-mem/data/logs/
+claude-mem/data/models/
+neural-memory/data/
+rtk/target/
+
+graphify-out/
+cerebro/graphify-out/
+cerebro/.obsidian/workspace.json
+cerebro/.obsidian/workspace-mobile.json
+cerebro/.trash/
+cerebro/conflicts/

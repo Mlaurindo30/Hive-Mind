@@ -200,6 +200,59 @@ def save_env(key: str, value: str):
         if lines and not lines[-1].endswith("\n"): lines.append("\n")
         lines.append(f"{key}={value}\n")
     with open(ENV_FILE, "w") as f: f.writelines(lines)
+    
+    # Sincronização automática com claude-mem global
+    sync_keys = ["HIVE_DREAMER_PROVIDER", "GOOGLE_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "HIVE_CLAUDE_MEM_PROVIDER", "HIVE_CLAUDE_MEM_MODEL"]
+    if key in sync_keys:
+        try:
+            _sync_to_claude_mem(key, value)
+        except Exception:
+            pass
+
+def _sync_to_claude_mem(key: str, value: str):
+    """Sincroniza configurações críticas do Hive-Mind com o worker do claude-mem."""
+    settings_path = Path.home() / ".claude-mem" / "settings.json"
+    if not settings_path.exists():
+        return
+
+    with open(settings_path, "r") as f:
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError:
+            return
+
+    changed = False
+    
+    if key in ["HIVE_DREAMER_PROVIDER", "HIVE_CLAUDE_MEM_PROVIDER"]:
+        mapping = {"google": "gemini", "anthropic": "claude", "openrouter": "openrouter"}
+        new_val = mapping.get(value.lower())
+        if new_val and data.get("CLAUDE_MEM_PROVIDER") != new_val:
+            data["CLAUDE_MEM_PROVIDER"] = new_val
+            changed = True
+            
+    elif key == "HIVE_CLAUDE_MEM_MODEL":
+        provider = os.environ.get("HIVE_CLAUDE_MEM_PROVIDER", data.get("CLAUDE_MEM_PROVIDER", "")).lower()
+        if provider == "openrouter":
+            data["CLAUDE_MEM_OPENROUTER_MODEL"] = value
+        elif provider in ["gemini", "google"]:
+            data["CLAUDE_MEM_GEMINI_MODEL"] = value
+        elif provider in ["claude", "anthropic"]:
+            data["CLAUDE_MEM_MODEL"] = value
+        changed = True
+
+    elif key in ["GOOGLE_API_KEY", "GEMINI_API_KEY"]:
+        if data.get("CLAUDE_MEM_GEMINI_API_KEY") != value:
+            data["CLAUDE_MEM_GEMINI_API_KEY"] = value
+            changed = True
+            
+    elif key == "OPENROUTER_API_KEY":
+        if data.get("CLAUDE_MEM_OPENROUTER_API_KEY") != value:
+            data["CLAUDE_MEM_OPENROUTER_API_KEY"] = value
+            changed = True
+
+    if changed:
+        with open(settings_path, "w") as f:
+            json.dump(data, f, indent=2)
 
 def get_oauth_credentials(provider_name: str):
     cfg = PROVIDERS_CONFIG.get(provider_name)
@@ -304,7 +357,7 @@ def refresh_oauth_token(provider_name: str):
 
 # Papéis canônicos de LLM do Hive-Mind. Outros nomes também são aceitos por
 # get_role_config (qualquer papel sem vars próprias herda do Dreamer).
-HIVE_LLM_ROLES = ("dreamer", "graphify", "vision", "synthesis")
+HIVE_LLM_ROLES = ("dreamer", "graphify", "vision", "synthesis", "claude_mem")
 
 def get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]:
     """Resolve a configuração de LLM de um papel, com herança e fallback explícito.

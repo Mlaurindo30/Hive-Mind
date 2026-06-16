@@ -4,16 +4,28 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_DB = ROOT / "claude-mem" / "data" / "claude-mem.db"
+DEFAULT_DB = Path.home() / ".claude-mem" / "claude-mem.db"
 
 
-def backup_database(conn: sqlite3.Connection, db_path: Path) -> Path:
+def _prune_backups(directory: Path, keep_last: int) -> None:
+    if keep_last < 1:
+        return
+    backups = sorted(
+        directory.glob("claude-mem.before-fk-repair.*.db"),
+        key=lambda p: p.name,
+    )
+    for stale in backups[:-keep_last]:
+        stale.unlink(missing_ok=True)
+
+
+def backup_database(conn: sqlite3.Connection, db_path: Path, keep_last: int = 5) -> Path:
     backup_dir = db_path.parent / "backups" / "fk-repair"
     backup_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -24,6 +36,7 @@ def backup_database(conn: sqlite3.Connection, db_path: Path) -> Path:
     finally:
         target.close()
     backup_path.chmod(0o600)
+    _prune_backups(backup_dir, keep_last)
     return backup_path
 
 
@@ -60,7 +73,7 @@ def orphan_sessions(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
-def repair(db_path: Path) -> tuple[int, Path | None]:
+def repair(db_path: Path, keep_last: int = 5) -> tuple[int, Path | None]:
     conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys=ON")
@@ -71,7 +84,7 @@ def repair(db_path: Path) -> tuple[int, Path | None]:
         if not rows:
             return len(before), None
 
-        backup_path = backup_database(conn, db_path)
+        backup_path = backup_database(conn, db_path, keep_last=keep_last)
         conn.execute("BEGIN IMMEDIATE")
         for row in rows:
             memory_id = row["memory_session_id"]
@@ -114,8 +127,9 @@ def repair(db_path: Path) -> tuple[int, Path | None]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser.add_argument("--keep-backups", type=int, default=int(os.environ.get("HIVE_MIND_FK_REPAIR_BACKUPS_KEEP", "5")))
     args = parser.parse_args()
-    repaired, backup = repair(args.db.resolve())
+    repaired, backup = repair(args.db.resolve(), keep_last=args.keep_backups)
     print(f"repaired_sessions={repaired}")
     if backup:
         print(f"backup={backup}")

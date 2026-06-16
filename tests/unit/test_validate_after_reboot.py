@@ -94,3 +94,81 @@ def test_global_reference_scan_ignores_inaccessible_processes(monkeypatch, tmp_p
         lambda path: (_ for _ in ()).throw(PermissionError()),
     )
     assert MODULE.global_claude_mem_references() == []
+
+
+def test_validate_fails_without_real_reboot(monkeypatch, tmp_path):
+    marker = tmp_path / "pre-reboot.json"
+    marker.write_text('{"boot_id": "same-boot", "require_api": false}')
+    monkeypatch.setattr(MODULE, "MARKER", marker)
+    monkeypatch.setattr(MODULE, "REPORT", tmp_path / "report.json")
+    monkeypatch.setattr(MODULE, "boot_id", lambda: "same-boot")
+
+    try:
+        MODULE.validate()
+        raise AssertionError("validate() should have raised RuntimeError")
+    except RuntimeError as exc:
+        assert "boot_id did not change" in str(exc)
+
+
+def test_validate_marks_fail_when_ports_not_loopback(monkeypatch, tmp_path):
+    marker = tmp_path / "pre-reboot.json"
+    marker.write_text('{"boot_id": "old-boot", "require_api": true}')
+    report = tmp_path / "post-reboot-validation.json"
+
+    monkeypatch.setattr(MODULE, "MARKER", marker)
+    monkeypatch.setattr(MODULE, "REPORT", report)
+    monkeypatch.setattr(MODULE, "LOG_DIR", tmp_path)
+    monkeypatch.setattr(MODULE, "boot_id", lambda: "new-boot")
+    monkeypatch.setattr(MODULE, "wait_for_runtime", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        MODULE,
+        "service_state",
+        lambda _service: {
+            "ActiveState": "active",
+            "SubState": "running",
+            "NRestarts": 0,
+            "MainPID": 123,
+        },
+    )
+    monkeypatch.setattr(
+        MODULE,
+        "listening_ports",
+        lambda _ports: {
+            "37700": "0.0.0.0:37700",
+            "37701": "127.0.0.1:37701",
+            "37702": "127.0.0.1:37702",
+        },
+    )
+    monkeypatch.setattr(
+        MODULE,
+        "verify_database",
+        lambda _path: {
+            "integrity_check": "ok",
+            "quick_check": "ok",
+            "foreign_key_violations": 0,
+        },
+    )
+    monkeypatch.setattr(
+        MODULE,
+        "claude_mem_database",
+        lambda: {
+            "integrity_check": "ok",
+            "foreign_key_violations": 0,
+            "observations": 200,
+            "vectors": 200,
+        },
+    )
+    monkeypatch.setattr(MODULE, "global_claude_mem_references", lambda: [{"pid": 1, "references": ["ok"]}])
+
+    class SmokeResult:
+        returncode = 0
+        stdout = "ok"
+        stderr = ""
+
+    monkeypatch.setattr(MODULE, "run", lambda *args, **kwargs: SmokeResult())
+
+    exit_code = MODULE.validate()
+    assert exit_code == 1
+    payload = report.read_text()
+    assert '"status": "fail"' in payload
+    assert '"ports_loopback_only": false' in payload

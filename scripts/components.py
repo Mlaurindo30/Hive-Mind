@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -15,6 +16,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 LOCK = ROOT / "config" / "components.lock.json"
 BACKUPS = ROOT / "config" / "component-lock-backups"
+
+
+def _prune_backups(directory: Path, pattern: str, keep_last: int) -> None:
+    if keep_last < 1:
+        return
+    backups = sorted(directory.glob(pattern), key=lambda p: p.name)
+    for stale in backups[:-keep_last]:
+        stale.unlink(missing_ok=True)
 
 
 def run(*args: str, cwd: Path | None = None, capture: bool = False) -> str:
@@ -155,6 +164,8 @@ def snapshot_lock() -> Path:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     destination = BACKUPS / f"components.lock.{stamp}.json"
     shutil.copy2(LOCK, destination)
+    keep_last = int(os.environ.get("HIVE_MIND_COMPONENT_LOCK_BACKUPS_KEEP", "20"))
+    _prune_backups(BACKUPS, "components.lock.*.json", keep_last)
     return destination
 
 

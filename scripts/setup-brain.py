@@ -30,6 +30,7 @@ ROLES = [
     ("graphify",  "Graphify (grafo de conhecimento)"),
     ("vision",    "Vision (estágio visual)"),
     ("synthesis", "Síntese P2P (dialética)"),
+    ("claude_mem", "Claude Mem (Memória & Discovery)"),
 ]
 
 def clear(): os.system('clear' if os.name == 'posix' else 'cls')
@@ -313,6 +314,18 @@ def show_model_selection(p_name: str, role: str, fallback: bool = False):
     save_env(role_var(role, f"{prefix}MODEL"), selected['id'])
     target = f"fallback do papel {role.upper()}" if fallback else f"papel {role.upper()}"
     print(f"\n{GREEN}{BOLD}✓ Hive-Mind atualizado ({target}): {selected['id']}{NC}")
+
+    # Papel claude_mem: aplica a escolha direto no claude-mem (settings.json) e
+    # reinicia o worker, para o claude-mem passar a gerar com o modelo escolhido.
+    if role == "claude_mem" and not fallback:
+        try:
+            import subprocess
+            subprocess.run(
+                (sys.executable, str(PROJECT_ROOT / "scripts" / "sync-claude-mem-provider.py")),
+                check=False,
+            )
+        except Exception as exc:  # nunca quebra o menu
+            print(f"{YELLOW}⚠ sync claude-mem falhou: {exc}{NC}")
 
     if not fallback:
         ask = input(f"\nDefinir um modelo de FALLBACK para o papel {role.upper()}? (s/N — Enter pula): ").strip().lower()

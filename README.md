@@ -46,19 +46,29 @@ sinapse-memory, claude-mem-local e neural-memory-local. O primeiro expõe as
 ### Prompt de Registro do MCP (projeto já instalado)
 
 ```
-Registre o Hive-Mind como servidor MCP em todos os agentes de IA desta máquina.
+Configure o Hive-Mind como servidor MCP PARA VOCÊ MESMO — o agente que está
+lendo este prompt. Registre apenas a SUA configuração, não a dos outros.
 
   cd ~/hive-mind
+  ./scripts/register-mcp.sh --only <seu-agente>
+
+Substitua <seu-agente> pela sua identidade. Chaves válidas:
+  claude codex gemini qwen kimi kiro kilo roo vscode cursor opencode openclaw
+
+Exemplos: Claude Code → `--only claude` · Codex CLI → `--only codex`
+          Gemini CLI → `--only gemini` · Cursor → `--only cursor`
+
+Faz merge seguro dos três MCPs project-local na SUA config e nunca remove
+servidores alheios. Em dúvida sobre a chave: ./scripts/register-mcp.sh --list
+
+Para verificar o seu status sem modificar nada:
+  ./scripts/register-mcp.sh --only <seu-agente> --check
+
+(Avançado / administrador) Registrar TODOS os agentes detectados de uma vez —
+normalmente só o instalador faz isso:
   ./scripts/register-mcp.sh
 
-Detecta e registra automaticamente: Claude Code, Codex CLI, Gemini CLI, Cursor,
-VS Code/Copilot, Kilo Code, Roo Code, Kiro, OpenCode e outros.
-Faz merge seguro dos três MCPs project-local e nunca remove servidores alheios.
-
-Para verificar status sem modificar nada:
-  ./scripts/register-mcp.sh --check
-
-Após registrar, reinicie o agente e confirme com: "use a tool sinapse_health"
+Após registrar, reinicie-se e confirme com: "use a tool sinapse_health"
 
 Tools disponíveis:
   sinapse_query              — busca híbrida na memória (vetorial + FTS + grafo)

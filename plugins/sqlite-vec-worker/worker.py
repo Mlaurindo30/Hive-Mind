@@ -110,36 +110,55 @@ def _ensure_schema(conn: sqlite3.Connection):
         print(f"[vec-worker] Schema error: {e}", flush=True)
 
 
-def _needs_backfill(conn: sqlite3.Connection) -> bool:
-    """Check if vec0 table is empty (needs backfill from observations)."""
+def _vector_count(conn: sqlite3.Connection) -> int:
+    """Return current vector count, or zero when the vec table needs creation."""
     try:
         row = conn.execute("SELECT COUNT(*) FROM vec_observations").fetchone()
-        return row[0] == 0
+        return int(row[0])
     except Exception:
-        return True
+        _ensure_schema(conn)
+        return 0
 
 
-def backfill(conn: sqlite3.Connection):
-    """Backfill vec_observations from claude-mem observations table."""
-    print(f"[vec-worker] Backfilling embeddings from claude-mem DB...", flush=True)
+def _observation_content(narrative: str | None, text: str | None, facts: str | None) -> str:
+    content = narrative or text or ""
+    if facts:
+        try:
+            fact_list = json.loads(facts)
+            if isinstance(fact_list, list):
+                content += " " + " ".join(str(f) for f in fact_list if f)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return content.strip()
+
+
+def sync_vectors(conn: sqlite3.Connection, *, limit: int | None = None) -> int:
+    """Make vec_observations match the current observations table.
+
+    The worker is long-lived while claude-mem keeps adding observations. A
+    one-time empty-table backfill is not enough; every semantic query must
+    reconcile rows that arrived after startup.
+    """
+    try:
+        deleted = conn.execute("""
+            DELETE FROM vec_observations
+            WHERE rowid NOT IN (SELECT id FROM observations)
+        """).rowcount
+    except Exception as exc:
+        print(f"[vec-worker] WARNING: stale vector cleanup failed: {exc}", flush=True)
+        deleted = 0
+
     rows = conn.execute("""
         SELECT id, narrative, text, facts FROM observations
-        WHERE narrative IS NOT NULL OR text IS NOT NULL
+        WHERE (narrative IS NOT NULL OR text IS NOT NULL)
+          AND id NOT IN (SELECT rowid FROM vec_observations)
         ORDER BY id
-    """).fetchall()
+        """ + (f" LIMIT {int(limit)}" if limit else "")).fetchall()
 
-    embedder = get_embedder()
     count = 0
     for row_id, narrative, text, facts in rows:
-        content = narrative or text or ""
-        if facts:
-            try:
-                fact_list = json.loads(facts)
-                if isinstance(fact_list, list):
-                    content += " " + " ".join(str(f) for f in fact_list if f)
-            except (json.JSONDecodeError, TypeError):
-                pass
-        if not content.strip():
+        content = _observation_content(narrative, text, facts)
+        if not content:
             continue
 
         vec = embed(content)
@@ -153,11 +172,16 @@ def backfill(conn: sqlite3.Connection):
             pass
 
         if count % 100 == 0:
-            print(f"[vec-worker]  ... backfilled {count} embeddings", flush=True)
+            print(f"[vec-worker]  ... synced {count} embeddings", flush=True)
             conn.commit()
 
     conn.commit()
-    print(f"[vec-worker] Backfill complete: {count} embeddings", flush=True)
+    if count or deleted:
+        print(
+            f"[vec-worker] Vector sync complete: +{count} embeddings, -{deleted} stale",
+            flush=True,
+        )
+    return count
 
 
 # ---------------------------------------------------------------------------
@@ -195,9 +219,7 @@ class VecHandler(BaseHTTPRequestHandler):
         try:
             db = get_db()
 
-            # Check backfill
-            if _needs_backfill(db):
-                backfill(db)
+            sync_vectors(db)
 
             # Embed query
             vec = embed(query)
@@ -274,10 +296,11 @@ def main():
 
     # Verify DB
     db = get_db()
-    if _needs_backfill(db):
-        print(f"[vec-worker] vec_observations empty — will backfill on first query", flush=True)
+    synced = sync_vectors(db)
+    count = _vector_count(db)
+    if synced:
+        print(f"[vec-worker] vec_observations synced at startup: {count} entries", flush=True)
     else:
-        count = db.execute("SELECT COUNT(*) FROM vec_observations").fetchone()[0]
         print(f"[vec-worker] vec_observations: {count} entries", flush=True)
 
     server = ThreadedHTTPServer(("127.0.0.1", PORT), VecHandler)

@@ -10,8 +10,8 @@
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/.claude/settings.json": {
-    "mtime": 1779558809.4546733,
-    "ast_hash": "ce42aa0e57a220898e682bbf675a383a",
+    "mtime": 1781376174.9730568,
+    "ast_hash": "21ae953baa8feceff9bdbd04a48e8b3a",
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/.claude/scripts/charcount.ts": {
@@ -265,8 +265,8 @@
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/.codex/hooks.json": {
-    "mtime": 1779558809.4557304,
-    "ast_hash": "0793cf3be4ff80619068ae8c0d9301fd",
+    "mtime": 1781376174.9730568,
+    "ast_hash": "f61c9314cf46056cd3cd5ca0cfc4d5f0",
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/AGENTS.md": {
@@ -745,8 +745,8 @@
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/brain/Current State.md": {
-    "mtime": 1781207922.284486,
-    "ast_hash": "a83447adbd2143a91ea892f204a9d0fc",
+    "mtime": 1781222864.5591114,
+    "ast_hash": "1a7ef6411f2600ec3e6a6e721844f658",
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atoms/Agent-Loop-Protocol.md": {
@@ -785,7 +785,7 @@
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/.codex/AGENTS.md": {
-    "mtime": 1779558809.4556787,
+    "mtime": 1781380956.2682626,
     "ast_hash": "7a97e2705a7dcb3f4f78c674c3082501",
     "semantic_hash": ""
   },
@@ -1139,19 +1139,9 @@
     "ast_hash": "f2eb015e4a4d70867ab897182101b409",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/scripts/setup-dreamer.py": {
-    "mtime": 1781061419.0949504,
-    "ast_hash": "73c8a42e6d5051f864e074a480c57b3c",
-    "semantic_hash": ""
-  },
   "/home/michel/Documentos/Projects/Hive-Mind/scripts/recover.sh": {
     "mtime": 1779558809.4605856,
     "ast_hash": "36749046932bd21b240a0d616f0bf8d3",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/scripts/setup-dreamer.sh": {
-    "mtime": 1781056553.118386,
-    "ast_hash": "75ee4b1920d69ce96e9f9b102bb57b25",
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/scripts/test_hybrid_search.py": {
@@ -1290,7 +1280,7 @@
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-11-MCP-Decision.md": {
-    "mtime": 1781195773.902898,
+    "mtime": 1781217011.7885203,
     "ast_hash": "1c69d4700dcad23cc25eb1e182e6e473",
     "semantic_hash": ""
   },
@@ -1325,7 +1315,7 @@
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/test_topic/test-fact.md": {
-    "mtime": 1781128288.8599672,
+    "mtime": 1781215843.7124364,
     "ast_hash": "f455db7667a4c229d13dabad60b323e3",
     "semantic_hash": ""
   },
@@ -1447,6 +1437,111 @@
   "/home/michel/Documentos/Projects/Hive-Mind/scripts/register-mcp.sh": {
     "mtime": 1781200236.1790047,
     "ast_hash": "271534f0a1b8c1ee82719eb1de88dfb2",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-12-MCP-Decision.md": {
+    "mtime": 1781314671.4195824,
+    "ast_hash": "4ab11ae9fd96ebfc1d9867fd0d963617",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-12-Decisao-de-Manter-Processo-ComfyUI-PID-54447-apos.md": {
+    "mtime": 1781307475.7306263,
+    "ast_hash": "f97d3e8231bcda0e2b7a3d75c17fd442",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-11-Fix-Ideogram-4-shape-mismatch-by-dynamic-dimension-detection.md": {
+    "mtime": 1781222864.5519683,
+    "ast_hash": "16078acddbf8227ac02ce6e8ad5dcf4d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/visual/cap-20260610-195934-mcp-test-capture.md": {
+    "mtime": 1781309504.6104813,
+    "ast_hash": "30db031b3e2464d159f0adff9e87726c",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/visual/cap-20260610-195656-test-capture.md": {
+    "mtime": 1781309501.828886,
+    "ast_hash": "585bb63718fa336dfe0fcae294332381",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/preferences/fact-b0e6835d414f7786.md": {
+    "mtime": 1781309597.503699,
+    "ast_hash": "31cea63a1094bab3395dda40944f6f7e",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/testing/fact-6a19422a80fbcd9e.md": {
+    "mtime": 1781309597.5038683,
+    "ast_hash": "dbe00fa2b2b5319d43a209eebfd4708d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/testing/fact-afbe19aa593815fa.md": {
+    "mtime": 1781309597.5035584,
+    "ast_hash": "c8b85b09011c0b5d7ede3ddb417272bc",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/infrastructure/fact-1fefb27e88c8a642.md": {
+    "mtime": 1781309597.503962,
+    "ast_hash": "d56cfeed746fe637199499ca831ae89e",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/atlas/fact-05444ecaf85ee5c1.md": {
+    "mtime": 1781309597.5037887,
+    "ast_hash": "ff94dfa8c770346868e7a6c9323c4ad8",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-13-MCP-Decision.md": {
+    "mtime": 1781400610.543899,
+    "ast_hash": "875db2332033e62340e7d0f5dbadc9c4",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/13/0212-session.md": {
+    "mtime": 1781327560.676041,
+    "ast_hash": "7be6e8abeb96b0bfe935f04da49a4c8c",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/10/1151-session.md": {
+    "mtime": 1781103062.2374806,
+    "ast_hash": "c322fd4bc6d7fa4ffbedd4f95c4ade1a",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/10/1225-session.md": {
+    "mtime": 1781105112.109104,
+    "ast_hash": "48915e16260a16d439d311cc97203b3d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/10/1530-session.md": {
+    "mtime": 1781116200.2029967,
+    "ast_hash": "75e6a0bf13f48790c6cecca9f065e6ab",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/10/1235-session.md": {
+    "mtime": 1781105735.067227,
+    "ast_hash": "86665a7a70de095dba8cc5ef823c85dc",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/10/1250-session.md": {
+    "mtime": 1781106635.9859746,
+    "ast_hash": "a2ca302efcfe0025f34a613d53bb22f8",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/12/2111-session.md": {
+    "mtime": 1781309504.6115203,
+    "ast_hash": "f917d490670969178bb8bed7d5ada8d6",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/visual/CAP-20260610-195656-test-capture.png": {
+    "mtime": 1781132216.2037964,
+    "ast_hash": "6c5c260202ce9ef9ed2e8a25f04fc694",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/visual/CAP-20260610-195934-MCP-Test-Capture.png": {
+    "mtime": 1781132374.666016,
+    "ast_hash": "6c5c260202ce9ef9ed2e8a25f04fc694",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-15-MCP-Decision.md": {
+    "mtime": 1781563287.4140482,
+    "ast_hash": "ed9e47ad642d9243bc836a4dd107ddf8",
     "semantic_hash": ""
   }
 }

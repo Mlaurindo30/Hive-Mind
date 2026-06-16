@@ -5,6 +5,7 @@ import sqlite_vec
 
 from scripts.recovery import (
     backup_database,
+    prune_backup_set,
     rebuild_indexes,
     restore_database,
     verify_database,
@@ -70,3 +71,33 @@ def test_backup_restore_and_rebuild_indexes(tmp_path):
     assert report["vector_probe"] == "ok"
     assert (tmp_path / "hnsw_neurons.idx").exists()
     assert (tmp_path / "hnsw_neurons.map.json").exists()
+
+
+def test_backup_prunes_old_artifacts(tmp_path):
+    source = tmp_path / "source.db"
+    _make_db(source)
+    out = tmp_path / "backups"
+    out.mkdir(parents=True)
+
+    stale = out / "hive_mind.20200101T000000Z.db"
+    stale.write_bytes(b"stale")
+    stale.with_suffix(".manifest.json").write_text("{}")
+
+    backup_database(source, out, keep_last=1)
+
+    dbs = sorted(out.glob("hive_mind.*.db"))
+    assert len(dbs) == 1
+    assert dbs[0].name != stale.name
+    assert not stale.exists()
+    assert not stale.with_suffix(".manifest.json").exists()
+
+
+def test_prune_backup_set_noop_when_keep_lt_one(tmp_path):
+    out = tmp_path / "backups"
+    out.mkdir(parents=True)
+    stale = out / "hive_mind.20200101T000000Z.db"
+    stale.write_bytes(b"stale")
+
+    prune_backup_set(out, keep_last=0)
+
+    assert stale.exists()

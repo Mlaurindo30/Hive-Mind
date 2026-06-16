@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
 # =============================================================================
-# register-mcp.sh — Registra o Hive-Mind MCP em todos os agentes detectados
+# register-mcp.sh — Registra o Hive-Mind MCP nos agentes de IA
 #
 # Uso:
-#   ./scripts/register-mcp.sh           # detecta e registra
-#   ./scripts/register-mcp.sh --check   # só mostra o status, sem modificar nada
+#   ./scripts/register-mcp.sh --only <agente>   # registra SÓ o agente indicado
+#   ./scripts/register-mcp.sh                    # (avançado) registra TODOS detectados
+#   ./scripts/register-mcp.sh --check            # só mostra status, sem modificar
+#   ./scripts/register-mcp.sh --list             # lista as chaves de agente válidas
 #
-# Pode ser executado a qualquer momento (idempotente). Faz MERGE no JSON de
-# cada agente — nunca sobrescreve outros MCP servers já registrados.
-# Também é chamado pelo install.sh (etapa 12).
+# Filosofia: cada agente deve registrar a SI MESMO com --only <agente>.
+# O modo sem argumento (registra todos) é um atalho de administrador, usado
+# também pelo install.sh (etapa 12) numa instalação do zero.
+#
+# Idempotente. Faz MERGE no JSON/TOML de cada agente — nunca remove MCP
+# servers de terceiros já registrados.
+#
+# Chaves de agente válidas:
+#   claude codex gemini qwen kimi kiro kilo roo vscode cursor opencode openclaw
 # =============================================================================
 set -uo pipefail
 
@@ -18,10 +26,50 @@ PYTHON="$PROJECT_ROOT/.venv/bin/python"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m'
 
+VALID_AGENTS="claude codex gemini qwen kimi kiro kilo roo vscode cursor opencode openclaw"
+
 CHECK_ONLY=false
-[ "${1:-}" = "--check" ] && CHECK_ONLY=true
+ONLY=""          # vazio = todos os detectados
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --check) CHECK_ONLY=true ;;
+        --only|--self|--agent)
+            shift
+            ONLY="${1:-}"
+            ;;
+        --only=*|--self=*|--agent=*) ONLY="${1#*=}" ;;
+        --list)
+            echo "Agentes válidos: $VALID_AGENTS"
+            exit 0
+            ;;
+        -h|--help)
+            sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+            exit 0
+            ;;
+        *)
+            # aceita nome de agente posicional (ex: register-mcp.sh claude)
+            if [ -z "$ONLY" ]; then ONLY="$1"; else
+                echo -e "${RED}✗${NC} argumento desconhecido: $1" >&2; exit 2
+            fi
+            ;;
+    esac
+    shift
+done
+
+if [ -n "$ONLY" ]; then
+    case " $VALID_AGENTS " in
+        *" $ONLY "*) : ;;
+        *)
+            echo -e "${RED}✗${NC} agente inválido: '$ONLY'"
+            echo "  Válidos: $VALID_AGENTS"
+            exit 2
+            ;;
+    esac
+fi
 
 # Merge seguro: adiciona/atualiza os três servidores project-local do
 # Hive-Mind, preservando quaisquer outros MCP servers registrados pelo usuário.
@@ -43,8 +91,8 @@ entries = {
         "cwd": project_root,
     },
     "claude-mem-local": {
-        "command": f"{project_root}/scripts/claude-mem-local.sh",
-        "args": ["mcp-server"],
+        "command": "npx",
+        "args": ["-y", "claude-mem@13.6", "mcp-server"],
         "cwd": project_root,
     },
     "neural-memory-local": {
@@ -106,7 +154,7 @@ register_codex() {
         codex mcp add sinapse-memory -- \
             "$PROJECT_ROOT/.venv/bin/python" "$PROJECT_ROOT/scripts/sinapse-mcp.py"
         codex mcp add claude-mem-local -- \
-            "$PROJECT_ROOT/scripts/claude-mem-local.sh" mcp-server
+            npx -y claude-mem@13.6 mcp-server
         codex mcp add neural-memory-local -- \
             "$PROJECT_ROOT/scripts/neural-memory-local.sh"
         # Mantém o JSON compatível com clientes Codex anteriores.
@@ -132,78 +180,62 @@ register() {
     ((++AGENTS_FOUND))
 }
 
+# -- Registradores por agente (cada um sabe o caminho de config do seu agente) --
+do_claude()   { register "Claude Code" "$HOME/.claude/.mcp.json"; }
+do_codex()    { register_codex; }
+do_gemini()   { register "Gemini CLI" "$HOME/.gemini/settings.json"; }
+do_qwen()     { register "Qwen Code" "$HOME/.qwen/settings.json"; }
+do_kimi()     { register "Kimi Code" "$HOME/.kimi/mcp.json"; }
+do_kiro()     { register "Kiro" "$HOME/.kiro/settings/mcp.json"; }
+do_kilo()     { register "Kilo Code" "$HOME/.config/Code/User/globalStorage/kilocode.kilo-code/settings/mcp_settings.json"; }
+do_roo()      { register "Roo Code" "$HOME/.config/Code/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json"; }
+do_vscode()   { register "VS Code/Copilot" "$PROJECT_ROOT/.vscode/mcp.json" "servers"; }
+do_cursor()   { register "Cursor" "$HOME/.cursor/mcp.json"; }
+do_opencode() { register "OpenCode" "$HOME/.opencode/mcp.json"; }
+do_openclaw() { register "OpenClaw" "$HOME/.openclaw/openclaw.json"; }
+
 AGENTS_FOUND=0
 
 echo "Hive-Mind — registro MCP (PROJECT_ROOT: $PROJECT_ROOT)"
 echo ""
 
-# Claude Code
-if command -v claude &>/dev/null; then
-    register "Claude Code" "$HOME/.claude/.mcp.json"
+# --- Modo single-agent: registra SÓ o agente pedido, sem exigir detecção -----
+if [ -n "$ONLY" ]; then
+    echo "Modo single-agent: $ONLY"
+    "do_$ONLY"
+    echo ""
+    if $CHECK_ONLY; then
+        echo "Verificação concluída para: $ONLY"
+    else
+        echo "Registrado: $ONLY. Reinicie esse agente para carregar os MCPs."
+        echo "Teste: peça \"use a tool sinapse_health\"."
+    fi
+    exit 0
 fi
 
-# Codex CLI
-if command -v codex &>/dev/null; then
-    register_codex
-fi
-
-# Gemini CLI
-if command -v gemini &>/dev/null; then
-    register "Gemini CLI" "$HOME/.gemini/settings.json"
-fi
-
-# Qwen Code (mesmo formato do Gemini CLI)
-if command -v qwen &>/dev/null || [ -d "$HOME/.qwen" ]; then
-    register "Qwen Code" "$HOME/.qwen/settings.json"
-fi
-
-# Kimi Code CLI (formato compatível com Claude Desktop)
-if command -v kimi &>/dev/null || [ -d "$HOME/.kimi" ]; then
-    register "Kimi Code" "$HOME/.kimi/mcp.json"
-fi
-
-# Kiro (AWS) — config global
-if command -v kiro &>/dev/null || [ -d "$HOME/.kiro" ]; then
-    register "Kiro" "$HOME/.kiro/settings/mcp.json"
-fi
-
-# Kilo Code (extensão VS Code — globalStorage; ~/.kilo é legado)
+# --- Modo "todos" (admin / install.sh): detecta e registra cada um ------------
+command -v claude  &>/dev/null && do_claude
+command -v codex   &>/dev/null && do_codex
+command -v gemini  &>/dev/null && do_gemini
+{ command -v qwen &>/dev/null || [ -d "$HOME/.qwen" ]; } && do_qwen
+{ command -v kimi &>/dev/null || [ -d "$HOME/.kimi" ]; } && do_kimi
+{ command -v kiro &>/dev/null || [ -d "$HOME/.kiro" ]; } && do_kiro
 if [ -d "$HOME/.config/Code/User/globalStorage/kilocode.kilo-code" ] || [ -d "$HOME/.kilocode" ]; then
-    register "Kilo Code" "$HOME/.config/Code/User/globalStorage/kilocode.kilo-code/settings/mcp_settings.json"
+    do_kilo
 elif [ -f "$HOME/.kilo/config.json" ]; then
     register "Kilo (legado)" "$HOME/.kilo/config.json"
 fi
-
-# Roo Code (extensão VS Code)
-if [ -d "$HOME/.config/Code/User/globalStorage/rooveterinaryinc.roo-cline" ]; then
-    register "Roo Code" "$HOME/.config/Code/User/globalStorage/rooveterinaryinc.roo-cline/settings/mcp_settings.json"
-fi
-
-# VS Code / GitHub Copilot (Agent Mode) — .vscode/mcp.json NO PROJETO,
-# chave raiz "servers" (formato próprio do VS Code, não "mcpServers")
-if command -v code &>/dev/null || [ -d "$HOME/.config/Code/User/globalStorage/github.copilot-chat" ]; then
-    register "VS Code/Copilot" "$PROJECT_ROOT/.vscode/mcp.json" "servers"
-fi
-
-# Cursor
-if [ -d "$HOME/.cursor/" ]; then
-    register "Cursor" "$HOME/.cursor/mcp.json"
-fi
-
-# OpenCode
-if command -v opencode &>/dev/null; then
-    register "OpenCode" "$HOME/.opencode/mcp.json"
-fi
-
-# OpenClaw
-if command -v openclaw &>/dev/null; then
-    register "OpenClaw" "$HOME/.openclaw/openclaw.json"
-fi
+[ -d "$HOME/.config/Code/User/globalStorage/rooveterinaryinc.roo-cline" ] && do_roo
+{ command -v code &>/dev/null || [ -d "$HOME/.config/Code/User/globalStorage/github.copilot-chat" ]; } && do_vscode
+[ -d "$HOME/.cursor/" ] && do_cursor
+command -v opencode &>/dev/null && do_opencode
+command -v openclaw &>/dev/null && do_openclaw
 
 echo ""
 if [ "$AGENTS_FOUND" -eq 0 ]; then
     echo -e "${YELLOW}⊘${NC} Nenhum agente detectado nesta máquina."
-    echo "  Instale um agente (Claude Code, Codex, Gemini CLI, ...) e rode novamente."
+    echo "  Instale um agente (Claude Code, Codex, Gemini CLI, ...) e rode novamente,"
+    echo "  ou registre um específico: ./scripts/register-mcp.sh --only <agente>"
     exit 1
 fi
 
@@ -211,5 +243,5 @@ if $CHECK_ONLY; then
     echo "$AGENTS_FOUND agente(s) detectado(s). Rode sem --check para registrar."
 else
     echo "$AGENTS_FOUND agente(s) registrado(s). Reinicie cada agente para carregar os MCPs."
-echo "Teste em qualquer agente: peça \"use a tool sinapse_health\"."
+    echo "Teste em qualquer agente: peça \"use a tool sinapse_health\"."
 fi

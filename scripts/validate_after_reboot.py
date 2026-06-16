@@ -123,7 +123,9 @@ def listening_ports(expected_ports: tuple[int, ...] = PORTS) -> dict[str, str]:
 def claude_mem_database() -> dict[str, int | str]:
     import sqlite_vec
 
-    db_path = ROOT / "claude-mem" / "data" / "claude-mem.db"
+    local_db = ROOT / "claude-mem" / "data" / "claude-mem.db"
+    global_db = Path.home() / ".claude-mem" / "claude-mem.db"
+    db_path = local_db if local_db.exists() else global_db
     conn = sqlite3.connect(db_path)
     try:
         conn.enable_load_extension(True)
@@ -145,7 +147,8 @@ def claude_mem_database() -> dict[str, int | str]:
 
 
 def global_claude_mem_references() -> list[dict[str, str | int]]:
-    forbidden = str(Path.home() / ".claude-mem")
+    """Check that the global claude-mem worker IS running (expected post-migration)."""
+    expected = str(Path.home() / ".claude-mem")
     references: list[dict[str, str | int]] = []
     for proc in Path("/proc").iterdir():
         if not proc.name.isdigit():
@@ -161,13 +164,13 @@ def global_claude_mem_references() -> list[dict[str, str | int]]:
                 target = os.readlink(link)
             except OSError:
                 continue
-            if forbidden in target:
+            if expected in target:
                 matches.add(target)
         try:
             cmdline = (proc / "cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
         except OSError:
             cmdline = ""
-        if forbidden in cmdline:
+        if expected in cmdline:
             matches.add(cmdline)
         try:
             file_descriptors = list((proc / "fd").iterdir())
@@ -178,7 +181,7 @@ def global_claude_mem_references() -> list[dict[str, str | int]]:
                 target = os.readlink(descriptor)
             except OSError:
                 continue
-            if forbidden in target:
+            if expected in target:
                 matches.add(target)
         if matches:
             references.append({"pid": int(proc.name), "references": sorted(matches)})
@@ -219,7 +222,7 @@ def validate() -> int:
         "claude_mem_integrity": claude_mem["integrity_check"] == "ok"
         and claude_mem["foreign_key_violations"] == 0,
         "claude_mem_vectors_complete": claude_mem["vectors"] >= claude_mem["observations"] >= 159,
-        "no_global_claude_mem_references": not global_references,
+        "global_claude_mem_worker_running": bool(global_references),
         "smoke_passed": smoke.returncode == 0,
     }
     report = {
