@@ -65,10 +65,10 @@ def _make_audit_db():
 
 
 def _make_vault(tmp_path):
-    """Create the minimum directory structure run_audit() expects."""
-    atlas = tmp_path / "cerebro" / "atlas"
+    """Create the minimum directory structure run_audit() expects (anatômico)."""
+    atlas = tmp_path / "cerebro" / "cortex" / "temporal"
     atlas.mkdir(parents=True)
-    conflicts = tmp_path / "cerebro" / "conflicts"
+    conflicts = tmp_path / "cerebro" / "cortex" / "insula" / "conflitos"
     conflicts.mkdir(parents=True)
     return atlas
 
@@ -143,7 +143,7 @@ class TestSyncConflictDetection:
     def test_conflict_file_is_moved_to_conflicts_dir(self, tmp_path):
         """should move the conflict file to cerebro/conflicts/ after detection"""
         atlas = _make_vault(tmp_path)
-        conflicts_dir = tmp_path / "cerebro" / "conflicts"
+        conflicts_dir = tmp_path / "cerebro" / "cortex" / "insula" / "conflitos"
 
         conflict_name = "moved-neuron.sync-conflict-20260612-150000-HOST.md"
         conflict_path = atlas / conflict_name
@@ -228,7 +228,7 @@ class TestSyncConflictDetection:
 
         register.assert_not_called()
         assert conflict_path.exists()
-        assert not (tmp_path / "cerebro" / "conflicts" / conflict_name).exists()
+        assert not (tmp_path / "cerebro" / "cortex" / "insula" / "conflitos" / conflict_name).exists()
 
 
 class TestConflictFileNaming:

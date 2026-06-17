@@ -21,9 +21,11 @@ def capture_screen(description=""):
     Captura a tela e salva em cerebro/inbox/visual/.
     Usa powershell.exe se estiver em WSL, mss como primário nativo e scrot como fallback.
     """
-    # Configuração de caminhos
+    # Configuração de caminhos (anatômico: cortex/parietal/inbox/visual)
     project_root = Path(__file__).resolve().parent.parent
-    output_dir = project_root / "cerebro" / "inbox" / "visual"
+    sys.path.insert(0, str(project_root))
+    from core import paths as cp
+    output_dir = cp.INBOX_VISUAL
     output_dir.mkdir(parents=True, exist_ok=True)
     
     timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")

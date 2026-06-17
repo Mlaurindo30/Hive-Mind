@@ -50,8 +50,9 @@ def extract_docx_text(path: Path) -> str:
 
 def run_ingestion():
     print("=== Hive-Mind: Ingestão de Documentos ===")
-    inbox_dir = Path(SINAPSE_HOME) / "cerebro" / "inbox" / "documents"
-    attachments_dir = Path(SINAPSE_HOME) / "cerebro" / "attachments"
+    from core import paths as cp
+    inbox_dir = cp.INBOX_DOCUMENTS              # cortex/parietal/inbox/documents
+    attachments_dir = cp.ATTACHMENTS_ROOT
     inbox_dir.mkdir(parents=True, exist_ok=True)
     attachments_dir.mkdir(parents=True, exist_ok=True)
 

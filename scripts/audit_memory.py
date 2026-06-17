@@ -82,9 +82,10 @@ def reindex_neuron(conn, file_path: Path, neuron_id: str, label: str, content: s
 def run_audit(fix=False):
     print(f"=== Hive-Mind Swarm Auditor (Fix Mode: {'ON' if fix else 'OFF'}) ===")
     
-    atlas_root = Path(SINAPSE_HOME) / "cerebro" / "atlas"
+    # cortex/temporal — núcleo da memória (respeita SINAPSE_HOME do módulo p/ testes)
+    atlas_root = Path(SINAPSE_HOME) / "cerebro" / "cortex" / "temporal"
     if not atlas_root.exists():
-        print(f"ERRO: Vault Atlas não encontrado em {atlas_root}")
+        print(f"ERRO: Córtex temporal não encontrado em {atlas_root}")
         return
 
     conn = get_connection()
@@ -144,7 +145,7 @@ def run_audit(fix=False):
                 print(f"      -> RECOVERED")
 
     # 2. Conflict Ingestion Loop
-    conflicts_dir = Path(SINAPSE_HOME) / "cerebro" / "conflicts"
+    conflicts_dir = Path(SINAPSE_HOME) / "cerebro" / "cortex" / "insula" / "conflitos"
     if fix:
         conflicts_dir.mkdir(parents=True, exist_ok=True)
     
@@ -191,7 +192,7 @@ def run_audit(fix=False):
             dest = conflicts_dir / conflict_file.name
             try:
                 shutil.move(str(conflict_file), str(dest))
-                print(f"      -> Movido para cerebro/conflicts/")
+                print(f"      -> Movido para cortex/insula/conflitos/")
             except Exception as e:
                 print(f"      [!] Erro ao mover arquivo de conflito: {e}")
 

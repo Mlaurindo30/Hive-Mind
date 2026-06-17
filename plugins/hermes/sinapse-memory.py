@@ -55,11 +55,12 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 VAULT_DIR = os.path.join(SINAPSE_HOME, "cerebro")
-GRAPH_JSON = os.path.join(VAULT_DIR, "graphify-out", "graph.json")
-DECISIONS_DIR = os.path.join(VAULT_DIR, "work", "active")
-MEMORY_FILE = os.path.join(VAULT_DIR, "brain", "Current State.md")
-PROJECTS_DIR = os.path.join(VAULT_DIR, "work", "active")
-PATTERNS_FILE = os.path.join(VAULT_DIR, "brain", "Patterns.md")
+GRAPH_JSON = os.path.join(VAULT_DIR, "graphify-out", "graph.json")  # graphify ainda escreve aqui
+# Paths anatômicos (modelo cérebro — ver docs/08-memoria-viva-design.md):
+DECISIONS_DIR = os.path.join(VAULT_DIR, "cortex", "frontal", "trabalho", "ativo")
+MEMORY_FILE = os.path.join(VAULT_DIR, "cortex", "frontal", "brain", "Current State.md")
+PROJECTS_DIR = os.path.join(VAULT_DIR, "cortex", "frontal", "trabalho", "ativo")
+PATTERNS_FILE = os.path.join(VAULT_DIR, "cerebelo", "padroes", "Patterns.md")
 
 CLAUDE_MEM_URL = "http://127.0.0.1:37700"
 CLAUDE_MEM_TIMEOUT = 3
