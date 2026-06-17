@@ -304,156 +304,6 @@
     "ast_hash": "d4919238ea07fcff93bce42e1b6383a6",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/templates/Semantic Links.md": {
-    "mtime": 1781050096.0822754,
-    "ast_hash": "f514484256ae2a422705d4086644d719",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/templates/Analise Fria.md": {
-    "mtime": 1779571728.8217213,
-    "ast_hash": "151d53473c83a0fa2de862b8e447edaf",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/templates/Competency Note.md": {
-    "mtime": 1779558809.4587588,
-    "ast_hash": "5a4476cc540e7274ecdd516255c0b626",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/templates/Thinking Note.md": {
-    "mtime": 1779558809.4588754,
-    "ast_hash": "e2dfbf1b3c2d191ab7d2415f22696066",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/templates/Review Template.md": {
-    "mtime": 1779558809.4588397,
-    "ast_hash": "8b4cf6dc3df4b013e1514278cfab7a68",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/templates/Work Note.md": {
-    "mtime": 1779558809.4589124,
-    "ast_hash": "7a3a8357ff0a8a53d4115105f454e1c1",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/templates/Decision Record.md": {
-    "mtime": 1779558809.458803,
-    "ast_hash": "30ea0a95b38f55c2bfba7b2e964e2d59",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/templates/Atom Note.md": {
-    "mtime": 1779558809.4587066,
-    "ast_hash": "a319e4adde23857d1744effcc4cf1ac5",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/org/People & Context.md": {
-    "mtime": 1779558809.4582129,
-    "ast_hash": "8be3a8c33598938c6f3386bf5adb2dc2",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/Index.md": {
-    "mtime": 1779558809.4590921,
-    "ast_hash": "75a128d6579771c7b1e69e0bbb53016c",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/_projects-index.md": {
-    "mtime": 1779558809.4591641,
-    "ast_hash": "6862260d7c703fc693fc8689eb9eeccb",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/pipeline/_exemplo.md": {
-    "mtime": 1779558809.459504,
-    "ast_hash": "5d55d6f7ba1f586cba94328f411b5af5",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-05-26-MCP-Decision.md": {
-    "mtime": 1779833491.2494717,
-    "ast_hash": "6a6affde2b3312a578e726beb9f5f7bf",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/open-design-README.md": {
-    "mtime": 1779558809.4594054,
-    "ast_hash": "fbd3366eb2fbf410cd41025394cf1332",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/thoth-README.md": {
-    "mtime": 1779558809.4594445,
-    "ast_hash": "9978522455aeaf6cbaa0d7a17c0ef3ae",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-09-Roadmap-Completo-Unified-Memory-Core-UMC-e-Obsidian.md": {
-    "mtime": 1781044376.0800774,
-    "ast_hash": "a9e1d3a9acc2155cab4cd1d28b285204",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-05-22-renomear-agente-thoth.md": {
-    "mtime": 1779558809.4592874,
-    "ast_hash": "a46c21516d0223d7ef64becf11841cfa",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-09-Unified-Memory-Core-Architecture-Decision.md": {
-    "mtime": 1781043745.0759273,
-    "ast_hash": "d659b3140650f517dd7a49120c444bf3",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-05-22-sintese-vault-estrutura.md": {
-    "mtime": 1779558809.4593313,
-    "ast_hash": "4b7353561f8976b7d46612ad834b589f",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-05-23-MCP-Decision.md": {
-    "mtime": 1779562284.1911473,
-    "ast_hash": "ee5c5ba4537380bda067f32113467db3",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-05-24-MCP-Decision.md": {
-    "mtime": 1779673018.8408895,
-    "ast_hash": "afa27eebc97541417799cc321c586d21",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-01-PHASE-33-TTS-Integration-Closeout-Final.md": {
-    "mtime": 1780357931.2735941,
-    "ast_hash": "1c1208fd654c10c845de67eb84b61f23",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-05-22-migrar-obsidian-mind.md": {
-    "mtime": 1779558809.459233,
-    "ast_hash": "dcc3d85749db61ee783b4b8ad7c46167",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-04-Reindex-Sinapse-vault-DeepSeek-saldo-insuficiente.md": {
-    "mtime": 1780606897.056081,
-    "ast_hash": "c9e8ae34c436039b68079c695a165de5",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-05-24-2026-05-24-EvoNexus-rejeitado.md": {
-    "mtime": 1779653022.0179498,
-    "ast_hash": "4f2fb3705bc3d6733148f86489165cf1",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-05-24-2026-05-24-Regras-obrigatorias-de-uso-do-Sinapse-pelo-Thoth.md": {
-    "mtime": 1779647333.3477883,
-    "ast_hash": "19cf3c34c0a10b66fdd95105e074d13f",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-02-PHASE-34-Disk-Cache-persistente-para-TTS-design-rationale-e.md": {
-    "mtime": 1780403010.9126184,
-    "ast_hash": "15a030eda1d5c9fe06e4e490ea049e96",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-05-30-Implementacao-das-4-Fases-do-Sinapse-Agent.md": {
-    "mtime": 1780161720.0384672,
-    "ast_hash": "1e3c011b0f4476b4fb0a54704f5264b9",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-02-PHASE-34-FFmpeg-Transcoding-no-Thoth-Telegram-Voice-Bubble.md": {
-    "mtime": 1780406963.5569417,
-    "ast_hash": "12e6bb5def6cfdd1cebdd1e49c3fc632",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/hermes-vps-README.md": {
-    "mtime": 1779558809.4593685,
-    "ast_hash": "fda4c51e13b06380a677396fd7073f61",
-    "semantic_hash": ""
-  },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/.claude/memory-template.md": {
     "mtime": 1779558809.452271,
     "ast_hash": "f355a93fd80ef86a34bbbafecddc9f48",
@@ -654,136 +504,6 @@
     "ast_hash": "bf1ac7fc95665f7cdbfc653d76f91912",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/business-services.md": {
-    "mtime": 1779558809.4586084,
-    "ast_hash": "641f015a675d8c9b5366c8a22ddf6eda",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/README.md": {
-    "mtime": 1779558809.4584577,
-    "ast_hash": "ef91fa0456784081b014a703202b6627",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/business-icp.md": {
-    "mtime": 1779558809.4584973,
-    "ast_hash": "54d526596dba1f00be5d595467313939",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/business-tone-of-voice.md": {
-    "mtime": 1779558809.458646,
-    "ast_hash": "b5d3e882fac2c9716a1ab5438ab8e9f9",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/business-positioning.md": {
-    "mtime": 1779558809.4585338,
-    "ast_hash": "16f831011645c4f163d2594026f64849",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/business-pricing.md": {
-    "mtime": 1779558809.4585721,
-    "ast_hash": "74b9e2f938886af98f46334cde5c9615",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/analises/EvoNexus.md": {
-    "mtime": 1779652998.7861829,
-    "ast_hash": "a8d93c27c3281039a650ab81810d837b",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/analises/OmniRoute.md": {
-    "mtime": 1779579686.2470222,
-    "ast_hash": "ef444f44def3553cef716c2c02285720",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/analises/GitNexus.md": {
-    "mtime": 1779646076.7783463,
-    "ast_hash": "473edb22641f2c6137c701b13ef1f043",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/analises/Synapse Layer.md": {
-    "mtime": 1779578898.4646637,
-    "ast_hash": "ef46e3cad80c18c70edbe384f284d0bd",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/analises/Manus Agent.md": {
-    "mtime": 1780163301.016189,
-    "ast_hash": "4c35d6fc6cd6b31947abb9355dddae37",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/analises/Context Mode.md": {
-    "mtime": 1779577366.3598783,
-    "ast_hash": "d7ab51f5f0a6119fe84f1591ddfafe18",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/brain/Agent Loop Protocol.md": {
-    "mtime": 1780160130.5015008,
-    "ast_hash": "e19eaa563eb3d12ede7ec1632a6b9750",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/brain/North Star.md": {
-    "mtime": 1779666835.4702501,
-    "ast_hash": "24ff54de711e4dc4301b8e524380f7cb",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/brain/Gotchas.md": {
-    "mtime": 1779558809.4569066,
-    "ast_hash": "622da9e945ecf6b653cee845d04df173",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/brain/Skills.md": {
-    "mtime": 1779558809.457099,
-    "ast_hash": "e2e5df8e6dec1d023c4f7b5817bd027d",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/brain/Patterns.md": {
-    "mtime": 1781031088.312375,
-    "ast_hash": "498ce1dcaad13aca3d3903ae9a2cf2c8",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/brain/Key Decisions.md": {
-    "mtime": 1779558809.4569435,
-    "ast_hash": "f7f1bc211d90ef16e4b2a6744d3c0363",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/brain/Current State.md": {
-    "mtime": 1781222864.5591114,
-    "ast_hash": "1a7ef6411f2600ec3e6a6e721844f658",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atoms/Agent-Loop-Protocol.md": {
-    "mtime": 1780161410.220513,
-    "ast_hash": "728f2587fc842f51ea90d27ee6116ea5",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atoms/2026-05-24-exemplo-de-uso-do-sinapse-mcp-para-uma-consulta-de-codigo.md": {
-    "mtime": 1779670857.1693482,
-    "ast_hash": "7cf31e1d3e779d4a673cbdf66ac87699",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atoms/README.md": {
-    "mtime": 1779558809.4564638,
-    "ast_hash": "84aff0df0c314139eabf164bea649b9b",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atoms/Key-Decision-Rename-to-Thoth.md": {
-    "mtime": 1780161410.2125132,
-    "ast_hash": "e4429227562b0bd0c3a2d4f4904126e0",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atoms/Gotchas-Failure-Modes.md": {
-    "mtime": 1780161410.2045133,
-    "ast_hash": "acf67a9c606cf2d0b6cda8e47e0bce85",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atoms/RESOLVER-Skill-Dispatcher.md": {
-    "mtime": 1780161398.9655747,
-    "ast_hash": "6b9e58dc1c1e81a6e9c63fa136e04865",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atoms/agents/council-skill-backup.md": {
-    "mtime": 1781010116.3684926,
-    "ast_hash": "c05df9c0f7559795a2a10369b3c5bf5f",
-    "semantic_hash": ""
-  },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/.codex/AGENTS.md": {
     "mtime": 1781380956.2682626,
     "ast_hash": "7a97e2705a7dcb3f4f78c674c3082501",
@@ -794,11 +514,6 @@
     "ast_hash": "fe3f2decd0c0e5242e598e9331d4210e",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/thinking/README.md": {
-    "mtime": 1779558809.458974,
-    "ast_hash": "ca15e2e48e7c8b0bd1de63be0a141895",
-    "semantic_hash": ""
-  },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/.github/copilot-instructions.md": {
     "mtime": 1779558809.4559438,
     "ast_hash": "fd67837412c5f71c963f77deadc656ec",
@@ -807,16 +522,6 @@
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/.roo/instructions.md": {
     "mtime": 1779558809.4561915,
     "ast_hash": "15e320a0829e7200443ac8864b25c8dd",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/analises/An\u00e1lise GitNexus.pdf": {
-    "mtime": 1779646392.767439,
-    "ast_hash": "7ea96aa2e104b30f8d5eb8e149a51026",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/reference/analises/An\u00e1lise EvoNexus.pdf": {
-    "mtime": 1779653015.8211937,
-    "ast_hash": "769490278e15e1a2a6dd730393423e37",
     "semantic_hash": ""
   },
   "/home/michel/Documentos/Projects/Hive-Mind/cerebro/Bench-Test.md": {
@@ -1274,66 +979,6 @@
     "ast_hash": "9054ec108a6a4ad7287e5a9bf410edb3",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-10-MCP-Decision.md": {
-    "mtime": 1781138256.9915402,
-    "ast_hash": "b05dd1ab1ab0274a63b77e4af6aa7c42",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-11-MCP-Decision.md": {
-    "mtime": 1781217011.7885203,
-    "ast_hash": "1c69d4700dcad23cc25eb1e182e6e473",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/brain/Consolidated.md": {
-    "mtime": 1781064551.056613,
-    "ast_hash": "cae694dfff4d5e12ce60b9758fdfa252",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/error_handling/fact-005884c4ea418c1f.md": {
-    "mtime": 1781116225.1974275,
-    "ast_hash": "509123f07406821b24ec01a342752511",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/error_handling/openai-polling-error-handling.md": {
-    "mtime": 1781106660.8220096,
-    "ast_hash": "cafbe285c483504c6e189d9deeda0eb4",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/security/fact-d12cb3e77ddbd75f.md": {
-    "mtime": 1781116225.1972122,
-    "ast_hash": "8fe60931271d5f0a5e5991ce479bbe06",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/security/llm-security-audit.md": {
-    "mtime": 1781106660.8218043,
-    "ast_hash": "d836684b6586b573406034169de5e18a",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/test_swarm/fact-audit-test.md": {
-    "mtime": 1781115678.1860738,
-    "ast_hash": "b3eb35e2a9d0694a86526778097e2220",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/test_topic/test-fact.md": {
-    "mtime": 1781215843.7124364,
-    "ast_hash": "f455db7667a4c229d13dabad60b323e3",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/testing/fact-collision-test.md": {
-    "mtime": 1781130620.4436505,
-    "ast_hash": "1360182a92edbebf4acba7389fceecbc",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/atlas/hive-mind-atlas-taxonomy.md": {
-    "mtime": 1781106660.8219094,
-    "ast_hash": "870693b2b639032a20fd7474fd5b58a9",
-    "semantic_hash": ""
-  },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/atlas/fact-6c778da7e661cbb9.md": {
-    "mtime": 1781116225.1973357,
-    "ast_hash": "c427a36f980cf56c1b288c8b49595de1",
-    "semantic_hash": ""
-  },
   "/home/michel/Documentos/Projects/Hive-Mind/core/schemas/guardrails.yaml": {
     "mtime": 1781102095.3381143,
     "ast_hash": "d5e4a7dc789ef0d5473946e496fa3d26",
@@ -1439,114 +1084,654 @@
     "ast_hash": "271534f0a1b8c1ee82719eb1de88dfb2",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-12-MCP-Decision.md": {
-    "mtime": 1781314671.4195824,
-    "ast_hash": "4ab11ae9fd96ebfc1d9867fd0d963617",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/modelos/Semantic Links.md": {
+    "mtime": 1781050096.0822754,
+    "ast_hash": "f514484256ae2a422705d4086644d719",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-12-Decisao-de-Manter-Processo-ComfyUI-PID-54447-apos.md": {
-    "mtime": 1781307475.7306263,
-    "ast_hash": "f97d3e8231bcda0e2b7a3d75c17fd442",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/modelos/Analise Fria.md": {
+    "mtime": 1779571728.8217213,
+    "ast_hash": "151d53473c83a0fa2de862b8e447edaf",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-11-Fix-Ideogram-4-shape-mismatch-by-dynamic-dimension-detection.md": {
-    "mtime": 1781222864.5519683,
-    "ast_hash": "16078acddbf8227ac02ce6e8ad5dcf4d",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/modelos/Competency Note.md": {
+    "mtime": 1779558809.4587588,
+    "ast_hash": "5a4476cc540e7274ecdd516255c0b626",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/visual/cap-20260610-195934-mcp-test-capture.md": {
-    "mtime": 1781309504.6104813,
-    "ast_hash": "30db031b3e2464d159f0adff9e87726c",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/modelos/Thinking Note.md": {
+    "mtime": 1779558809.4588754,
+    "ast_hash": "e2dfbf1b3c2d191ab7d2415f22696066",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/visual/cap-20260610-195656-test-capture.md": {
-    "mtime": 1781309501.828886,
-    "ast_hash": "585bb63718fa336dfe0fcae294332381",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/modelos/Review Template.md": {
+    "mtime": 1779558809.4588397,
+    "ast_hash": "8b4cf6dc3df4b013e1514278cfab7a68",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/preferences/fact-b0e6835d414f7786.md": {
-    "mtime": 1781309597.503699,
-    "ast_hash": "31cea63a1094bab3395dda40944f6f7e",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/modelos/Work Note.md": {
+    "mtime": 1779558809.4589124,
+    "ast_hash": "7a3a8357ff0a8a53d4115105f454e1c1",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/testing/fact-6a19422a80fbcd9e.md": {
-    "mtime": 1781309597.5038683,
-    "ast_hash": "dbe00fa2b2b5319d43a209eebfd4708d",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/modelos/Decision Record.md": {
+    "mtime": 1779558809.458803,
+    "ast_hash": "30ea0a95b38f55c2bfba7b2e964e2d59",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/testing/fact-afbe19aa593815fa.md": {
-    "mtime": 1781309597.5035584,
-    "ast_hash": "c8b85b09011c0b5d7ede3ddb417272bc",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/modelos/Atom Note.md": {
+    "mtime": 1779558809.4587066,
+    "ast_hash": "a319e4adde23857d1744effcc4cf1ac5",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/infrastructure/fact-1fefb27e88c8a642.md": {
-    "mtime": 1781309597.503962,
-    "ast_hash": "d56cfeed746fe637199499ca831ae89e",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/meta/hive-mind/Bem-vindo.md": {
+    "mtime": 1781652783.496138,
+    "ast_hash": "a9098abd6c694b4a73b060c28c6f9f1c",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/atlas/atlas/fact-05444ecaf85ee5c1.md": {
-    "mtime": 1781309597.5037887,
-    "ast_hash": "ff94dfa8c770346868e7a6c9323c4ad8",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cerebelo/padroes/Patterns.md": {
+    "mtime": 1781712389.2799404,
+    "ast_hash": "43107a8390382415d1288fe726a4a119",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-13-MCP-Decision.md": {
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/org/People & Context.md": {
+    "mtime": 1779558809.4582129,
+    "ast_hash": "8be3a8c33598938c6f3386bf5adb2dc2",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/Index.md": {
+    "mtime": 1779558809.4590921,
+    "ast_hash": "75a128d6579771c7b1e69e0bbb53016c",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/_projects-index.md": {
+    "mtime": 1779558809.4591641,
+    "ast_hash": "6862260d7c703fc693fc8689eb9eeccb",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/pipeline/_exemplo.md": {
+    "mtime": 1779558809.459504,
+    "ast_hash": "5d55d6f7ba1f586cba94328f411b5af5",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-05-26-MCP-Decision.md": {
+    "mtime": 1779833491.2494717,
+    "ast_hash": "6a6affde2b3312a578e726beb9f5f7bf",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/open-design-README.md": {
+    "mtime": 1779558809.4594054,
+    "ast_hash": "fbd3366eb2fbf410cd41025394cf1332",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-10-MCP-Decision.md": {
+    "mtime": 1781138256.9915402,
+    "ast_hash": "b05dd1ab1ab0274a63b77e4af6aa7c42",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-13-MCP-Decision.md": {
     "mtime": 1781400610.543899,
     "ast_hash": "875db2332033e62340e7d0f5dbadc9c4",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/13/0212-session.md": {
-    "mtime": 1781327560.676041,
-    "ast_hash": "7be6e8abeb96b0bfe935f04da49a4c8c",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/thoth-README.md": {
+    "mtime": 1779558809.4594445,
+    "ast_hash": "9978522455aeaf6cbaa0d7a17c0ef3ae",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/10/1151-session.md": {
-    "mtime": 1781103062.2374806,
-    "ast_hash": "c322fd4bc6d7fa4ffbedd4f95c4ade1a",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-09-Roadmap-Completo-Unified-Memory-Core-UMC-e-Obsidian.md": {
+    "mtime": 1781044376.0800774,
+    "ast_hash": "a9e1d3a9acc2155cab4cd1d28b285204",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/10/1225-session.md": {
-    "mtime": 1781105112.109104,
-    "ast_hash": "48915e16260a16d439d311cc97203b3d",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-05-22-renomear-agente-thoth.md": {
+    "mtime": 1779558809.4592874,
+    "ast_hash": "a46c21516d0223d7ef64becf11841cfa",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/10/1530-session.md": {
-    "mtime": 1781116200.2029967,
-    "ast_hash": "75e6a0bf13f48790c6cecca9f065e6ab",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-09-Unified-Memory-Core-Architecture-Decision.md": {
+    "mtime": 1781043745.0759273,
+    "ast_hash": "d659b3140650f517dd7a49120c444bf3",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/10/1235-session.md": {
-    "mtime": 1781105735.067227,
-    "ast_hash": "86665a7a70de095dba8cc5ef823c85dc",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-05-22-sintese-vault-estrutura.md": {
+    "mtime": 1779558809.4593313,
+    "ast_hash": "4b7353561f8976b7d46612ad834b589f",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/10/1250-session.md": {
-    "mtime": 1781106635.9859746,
-    "ast_hash": "a2ca302efcfe0025f34a613d53bb22f8",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-12-MCP-Decision.md": {
+    "mtime": 1781314671.4195824,
+    "ast_hash": "4ab11ae9fd96ebfc1d9867fd0d963617",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/2026/06/12/2111-session.md": {
-    "mtime": 1781309504.6115203,
-    "ast_hash": "f917d490670969178bb8bed7d5ada8d6",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-05-23-MCP-Decision.md": {
+    "mtime": 1779562284.1911473,
+    "ast_hash": "ee5c5ba4537380bda067f32113467db3",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/visual/CAP-20260610-195656-test-capture.png": {
-    "mtime": 1781132216.2037964,
-    "ast_hash": "6c5c260202ce9ef9ed2e8a25f04fc694",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-05-24-MCP-Decision.md": {
+    "mtime": 1779673018.8408895,
+    "ast_hash": "afa27eebc97541417799cc321c586d21",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/inbox/visual/CAP-20260610-195934-MCP-Test-Capture.png": {
-    "mtime": 1781132374.666016,
-    "ast_hash": "6c5c260202ce9ef9ed2e8a25f04fc694",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-01-PHASE-33-TTS-Integration-Closeout-Final.md": {
+    "mtime": 1780357931.2735941,
+    "ast_hash": "1c1208fd654c10c845de67eb84b61f23",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-15-MCP-Decision.md": {
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-12-Decisao-de-Manter-Processo-ComfyUI-PID-54447-apos.md": {
+    "mtime": 1781307475.7306263,
+    "ast_hash": "f97d3e8231bcda0e2b7a3d75c17fd442",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-17-MCP-Decision.md": {
+    "mtime": 1781711182.5813844,
+    "ast_hash": "b8389c15e989ae7a3785fe596d7b1cc3",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-16-MCP-Decision.md": {
+    "mtime": 1781653316.6228843,
+    "ast_hash": "41d3f938988be31a3dac0a7f73852ecc",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-15-MCP-Decision.md": {
     "mtime": 1781563287.4140482,
     "ast_hash": "ed9e47ad642d9243bc836a4dd107ddf8",
     "semantic_hash": ""
   },
-  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/work/active/2026-06-16-MCP-Decision.md": {
-    "mtime": 1781652346.1956363,
-    "ast_hash": "41d3f938988be31a3dac0a7f73852ecc",
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-05-22-migrar-obsidian-mind.md": {
+    "mtime": 1779558809.459233,
+    "ast_hash": "dcc3d85749db61ee783b4b8ad7c46167",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-04-Reindex-Sinapse-vault-DeepSeek-saldo-insuficiente.md": {
+    "mtime": 1780606897.056081,
+    "ast_hash": "c9e8ae34c436039b68079c695a165de5",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-05-24-2026-05-24-EvoNexus-rejeitado.md": {
+    "mtime": 1779653022.0179498,
+    "ast_hash": "4f2fb3705bc3d6733148f86489165cf1",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-11-MCP-Decision.md": {
+    "mtime": 1781217011.7885203,
+    "ast_hash": "1c69d4700dcad23cc25eb1e182e6e473",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-05-24-2026-05-24-Regras-obrigatorias-de-uso-do-Sinapse-pelo-Thoth.md": {
+    "mtime": 1779647333.3477883,
+    "ast_hash": "19cf3c34c0a10b66fdd95105e074d13f",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-02-PHASE-34-Disk-Cache-persistente-para-TTS-design-rationale-e.md": {
+    "mtime": 1780403010.9126184,
+    "ast_hash": "15a030eda1d5c9fe06e4e490ea049e96",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-11-Fix-Ideogram-4-shape-mismatch-by-dynamic-dimension-detection.md": {
+    "mtime": 1781222864.5519683,
+    "ast_hash": "16078acddbf8227ac02ce6e8ad5dcf4d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-05-30-Implementacao-das-4-Fases-do-Sinapse-Agent.md": {
+    "mtime": 1780161720.0384672,
+    "ast_hash": "1e3c011b0f4476b4fb0a54704f5264b9",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/2026-06-02-PHASE-34-FFmpeg-Transcoding-no-Thoth-Telegram-Voice-Bubble.md": {
+    "mtime": 1780406963.5569417,
+    "ast_hash": "12e6bb5def6cfdd1cebdd1e49c3fc632",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/active/hermes-vps-README.md": {
+    "mtime": 1779558809.4593685,
+    "ast_hash": "fda4c51e13b06380a677396fd7073f61",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/brain/Agent Loop Protocol.md": {
+    "mtime": 1780160130.5015008,
+    "ast_hash": "e19eaa563eb3d12ede7ec1632a6b9750",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/brain/North Star.md": {
+    "mtime": 1779666835.4702501,
+    "ast_hash": "24ff54de711e4dc4301b8e524380f7cb",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/brain/Gotchas.md": {
+    "mtime": 1779558809.4569066,
+    "ast_hash": "622da9e945ecf6b653cee845d04df173",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/brain/Consolidated.md": {
+    "mtime": 1781064551.056613,
+    "ast_hash": "cae694dfff4d5e12ce60b9758fdfa252",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/brain/Skills.md": {
+    "mtime": 1779558809.457099,
+    "ast_hash": "e2e5df8e6dec1d023c4f7b5817bd027d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/brain/Key Decisions.md": {
+    "mtime": 1779558809.4569435,
+    "ast_hash": "f7f1bc211d90ef16e4b2a6744d3c0363",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/brain/Current State.md": {
+    "mtime": 1781222864.5591114,
+    "ast_hash": "1a7ef6411f2600ec3e6a6e721844f658",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/rascunhos/README.md": {
+    "mtime": 1779558809.458974,
+    "ast_hash": "ca15e2e48e7c8b0bd1de63be0a141895",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/error_handling/neuronio-005884c4ea418c1f.md": {
+    "mtime": 1781711865.1672366,
+    "ast_hash": "c35f778bd2c437d9853e07d08cf8ea49",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/error_handling/openai-polling-error-handling.md": {
+    "mtime": 1781711865.1676624,
+    "ast_hash": "7cab7383c2b0b589ec8b6e74a37f32a3",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/security/neuronio-d12cb3e77ddbd75f.md": {
+    "mtime": 1781711865.1678998,
+    "ast_hash": "3e5ef1635d7d51ad81f6ab6bd4071afe",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/security/llm-security-audit.md": {
+    "mtime": 1781711865.169325,
+    "ast_hash": "04453fab94ac92eb1623c15af24c0a16",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/preferences/neuronio-b0e6835d414f7786.md": {
+    "mtime": 1781309597.503699,
+    "ast_hash": "31cea63a1094bab3395dda40944f6f7e",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/test_swarm/neuronio-audit-test.md": {
+    "mtime": 1781711865.169548,
+    "ast_hash": "4620621fb6d78edb1392875b0bac72fe",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/test_topic/test-fact.md": {
+    "mtime": 1781215843.7124364,
+    "ast_hash": "f455db7667a4c229d13dabad60b323e3",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atoms/Agent-Loop-Protocol.md": {
+    "mtime": 1780161410.220513,
+    "ast_hash": "728f2587fc842f51ea90d27ee6116ea5",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atoms/2026-05-24-exemplo-de-uso-do-sinapse-mcp-para-uma-consulta-de-codigo.md": {
+    "mtime": 1779670857.1693482,
+    "ast_hash": "7cf31e1d3e779d4a673cbdf66ac87699",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atoms/README.md": {
+    "mtime": 1779558809.4564638,
+    "ast_hash": "84aff0df0c314139eabf164bea649b9b",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atoms/Key-Decision-Rename-to-Thoth.md": {
+    "mtime": 1780161410.2125132,
+    "ast_hash": "e4429227562b0bd0c3a2d4f4904126e0",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atoms/Gotchas-Failure-Modes.md": {
+    "mtime": 1780161410.2045133,
+    "ast_hash": "acf67a9c606cf2d0b6cda8e47e0bce85",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atoms/RESOLVER-Skill-Dispatcher.md": {
+    "mtime": 1780161398.9655747,
+    "ast_hash": "6b9e58dc1c1e81a6e9c63fa136e04865",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atoms/agents/council-skill-backup.md": {
+    "mtime": 1781010116.3684926,
+    "ast_hash": "c05df9c0f7559795a2a10369b3c5bf5f",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/testing/neuronio-collision-test.md": {
+    "mtime": 1781130620.4436505,
+    "ast_hash": "1360182a92edbebf4acba7389fceecbc",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/testing/neuronio-6a19422a80fbcd9e.md": {
+    "mtime": 1781711865.1699336,
+    "ast_hash": "f7463802980c4e3db8bba3e6013746e1",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/testing/neuronio-afbe19aa593815fa.md": {
+    "mtime": 1781711865.170081,
+    "ast_hash": "8851a44a10cb993d687471d04b2a65b0",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/infrastructure/neuronio-1fefb27e88c8a642.md": {
+    "mtime": 1781711865.1702328,
+    "ast_hash": "54090d97aba6564105dde162183f2524",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atlas/hive-mind-atlas-taxonomy.md": {
+    "mtime": 1781711865.1703842,
+    "ast_hash": "82c2a015a866c4c4e304bfe0bd0cc262",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atlas/neuronio-05444ecaf85ee5c1.md": {
+    "mtime": 1781711865.1705246,
+    "ast_hash": "230b7c78a7ef89cd66d1312a77bfab0e",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atlas/neuronio-6c778da7e661cbb9.md": {
+    "mtime": 1781711865.1706712,
+    "ast_hash": "e93a540303dfa3f5527723a758b61cfe",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/occipital/capturas-visuais/cap-20260610-195934-mcp-test-capture.md": {
+    "mtime": 1781719991.02057,
+    "ast_hash": "cf50935811d6f5a5c467262a7442cc90",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/occipital/capturas-visuais/cap-20260610-195656-test-capture.md": {
+    "mtime": 1781719987.694846,
+    "ast_hash": "cfa411fc030a9f528663f406be76e3c8",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/insula/conflitos/fact-collision-test.sync-conflict-20260610-160000-NODE2.md": {
+    "mtime": 1781129809.263253,
+    "ast_hash": "66daa910acaf74bf7b0b2d772b7af180",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/inbox/2026/06/13/0212-session.md": {
+    "mtime": 1781327560.676041,
+    "ast_hash": "7be6e8abeb96b0bfe935f04da49a4c8c",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/inbox/2026/06/10/1151-session.md": {
+    "mtime": 1781103062.2374806,
+    "ast_hash": "c322fd4bc6d7fa4ffbedd4f95c4ade1a",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/inbox/2026/06/10/1225-session.md": {
+    "mtime": 1781105112.109104,
+    "ast_hash": "48915e16260a16d439d311cc97203b3d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/inbox/2026/06/10/1530-session.md": {
+    "mtime": 1781116200.2029967,
+    "ast_hash": "75e6a0bf13f48790c6cecca9f065e6ab",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/inbox/2026/06/10/1235-session.md": {
+    "mtime": 1781105735.067227,
+    "ast_hash": "86665a7a70de095dba8cc5ef823c85dc",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/inbox/2026/06/10/1250-session.md": {
+    "mtime": 1781106635.9859746,
+    "ast_hash": "a2ca302efcfe0025f34a613d53bb22f8",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/inbox/2026/06/12/2111-session.md": {
+    "mtime": 1781309504.6115203,
+    "ast_hash": "f917d490670969178bb8bed7d5ada8d6",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/business-services.md": {
+    "mtime": 1779558809.4586084,
+    "ast_hash": "641f015a675d8c9b5366c8a22ddf6eda",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/README.md": {
+    "mtime": 1779558809.4584577,
+    "ast_hash": "ef91fa0456784081b014a703202b6627",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/business-icp.md": {
+    "mtime": 1779558809.4584973,
+    "ast_hash": "54d526596dba1f00be5d595467313939",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/business-tone-of-voice.md": {
+    "mtime": 1779558809.458646,
+    "ast_hash": "b5d3e882fac2c9716a1ab5438ab8e9f9",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/business-positioning.md": {
+    "mtime": 1779558809.4585338,
+    "ast_hash": "16f831011645c4f163d2594026f64849",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/business-pricing.md": {
+    "mtime": 1779558809.4585721,
+    "ast_hash": "74b9e2f938886af98f46334cde5c9615",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/analises/EvoNexus.md": {
+    "mtime": 1779652998.7861829,
+    "ast_hash": "a8d93c27c3281039a650ab81810d837b",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/analises/OmniRoute.md": {
+    "mtime": 1779579686.2470222,
+    "ast_hash": "ef444f44def3553cef716c2c02285720",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/analises/GitNexus.md": {
+    "mtime": 1779646076.7783463,
+    "ast_hash": "473edb22641f2c6137c701b13ef1f043",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/analises/Synapse Layer.md": {
+    "mtime": 1779578898.4646637,
+    "ast_hash": "ef46e3cad80c18c70edbe384f284d0bd",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/analises/Manus Agent.md": {
+    "mtime": 1780163301.016189,
+    "ast_hash": "4c35d6fc6cd6b31947abb9355dddae37",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/analises/Context Mode.md": {
+    "mtime": 1779577366.3598783,
+    "ast_hash": "d7ab51f5f0a6119fe84f1591ddfafe18",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/analises/An\u00e1lise GitNexus.pdf": {
+    "mtime": 1779646392.767439,
+    "ast_hash": "7ea96aa2e104b30f8d5eb8e149a51026",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/referencias/analises/An\u00e1lise EvoNexus.pdf": {
+    "mtime": 1779653015.8211937,
+    "ast_hash": "769490278e15e1a2a6dd730393423e37",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/inbox/visual/CAP-20260610-195656-test-capture.png": {
+    "mtime": 1781132216.2037964,
+    "ast_hash": "6c5c260202ce9ef9ed2e8a25f04fc694",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/inbox/visual/CAP-20260610-195934-MCP-Test-Capture.png": {
+    "mtime": 1781132374.666016,
+    "ast_hash": "6c5c260202ce9ef9ed2e8a25f04fc694",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/_Consciencia.md": {
+    "mtime": 1781720191.9718423,
+    "ast_hash": "537fa6eab5c8b38c2f08d9985d7ece39",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/_Hive-Mind.md": {
+    "mtime": 1781720191.9717357,
+    "ast_hash": "6cd8c3a31b8af066b20458d1631e74ba",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/error_handling/_error_handling.md": {
+    "mtime": 1781720191.9707932,
+    "ast_hash": "abe882820f6cfe58e8347dea35479c2b",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/security/_security.md": {
+    "mtime": 1781720191.970925,
+    "ast_hash": "ecb450f97539a195bb7e0911d83a28cc",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/preferences/_preferences.md": {
+    "mtime": 1781720191.9710283,
+    "ast_hash": "5b309a4c10e5cce4b39167e49c46f645",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/test_swarm/_test_swarm.md": {
+    "mtime": 1781720191.9711268,
+    "ast_hash": "4dbae6a44c6830078e89bd53c9a3ed56",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/test_topic/_test_topic.md": {
+    "mtime": 1781720191.971232,
+    "ast_hash": "d03d0e52bc11d047ac9b1ac28238d621",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atoms/_atoms.md": {
+    "mtime": 1781720191.971336,
+    "ast_hash": "ebde273ee091230c71c0c929ee22c194",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/testing/_testing.md": {
+    "mtime": 1781720191.9714334,
+    "ast_hash": "f585107cf34ef3a8603e84ffbc48fd76",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/infrastructure/_infrastructure.md": {
+    "mtime": 1781720191.9715292,
+    "ast_hash": "ec7704e523a47f31283eba83fea5fec3",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atlas/_atlas.md": {
+    "mtime": 1781720191.9716249,
+    "ast_hash": "7cf306f20b7ef79e5b28b8e1b7113427",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/frontal/trabalho/ativo/2026-06-17-MCP-Decision.md": {
+    "mtime": 1781728555.08054,
+    "ast_hash": "b8389c15e989ae7a3785fe596d7b1cc3",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/meta/Hive-Mind-subvault/Bem-vindo.md": {
+    "mtime": 1781711545.5691798,
+    "ast_hash": "a9098abd6c694b4a73b060c28c6f9f1c",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/inbox/2026/06/17/1513-session.md": {
+    "mtime": 1781719991.031727,
+    "ast_hash": "33961fb02f8c24ac87e089522d355ed9",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/error_handling/neuronio-e54dc37a8db0e2c3.md": {
+    "mtime": 1781720094.4774847,
+    "ast_hash": "0fc091afd2baec1c9c192efbffdd799d",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/infrastructure/neuronio-971125646477e1e1.md": {
+    "mtime": 1781720094.4775958,
+    "ast_hash": "af62fce7ce0f1d5a262f903f1fd4ac01",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/infrastructure/neuronio-6f6aee5476ea795c.md": {
+    "mtime": 1781720094.4776897,
+    "ast_hash": "1505acc2ae390f0775223f22e9dfa4b8",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/parietal/inbox/2026/06/17/1515-session.md": {
+    "mtime": 1781720155.9526913,
+    "ast_hash": "0d7e24547d267857957d4738eca92410",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/test_topic/neuronio-47bd29075f8b8019.md": {
+    "mtime": 1781720191.9415808,
+    "ast_hash": "69da6dab87ad78b878ba7ee4da6d91af",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/test_topic/neuronio-fbd4b77e297cf102.md": {
+    "mtime": 1781720191.9413145,
+    "ast_hash": "8f642494ac9b8c134cb44ae27e4d047b",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atoms/neuronio-7ce327bb5ac09ef7.md": {
+    "mtime": 1781720191.9418356,
+    "ast_hash": "e19765a2bfa7906466d237aed3f7cf41",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atoms/neuronio-a02b497c56a53306.md": {
+    "mtime": 1781720191.9417093,
+    "ast_hash": "5e6e1a051b8b3299d3dca439a49922e2",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/infrastructure/neuronio-e13c0b4b8477fef2.md": {
+    "mtime": 1781720191.941455,
+    "ast_hash": "257a2917db84d4748cfdb13f19c1bc04",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cortex/temporal/Hive-Mind/atlas/neuronio-143ac7f7a8a154e6.md": {
+    "mtime": 1781720191.941133,
+    "ast_hash": "19d5208a13b054c63633155b25920962",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/modelos/daily-log.md": {
+    "mtime": 1781721479.9089768,
+    "ast_hash": "e5e529955aff292130042a39e9da4fdf",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/modelos/session-log.md": {
+    "mtime": 1781721480.5922015,
+    "ast_hash": "f694528d9fd30185b60ad4cda86312cc",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cerebelo/sessoes/2026/06/17/1621-69399078-17ac-4e59-b3fc-65823406ccf6.md": {
+    "mtime": 1781724650.8537457,
+    "ast_hash": "9e5e3a8900eb86e9e828bb7ef0146d7a",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cerebelo/sessoes/2026/06/17/1640-69399078-17ac-4e59-b3fc-65823406ccf6.md": {
+    "mtime": 1781725226.7714033,
+    "ast_hash": "d9400f68c189976c733ba336f2e1ead7",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cerebelo/sessoes/2026/06/17/1641-69399078-17ac-4e59-b3fc-65823406ccf6.md": {
+    "mtime": 1781725350.2681563,
+    "ast_hash": "232ce64aa13add9679c3573af41790b2",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cerebelo/sessoes/2026/06/17/1706-69399078-17ac-4e59-b3fc-65823406ccf6.md": {
+    "mtime": 1781726878.2739377,
+    "ast_hash": "e520ae90db295c13f024a32295096cc0",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cerebelo/sessoes/2026/06/17/1708-fceb28ce-7e0e-443c-88ba-115c14c41a67.md": {
+    "mtime": 1781726897.97354,
+    "ast_hash": "7a0a9037391704b72609c1598ca22b65",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/cerebelo/sessoes/2026/06/17/1708-78d6c4df-d725-4d5d-98b7-a6665912c6f3.md": {
+    "mtime": 1781727471.4479434,
+    "ast_hash": "321647b4d2c4b1e6bf559afa7a2f7e5f",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/meta/Hive-mind-subvault2/.smart-env/smart_env.json": {
+    "mtime": 1781712981.6387467,
+    "ast_hash": "e84761e32bf8a489db04ca145022d3d5",
+    "semantic_hash": ""
+  },
+  "/home/michel/Documentos/Projects/Hive-Mind/cerebro/tronco/meta/Hive-mind-subvault2/Bem-vindo.md": {
+    "mtime": 1781712671.7120032,
+    "ast_hash": "9c8ca885c6e166286675d0d5a3b372d3",
     "semantic_hash": ""
   }
 }
