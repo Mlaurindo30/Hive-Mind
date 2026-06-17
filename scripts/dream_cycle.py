@@ -574,6 +574,15 @@ source: hive-dreamer
     run_synthesis_cycle()
     mark_stage("synthesis_ms", synth_t0)
 
+    # --- CAMADA DE NAVEGAÇÃO (MOCs) — §7.6 ---
+    try:
+        from generate_mocs import build_mocs
+        moc_t0 = time.perf_counter()
+        build_mocs(verbose=True)
+        mark_stage("mocs_ms", moc_t0)
+    except Exception as e:
+        print(f"  [!] Geração de MOCs falhou (não-fatal): {e}")
+
     stage_metrics["total_cycle_ms"] = round((time.perf_counter() - cycle_t0) * 1000.0, 3)
     _persist_cycle_metrics(stage_metrics, status="ok")
 
