@@ -1,16 +1,16 @@
 # Graph Report - cerebro  (2026-06-17)
 
 ## Corpus Check
-- 214 files · ~89,106 words
+- 213 files · ~89,111 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2065 nodes · 2059 edges · 264 communities (199 shown, 65 thin omitted)
+- 2067 nodes · 2059 edges · 266 communities (200 shown, 66 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `17eb1375`
+- Built from commit: `23e46b38`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -234,6 +234,7 @@
 - [[_COMMUNITY_Community 248|Community 248]]
 - [[_COMMUNITY_Community 249|Community 249]]
 - [[_COMMUNITY_Community 250|Community 250]]
+- [[_COMMUNITY_Community 265|Community 265]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `Sessão Episódica: 2026-06-13 02:12` - 32 edges
@@ -259,7 +260,7 @@
 - `runHook()` --calls--> `runScript()`  [EXTRACTED]
   .claude/scripts/tests/qmd-refresh.integration.test.ts → .claude/scripts/tests/_helpers.ts
 
-## Communities (264 total, 65 thin omitted)
+## Communities (266 total, 66 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
@@ -303,7 +304,7 @@ Nodes (28): Callouts, code:markdown ([[Note Name]]                          Link
 
 ### Community 10 - "Community 10"
 Cohesion: 0.07
-Nodes (28): Análise Fria: Manus Agent — 3 fases de adoção (2026-05-30), Aprendizado via API (2026-05-24), brain-first.md, builder-ethos.md, Cebolinha voice clone provider (2026-05-30), filing-rules.md, Go build tags pattern for TTS registry + filepath.ExpandUser fix + CacheKey on Result (2026-06-01), L1+L2 cache pattern (2026-06-01) (+20 more)
+Nodes (27): Análise Fria: Manus Agent — 3 fases de adoção (2026-05-30), Aprendizado via API (2026-05-24), brain-first.md, builder-ethos.md, Cebolinha voice clone provider (2026-05-30), filing-rules.md, Go build tags pattern for TTS registry + filepath.ExpandUser fix + CacheKey on Result (2026-06-01), L1+L2 cache pattern (2026-06-01) (+19 more)
 
 ### Community 11 - "Community 11"
 Cohesion: 0.07
@@ -835,7 +836,7 @@ Nodes (3): MCP Decision, MCP Decision, MCP Decision
 
 ### Community 227 - "Community 227"
 Cohesion: 0.07
-Nodes (27): Análise Fria: Manus Agent — 3 fases de adoção (2026-05-30), Aprendizado via API (2026-05-24), brain-first.md, builder-ethos.md, Cebolinha voice clone provider (2026-05-30), filing-rules.md, Go build tags pattern for TTS registry + filepath.ExpandUser fix + CacheKey on Result (2026-06-01), L1+L2 cache pattern (2026-06-01) (+19 more)
+Nodes (28): Análise Fria: Manus Agent — 3 fases de adoção (2026-05-30), Aprendizado via API (2026-05-24), brain-first.md, builder-ethos.md, Cebolinha voice clone provider (2026-05-30), filing-rules.md, Go build tags pattern for TTS registry + filepath.ExpandUser fix + CacheKey on Result (2026-06-01), L1+L2 cache pattern (2026-06-01) (+20 more)
 
 ### Community 236 - "Community 236"
 Cohesion: 0.12
@@ -878,21 +879,21 @@ Cohesion: 0.40
 Nodes (4): How This Works, Linking Convention, Thinking Space, When to Use
 
 ## Knowledge Gaps
-- **1149 isolated node(s):** `brain/North Star.md`, `brain/Memories.md`, `brain/Key Decisions.md`, `brain/Patterns.md`, `brain/Gotchas.md` (+1144 more)
+- **1150 isolated node(s):** `MCP Decision`, `RESOLVER (skill dispatcher)`, `brain-first.md`, `builder-ethos.md`, `filing-rules.md` (+1145 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **65 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **66 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
+- **Why does `escapeRegex()` connect `Community 5` to `Community 201`, `Community 2`?**
+  _High betweenness centrality (0.003) - this node is a cross-community bridge._
 - **Why does `runScript()` connect `Community 146` to `Community 152`, `Community 156`, `Community 206`, `Community 6`?**
-  _High betweenness centrality (0.002) - this node is a cross-community bridge._
+  _High betweenness centrality (0.003) - this node is a cross-community bridge._
 - **Why does `resolveQmdEntry()` connect `Community 1` to `Community 152`, `Community 2`, `Community 14`?**
   _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **Why does `debug()` connect `Community 14` to `Community 1`, `Community 37`, `Community 38`, `Community 39`?**
-  _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **What connects `brain/North Star.md`, `brain/Memories.md`, `brain/Key Decisions.md` to the rest of the system?**
-  _1153 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `MCP Decision`, `RESOLVER (skill dispatcher)`, `brain-first.md` to the rest of the system?**
+  _1154 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.13725490196078433 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**

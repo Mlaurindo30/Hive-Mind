@@ -655,3 +655,13 @@ Para restaurar o Hermes após formatação:
 8. Restartar o Hermes
 
 Skills críticas salvas: dynamic-workflow, council, devin-mode, kiro-mode, windsurf-cascade, manus-loop, comet-security, tts-system, hermes-infrastructure, segundo-cerebro, systematic-debugging, subagent-driven-development, test-driven-development, coding-agent-toolchain. Total: 58 skills customizadas.
+
+
+<!-- merge straggler 2026-06-17 -->
+
+
+---
+
+## MCP Pattern (2026-06-17)
+
+Learning from MCP
