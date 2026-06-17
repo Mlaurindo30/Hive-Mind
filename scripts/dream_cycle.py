@@ -181,9 +181,17 @@ def agent_route(facts: List[Any]) -> Optional[RouterOutput]:
     """Decide onde os fatos vão morar na taxonomia do Atlas."""
     print(f"  [Router] Classificando os fatos extraídos...")
     
-    atlas_root = Path(SINAPSE_HOME) / "cerebro" / "atlas"
-    existing_topics = [d.name for d in atlas_root.iterdir() if d.is_dir()] if atlas_root.exists() else []
-    
+    # Anatômico: tópicos vivem em cortex/temporal/{projeto}/{topico}/ — lista os
+    # tópicos existentes em todos os projetos como dica anti-fragmentação do Router.
+    from core import paths as cp
+    existing_topics = sorted({
+        topic_dir.name
+        for proj_dir in (cp.TEMPORAL.iterdir() if cp.TEMPORAL.exists() else [])
+        if proj_dir.is_dir()
+        for topic_dir in proj_dir.iterdir()
+        if topic_dir.is_dir() and not topic_dir.name.startswith("_")
+    })
+
     prompt = f"TÓPICOS EXISTENTES NO ATLAS:\n{existing_topics}\n\nFATOS A SEREM ROTEADOS:\n{json.dumps([f.model_dump() for f in facts], indent=2)}"
 
     max_attempts = 3
@@ -321,8 +329,9 @@ def run_visual_dream_stage():
     print("\n=== Estágio de Sonho Visual (Visual Dreamer) ===")
     from core.database import add_visual_memory
     
-    inbox_visual = Path(SINAPSE_HOME) / "cerebro" / "inbox" / "visual"
-    atlas_visual = Path(SINAPSE_HOME) / "cerebro" / "atlas" / "visual"
+    from core import paths as cp
+    inbox_visual = cp.INBOX_VISUAL                 # cortex/parietal/inbox/visual
+    atlas_visual = cp.CAPTURAS_VISUAIS             # cortex/occipital/capturas-visuais
     atlas_visual.mkdir(parents=True, exist_ok=True)
     
     if not inbox_visual.exists():
@@ -447,9 +456,10 @@ def run_dream_cycle():
         conn.close()
         return
 
-    # Arquiva os logs brutos para a Inbox (Rastro Temporal Completo)
+    # Arquiva os logs brutos para a Inbox sensorial (cortex/parietal/inbox)
+    from core import paths as cp
     now = datetime.now()
-    inbox_dir = Path(SINAPSE_HOME) / "cerebro" / "inbox" / now.strftime("%Y/%m/%d")
+    inbox_dir = cp.INBOX_ROOT / now.strftime("%Y/%m/%d")
     inbox_dir.mkdir(parents=True, exist_ok=True)
     session_file = inbox_dir / f"{now.strftime('%H%M')}-session.md"
     
@@ -507,28 +517,27 @@ def run_dream_cycle():
         conn.close()
         return
 
-    # --- PERSISTÊNCIA NO ATLAS ---
-    print("  [Storage] Persistindo no Atlas Infinito...")
-    atlas_root = Path(SINAPSE_HOME) / "cerebro" / "atlas"
-    
-    # Dicionário mapeando fact_id -> fact Pydantic object
+    # --- PERSISTÊNCIA ANATÔMICA (cortex/temporal/{projeto}/{topico}/neuronio-*) ---
+    print("  [Storage] Persistindo neurônios no córtex temporal...")
+    from core import paths as cp
+    # TODO: projeto deve vir da observation de origem; por ora usa o default.
+    DEFAULT_PROJECT = os.environ.get("HIVE_DEFAULT_PROJECT", "Hive-Mind")
+
     fact_map = {f.id: f for f in distilled.facts}
-    
     storage_t0 = time.perf_counter()
     for r in routed.routed_facts:
         fact = fact_map.get(r.fact_id)
         if not fact: continue
-        
-        # Cria ou atualiza a pasta do tópico
+
         safe_topic = r.topic.lower().replace(" ", "_")
-        topic_dir = atlas_root / safe_topic
-        topic_dir.mkdir(parents=True, exist_ok=True)
-        
-        note_file = topic_dir / f"{fact.id}.md"
-        
-        # Formato da nota ancorada
+        # nome anatômico: fact-{hash} → neuronio-{hash}
+        nid = fact.id.replace("fact-", "neuronio-", 1) if fact.id.startswith("fact-") else fact.id
+        note_file = cp.TEMPORAL / DEFAULT_PROJECT / safe_topic / f"{nid}.md"
+        note_file.parent.mkdir(parents=True, exist_ok=True)
+
         content = f"""---
 type: {fact.type}
+project: {DEFAULT_PROJECT}
 topic: {safe_topic}
 integrity_hash: {fact.integrity_hash}
 last_updated: {now.strftime('%Y-%m-%d %H:%M')}
@@ -541,17 +550,20 @@ source: hive-dreamer
 ## Evidência (Groundedness)
 > {fact.source_quotes[0] if fact.source_quotes else 'N/A'}
 
+## Sinapses
+- projeto:: [[_{DEFAULT_PROJECT}]]
+- tópico:: [[_{safe_topic}]]
+
 #consolidated #{safe_topic}
 """
-        # Se for append ou merge, adiciona no fim do arquivo (poderia ter lógica de read/write mais complexa)
         mode = "a" if r.action in ["append", "merge"] and note_file.exists() else "w"
         if mode == "a":
             content = f"\n\n---\n## Atualização de {now.strftime('%Y-%m-%d')}\n{fact.content}\n"
-            
+
         with open(note_file, mode) as f:
             f.write(content)
-            
-        print(f"  [+] Nota {r.action}: {safe_topic}/{fact.id}.md")
+
+        print(f"  [+] Neurônio {r.action}: {DEFAULT_PROJECT}/{safe_topic}/{nid}.md")
     mark_stage("atlas_persist_ms", storage_t0)
 
     # Roteamento bem-sucedido: marca observações como consolidadas (archived=1)

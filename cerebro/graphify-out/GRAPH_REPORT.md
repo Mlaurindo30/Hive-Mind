@@ -1,16 +1,16 @@
-# Graph Report - cerebro  (2026-06-16)
+# Graph Report - cerebro  (2026-06-17)
 
 ## Corpus Check
-- 197 files · ~88,366 words
+- 202 files · ~88,472 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1807 nodes · 1848 edges · 216 communities (173 shown, 43 thin omitted)
+- 1811 nodes · 1850 edges · 217 communities (173 shown, 44 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `0d81825f`
+- Built from commit: `ad580911`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -197,9 +197,9 @@
 - [[_COMMUNITY_Community 210|Community 210]]
 - [[_COMMUNITY_Community 211|Community 211]]
 - [[_COMMUNITY_Community 212|Community 212]]
-- [[_COMMUNITY_Community 213|Community 213]]
 - [[_COMMUNITY_Community 214|Community 214]]
 - [[_COMMUNITY_Community 215|Community 215]]
+- [[_COMMUNITY_Community 217|Community 217]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `Sessão Episódica: 2026-06-13 02:12` - 31 edges
@@ -225,15 +225,15 @@
 - `runHook()` --calls--> `runScript()`  [EXTRACTED]
   .claude/scripts/tests/qmd-refresh.integration.test.ts → .claude/scripts/tests/_helpers.ts
 
-## Communities (216 total, 43 thin omitted)
+## Communities (217 total, 44 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.15
 Nodes (11): code:yaml (# Global filters apply to ALL views in the base), code:markdown (![[MyBase.base]]), code:yaml (formulas:), Default Summary Formulas, Embedding Bases, Formula Syntax, Obsidian Bases Skill, References (+3 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.13
-Nodes (13): composeWorkerInvocations(), resolveVaultRoot(), qmdArgsWithIndex(), invocations, MANIFEST_PATH, qmdIndex, result, SCRIPT_DIR (+5 more)
+Cohesion: 0.14
+Nodes (14): buildQmdCommand(), composeWorkerInvocations(), require, resolveQmdEntry(), qmdArgsWithIndex(), invocations, MANIFEST_PATH, qmdIndex (+6 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.10
@@ -269,7 +269,7 @@ Nodes (28): Callouts, code:markdown ([[Note Name]]                          Link
 
 ### Community 10 - "Community 10"
 Cohesion: 0.07
-Nodes (27): Análise Fria: Manus Agent — 3 fases de adoção (2026-05-30), Aprendizado via API (2026-05-24), brain-first.md, builder-ethos.md, Cebolinha voice clone provider (2026-05-30), filing-rules.md, Go build tags pattern for TTS registry + filepath.ExpandUser fix + CacheKey on Result (2026-06-01), L1+L2 cache pattern (2026-06-01) (+19 more)
+Nodes (28): Análise Fria: Manus Agent — 3 fases de adoção (2026-05-30), Aprendizado via API (2026-05-24), brain-first.md, builder-ethos.md, Cebolinha voice clone provider (2026-05-30), filing-rules.md, Go build tags pattern for TTS registry + filepath.ExpandUser fix + CacheKey on Result (2026-06-01), L1+L2 cache pattern (2026-06-01) (+20 more)
 
 ### Community 11 - "Community 11"
 Cohesion: 0.07
@@ -680,8 +680,8 @@ Cohesion: 0.40
 Nodes (3): Gotchas, Hermes Agent, Install
 
 ### Community 146 - "Community 146"
-Cohesion: 0.25
-Nodes (8): runScript(), runScript(), runHook(), runHook(), runScript(), SCRIPT, { stdout }, { stdout, code }
+Cohesion: 0.18
+Nodes (11): runScript(), hostPath(), RunResult, runScript(), path, runHook(), runHook(), runScript() (+3 more)
 
 ### Community 147 - "Community 147"
 Cohesion: 0.18
@@ -768,8 +768,8 @@ Cohesion: 0.22
 Nodes (8): { code, stderr }, idx, projectFile, REQUIRED_SECTIONS, SCRIPT, SCRIPT_DIR, { stdout }, { stdout, stderr, code }
 
 ### Community 207 - "Community 207"
-Cohesion: 0.32
-Nodes (6): buildQmdCommand(), require, resolveQmdEntry(), entry, input, out
+Cohesion: 0.33
+Nodes (5): resolveVaultRoot(), invs, result, subcommands, [update, embed, tail]
 
 ### Community 208 - "Community 208"
 Cohesion: 0.29
@@ -791,28 +791,24 @@ Nodes (4): [architecture] Hive-Mind Atlas: A taxonomia do Atlas Infinito é esse
 Cohesion: 0.40
 Nodes (4): [architecture] Hive-Mind Atlas: A taxonomia do Atlas Infinito é essencial para evitar o silo de informações cronológicas. Cada nó semântico agora mora em sua pasta., [failure_analysis] Erro de Polling OpenAI: Foi determinado que o erro deviceauth_authorization_pending requer um loop contínuo. A implementação atual trata isso com sucesso., [protocol] Segurança LLM: O Conselho exige auditoria 100% real de código. Modelos não devem supor nada sem testar na infraestrutura real., Sessão Episódica: 2026-06-10 15:30
 
-### Community 213 - "Community 213"
-Cohesion: 0.50
-Nodes (3): hostPath(), RunResult, path
-
 ## Knowledge Gaps
-- **1045 isolated node(s):** `MCP Decision`, `MCP Decision`, `brain/North Star.md`, `brain/Memories.md`, `brain/Key Decisions.md` (+1040 more)
+- **1047 isolated node(s):** `MCP Pattern (2026-06-17)`, `MCP Decision`, `MCP Decision`, `MCP Decision`, `brain/North Star.md` (+1042 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **43 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **44 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `escapeRegex()` connect `Community 5` to `Community 201`, `Community 2`?**
   _High betweenness centrality (0.004) - this node is a cross-community bridge._
-- **Why does `runScript()` connect `Community 146` to `Community 6`, `Community 206`, `Community 213`, `Community 152`, `Community 156`?**
-  _High betweenness centrality (0.004) - this node is a cross-community bridge._
 - **Why does `Current State` connect `Community 158` to `Community 192`, `Community 197`, `Community 72`, `Community 73`, `Community 98`, `Community 99`, `Community 100`, `Community 101`, `Community 102`, `Community 103`, `Community 104`, `Community 105`, `Community 106`, `Community 107`, `Community 108`, `Community 109`, `Community 110`, `Community 111`, `Community 112`, `Community 113`, `Community 114`?**
-  _High betweenness centrality (0.002) - this node is a cross-community bridge._
-- **What connects `MCP Decision`, `MCP Decision`, `brain/North Star.md` to the rest of the system?**
-  _1049 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _High betweenness centrality (0.003) - this node is a cross-community bridge._
+- **Why does `runScript()` connect `Community 146` to `Community 152`, `Community 156`, `Community 206`, `Community 6`?**
+  _High betweenness centrality (0.003) - this node is a cross-community bridge._
+- **What connects `MCP Pattern (2026-06-17)`, `MCP Decision`, `MCP Decision` to the rest of the system?**
+  _1051 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 1` be split into smaller, more focused modules?**
-  _Cohesion score 0.13333333333333333 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.13725490196078433 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
   _Cohesion score 0.09619450317124736 - nodes in this community are weakly interconnected._
 - **Should `Community 3` be split into smaller, more focused modules?**

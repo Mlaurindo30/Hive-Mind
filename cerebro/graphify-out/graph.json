@@ -4,23 +4,71 @@
   "graph": {},
   "nodes": [
     {
+      "label": "Patterns.md",
+      "file_type": "document",
+      "source_file": "brain/Patterns.md",
+      "source_location": "L1",
+      "content": "\n\n---\n\n## MCP Pattern (2026-06-17)\n\nLearning from MCP\n",
+      "id": "brain_patterns_md",
+      "community": 10,
+      "norm_label": "patterns.md"
+    },
+    {
+      "label": "MCP Pattern (2026-06-17)",
+      "file_type": "document",
+      "source_file": "brain/Patterns.md",
+      "source_location": "L5",
+      "id": "brain_patterns_mcp_pattern_2026_06_17",
+      "community": 10,
+      "norm_label": "mcp pattern (2026-06-17)"
+    },
+    {
+      "label": "2026-06-17-MCP-Decision.md",
+      "file_type": "document",
+      "source_file": "work/active/2026-06-17-MCP-Decision.md",
+      "source_location": "L1",
+      "content": "---\ntags: [decision]\nstatus: active\ncreated: 2026-06-17\nupdated: 2026-06-17\nsource: hermes-session\n---\n\n# MCP Decision\n\nTest from MCP\n",
+      "id": "work_active_2026_06_17_mcp_decision_md",
+      "community": 217,
+      "norm_label": "2026-06-17-mcp-decision.md"
+    },
+    {
+      "label": "MCP Decision",
+      "file_type": "document",
+      "source_file": "work/active/2026-06-17-MCP-Decision.md",
+      "source_location": "L9",
+      "id": "active_2026_06_17_mcp_decision_mcp_decision",
+      "community": 217,
+      "norm_label": "mcp decision"
+    },
+    {
+      "label": "Bem-vindo.md",
+      "file_type": "document",
+      "source_file": "hive mind/Bem-vindo.md",
+      "source_location": "L1",
+      "content": "Este \u00e9 o seu novo *Cofre*.\n\nAnote algo, [[crie um link]], ou tente [o Importer](https://help.obsidian.md/Plugins/Importer)!\n\nQuando estiver pronto, exclua esta nota e monte o cofre do seu jeito.",
+      "community": 216,
+      "norm_label": "bem-vindo.md",
+      "id": "hive_mind_bem_vindo_md"
+    },
+    {
       "label": "2026-06-16-MCP-Decision.md",
       "file_type": "document",
       "source_file": "work/active/2026-06-16-MCP-Decision.md",
       "source_location": "L1",
       "content": "---\ntags: [decision]\nstatus: active\ncreated: 2026-06-16\nupdated: 2026-06-16\nsource: hermes-session\n---\n\n# MCP Decision\n\nTest from MCP\n",
-      "id": "work_active_2026_06_16_mcp_decision_md",
       "community": 215,
-      "norm_label": "2026-06-16-mcp-decision.md"
+      "norm_label": "2026-06-16-mcp-decision.md",
+      "id": "work_active_2026_06_16_mcp_decision_md"
     },
     {
       "label": "MCP Decision",
       "file_type": "document",
       "source_file": "work/active/2026-06-16-MCP-Decision.md",
       "source_location": "L9",
-      "id": "active_2026_06_16_mcp_decision_mcp_decision",
       "community": 215,
-      "norm_label": "mcp decision"
+      "norm_label": "mcp decision",
+      "id": "active_2026_06_16_mcp_decision_mcp_decision"
     },
     {
       "label": "2026-06-15-MCP-Decision.md",
@@ -1909,7 +1957,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/_helpers.ts",
       "source_location": "L1",
-      "community": 213,
+      "community": 146,
       "norm_label": "_helpers.ts",
       "id": "claude_scripts_tests_helpers_ts"
     },
@@ -1918,7 +1966,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/_helpers.ts",
       "source_location": "L21",
-      "community": 213,
+      "community": 146,
       "norm_label": "hostpath()",
       "id": "tests_helpers_hostpath"
     },
@@ -1927,7 +1975,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/_helpers.ts",
       "source_location": "L25",
-      "community": 213,
+      "community": 146,
       "norm_label": "runresult",
       "id": "tests_helpers_runresult"
     },
@@ -2467,7 +2515,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/qmd-refresh.test.ts",
       "source_location": "L1",
-      "community": 1,
+      "community": 207,
       "norm_label": "qmd-refresh.test.ts",
       "id": "claude_scripts_tests_qmd_refresh_test_ts"
     },
@@ -2476,7 +2524,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/qmd-refresh.test.ts",
       "source_location": "L179",
-      "community": 1,
+      "community": 207,
       "norm_label": "result",
       "id": "tests_qmd_refresh_test_result"
     },
@@ -2485,7 +2533,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/qmd-refresh.test.ts",
       "source_location": "L205",
-      "community": 1,
+      "community": 207,
       "norm_label": "invs",
       "id": "tests_qmd_refresh_test_invs"
     },
@@ -2494,7 +2542,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/qmd-refresh.test.ts",
       "source_location": "L256",
-      "community": 1,
+      "community": 207,
       "norm_label": "subcommands",
       "id": "tests_qmd_refresh_test_subcommands"
     },
@@ -2503,7 +2551,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/qmd-refresh.test.ts",
       "source_location": "L275",
-      "community": 1,
+      "community": 207,
       "norm_label": "[update, embed, tail]",
       "id": "tests_qmd_refresh_test_update_embed_tail"
     },
@@ -2530,7 +2578,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/qmd.test.ts",
       "source_location": "L1",
-      "community": 207,
+      "community": 1,
       "norm_label": "qmd.test.ts",
       "id": "claude_scripts_tests_qmd_test_ts"
     },
@@ -2539,7 +2587,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/qmd.test.ts",
       "source_location": "L19",
-      "community": 207,
+      "community": 1,
       "norm_label": "entry",
       "id": "tests_qmd_test_entry"
     },
@@ -2548,7 +2596,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/qmd.test.ts",
       "source_location": "L54",
-      "community": 207,
+      "community": 1,
       "norm_label": "out",
       "id": "tests_qmd_test_out"
     },
@@ -2557,7 +2605,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/qmd.test.ts",
       "source_location": "L94",
-      "community": 207,
+      "community": 1,
       "norm_label": "input",
       "id": "tests_qmd_test_input"
     },
@@ -2854,7 +2902,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/main-guard.test.ts",
       "source_location": "L1",
-      "community": 213,
+      "community": 146,
       "norm_label": "main-guard.test.ts",
       "id": "claude_scripts_tests_main_guard_test_ts"
     },
@@ -2863,7 +2911,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/tests/main-guard.test.ts",
       "source_location": "L29",
-      "community": 213,
+      "community": 146,
       "norm_label": "path",
       "id": "tests_main_guard_test_path"
     },
@@ -3079,7 +3127,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/lib/qmd.ts",
       "source_location": "L1",
-      "community": 207,
+      "community": 1,
       "norm_label": "qmd.ts",
       "id": "claude_scripts_lib_qmd_ts"
     },
@@ -3088,7 +3136,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/lib/qmd.ts",
       "source_location": "L28",
-      "community": 207,
+      "community": 1,
       "norm_label": "require",
       "id": "lib_qmd_require"
     },
@@ -3097,7 +3145,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/lib/qmd.ts",
       "source_location": "L36",
-      "community": 207,
+      "community": 1,
       "norm_label": "resolveqmdentry()",
       "id": "lib_qmd_resolveqmdentry"
     },
@@ -3106,7 +3154,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/lib/qmd.ts",
       "source_location": "L80",
-      "community": 207,
+      "community": 1,
       "norm_label": "buildqmdcommand()",
       "id": "lib_qmd_buildqmdcommand"
     },
@@ -3421,7 +3469,7 @@
       "file_type": "code",
       "source_file": ".claude/scripts/lib/qmd-refresh.ts",
       "source_location": "L95",
-      "community": 1,
+      "community": 207,
       "norm_label": "resolvevaultroot()",
       "id": "lib_qmd_refresh_resolvevaultroot"
     },
@@ -16163,15 +16211,6 @@
       "id": "brain_skills_md"
     },
     {
-      "label": "Patterns.md",
-      "file_type": "document",
-      "source_file": "brain/Patterns.md",
-      "source_location": "L1",
-      "community": 10,
-      "norm_label": "patterns.md",
-      "id": "brain_patterns_md"
-    },
-    {
       "label": "Key Decisions.md",
       "file_type": "document",
       "source_file": "brain/Key Decisions.md",
@@ -16293,12 +16332,42 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
+      "source_file": "brain/Patterns.md",
+      "source_location": "L5",
+      "weight": 1.0,
+      "source": "brain_patterns_md",
+      "target": "brain_patterns_mcp_pattern_2026_06_17",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "brain/Patterns.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "brain_patterns_md",
+      "target": "brain_patterns_patterns_conventions"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "work/active/2026-06-17-MCP-Decision.md",
+      "source_location": "L9",
+      "weight": 1.0,
+      "confidence_score": 1.0,
+      "source": "work_active_2026_06_17_mcp_decision_md",
+      "target": "active_2026_06_17_mcp_decision_mcp_decision"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
       "source_file": "work/active/2026-06-16-MCP-Decision.md",
       "source_location": "L9",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "work_active_2026_06_16_mcp_decision_md",
-      "target": "active_2026_06_16_mcp_decision_mcp_decision",
-      "confidence_score": 1.0
+      "target": "active_2026_06_16_mcp_decision_mcp_decision"
     },
     {
       "relation": "contains",
@@ -32867,16 +32936,6 @@
     {
       "relation": "contains",
       "confidence": "EXTRACTED",
-      "source_file": "brain/Patterns.md",
-      "source_location": "L1",
-      "weight": 1.0,
-      "confidence_score": 1.0,
-      "source": "brain_patterns_md",
-      "target": "brain_patterns_patterns_conventions"
-    },
-    {
-      "relation": "contains",
-      "confidence": "EXTRACTED",
       "source_file": "/home/michel/Documentos/Projects/sinapse_agent/cerebro/brain/Key Decisions.md",
       "source_location": "L1",
       "weight": 1.0,
@@ -34986,5 +35045,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "0d81825fdc1d8a424cfcdf86cdbc75687e3375a1"
+  "built_at_commit": "ad58091134568af11dd0999880802071c07262e5"
 }
