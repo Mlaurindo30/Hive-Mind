@@ -15,9 +15,21 @@ import json
 import re
 from pathlib import Path
 
+from capture_core import project_from_cwd
+
+
+def _roo_cwd(path: Path) -> str | None:
+    """cwd da task = campo `workspace` do history_item.json irmão do ui_messages.json."""
+    try:
+        hi = path.parent / "history_item.json"
+        return json.loads(hi.read_text()).get("workspace") or None
+    except Exception:
+        return None
+
 
 def parse(path: Path):
     sid = next((p for p in path.parts if re.fullmatch(r"[0-9a-f-]{36}", p)), path.parent.name)
+    cwd = _roo_cwd(path)
     try:
         msgs = json.loads(path.read_text(errors="ignore"))
     except Exception:
@@ -72,4 +84,5 @@ def parse(path: Path):
             add_assistant(q)
     if not prompt and not turns:
         return []
-    return [{"sid": sid, "prompt": prompt, "turns": turns, "last": last_text}]
+    return [{"sid": sid, "prompt": prompt, "turns": turns, "last": last_text,
+             "project": project_from_cwd(cwd), "cwd": cwd}]

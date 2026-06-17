@@ -11,11 +11,24 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from capture_core import _text
+from capture_core import _text, project_from_cwd
+
+
+def _workspace_cwd(path: Path) -> str | None:
+    """cwd da sessão = pasta do workspace do VS Code. O transcript fica em
+    workspaceStorage/<hash>/GitHub.copilot-chat/transcripts/<sid>.jsonl; o
+    workspace.json irmão (3 níveis acima) mapeia o hash → pasta real."""
+    try:
+        ws = path.parents[2] / "workspace.json"   # <hash>/workspace.json
+        folder = (json.loads(ws.read_text()).get("folder") or "")
+        return folder.replace("file://", "") or None
+    except Exception:
+        return None
 
 
 def _parse_transcript(path: Path):
     sid = path.stem
+    cwd = _workspace_cwd(path)
     prompt, turns, last_text, pending_user = None, [], None, None
     current_turn_id = None
     turn_parts: list[str] = []
@@ -69,7 +82,8 @@ def _parse_transcript(path: Path):
     flush(current_turn_id)
     if not prompt and not turns:
         return []
-    return [{"sid": sid, "prompt": prompt, "turns": turns, "last": last_text}]
+    return [{"sid": sid, "prompt": prompt, "turns": turns, "last": last_text,
+             "project": project_from_cwd(cwd), "cwd": cwd}]
 
 
 def _parse_sqlite(db_path: Path):

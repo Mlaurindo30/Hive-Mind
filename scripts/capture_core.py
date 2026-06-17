@@ -64,6 +64,16 @@ def content_hash(*parts: str) -> str:
     return hashlib.sha1("|".join(parts).encode("utf-8", errors="ignore")).hexdigest()
 
 
+def project_from_cwd(directory: str | None) -> str | None:
+    """Deriva o nome do projeto a partir do diretório de trabalho da sessão
+    (basename), como o claude-mem nativo faz. Ex.: /home/michel/Projects/Thoth →
+    'Thoth'. Retorna None se não houver diretório utilizável (→ fallback no ingest)."""
+    if not directory:
+        return None
+    name = os.path.basename(str(directory).rstrip("/"))
+    return name or None
+
+
 # ── mtime WAL-aware ────────────────────────────────────────────────────────────
 def _src_mtime(p: Path) -> float:
     """mtime efetivo de uma fonte. SQLite em modo WAL grava no sidecar -wal (o .db
@@ -161,6 +171,9 @@ def ingest(platform: str, sess: dict, state: dict) -> int:
     rec = state.setdefault(skey, {"inited": False, "seen": []})
     rec["ts"] = int(time.time())   # marca atividade p/ o GC de manutenção (não é memória)
     seen = set(rec.get("seen") or [])
+    # Projeto REAL da sessão (derivado do cwd pelo parser); fallback p/ o default.
+    proj = sess.get("project") or PROJECT
+    cwd = sess.get("cwd") or str(Path.cwd())
 
     def emit_prompt(text: str) -> bool:
         norm = _norm(text)
@@ -170,7 +183,7 @@ def ingest(platform: str, sess: dict, state: dict) -> int:
         if h in seen:
             return False
         _post("/api/sessions/init", {
-            "contentSessionId": sid, "project": PROJECT, "platformSource": platform,
+            "contentSessionId": sid, "project": proj, "platformSource": platform,
             "prompt": text, "customTitle": f"[{platform}] {text[:60]}",
         })
         seen.add(h)
@@ -178,7 +191,7 @@ def ingest(platform: str, sess: dict, state: dict) -> int:
 
     if not rec["inited"]:
         _post("/api/sessions/init", {
-            "contentSessionId": sid, "project": PROJECT, "platformSource": platform,
+            "contentSessionId": sid, "project": proj, "platformSource": platform,
             "prompt": prompt or "(sessão)", "customTitle": f"[{platform}] {(prompt or '')[:60]}",
         })
         rec["inited"] = True
@@ -202,7 +215,7 @@ def ingest(platform: str, sess: dict, state: dict) -> int:
         obs_res = _post("/api/sessions/observations", {
             "contentSessionId": sid, "tool_name": tn,
             "tool_input": t.get("tool_input") or {}, "tool_response": {"result": resp},
-            "platformSource": platform, "cwd": str(Path.cwd()),
+            "platformSource": platform, "cwd": cwd,
             "tool_use_id": f"{platform}:{sid}:{ho[:20]}",
         })
         if obs_res.get("error") or obs_res.get("stored") is False:
