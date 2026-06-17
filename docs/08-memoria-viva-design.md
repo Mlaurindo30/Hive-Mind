@@ -1,10 +1,10 @@
 # Memória Viva — Design do Serviço Inteligente do Hive-Mind
 
-> **Versão**: 2.0 (modelo anatômico)
+> **Versão**: 2.2 (modelo anatômico — project-plumbing + boundedness executados)
 > **Data**: 2026-06-17
 > **Escopo**: Definição completa do comportamento inteligente do serviço de memória do Sinapse — **estrutura do vault modelada na ANATOMIA CEREBRAL** (córtex com 5 lobos + diencéfalo + cerebelo + tronco), eixo primário por **projeto**, camada de **MOCs (consciência)** e **sinapses** automáticas, cadência (diária/sessão/semanal), formação autônoma de neurônios/pastas/MOCs, nomenclatura human-readable, multi-setor, métricas de "vivo", e plano de migração.
 > **Audiência**: Michel (autor do vault), futuros agentes IA, contribuidores do projeto.
-> **Status**: Documento vivo. Decisões aqui são propostas até validadas na prática (Fase 0).
+> **Status**: Documento vivo. **Fase 0 executada (2026-06-17 — 5 commits, 242 testes verdes)**: estrutura anatômica, `core/paths.py` (ponto único de paths), e camada MOC+sinapses (§7.6) aplicados ao vault. Fase 1-3 permanecem como proposta. Gap remanescente imediato: plumbing de `observation.project` no Dream Cycle (§13).
 
 ---
 
@@ -30,6 +30,11 @@
 ---
 
 ## 1. Diagnóstico: estado atual e lacunas
+
+> **Snapshot pré-Fase 0** (2026-06-17 ~12:00, antes da migração). Este diagnóstico é o
+> **baseline histórico** que motivou a Fase 0 — preservado como trilha de auditoria.
+> O estado **pós-migração** está em §10.0 (Execução realizada) e §7.6 (MOC layer aplicada).
+> O delta de capacidades fechadas pela Fase 0 está no addendum de §1.2.
 
 ### 1.1 Inventário do que EXISTE hoje
 
@@ -87,6 +92,26 @@ Resultado: `dream_cycle.py:255` (`if not atlas_path.exists()`) pula silenciosame
 
 **Síntese**: dos 22 capacidades necessárias para um serviço "vivo", **7 estão implementadas** (todas no Dream Cycle), **1 está parcialmente quebrada** (reindex com paths inconsistentes), e **14 estão completamente ausentes**.
 
+#### 1.2.1 Addendum pós-Fase 0 (2026-06-17) — o que a migração fechou
+
+A Fase 0 (§10) + a camada MOC (§7.6) mudaram o status de várias linhas da tabela acima. Delta:
+
+| Capacidade (linha acima) | Pré-Fase 0 | Pós-Fase 0 | Como foi fechada |
+|---|---|---|---|
+| Reindexar SQLite / path inconsistency bug | ❌ quebrado | ✅ corrigido | `migrate_anatomy.py` atualizou `neurons.source_file` linha a linha (mapa old→new); convenção unificada relativa a `SINAPSE_HOME` via `core.paths.rel_to_vault` |
+| Criar pastas por tema (fragmentação) | ⚠ fragmenta | ◐ mitigado | Eixo por projeto + MOCs dão navegação; a pasta física ainda é criada, mas o grafo agora costura via sinapses |
+| Renomear arquivos humanamente (`fact-{hash}.md` opaco) | ❌ | ✅ | `fact-*` → `neuronio-{hash}.md` no Dream Cycle (persistência em `cortex/temporal/{proj}/{top}/`) |
+| Navegação MOC + sinapses (vault parecer cérebro) | ❌ implícito | ✅ | `scripts/generate_mocs.py` — MOCs Consciência + projeto + 9 tópicos; `related:` em 11 neurônios via fastembed (cosine) |
+| Constantes centralizadas de path | ❌ (cada script recalcula) | ✅ | `core/paths.py` — ponto único, importado pelos writers (audit_memory, sinapse-mcp, plugin hermes, visual_capture, document_ingest) |
+
+**Novo gap descoberto durante a execução** (não na tabela pré-Fase 0):
+
+| Capacidade | Status | Detalhe |
+|---|---|---|
+| **Atribuir projeto REAL ao neurônio** | ❌ | `dream_cycle.py:523-524` crava `DEFAULT_PROJECT=Hive-Mind` para todo neurônio novo; o campo `observation.project` da observação de origem **não é passado** pelo pipeline (Distiller→Router→persistência). Neurônios de outros projetos caem no lobo-projeto errado. Ver §13 (incremento pendente). |
+
+**Tally atualizado**: 12 implementadas, 0 quebradas, 9 ausentes (Fase 1-3) + 1 novo gap (project-plumbing, incremento pontual).
+
 ---
 
 ## 2. Hierarquia canônica de pastas — MODELO ANATÔMICO CEREBRAL
@@ -112,7 +137,7 @@ bate com a função da pasta. Isso dá um modelo mental único, escalável e vis
 | **Sinapses** | conexões entre neurônios | WikiLinks + `related:` + arestas do grafo |
 | **Consciência** (workspace global) | integração / o "eu" | o MOC raiz (Home) |
 
-### 2.1 Árvore completa (aplicada pós-Fase 0)
+### 2.1 Árvore completa (APLICADA — Fase 0 concluída 2026-06-17)
 
 ```
 cerebro/
@@ -696,7 +721,7 @@ Semana de **infraestrutura de memória**. 34 atoms, 8 decisions, 6 projects ativ
 - **Topic fragmentation**: 3 tópicos (`test_swarm`, `test_topic`, `testing`) representam mesmo domínio. Candidato a merge.
 
 ## Próxima Semana (W26)
-1. Fase 0 implementação — migration atlas/ → indice/atlas/
+1. Fase 0 implementação — migration atlas/ → cortex/temporal/{projeto}/{topico}/ (anatômico)
 2. Daily writer script
 3. Session consolidator
 4. Decision review (3 abertas >30d)
@@ -908,10 +933,17 @@ def merge_candidates(threshold=0.85):
 
 ### 7.6 Camada MOC + sinapses — o que faz o vault parecer um cérebro
 
-Sem esta camada, o graph view do Obsidian é poeira de nós soltos (estado atual: 2 de 16
-neurônios têm link). É a **navegação** (≠ armazenamento) — síntese de LYT/Maps of Content.
+> **✅ IMPLEMENTADO (2026-06-17, commit `e68f67c`)** — `scripts/generate_mocs.py`
+> gera MOCs (Consciência + 1 projeto + 9 tópicos) e sinapses (`related:` em 11 neurônios
+> via fastembed, cosine). Dream Cycle chama o gerador após persistir neurônios. +2 testes
+> unitários (`test_generate_mocs`). O texto abaixo é a especificação que foi seguida.
 
-**MOCs auto-gerados/atualizados pelo hipocampo** (`dream_cycle.py`, novo estágio):
+Sem esta camada, o graph view do Obsidian é poeira de nós soltos (estado pré-Fase 0: 2 de 16
+neurônios têm link; pós-Fase 0: 11/16 com `related:`). É a **navegação** (≠ armazenamento) —
+síntese de LYT/Maps of Content.
+
+**MOCs auto-gerados/atualizados pelo hipocampo** (`scripts/generate_mocs.py`, chamado
+pelo `dream_cycle.py` ao final da persistência):
 
 | MOC | Path | Conteúdo (gerado) |
 |---|---|---|
@@ -1056,6 +1088,31 @@ Criar `cerebro/bases/Memory Health Dashboard.base` com views:
 
 ## 10. Migração do filesystem atual — Fase 0
 
+### 10.0 Execução realizada (2026-06-17) — ✅ CONCLUÍDA
+
+A Fase 0 foi **executada**, não apenas planejada. Registro factual do que aconteceu:
+
+| Item | Resultado |
+|---|---|
+| Commits | 5 — `9c1e937` (Fase 0 migração), `17eb137` (straggler MCP-Decision), `e68f67c` (MOCs+sinapses §7.6), `23e46b3` (writers → paths anatômicos), `25e7af6` (consolida stragglers + sub-vault) |
+| Script de migração | `scripts/migrate_anatomy.py` (não `git mv` simples — move cada `atlas/{topic}/fact-*.md` → `cortex/temporal/{projeto}/{topic}/neuronio-*.md`, projeto por neurônio; atualiza SQLite na mesma transação) |
+| Arquivos movidos | **112 arquivos** → estrutura anatômica |
+| Neurons no DB | **313** (SQLite reindexado, `source_file` anatômico) |
+| Backup + rollback | `hive_mind.db` backup + `migrate_anatomy_rollback.sql` (mapa inverso new→old) criados |
+| Estrutura final | `cortex/{temporal,frontal,parietal,occipital,insula}` + `diencefalo/{roteamento,setores}` + `cerebelo/{diario,padroes,semanal,sessoes}` + `tronco/{meta,modelos,paineis}` + Home `_Consciencia.md` |
+| Writers migrados | `audit_memory.py`, `sinapse-mcp.py`/plugin hermes, `visual_capture.py`, `document_ingest.py` → importam `core.paths` |
+| Testes | **242 verdes** (incl. +7 de `core/paths.py`, +2 de `generate_mocs.py`) |
+| Vault | 100% anatômico (stragglers + sub-vault `Hive mind/` consolidados em `tronco/meta/`) |
+| Bug `source_file` (§10.3) | **Corrigido** — convenção unificada relativa a `SINAPSE_HOME` via `core.paths.rel_to_vault` |
+| Gap remanescente | **Plumbing de `observation.project`** não coberto pela migração — ver §13 |
+
+**Obsidian**: o vault correto é `cerebro/` (que tem `.obsidian/` principal), não o
+sub-vault `Hive mind/`. Home = `_Consciencia.md`. O sub-vault confuso foi movido para
+`tronco/meta/Hive-Mind-subvault`.
+
+> §10.1–§10.5 abaixo são o **plano que foi seguido** na execução acima — preservados
+> como especificação de referência e para reprodutibilidade.
+
 ### 10.1 Ordem de execução (8 passos)
 
 | # | Passo | Sanity test | Tempo |
@@ -1095,18 +1152,26 @@ COMMIT;
 
 **Rollback**: o script grava `migrate_anatomy_rollback.sql` (mapa inverso `new→old`) + `git checkout HEAD -- cerebro/`.
 
-### 10.3 Bug crítico a corrigir simultaneamente
+### 10.3 Bug crítico a corrigir simultaneamente — ✅ CORRIGIDO na migração
 
-A inconsistência de convenção `source_file` (relativo a `SINAPSE_HOME` vs relativo a `vault_dir`) **precisa ser corrigida na Fase 0**.
+A inconsistência de convenção `source_file` (relativo a `SINAPSE_HOME` vs relativo a `vault_dir`) **foi corrigida na Fase 0**.
 
-**Decisão**: padronizar em **relativo a `VAULT_ROOT`** (= `SINAPSE_HOME / "cerebro"`). Razão: filesystem backend (`core/memory/backends/filesystem.py:120`) já usa essa convenção; é a mais natural para o Obsidian (vault = raiz).
+**Decisão adotada**: padronizar em **relativo a `SINAPSE_HOME`** (mantém o prefixo
+`cerebro/`), via `core.paths.rel_to_vault(p)` → `Path(p).relative_to(SINAPSE_HOME)`.
+Razão: era a convenção já usada por `audit_memory.py:61` (a maioria das linhas existentes
+no DB a seguiam); alinhar o filesystem backend (`core/memory/backends/filesystem.py`) a
+`rel_to_vault` foi menos disruptivo que reescrever todo o DB. Convenção canônica:
+`cerebro/cortex/temporal/{projeto}/{topico}/neuronio-{hash}.md`.
 
-**Migration adicional**:
+**Migration aplicada** (linha a linha pelo `migrate_anatomy.py`, não REPLACE puro — o
+`{projeto}` não é derivável sem a observação de origem):
 ```sql
--- Para entradas que começam com "atlas/..." (relativo a vault_dir), prefixar com "cerebro/"
-UPDATE neurons SET source_file = 'cerebro/' || source_file
-  WHERE source_file NOT LIKE 'cerebro/%' AND source_file LIKE 'atlas/%';
+-- para cada neurônio movido (mapa old→new construído ao mover):
+UPDATE neurons SET source_file = :new_path WHERE source_file = :old_path;
+-- ex.: 'cerebro/atlas/infrastructure/fact-7a3b.md'
+--   →  'cerebro/cortex/temporal/Hive-Mind/infrastructure/neuronio-7a3b.md'
 ```
+**Pós-check**: `SELECT COUNT(*) FROM neurons WHERE source_file LIKE 'cerebro/atlas/%'` = 0.
 
 ### 10.4 Backward compatibility
 
@@ -1148,13 +1213,13 @@ systemctl --user restart sinapse-watcher
 ### Fase 1 — Cadência básica (2-3 sprints, W28-W30)
 
 **Tasks**:
-1. `scripts/daily_writer.py` — gera `cerebro/daily/YYYY/MM/YYYY-MM-DD.md`
+1. `scripts/daily_writer.py` — gera `cerebro/cerebelo/diario/YYYY/MM/YYYY-MM-DD.md`
 2. `scripts/session_placeholder.py` — hook SessionStart
 3. `scripts/session_consolidator.py` — hook Stop
 4. `scripts/session_update.py` — hook PostToolUse (atualiza placeholder)
 5. systemd units: `sinapse-daily.timer` (23:55), `sinapse-daily.service`
 6. Hooks configuration em `cerebro/.claude/settings.json`
-7. Templates: `daily-log`, `session-log` em `cerebro/templates/`
+7. Templates: `daily-log`, `session-log` em `cerebro/tronco/modelos/`
 
 **Entregáveis**: 4 scripts Python (NOVOS), 2 systemd units, 1 hook config modificado, 2 templates.
 
@@ -1166,7 +1231,7 @@ systemctl --user restart sinapse-watcher
 3. Modificar `scripts/dream_cycle.py:Router` — sliding window de topics
 4. Modificar `scripts/dream_cycle.py:Distiller` — gerar alias slug
 5. `scripts/sector_classifier.py` — LLM sector classifier
-6. `scripts/weekly_synthesizer.py` — gera `cerebro/weekly/YYYY-W{XX}.md`
+6. `scripts/weekly_synthesizer.py` — gera `cerebro/cerebelo/semanal/YYYY-W{XX}.md`
 7. systemd units: `sinapse-weekly.timer`, `sinapse-topics.timer`, `sinapse-dream.timer`
 
 **Entregáveis**: 5 scripts Python (NOVOS + 2 modificados), 6 systemd units.
@@ -1185,25 +1250,31 @@ systemctl --user restart sinapse-watcher
 
 ### Cronograma
 
-| Fase | Duração | Risco principal |
-|---|---|---|
-| Fase 0 | 2 sprints (W25-W26) | Migration quebra links existentes |
-| Fase 1 | 2-3 sprints (W27-W29) | Hooks disparam em sessões de teste |
-| Fase 2 | 2-3 sprints (W30-W32) | Topic consolidator faz merge errado |
-| Fase 3 | 2 sprints (W33-W34) | LLM summarizer produz weekly ruins |
+| Fase | Duração | Risco principal | Status |
+|---|---|---|---|
+| Fase 0 | 2 sprints (W25-W26) | Migration quebra links existentes | ✅ **CONCLUÍDA** (2026-06-17, 5 commits, 242 testes) |
+| Fase 1 | 2-3 sprints (W27-W29) | Hooks disparam em sessões de teste | ⏳ a iniciar |
+| Fase 2 | 2-3 sprints (W30-W32) | Topic consolidator faz merge errado | proposta |
+| Fase 3 | 2 sprints (W33-W34) | LLM summarizer produz weekly ruins | proposta |
 
-**Total**: 8-10 sprints (~4-5 meses).
+**Total**: 8-10 sprints (~4-5 meses). Fase 0 consumida em 1 sessão (incremento contínuo, não sprint formal).
 
 ### Marcos de sucesso
 
-- **M1** (final Fase 0): zero path inconsistency; todos scripts importam de `core/paths.py`
+- **M1** (final Fase 0): zero path inconsistency; todos scripts importam de `core/paths.py` — ✅ **ATINGIDO** (242 testes verdes; writers migrados; `source_file` anatômico)
 - **M2** (final Fase 1): 7/7 daily logs na semana teste; ≥ 15 session logs automáticos
 - **M3** (final Fase 2): < 5 tópicos fragmentados; ≥ 80% das notas têm alias
 - **M4** (final Fase 3): health dashboard renderiza; alerts dispararam ≥ 1x em teste
 
 ---
 
-## 12. Apêndice F — Papéis LLM (provider-agnostic, configurável por papel)
+## 12. Apêndices
+
+Auditorias e referências que fundamentam este design. O **Apêndice F** (§12.1) documenta
+o sistema de papéis LLM provider-agnostic; os **Apêndices A-E** (§12.2) são as auditorias
+detalhadas que embasam cada seção.
+
+### 12.1 Apêndice F — Papéis LLM (provider-agnostic, configurável por papel)
 
 ### F.1 Contrato do sistema (já implementado, `core/auth.py:362-423`)
 
@@ -1293,7 +1364,7 @@ HIVE_SECTOR_CLASSIFIER_MODEL=qwen2.5:7b          # local, gratuito, suficiente
 
 ---
 
-## 12. Apêndices — auditorias que fundamentam este design
+### 12.2 Apêndices A-E — auditorias que fundamentam este design
 
 Este documento é a síntese. As auditorias detalhadas que fundamentam cada seção estão em:
 
@@ -1309,43 +1380,113 @@ Este documento é a síntese. As auditorias detalhadas que fundamentam cada seç
 
 ## 13. Próximas ações imediatas
 
-### Esta sessão
+### 13.1 Fase 0 — ✅ EXECUTADA (2026-06-17)
 
-1. ✅ Validar este design com o autor (Michel) — **em andamento**
-2. ⏳ Decisão: aprovar Fase 0 + iniciar (requer OK explícito)
+A Fase 0 foi concluída em 5 commits (ver §10.0 para o registro factual completo):
+`core/paths.py` + migração anatômica (112 arquivos, 313 neurons) + camada MOC/sinapses
+(§7.6) + writers migrados + limpeza. **242 testes verdes.** O plano de 12 passos abaixo
+foi o roteiro seguido — preservado como check-list de auditoria:
 
-### Após aprovação da Fase 0
+| # | Ação (planejada) | Status |
+|---|---|---|
+| 1 | Backup `hive_mind.db` + `cerebro/` | ✅ |
+| 2 | Branch de trabalho | ✅ |
+| 3 | Criar `core/paths.py` (+7 testes) | ✅ |
+| 4 | Atualizar writers para importar `core.paths` | ✅ |
+| 5 | Atualizar testes (`test_audit_memory`, etc.) | ✅ |
+| 6 | Migration SQLite (transação, linha a linha) | ✅ |
+| 7 | Reorg anatômica via `migrate_anatomy.py` | ✅ |
+| 8 | Atualizar `cerebro/AGENTS.md` + `docs/01-architecture.md` | ✅ |
+| 9 | Descrições de tools MCP (paths anatômicos) | ✅ |
+| 10 | Sub-vault confuso → `tronco/meta/` | ✅ |
+| 11 | `pytest tests/unit/ -q` + graphify | ✅ (242 verdes) |
+| 12 | Commits + consolidação | ✅ (5 commits) |
 
-| # | Ação | Quem | Tempo |
-|---|---|---|---|
-| 1 | Backup `hive_mind.db` + `cerebro/` | agente | 5 min |
-| 2 | Criar branch `feat/fase-0-paths-constants` | agente | 1 min |
-| 3 | Criar `core/paths.py` (60 linhas) | agente | 10 min |
-| 4 | Atualizar 6+ scripts Python para importar `core.paths` | agente | 30 min |
-| 5 | Atualizar 2 testes (`test_audit_memory`, `test_syncthing_watcher`) | agente | 20 min |
-| 6 | Rodar migration SQLite (transação) | agente | 5 min |
-| 7 | `git mv` diretórios (atlas, conflicts, brain) | agente | 15 min |
-| 8 | Atualizar `cerebro/AGENTS.md` + `docs/01-architecture.md` | agente | 20 min |
-| 9 | Atualizar 7 descrições de tools em `scripts/sinapse-mcp.py` | agente | 15 min |
-| 10 | Criar symlinks temporários (15 dias) | agente | 1 min |
-| 11 | Rodar `pytest tests/unit/ -q` + `python -m graphify update cerebro/` | agente | 30 min |
-| 12 | Commit + merge da branch | agente | 5 min |
+### 13.2 Plumbing de `observation.project` — ✅ EXECUTADO
 
-**Total Fase 0**: ~2h30, reversível.
+> **Status**: feito. `dream_cycle._resolve_project()` lê `observations.project`
+> (fonte da verdade), segrega neurônios por projeto e cai no default só quando
+> a obs não tem projeto. `core/database`: índice `idx_observations_archived_project`.
+> Teste: `test_dream_project_segregation`. *(Era o gap abaixo.)*
 
-### Após Fase 0 (Fase 1)
+**Gap original (resolvido)**: `scripts/dream_cycle.py` cravava
+```python
+DEFAULT_PROJECT = os.environ.get("HIVE_DEFAULT_PROJECT", "Hive-Mind")
+```
+para **todo neurônio novo** — `cortex/temporal/Hive-Mind/{topico}/`,
+**independente do projeto real da observação de origem**.
+Para um vault multi-projeto (Thoth, OpenAlice, …), isso amonta neurônios de projetos
+distintos no mesmo lobo-projeto — quebra o eixo primário definido em §2.
 
-Implementar cadência básica — daily/session/weekly scripts + hooks + systemd timers. Estimativa: 2-3 sprints.
+**O que falta**: passar `observation.project` pelo pipeline:
+1. **Distiller** — propagar o `project` da observação de origem para o fato destilado.
+2. **Router** — manter `project` ao rotear para `topic` (não sobrescrever).
+3. **Persistência** (`dream_cycle.py:535`) — usar o `project` real em vez de `DEFAULT_PROJECT`:
+   `note_file = cp.TEMPORAL / project / safe_topic / f"{nid}.md"`; frontmatter `project: {project}`.
 
-### Pontos abertos para decisão do autor
+**Fallback**: se `observation.project` for nulo/vazio, manter `DEFAULT_PROJECT` (não
+quebra o caminho feliz). **Risco**: baixo — incremento localizado, reversível, sem schema
+change. **Teste**: 1 caso de observação com `project="Thoth"` → neurônio em
+`cortex/temporal/Thoth/...`; 1 caso sem `project` → cai em `Hive-Mind` (default).
 
-1. **Escopo da Fase 0**: completar migração filesystem + corrigir SQLite inconsistency antes de avançar? **Recomendação: sim**.
-2. **Backward compatibility**: symlinks temporários (15d) vs quebra seca? **Recomendação: symlinks**.
-3. **Naming convention para `work/active/ → trabalho/{decisoes,projetos}/`**: já nesta Fase 0 ou na Fase 1? **Recomendação: Fase 1, junto com cadência**.
-4. **Política de LLM por papel** (NÃO existe limitação a 2 provedores — sistema já é provider-agnostic via `core/auth.py:get_role_config(role)` linhas 362-423, com fallback automático por papel. Ver Apêndice F).
-5. **Setores iniciais**: lista proposta cobre o essencial (`ai-infra`, `dev-tools`, `pkm`, `infra`, `finance`, `health`, `research`)? Falta algum?
-6. **Papéis LLM novos a registrar na Fase 1-2** (ver Apêndice F): `alias_miner`, `topic_router`, `weekly_synthesizer`, `sector_classifier`, `session_summarizer`. Cada um herda do `dreamer` por padrão se `HIVE_{ROLE}_*` ausente no `.env`.
+### 13.2.1 Boundedness — ✅ EXECUTADO (pós-incidente de freeze 2026-06-17)
+
+> **Diagnóstico corrigido por verificação no código** (um relatório anterior
+> superdimensionou os gaps). O que era VERDADE vs o que JÁ estava protegido:
+
+| Suposto gap | Realidade (evidência) |
+|---|---|
+| "dream_cycle processa 10k+ obs sem teto" | ❌ Falso — `dream_cycle.py` já tem `LIMIT 30` na query de observations |
+| "LLM sem timeout, pendura pra sempre" | ❌ Falso — `core/llm_client.py` já usa `timeout=60/120s` no HTTP |
+| "capture-realtime martela o worker infinito" | ❌ Falso — loop é `select()` 5s + `_post` falha gracioso |
+
+**Os 2 gaps REAIS encontrados e corrigidos:**
+
+| # | Gap real | Fix (commit `6a3e103`) |
+|---|----------|------------------------|
+| **R1** | `capture-realtime` sem debounce (regressão de quando removi o debounce p/ latência do copilot) → escrita pesada no SQLite WAL re-parseia o DB inteiro a cada evento → 99% de um core | Teto de re-parse por plataforma `MIN_INTERVAL=0.4s` (trailing): 1º evento imediato (realtime preservado), rajadas coalescidas, sem dropar eventos |
+| **R2** | `run_synthesis_cycle` processava TODAS as ambiguidades pendentes sem `LIMIT` — cada uma é 1 chamada LLM → N grande = horas/freeze | `MAX_AMBIGUITIES=50` + deadline `MAX_CYCLE_SECONDS=600` → `BUDGET_EXHAUSTED`, sai limpo, resto no próximo ciclo |
+
+**Métrica de sobrevivência (M9)**: alertar se algum dream cycle dos últimos 7d ≥
+`MAX_CYCLE_SECONDS`, ou se houve `BUDGET_EXHAUSTED` nos últimos 30d. Mede
+*sobrevivência* (M1-M8 medem qualidade). *(A registrar no §9 quando o log de
+ciclo existir.)*
+
+**Pré-condição da Fase 1**: estes tetos (R1+R2) precisam estar merged antes do
+go-live de qualquer cadência (dream diário, session_update por tool call) —
+satisfeita por `6a3e103`.
+
+### 13.3 Nota operacional — reiniciar sessões MCP ativas
+
+A sessão que reescreveu `brain/Patterns.md` cacheou os paths antigos no startup. Sessões
+MCP **novas** já usam os paths anatômicos corretos (fix commitado em `23e46b3`). Ação:
+reiniciar os clients MCP ativos (Kilo, Codex, Roo, Copilot) para que releiam as descrições
+de tools com os paths novos.
+
+### 13.4 Após Fase 0 (Fase 1)
+
+Implementar cadência básica — `daily_writer`/`session_placeholder`/`session_consolidator`/
+`session_update` + hooks + systemd timers (`cerebelo/diario/`, `cerebelo/sessoes/`,
+`cerebelo/semanal/`). Estimativa: 2-3 sprints. Ver §11.
+
+### 13.5 Pontos abertos para decisão do autor
+
+1. ~~**Escopo da Fase 0**~~ — ✅ **RESOLVIDO**: migração + SQLite inconsistency concluídos.
+2. ~~**Backward compatibility**~~ — ✅ **RESOLVIDO**: sem symlinks; sub-vault absorvido em `tronco/meta/`.
+3. ~~**Naming `work/active/ → trabalho/`**~~ — ✅ **RESOLVIDO**: feito na Fase 0 (`cortex/frontal/trabalho/ativo/`).
+4. **Plumbing de `observation.project`** (§13.2) — fazer agora (incremento pontual) ou
+   agrupar com a Fase 1? **Recomendação: agora** — é localizado, bloqueia o eixo
+   multi-projeto, e custa pouco; deixar acumular gera neurônios no lobo errado.
+5. **Política de LLM por papel** — NÃO existe limitação a 2 provedores; o sistema já é
+   provider-agnostic via `core/auth.py:get_role_config(role)` (linhas 362-423) com
+   fallback automático por papel. Ver §12.1 (Apêndice F).
+6. **Setores iniciais** — a lista (`ai-infra`, `dev-tools`, `pkm`, `infra`, `finance`,
+   `health`, `research`) cobre o essencial? Falta algum? (`diencefalo/setores/` pronto,
+   mas o classifier é Fase 2.)
+7. **Papéis LLM novos a registrar na Fase 1-2** (ver §12.1): `alias_miner`, `topic_router`,
+   `weekly_synthesizer`, `sector_classifier`, `session_summarizer`. Cada um herda do
+   `dreamer` por padrão se `HIVE_{ROLE}_*` ausente no `.env`.
 
 ---
 
-*Documento vivo. Versão 2.0 (modelo anatômico cerebral). Próxima revisão: após conclusão da Fase 0.*
+*Documento vivo. Versão 2.1 (modelo anatômico cerebral — revisão pós-Fase 0). Próxima revisão: após Fase 1 (cadência básica) ou conclusão do incremento §13.2.*
