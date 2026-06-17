@@ -1,10 +1,14 @@
 # Memória Viva — Design do Serviço Inteligente do Hive-Mind
 
-> **Versão**: 2.2 (modelo anatômico — project-plumbing + boundedness executados)
+> **Versão**: 2.3 (modelo anatômico — status reconciliado com a implementação)
 > **Data**: 2026-06-17
 > **Escopo**: Definição completa do comportamento inteligente do serviço de memória do Sinapse — **estrutura do vault modelada na ANATOMIA CEREBRAL** (córtex com 5 lobos + diencéfalo + cerebelo + tronco), eixo primário por **projeto**, camada de **MOCs (consciência)** e **sinapses** automáticas, cadência (diária/sessão/semanal), formação autônoma de neurônios/pastas/MOCs, nomenclatura human-readable, multi-setor, métricas de "vivo", e plano de migração.
 > **Audiência**: Michel (autor do vault), futuros agentes IA, contribuidores do projeto.
-> **Status**: Documento vivo. **Fase 0 executada (2026-06-17 — 5 commits, 242 testes verdes)**: estrutura anatômica, `core/paths.py` (ponto único de paths), e camada MOC+sinapses (§7.6) aplicados ao vault. Fase 1-3 permanecem como proposta. Gap remanescente imediato: plumbing de `observation.project` no Dream Cycle (§13).
+> **Status**: Documento vivo. **Fase 0 ✅ + incrementos executados (2026-06-17, 261 testes verdes)**:
+> estrutura anatômica, `core/paths.py`, camada MOC+sinapses (§7.6), **plumbing de
+> `observation.project` ✅ (§13.2)** e **boundedness ✅ (§13.2.1)**. Os **scripts da Fase 1**
+> (session/daily) estão **escritos e testados, porém INERTES** (hooks/timers OFF até go-live).
+> Fase 2-3 permanecem como proposta.
 
 ---
 
@@ -104,13 +108,15 @@ A Fase 0 (§10) + a camada MOC (§7.6) mudaram o status de várias linhas da tab
 | Navegação MOC + sinapses (vault parecer cérebro) | ❌ implícito | ✅ | `scripts/generate_mocs.py` — MOCs Consciência + projeto + 9 tópicos; `related:` em 11 neurônios via fastembed (cosine) |
 | Constantes centralizadas de path | ❌ (cada script recalcula) | ✅ | `core/paths.py` — ponto único, importado pelos writers (audit_memory, sinapse-mcp, plugin hermes, visual_capture, document_ingest) |
 
-**Novo gap descoberto durante a execução** (não na tabela pré-Fase 0):
+**Capacidades novas (descobertas/adicionadas durante a execução):**
 
 | Capacidade | Status | Detalhe |
 |---|---|---|
-| **Atribuir projeto REAL ao neurônio** | ❌ | `dream_cycle.py:523-524` crava `DEFAULT_PROJECT=Hive-Mind` para todo neurônio novo; o campo `observation.project` da observação de origem **não é passado** pelo pipeline (Distiller→Router→persistência). Neurônios de outros projetos caem no lobo-projeto errado. Ver §13 (incremento pendente). |
+| **Atribuir projeto REAL ao neurônio** | ✅ | `dream_cycle._resolve_project()` lê `observations.project` (fonte da verdade) e segrega neurônios por projeto; default só quando a obs não tem projeto. Índice `idx_observations_archived_project`. Teste: `test_dream_project_segregation`. Ver §13.2. |
+| **Boundedness (não trava a máquina)** | ✅ | `capture-realtime` com debounce `MIN_INTERVAL=0.4s`; `run_synthesis_cycle` com `MAX_AMBIGUITIES=50` + deadline `MAX_CYCLE_SECONDS=600`. (obs já capada em `LIMIT 30`; LLM já com timeout 60/120s). Ver §13.2.1. |
 
-**Tally atualizado**: 12 implementadas, 0 quebradas, 9 ausentes (Fase 1-3) + 1 novo gap (project-plumbing, incremento pontual).
+**Tally atualizado**: **14 implementadas**, 0 quebradas, 9 ausentes (Fase 1-3 não habilitadas).
+*Os scripts da Fase 1 (session/daily) existem e passam testes, mas estão **INERTES** (hooks/timers OFF até go-live) — ver §11 e §13.4.*
 
 ---
 
@@ -1210,18 +1216,20 @@ systemctl --user restart sinapse-watcher
 
 ## 11. Roadmap Fase 1-3
 
-### Fase 1 — Cadência básica (2-3 sprints, W28-W30)
+### Fase 1 — Cadência básica (2-3 sprints, W28-W30) — ⏳ scripts prontos (INERTES), go-live pendente
 
 **Tasks**:
-1. `scripts/daily_writer.py` — gera `cerebro/cerebelo/diario/YYYY/MM/YYYY-MM-DD.md`
-2. `scripts/session_placeholder.py` — hook SessionStart
-3. `scripts/session_consolidator.py` — hook Stop
-4. `scripts/session_update.py` — hook PostToolUse (atualiza placeholder)
-5. systemd units: `sinapse-daily.timer` (23:55), `sinapse-daily.service`
-6. Hooks configuration em `cerebro/.claude/settings.json`
-7. Templates: `daily-log`, `session-log` em `cerebro/tronco/modelos/`
+1. ✅ `scripts/daily_writer.py` — gera `cerebro/cerebelo/diario/YYYY/MM/YYYY-MM-DD.md` *(escrito + testado)*
+2. ✅ `scripts/session_placeholder.py` — hook SessionStart *(escrito + testado)*
+3. ✅ `scripts/session_consolidator.py` — hook Stop *(escrito + testado)*
+4. ✅ `scripts/session_update.py` — hook PostToolUse *(escrito + testado; `test_session_cadence`, 13 testes)*
+5. ⏳ systemd units: `sinapse-daily.timer/.service` — **arquivos em `.config/` mas NÃO instalados/habilitados**
+6. ⏳ Hooks configuration em `cerebro/.claude/settings.json` — **não wirado**
+7. ✅ Templates `daily-log`, `session-log` em `cerebro/tronco/modelos/`
 
-**Entregáveis**: 4 scripts Python (NOVOS), 2 systemd units, 1 hook config modificado, 2 templates.
+**Entregáveis**: 4 scripts + `session_models.py` + 2 papéis LLM (`core/auth`) ✅; 2 templates ✅.
+**Falta para go-live (5, 6)**: instalar/habilitar timer + wirar hooks. **Pré-condição satisfeita**:
+boundedness (§13.2.1) merged. **Go-live recomendado** só após M9 verde por ≥ 7 dias.
 
 ### Fase 2 — Memória inteligente (2-3 sprints, W31-W34)
 
@@ -1252,8 +1260,8 @@ systemctl --user restart sinapse-watcher
 
 | Fase | Duração | Risco principal | Status |
 |---|---|---|---|
-| Fase 0 | 2 sprints (W25-W26) | Migration quebra links existentes | ✅ **CONCLUÍDA** (2026-06-17, 5 commits, 242 testes) |
-| Fase 1 | 2-3 sprints (W27-W29) | Hooks disparam em sessões de teste | ⏳ a iniciar |
+| Fase 0 | 2 sprints (W25-W26) | Migration quebra links existentes | ✅ **CONCLUÍDA** (2026-06-17, 261 testes) |
+| Fase 1 | 2-3 sprints (W27-W29) | Hooks disparam em sessões de teste | ⏳ **scripts prontos (INERTES)** — falta instalar timer + wirar hooks (go-live) |
 | Fase 2 | 2-3 sprints (W30-W32) | Topic consolidator faz merge errado | proposta |
 | Fase 3 | 2 sprints (W33-W34) | LLM summarizer produz weekly ruins | proposta |
 
@@ -1463,11 +1471,18 @@ MCP **novas** já usam os paths anatômicos corretos (fix commitado em `23e46b3`
 reiniciar os clients MCP ativos (Kilo, Codex, Roo, Copilot) para que releiam as descrições
 de tools com os paths novos.
 
-### 13.4 Após Fase 0 (Fase 1)
+### 13.4 Após Fase 0 (Fase 1) — scripts prontos (INERTES), falta go-live
 
-Implementar cadência básica — `daily_writer`/`session_placeholder`/`session_consolidator`/
-`session_update` + hooks + systemd timers (`cerebelo/diario/`, `cerebelo/sessoes/`,
-`cerebelo/semanal/`). Estimativa: 2-3 sprints. Ver §11.
+**Já feito** (escrito + testado, commitado): `daily_writer`, `session_placeholder`,
+`session_consolidator`, `session_update`, `session_models`, papéis LLM em `core/auth`,
+templates `daily-log`/`session-log`. Suite verde (`test_session_cadence`, 13 testes).
+
+**Falta para go-live** (NÃO habilitado de propósito):
+1. Instalar/habilitar `sinapse-daily.timer/.service` (arquivos em `.config/`, via `install_services.py`).
+2. Wirar hooks `SessionStart`/`Stop`/`PostToolUse` em `cerebro/.claude/settings.json`.
+
+**Pré-condição satisfeita**: boundedness (§13.2.1) merged. **Recomendação**: go-live só
+após M9 (sobrevivência do dream cycle) verde por ≥ 7 dias. Ver §11.
 
 ### 13.5 Pontos abertos para decisão do autor
 
