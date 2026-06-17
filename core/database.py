@@ -196,6 +196,7 @@ def ensure_migrations(conn):
     Aplica migrações idempotentes em bancos existentes:
     - Coluna 'archived' na tabela observations (0=pendente, 1=consolidado, 2=quarentena)
     - Índice idx_observations_archived
+    - Índice composto idx_observations_archived_project (plumbing do dream_cycle)
     - Backfill do formato legado ("archived": true no metadata)
     - Colunas 'uuid' e 'source_machine' (Phase 8: P2P/Syncthing sync)
     """
@@ -204,6 +205,15 @@ def ensure_migrations(conn):
     except sqlite3.OperationalError:
         pass  # Coluna já existe
     conn.execute("CREATE INDEX IF NOT EXISTS idx_observations_archived ON observations(archived)")
+    # Phase HM: project plumbing — segregação do dream_cycle por projeto.
+    # Envelopado em try/except porque bancos muito legados (sem coluna `project`)
+    # ainda existem e `ensure_migrations` deve ser idempotente.
+    try:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_observations_archived_project ON observations(archived, project)")
+    except sqlite3.OperationalError:
+        # Coluna `project` ausente (banco pré-anatômico) — índice será
+        # criado na próxima migração quando a coluna for adicionada.
+        pass
     # Backfill único: migra observações arquivadas via metadata (legado) para a coluna
     conn.execute("""UPDATE observations SET archived = 1 WHERE metadata LIKE '%"archived": true%' AND archived = 0""")
 

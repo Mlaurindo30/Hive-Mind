@@ -462,7 +462,7 @@ def run_dream_cycle():
     inbox_dir = cp.INBOX_ROOT / now.strftime("%Y/%m/%d")
     inbox_dir.mkdir(parents=True, exist_ok=True)
     session_file = inbox_dir / f"{now.strftime('%H%M')}-session.md"
-    
+
     logs_context = ""
     with open(session_file, "w") as f:
         f.write(f"# Sessão Episódica: {now.strftime('%Y-%m-%d %H:%M')}\n\n")
@@ -475,69 +475,97 @@ def run_dream_cycle():
 
     obs_ids = [o['id'] for o in obs]
 
-    def _mark_observations(status: int):
-        """Marca as observações desta sessão (0=pendente, 1=consolidado, 2=quarentena)."""
-        for oid in obs_ids:
+    def _mark_observations(status: int, ids: Optional[List[str]] = None):
+        """Marca observações como consolidadas/quarentena. Restringe a `ids` se passado."""
+        target_ids = ids if ids is not None else obs_ids
+        for oid in target_ids:
             conn.execute("UPDATE observations SET archived = ? WHERE id = ?", (status, oid))
         conn.commit()
 
-    # --- PIPELINE DE INTELIGÊNCIA ---
-    distill_t0 = time.perf_counter()
-    distilled, distill_status = agent_distill_and_validate(logs_context)
-    mark_stage("distill_validate_ms", distill_t0)
-
-    if distill_status == "failed":
-        # Falha de pipeline (exceções após max_retries): quarentena para reprocessamento posterior
-        _mark_observations(2)
-        print(f"  [Pipeline] {len(obs_ids)} observações enviadas para quarentena (archived=2)")
-        stage_metrics["total_cycle_ms"] = round((time.perf_counter() - cycle_t0) * 1000.0, 3)
-        _persist_cycle_metrics(stage_metrics, status="failed")
-        conn.close()
-        return
-
-    if not distilled or not distilled.facts:
-        # Sem fatos relevantes não é falha: marca como consolidado para não reprocessar
-        _mark_observations(1)
-        print("  [Final] Nenhum fato de longo prazo extraído desta sessão.")
-        stage_metrics["total_cycle_ms"] = round((time.perf_counter() - cycle_t0) * 1000.0, 3)
-        _persist_cycle_metrics(stage_metrics, status="empty")
-        conn.close()
-        return
-
-    route_t0 = time.perf_counter()
-    routed = agent_route(distilled.facts)
-    mark_stage("route_ms", route_t0)
-    if not routed or not routed.routed_facts:
-        # Falha no roteador: quarentena (podem ser reprocessadas depois)
-        _mark_observations(2)
-        print(f"  [Pipeline] {len(obs_ids)} observações enviadas para quarentena (archived=2)")
-        print("  [Final] Falha no roteamento semântico.")
-        stage_metrics["total_cycle_ms"] = round((time.perf_counter() - cycle_t0) * 1000.0, 3)
-        _persist_cycle_metrics(stage_metrics, status="failed")
-        conn.close()
-        return
-
-    # --- PERSISTÊNCIA ANATÔMICA (cortex/temporal/{projeto}/{topico}/neuronio-*) ---
-    print("  [Storage] Persistindo neurônios no córtex temporal...")
-    from core import paths as cp
-    # TODO: projeto deve vir da observation de origem; por ora usa o default.
+    # --- SEGREGAÇÃO POR PROJETO (Phase HM: project plumbing) ---
+    # A coluna `observations.project` é a fonte da verdade: cada neurônio novo
+    # deve aterrissar em cortex/temporal/{projeto_origem}/{topico}/.
+    # Quando a janela de 30 obs mistura projetos, rodamos um pipeline
+    # Distiller→Validator→Router POR PROJETO para não contaminar o córtex de um
+    # projeto com fatos de outro. Obs sem project caem no default.
     DEFAULT_PROJECT = os.environ.get("HIVE_DEFAULT_PROJECT", "Hive-Mind")
 
-    fact_map = {f.id: f for f in distilled.facts}
-    storage_t0 = time.perf_counter()
-    for r in routed.routed_facts:
-        fact = fact_map.get(r.fact_id)
-        if not fact: continue
+    def _resolve_project(o) -> str:
+        p = (o["project"] or "").strip() if "project" in o.keys() else ""
+        return p or DEFAULT_PROJECT
 
-        safe_topic = r.topic.lower().replace(" ", "_")
-        # nome anatômico: fact-{hash} → neuronio-{hash}
-        nid = fact.id.replace("fact-", "neuronio-", 1) if fact.id.startswith("fact-") else fact.id
-        note_file = cp.TEMPORAL / DEFAULT_PROJECT / safe_topic / f"{nid}.md"
-        note_file.parent.mkdir(parents=True, exist_ok=True)
+    project_buckets: Dict[str, List[Any]] = {}
+    for o in obs:
+        proj = _resolve_project(o)
+        project_buckets.setdefault(proj, []).append(o)
 
-        content = f"""---
+    if len(project_buckets) > 1:
+        projects_summary = ", ".join(
+            f"{p}={len(v)}" for p, v in sorted(project_buckets.items())
+        )
+        print(f"  [Plumbing] Janela multi-projeto detectada ({len(project_buckets)} projetos: {projects_summary}). Segregando pipeline por projeto.")
+
+    # --- PIPELINE DE INTELIGÊNCIA (segregado por projeto) ---
+    distill_t0 = time.perf_counter()
+    distilled_by_project: Dict[str, DistillerOutput] = {}
+    distill_failures: List[str] = []
+    distill_empties: List[str] = []
+
+    for proj, proj_obs in project_buckets.items():
+        proj_ids = [o["id"] for o in proj_obs]
+        proj_logs = "\n".join(f"- [{o['type']}] {o['title']}: {o['content']}" for o in proj_obs)
+        print(f"  [Distiller] Projeto '{proj}': processando {len(proj_obs)} observações...")
+        distilled, distill_status = agent_distill_and_validate(proj_logs)
+        if distill_status == "failed":
+            _mark_observations(2, proj_ids)
+            distill_failures.append(proj)
+            print(f"  [Pipeline] Projeto '{proj}': {len(proj_ids)} obs em quarentena.")
+        elif distill_status == "empty" or not distilled or not distilled.facts:
+            _mark_observations(1, proj_ids)
+            distill_empties.append(proj)
+            print(f"  [Distiller] Projeto '{proj}': sem fatos extraídos.")
+        else:
+            distilled_by_project[proj] = distilled
+    mark_stage("distill_validate_ms", distill_t0)
+
+    if not distilled_by_project:
+        # Nenhum projeto produziu fatos: nada a rotear/persistir.
+        stage_metrics["total_cycle_ms"] = round((time.perf_counter() - cycle_t0) * 1000.0, 3)
+        if distill_failures and not distill_empties:
+            _persist_cycle_metrics(stage_metrics, status="failed")
+        else:
+            _persist_cycle_metrics(stage_metrics, status="empty")
+        conn.close()
+        return
+
+    # --- ROTEAMENTO + PERSISTÊNCIA ANATÔMICA (por projeto) ---
+    route_t0 = time.perf_counter()
+    storage_t0 = time.perf_counter()  # só vai ser usado se a fase de persistência rodar
+    total_persisted = 0
+    print("  [Storage] Persistindo neurônios no córtex temporal...")
+    for proj, distilled in distilled_by_project.items():
+        proj_obs_ids = [o["id"] for o in project_buckets[proj]]
+        routed = agent_route(distilled.facts)
+        if not routed or not routed.routed_facts:
+            _mark_observations(2, proj_obs_ids)
+            print(f"  [Pipeline] Projeto '{proj}': {len(proj_obs_ids)} obs em quarentena (roteador falhou).")
+            continue
+
+        fact_map = {f.id: f for f in distilled.facts}
+        for r in routed.routed_facts:
+            fact = fact_map.get(r.fact_id)
+            if not fact:
+                continue
+
+            safe_topic = r.topic.lower().replace(" ", "_")
+            # nome anatômico: fact-{hash} → neuronio-{hash}
+            nid = fact.id.replace("fact-", "neuronio-", 1) if fact.id.startswith("fact-") else fact.id
+            note_file = cp.TEMPORAL / proj / safe_topic / f"{nid}.md"
+            note_file.parent.mkdir(parents=True, exist_ok=True)
+
+            content = f"""---
 type: {fact.type}
-project: {DEFAULT_PROJECT}
+project: {proj}
 topic: {safe_topic}
 integrity_hash: {fact.integrity_hash}
 last_updated: {now.strftime('%Y-%m-%d %H:%M')}
@@ -551,23 +579,27 @@ source: hive-dreamer
 > {fact.source_quotes[0] if fact.source_quotes else 'N/A'}
 
 ## Sinapses
-- projeto:: [[_{DEFAULT_PROJECT}]]
+- projeto:: [[_{proj}]]
 - tópico:: [[_{safe_topic}]]
 
 #consolidated #{safe_topic}
 """
-        mode = "a" if r.action in ["append", "merge"] and note_file.exists() else "w"
-        if mode == "a":
-            content = f"\n\n---\n## Atualização de {now.strftime('%Y-%m-%d')}\n{fact.content}\n"
+            mode = "a" if r.action in ["append", "merge"] and note_file.exists() else "w"
+            if mode == "a":
+                content = f"\n\n---\n## Atualização de {now.strftime('%Y-%m-%d')}\n{fact.content}\n"
 
-        with open(note_file, mode) as f:
-            f.write(content)
+            with open(note_file, mode) as f:
+                f.write(content)
 
-        print(f"  [+] Neurônio {r.action}: {DEFAULT_PROJECT}/{safe_topic}/{nid}.md")
-    mark_stage("atlas_persist_ms", storage_t0)
+            print(f"  [+] Neurônio {r.action}: {proj}/{safe_topic}/{nid}.md")
+            total_persisted += 1
 
-    # Roteamento bem-sucedido: marca observações como consolidadas (archived=1)
-    _mark_observations(1)
+        # Marca as obs deste projeto como consolidadas após persistência bem-sucedida
+        _mark_observations(1, proj_obs_ids)
+    # route_ms = duração do bloco inteiro (roteamento + persistência).
+    # Para deitar decomposto, teríamos que medir `agent_route` e o loop
+    # interno separadamente; por ora, mede-se o agregado.
+    mark_stage("route_and_persist_ms", route_t0)
 
     # --- SÍNTESE AUTÔNOMA (Fase 9) ---
     synth_t0 = time.perf_counter()
@@ -584,9 +616,10 @@ source: hive-dreamer
         print(f"  [!] Geração de MOCs falhou (não-fatal): {e}")
 
     stage_metrics["total_cycle_ms"] = round((time.perf_counter() - cycle_t0) * 1000.0, 3)
-    _persist_cycle_metrics(stage_metrics, status="ok")
+    status_final = "ok" if total_persisted > 0 else "failed"
+    _persist_cycle_metrics(stage_metrics, status=status_final)
 
-    print("=== Ciclo de Sonho Concluído com Sucesso ===")
+    print(f"=== Ciclo de Sonho Concluído ({total_persisted} neurônios persistidos em {len(distilled_by_project)} projeto(s)) ===")
     conn.close()
 
 def _persist_cycle_metrics(metrics: Dict[str, float], status: str) -> None:
