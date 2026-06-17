@@ -41,6 +41,12 @@ from core.schemas.synthesis_models import SynthesisOutput, SynthesisTask
 SCHEMAS_DIR = Path(SINAPSE_HOME) / "core" / "schemas"
 PROMPTS_DIR = SCHEMAS_DIR / "prompts"
 
+# BOUNDEDNESS (incidente 2026-06-17): tetos que impedem o ciclo de travar a
+# máquina. Obs já é capada (LIMIT 30 na query); LLM já tem timeout (60/120s no
+# llm_client). O gap real era a síntese sem teto → aqui ela ganha cap + deadline.
+MAX_CYCLE_SECONDS = int(os.environ.get("HIVE_MAX_CYCLE_SECONDS", "600"))
+MAX_AMBIGUITIES = int(os.environ.get("HIVE_MAX_AMBIGUITIES", "50"))
+
 def load_yaml(path: Path) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -223,20 +229,34 @@ def agent_route(facts: List[Any]) -> Optional[RouterOutput]:
 # Estágio de Síntese Dialética (Autonomous Synthesizer)
 # ---------------------------------------------------------------------------
 
-def run_synthesis_cycle():
-    """Busca ambiguidades pendentes e resolve-as via Síntese Dialética."""
+def run_synthesis_cycle(deadline: Optional[float] = None):
+    """Busca ambiguidades pendentes e resolve-as via Síntese Dialética.
+
+    BOUNDEDNESS (incidente 2026-06-17): o loop processava TODAS as ambiguidades
+    pendentes sem teto — cada uma é 1 chamada LLM, então N grande = horas/freeze.
+    Agora: cap de MAX_AMBIGUITIES por ciclo + deadline wall-clock (resto fica p/ o
+    próximo ciclo; sai limpo, não trava)."""
     from scripts.semantic_diff import run_semantic_diff
-    
+    import time as _t
+    if deadline is None:
+        deadline = _t.monotonic() + MAX_CYCLE_SECONDS
+
     print("\n=== Estágio de Síntese Dialética (Hive-Mind Brain) ===")
     conn = get_connection()
-    ambiguities = conn.execute("SELECT * FROM ambiguities WHERE status = 'pending'").fetchall()
-    
+    ambiguities = conn.execute(
+        "SELECT * FROM ambiguities WHERE status = 'pending' "
+        "ORDER BY detected_at LIMIT ?", (MAX_AMBIGUITIES,)).fetchall()
+
     if not ambiguities:
         print("  Nenhuma ambiguidade pendente para síntese.")
         conn.close()
         return
 
     for amb in ambiguities:
+        if _t.monotonic() > deadline:
+            print(f"  [BUDGET_EXHAUSTED] teto de {MAX_CYCLE_SECONDS}s atingido na síntese — "
+                  f"resto fica p/ o próximo ciclo.")
+            break
         neuron_id = amb['neuron_id']
         print(f"  [Synthesis] Resolvendo ambiguidade para o neurônio: {neuron_id}")
         
@@ -603,7 +623,9 @@ source: hive-dreamer
 
     # --- SÍNTESE AUTÔNOMA (Fase 9) ---
     synth_t0 = time.perf_counter()
-    run_synthesis_cycle()
+    # deadline = orçamento restante do ciclo (teto total MAX_CYCLE_SECONDS)
+    _budget_left = MAX_CYCLE_SECONDS - (time.perf_counter() - cycle_t0)
+    run_synthesis_cycle(deadline=time.monotonic() + max(0.0, _budget_left))
     mark_stage("synthesis_ms", synth_t0)
 
     # --- CAMADA DE NAVEGAÇÃO (MOCs) — §7.6 ---

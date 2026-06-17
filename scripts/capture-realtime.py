@@ -39,11 +39,10 @@ def ingest_platform(plat: str, states: dict, max_age: float = LIVE_MAX_AGE_S) ->
     """Re-parseia as fontes da plataforma (parser dedicado) e ingere. Só parseia
     arquivos modificados nos últimos `max_age` s (pula fontes ociosas).
 
-    SEM debounce de borda-de-subida: rodar IMEDIATAMENTE no evento preserva o
-    realtime de ms (ex.: copilot, como era antes). A tempestade de eventos do
-    WAL/SQLite de UMA escrita já é coalescida no event-loop (todos os eventos de
-    um os.read viram 1 só `touched`/parse), e o re-parse é idempotente
-    (content-hash) — então não há perda nem flood."""
+    O event-loop aplica um teto de re-parse por plataforma (MIN_INTERVAL): o 1º
+    evento de uma plataforma ociosa roda imediato (realtime), e rajadas (WAL de
+    SQLite em escrita pesada) são coalescidas para ≤1 reparse/MIN_INTERVAL — limita
+    CPU sem dropar eventos. O re-parse é idempotente (content-hash)."""
     now = time.time()
     core.SESSION_CUTOFF_MS = int((now - WINDOW_S) * 1000)
     adp = ADAPTERS[plat]
@@ -98,8 +97,23 @@ def main() -> int:
     last_refresh = time.time()
     print("capture-realtime ativo (inotify, modelo unificado por content-hash).", flush=True)
 
+    # BOUNDEDNESS (incidente 2026-06-17): teto de re-parse por plataforma. O 1º
+    # evento de uma plataforma ociosa roda IMEDIATO (realtime preservado); escrita
+    # pesada de SQLite (kilo/mimo) é coalescida para ≤1 reparse/MIN_INTERVAL,
+    # limitando a CPU sem dropar eventos (pendências são flushadas após o cooldown).
+    MIN_INTERVAL = 0.4
+    last_ingest: dict[str, float] = {}
+    pending: dict[str, float] = {}
+
+    def _do_ingest(plat: str) -> None:
+        n = ingest_platform(plat, states)
+        last_ingest[plat] = time.time()
+        if n:
+            print(f"  ⚡ {plat} → {n} turn(s) novo(s)", flush=True)
+
     while True:
-        r, _, _ = select.select([fd], [], [], 5.0)
+        timeout = max(0.05, MIN_INTERVAL) if pending else 5.0
+        r, _, _ = select.select([fd], [], [], timeout)
         now = time.time()
         if r:
             try:
@@ -115,12 +129,18 @@ def main() -> int:
                 if plat:
                     touched.add(plat)
             for plat in touched:
-                n = ingest_platform(plat, states)
-                if n:
-                    print(f"  ⚡ {plat} → {n} turn(s) novo(s)", flush=True)
-        if now - last_refresh > 15:
+                if now - last_ingest.get(plat, 0.0) >= MIN_INTERVAL:
+                    _do_ingest(plat)          # 1º evento: imediato (realtime)
+                else:
+                    pending[plat] = now       # rajada: coalesce → flush no cooldown
+        # flush das pendências cujo cooldown já passou
+        for plat in list(pending):
+            if time.time() - last_ingest.get(plat, 0.0) >= MIN_INTERVAL:
+                _do_ingest(plat)
+                pending.pop(plat, None)
+        if time.time() - last_refresh > 15:
             refresh()
-            last_refresh = now
+            last_refresh = time.time()
 
 
 if __name__ == "__main__":
