@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -88,7 +89,11 @@ def repair(db_path: Path, keep_last: int = 5) -> tuple[int, Path | None]:
         conn.execute("BEGIN IMMEDIATE")
         for row in rows:
             memory_id = row["memory_session_id"]
-            platform = memory_id.split("-", 1)[0] if "-" in memory_id else "recovered"
+            # Deriva o provider do prefixo do memory_session_id (ex.: 'gemini-<uuid>'
+            # → gemini). Se o prefixo for 8 chars hex, é o INÍCIO de um UUID puro
+            # (sem provider) → rotula 'recovered' em vez de um hash sem sentido.
+            prefix = memory_id.split("-", 1)[0] if "-" in memory_id else memory_id
+            platform = "recovered" if re.fullmatch(r"[0-9a-f]{8}", prefix) else prefix
             conn.execute(
                 """
                 INSERT INTO sdk_sessions (
