@@ -1,0 +1,96 @@
+"""Provider gemini-cli (Code Assist) — envelope, parsing e classificação de erro.
+
+Mocka a rede (requests.post) e os helpers de token/projeto: valida que o request vai
+no envelope Code Assist correto e que a resposta é parseada no response_model. Sem rede.
+"""
+import sys
+import types
+from pathlib import Path
+
+import pytest
+from pydantic import BaseModel
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from core import gemini_cli_client as gc
+
+
+class Fato(BaseModel):
+    resumo: str
+    confianca: float
+
+
+class _Resp:
+    def __init__(self, status, payload=None, text=""):
+        self.status_code = status
+        self._payload = payload or {}
+        self.text = text
+    @property
+    def ok(self):
+        return 200 <= self.status_code < 300
+    def json(self):
+        return self._payload
+
+
+def _patch_auth(monkeypatch):
+    monkeypatch.setattr(gc, "get_access_token", lambda: "tok-123")
+    monkeypatch.setattr(gc, "get_project_id", lambda token: "proj-x")
+
+
+def test_extract_text_shape():
+    data = {"response": {"candidates": [{"content": {"parts": [{"text": "a"}, {"text": "b"}]}}]}}
+    assert gc._extract_text(data) == "ab"
+
+
+def test_envelope_e_parsing(monkeypatch):
+    _patch_auth(monkeypatch)
+    captured = {}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["url"] = url
+        captured["body"] = json
+        captured["auth"] = headers["Authorization"]
+        text = '{"resumo": "céu azul", "confianca": 0.9}'
+        return _Resp(200, {"response": {"candidates": [{"content": {"parts": [{"text": text}]}}]}})
+
+    monkeypatch.setattr(gc.requests, "post", fake_post)
+    out = gc.call_gemini_cli_structured("p", "sys", Fato, model="gemini-2.5-flash")
+    assert isinstance(out, Fato) and out.confianca == 0.9
+    # envelope Code Assist correto
+    assert captured["url"].endswith("/v1internal:generateContent")
+    assert captured["body"]["model"] == "gemini-2.5-flash"
+    assert captured["body"]["project"] == "proj-x"
+    assert "contents" in captured["body"]["request"]
+    assert captured["body"]["request"]["generationConfig"]["responseMimeType"] == "application/json"
+    assert captured["auth"] == "Bearer tok-123"
+
+
+def test_403_vira_erro_de_auth_classificavel(monkeypatch):
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(gc.requests, "post",
+                        lambda *a, **k: _Resp(403, text="scope insufficient"))
+    with pytest.raises(gc.GeminiCliError) as exc:
+        gc.call_gemini_cli_structured("p", "sys", Fato, model="gemini-2.5-flash")
+    # mensagem contém 'authentication failed' → call_llm_with_fallback trata como auth
+    assert "authentication failed" in str(exc.value).lower()
+
+
+def test_5xx_vira_erro_generico(monkeypatch):
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(gc.requests, "post", lambda *a, **k: _Resp(503, text="unavailable"))
+    with pytest.raises(gc.GeminiCliError) as exc:
+        gc.call_gemini_cli_structured("p", "sys", Fato, model="gemini-2.5-flash")
+    assert "503" in str(exc.value)
+
+
+def test_llm_client_dispatch_para_gemini_cli(monkeypatch):
+    """call_llm_structured(provider='gemini-cli') deve rotear p/ o módulo Code Assist."""
+    import core.llm_client as llm
+    called = {}
+    def fake(prompt, system_prompt, response_model, model, image_path=None):
+        called["hit"] = (model, response_model)
+        return Fato(resumo="ok", confianca=1.0)
+    monkeypatch.setattr("core.gemini_cli_client.call_gemini_cli_structured", fake)
+    out = llm.call_llm_structured("p", "s", Fato, provider="gemini-cli", model="gemini-2.5-flash")
+    assert out.resumo == "ok" and called["hit"][0] == "gemini-2.5-flash"
