@@ -94,3 +94,29 @@ def test_llm_client_dispatch_para_gemini_cli(monkeypatch):
     monkeypatch.setattr("core.gemini_cli_client.call_gemini_cli_structured", fake)
     out = llm.call_llm_structured("p", "s", Fato, provider="gemini-cli", model="gemini-2.5-flash")
     assert out.resumo == "ok" and called["hit"][0] == "gemini-2.5-flash"
+
+
+# --- saneamento de schema (Code Assist não aceita $defs/$ref) -----------------
+def test_to_gemini_schema_inline_refs_e_remove_defs():
+    raw = {
+        "$defs": {"Fact": {"type": "object", "title": "Fact",
+                            "properties": {"x": {"type": "string", "default": "a"}}}},
+        "type": "object",
+        "title": "Out",
+        "properties": {
+            "facts": {"type": "array", "items": {"$ref": "#/$defs/Fact"}},
+            "opt": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        },
+        "additionalProperties": False,
+    }
+    clean = gc._to_gemini_schema(raw)
+    import json as _j
+    blob = _j.dumps(clean)
+    assert "$defs" not in blob and "$ref" not in blob          # inlined
+    assert "title" not in blob and "default" not in blob        # removidos
+    assert "additionalProperties" not in blob
+    # $ref de Fact foi inlined no items
+    assert clean["properties"]["facts"]["items"]["type"] == "object"
+    # Optional → nullable
+    assert clean["properties"]["opt"]["type"] == "string"
+    assert clean["properties"]["opt"]["nullable"] is True

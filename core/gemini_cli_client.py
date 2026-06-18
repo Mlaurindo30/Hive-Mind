@@ -166,6 +166,53 @@ def get_project_id(token: str) -> str:
     return proj
 
 
+_SCHEMA_DROP_KEYS = {"$defs", "$schema", "title", "default", "additionalProperties",
+                     "discriminator", "examples", "$id", "definitions"}
+
+
+def _to_gemini_schema(node: Any, defs: Optional[dict] = None) -> Any:
+    """Converte o JSON Schema do Pydantic no subset aceito pelo responseSchema do
+    Code Assist/Gemini: resolve `$ref`/`$defs` (inline), remove chaves não suportadas
+    (`$defs`, `title`, `default`, `additionalProperties`, …) e normaliza `anyOf:[T,null]`
+    → `T` + `nullable:true`. Sem isso, schemas aninhados dão 400 'Unknown name $defs'."""
+    if defs is None:
+        defs = (node or {}).get("$defs") or (node or {}).get("definitions") or {}
+    if isinstance(node, list):
+        return [_to_gemini_schema(x, defs) for x in node]
+    if not isinstance(node, dict):
+        return node
+
+    # $ref → inline a definição referenciada (mais chaves irmãs, se houver).
+    if "$ref" in node:
+        name = node["$ref"].split("/")[-1]
+        merged = _to_gemini_schema(dict(defs.get(name, {})), defs)
+        for k, v in node.items():
+            if k != "$ref":
+                merged[k] = _to_gemini_schema(v, defs)
+        return merged
+
+    # anyOf/oneOf com [T, null] (Optional do Pydantic) → T + nullable.
+    for key in ("anyOf", "oneOf"):
+        if key in node:
+            variants = [v for v in node[key] if not (isinstance(v, dict) and v.get("type") == "null")]
+            has_null = any(isinstance(v, dict) and v.get("type") == "null" for v in node[key])
+            if len(variants) == 1:
+                merged = _to_gemini_schema(variants[0], defs)
+                if has_null:
+                    merged["nullable"] = True
+                for k, v in node.items():
+                    if k not in (key,):
+                        merged.setdefault(k, _to_gemini_schema(v, defs))
+                return merged
+
+    out: dict = {}
+    for k, v in node.items():
+        if k in _SCHEMA_DROP_KEYS:
+            continue
+        out[k] = _to_gemini_schema(v, defs)
+    return out
+
+
 def _extract_text(data: dict) -> str:
     resp = data.get("response", data)
     parts = resp["candidates"][0]["content"]["parts"]
@@ -181,7 +228,8 @@ def call_gemini_cli_structured(prompt: str, system_prompt: str, response_model: 
     import base64
     token = get_access_token()
     project = get_project_id(token)
-    schema = response_model.model_json_schema()
+    # Code Assist não aceita $defs/$ref no responseSchema → inline + saneamento.
+    schema = _to_gemini_schema(response_model.model_json_schema())
 
     parts: list[dict] = [{"text": f"{system_prompt}\n\n{prompt}"}]
     if image_path:
