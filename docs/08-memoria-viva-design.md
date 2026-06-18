@@ -1,6 +1,6 @@
 # Memória Viva — Design do Serviço Inteligente do Hive-Mind
 
-> **Versão**: 2.16 (provider migrado p/ Antigravity daily-cloudcode-pa; sinapse-review timer diário — revisão sem depender de sessão)
+> **Versão**: 2.17 (LLM dual: antigravity+gemini-cli como pools de quota separados c/ fallback; ambos no setup-brain)
 > **Data**: 2026-06-17
 > **Escopo**: Definição completa do comportamento inteligente do serviço de memória do Sinapse — **estrutura do vault modelada na ANATOMIA CEREBRAL** (córtex com 5 lobos + diencéfalo + cerebelo + tronco), eixo primário por **projeto**, camada de **MOCs (consciência)** e **sinapses** automáticas, cadência (diária/sessão/semanal), formação autônoma de neurônios/pastas/MOCs, nomenclatura human-readable, multi-setor, métricas de "vivo", e plano de migração.
 > **Audiência**: Michel (autor do vault), futuros agentes IA, contribuidores do projeto.
@@ -1876,7 +1876,7 @@ F4.1 decisões → F4.2 projetos → F4.3 padrões → F4.4 conflitos. **LLM já
 | Ponte claude-mem→hive_mind (multi-projeto) | ✅ **LIVE** | `claude_mem_bridge.py` (`0074de6`); 3955 obs c/ project; sinapse-bridge.timer |
 | Janela balanceada do dream (round-robin) | ✅ **LIVE** | `fetch_balanced_observations` (`07a6e64`); 30-obs = 10 projetos |
 | Resiliência do dream multi-projeto | ✅ **F4.0 feito** | WAL+busy_timeout + try/except por projeto; ended_reason=partial (`5c18f55`) |
-| Provider LLM do dream | ✅ **Antigravity (daily-cloudcode-pa)** | tier Antigravity + gemini-3; OAuth do CLI; `f7f9aa8` (endpoint configurável GEMINI_CLI_ENDPOINT) |
+| Provider LLM do dream | ✅ **Antigravity + gemini-cli (2 pools)** | mesma OAuth, endpoints/quotas separados → um é fallback do outro (`46e8267`); ambos no setup-brain |
 | frontal/decisoes (F4.1) | ✅ **LIVE** | `decision_promoter` (`66fee55`); sinapse-decisions.timer; 37 decisões |
 | Fase 4 (F4.0-F4.5) | ✅ **IMPLEMENTADA** | frontal+padrões+conflitos+trabalho auto-preenchidos (`66fee55`→`f1878cb`) |
 | frontal/projetos (F4.2) | ✅ LIVE | project_synthesizer; sinapse-projects.timer |
@@ -1886,4 +1886,4 @@ F4.1 decisões → F4.2 projetos → F4.3 padrões → F4.4 conflitos. **LLM já
 
 ---
 
-*Documento vivo. Versão 2.16 (LLM via Antigravity `daily-cloudcode-pa` (gemini-3); sinapse-review.timer 08:07 escreve revisão em insula/saude; 356 testes). O cérebro vive e se revisa sozinho.*
+*Documento vivo. Versão 2.17 (LLM dual-pool: antigravity (gemini-3) primário + gemini-cli fallback, mesma OAuth; ambos no setup-brain; 359 testes). Resiliência de quota: um pool cobre o outro.*
