@@ -46,6 +46,8 @@ MEMORIA_VIVA_UNITS = [
     # F4.3/F4.4
     "sinapse-patterns.service", "sinapse-patterns.timer",
     "sinapse-conflicts.service", "sinapse-conflicts.timer",
+    # F4.5
+    "sinapse-work.service", "sinapse-work.timer",
 ]
 
 

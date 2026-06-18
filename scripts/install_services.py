@@ -448,6 +448,32 @@ Unit=sinapse-conflicts.service
 [Install]
 WantedBy=timers.target
 """,
+        # F4.5 work_tracker: quadro de trabalho ativo (arquivo próprio, idempotente).
+        "sinapse-work.service": f"""[Unit]
+Description=Memória Viva - Work Tracker (frontal/trabalho/ativo)
+After=network.target
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/work_tracker.py --apply
+""",
+        "sinapse-work.timer": """[Unit]
+Description=Dispara o work tracker diariamente 23:44
+
+[Timer]
+OnCalendar=*-*-* 23:44:00
+Persistent=true
+Unit=sinapse-work.service
+
+[Install]
+WantedBy=timers.target
+""",
         # drift roda log-only (SEM --apply): apenas reporta candidatos a cold/stale.
         "sinapse-drift.service": f"""[Unit]
 Description=Memória Viva - Drift Detector (log-only, SEM --apply)
@@ -535,6 +561,7 @@ def install(start: bool) -> int:
         "sinapse-projects.timer",
         "sinapse-patterns.timer",
         "sinapse-conflicts.timer",
+        "sinapse-work.timer",
     ]
     if api_enabled():
         enabled.append("sinapse-api.service")
