@@ -144,6 +144,30 @@ def collect_projects() -> List[Dict[str, Any]]:
                 continue
     return projects
 
+def _health_section() -> str:
+    """Monta '## Métricas de Saúde' (M1-M9 + decisões stale). Não-fatal."""
+    try:
+        from core.database import get_connection, ensure_migrations
+        from scripts.health_dashboard import compute_metrics, render_snapshot, evaluate_alerts
+        from scripts.decision_staleness import stale_decisions, render_markdown
+        from datetime import datetime as _dt
+        conn = get_connection()
+        ensure_migrations(conn)
+        try:
+            m = compute_metrics(conn)
+        finally:
+            conn.close()
+        alerts = evaluate_alerts(m)
+        snap = render_snapshot(m, alerts, now=_dt.now())
+        # Extrai a tabela + alertas do snapshot (descarta frontmatter/título dele).
+        body = snap.split("## Métricas", 1)[1].lstrip("\n")
+        stale_md = render_markdown(stale_decisions())
+        return ("## Métricas de Saúde\n" + body
+                + "\n## Decisões Estagnadas\n" + stale_md)
+    except Exception as e:  # nunca derruba o weekly
+        return f"## Métricas de Saúde\n_(indisponível: {e})_\n"
+
+
 def generate_markdown(summary: WeeklySummaryModel, year: int, week: int, start_date: date, end_date: date, daily_logs: List[Dict[str, Any]], existing_content: Optional[str] = None) -> str:
     # Geramos o bloco de conteúdo automático
     auto_content = f"""
@@ -186,6 +210,10 @@ def generate_markdown(summary: WeeklySummaryModel, year: int, week: int, start_d
     auto_content += "\n## Próxima Semana\n"
     for priority in summary.next_week_priorities:
         auto_content += f"- {priority}\n"
+
+    # --- Métricas de Saúde (F3.4): reusa health_dashboard + decision_staleness ---
+    # Não duplica lógica; falha aqui é não-fatal (o weekly não pode quebrar por isso).
+    auto_content += "\n" + _health_section()
 
     # Envolvemos em marcadores de automação
     wrapped_auto = f"<!-- auto:start -->\n{auto_content.strip()}\n<!-- auto:end -->"

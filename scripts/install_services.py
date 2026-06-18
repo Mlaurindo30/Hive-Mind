@@ -284,6 +284,61 @@ Unit=sinapse-topics.service
 [Install]
 WantedBy=timers.target
 """,
+        # ===== Fase 3 — síntese viva (F3.4) =====
+        # health: read-only, gera snapshot M1-M9 na Ínsula (seguro, vai no enabled).
+        # drift: mensal e SEM --apply por design — o move/cold de memória é decisão
+        # humana; rodar log-only no timer, aplicar à mão após revisar.
+        "sinapse-health.service": f"""[Unit]
+Description=Memória Viva - Health Dashboard (M1-M9 -> cortex/insula/saude)
+After=network.target sinapse-claude-mem.service
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/health_dashboard.py
+""",
+        "sinapse-health.timer": """[Unit]
+Description=Dispara o health dashboard diariamente 23:50 (antes da daily)
+
+[Timer]
+OnCalendar=*-*-* 23:50:00
+Persistent=true
+Unit=sinapse-health.service
+
+[Install]
+WantedBy=timers.target
+""",
+        # drift roda log-only (SEM --apply): apenas reporta candidatos a cold/stale.
+        "sinapse-drift.service": f"""[Unit]
+Description=Memória Viva - Drift Detector (log-only, SEM --apply)
+After=network.target
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/drift_detector.py
+""",
+        "sinapse-drift.timer": """[Unit]
+Description=Dispara o drift detector (log-only) no 1o dia do mês 02:00
+
+[Timer]
+OnCalendar=*-*-01 02:00:00
+Persistent=true
+Unit=sinapse-drift.service
+
+[Install]
+WantedBy=timers.target
+""",
     }
 
 
@@ -337,6 +392,8 @@ def install(start: bool) -> int:
         "sinapse-daily.timer",
         "sinapse-weekly.timer",
         "sinapse-topics.timer",
+        # Fase 3: health é read-only (snapshot). drift NÃO entra (roda --apply só à mão).
+        "sinapse-health.timer",
     ]
     if api_enabled():
         enabled.append("sinapse-api.service")

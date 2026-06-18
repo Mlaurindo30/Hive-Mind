@@ -35,6 +35,9 @@ MEMORIA_VIVA_UNITS = [
     "sinapse-daily.service", "sinapse-daily.timer",
     "sinapse-weekly.service", "sinapse-weekly.timer",
     "sinapse-topics.service", "sinapse-topics.timer",
+    # Fase 3 (F3.4)
+    "sinapse-health.service", "sinapse-health.timer",
+    "sinapse-drift.service", "sinapse-drift.timer",
 ]
 
 
@@ -73,6 +76,14 @@ def test_topics_e_log_only_sem_apply():
     assert "--apply" not in exec_line, "topics deve ser log-only (sem --apply)"
 
 
+def test_drift_e_log_only_sem_apply():
+    """drift_detector NUNCA roda com --apply via timer (mover/esfriar é revisão humana)."""
+    svc = DEFS["sinapse-drift.service"]
+    exec_line = next(l for l in svc.splitlines() if l.startswith("ExecStart="))
+    assert "drift_detector.py" in exec_line
+    assert "--apply" not in exec_line, "drift deve ser log-only (sem --apply)"
+
+
 def test_dream_definido_mas_nao_auto_habilitado():
     """dream existe (reprodutibilidade) porém fica fora do enabled (gated por M9)."""
     src = (SCRIPTS / "install_services.py").read_text()
@@ -81,6 +92,9 @@ def test_dream_definido_mas_nao_auto_habilitado():
     enabled_block = m.group(1)
     assert '"sinapse-dream.timer"' not in enabled_block, (
         "dream NÃO deve ser auto-habilitado antes de M9 (§14.4-P2)")
+    assert '"sinapse-drift.timer"' not in enabled_block, (
+        "drift NÃO deve ser auto-habilitado (--apply é decisão humana)")
     # As cadências seguras, por outro lado, devem estar habilitadas:
-    for safe in ("sinapse-daily.timer", "sinapse-weekly.timer", "sinapse-topics.timer"):
+    for safe in ("sinapse-daily.timer", "sinapse-weekly.timer",
+                 "sinapse-topics.timer", "sinapse-health.timer"):
         assert f'"{safe}"' in enabled_block, f"{safe} deveria estar em enabled"
