@@ -45,6 +45,21 @@ DEFAULT_ENDPOINT = "https://daily-cloudcode-pa.googleapis.com"   # antigravity
 # Compat: alguns lugares/imports antigos referenciam CODE_ASSIST_ENDPOINT.
 CODE_ASSIST_ENDPOINT = os.environ.get("GEMINI_CLI_ENDPOINT", DEFAULT_ENDPOINT)
 
+# A cota do 429 é POR MODELO ("exhausted capacity on THIS MODEL"). Logo, quando um
+# modelo esgota, tentar OUTRO modelo do mesmo provider (quota independente) resolve
+# ANTES de trocar de provider. Ordem: barato/rápido → mais capaz.
+_MODEL_ROTATION = {
+    "antigravity": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3-pro-preview"],
+    "gemini-cli": ["gemini-2.5-flash", "gemini-2.5-pro"],
+    "code-assist": ["gemini-2.5-flash", "gemini-2.5-pro"],
+}
+
+
+def _model_chain(provider: Optional[str], model: str) -> list:
+    """Modelo pedido primeiro, depois os demais do provider (dedup) p/ rotação no 429."""
+    rot = _MODEL_ROTATION.get((provider or "").lower(), [])
+    return [model] + [m for m in rot if m != model]
+
 
 def _endpoint_for(provider: Optional[str]) -> str:
     """Host Code Assist do provider (env GEMINI_CLI_ENDPOINT força p/ todos)."""
@@ -261,24 +276,25 @@ def call_gemini_cli_structured(prompt: str, system_prompt: str, response_model: 
         with open(image_path, "rb") as f:
             parts.append({"inlineData": {"mimeType": "image/png",
                                          "data": base64.b64encode(f.read()).decode("utf-8")}})
-    body = {
-        "model": model,
-        "project": project,
-        "request": {
-            "contents": [{"role": "user", "parts": parts}],
-            "generationConfig": {
-                "temperature": 0.1,
-                "responseMimeType": "application/json",
-                "responseSchema": schema,
-            },
-        },
-    }
-    r = requests.post(f"{endpoint}/{API_VERSION}:generateContent",
-                      headers=_headers(token), json=body, timeout=120)
-    if r.status_code in (401, 403):
-        # auth/scope — sinaliza p/ o fallback do papel não insistir no mesmo alvo.
-        raise GeminiCliError(f"authentication failed (gemini-cli {r.status_code}): {r.text[:200]}")
-    if not r.ok:
-        raise GeminiCliError(f"gemini-cli {r.status_code}: {r.text[:200]}")
-    text = _extract_text(r.json())
-    return response_model.model_validate_json(text)
+    gen_cfg = {"temperature": 0.1, "responseMimeType": "application/json",
+               "responseSchema": schema}
+
+    last_429 = None
+    for m in _model_chain(provider, model):
+        body = {"model": m, "project": project,
+                "request": {"contents": [{"role": "user", "parts": parts}],
+                            "generationConfig": gen_cfg}}
+        r = requests.post(f"{endpoint}/{API_VERSION}:generateContent",
+                          headers=_headers(token), json=body, timeout=120)
+        if r.status_code in (401, 403):
+            # auth/scope — sinaliza p/ o fallback do papel não insistir no mesmo alvo.
+            raise GeminiCliError(f"authentication failed (gemini-cli {r.status_code}): {r.text[:200]}")
+        if r.status_code == 429:
+            # Quota é POR MODELO → tenta o próximo modelo do provider antes de desistir.
+            last_429 = r.text[:160]
+            continue
+        if not r.ok:
+            raise GeminiCliError(f"gemini-cli {r.status_code}: {r.text[:200]}")
+        return response_model.model_validate_json(_extract_text(r.json()))
+    # Todos os modelos do provider esgotados → 429 transient (dispara fallback do papel).
+    raise GeminiCliError(f"gemini-cli 429 em todos os modelos do provider: {last_429}")
