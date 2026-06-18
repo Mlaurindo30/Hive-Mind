@@ -11,6 +11,7 @@ system_prompt: |
   ROUTING RUBRIC:
   - Prefer broad, stable topics over hyper-specific ones (e.g., prefer 'coding' over 'python_typing_rules').
   - If a provided list of existing topics is given, strongly prefer matching an existing topic to prevent folder fragmentation.
+  - SLIDING WINDOW: You will receive a list of the 20 most recent topics. Favor these topics if they have a semantic match of at least 0.7.
   - Only create a new topic if the fact represents a completely new domain of knowledge for the user.
 
   MANDATORY JSON STRUCTURE:

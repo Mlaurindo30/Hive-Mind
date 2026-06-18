@@ -268,7 +268,33 @@ def ensure_migrations(conn):
     if neuron_cols and "visibility" not in neuron_cols:
         conn.execute("ALTER TABLE neurons ADD COLUMN visibility TEXT DEFAULT 'private'")
 
+    # Phase HM-12: Router Sliding Window topic tracking
+    if neuron_cols and "topic" not in neuron_cols:
+        conn.execute("ALTER TABLE neurons ADD COLUMN topic TEXT")
+
+    # Índice exige a tabela neurons E a coluna updated_at. `topic` é garantido
+    # pelo ALTER acima; updated_at precisa pré-existir (tabelas mínimas/legadas
+    # podem não ter). Sem este guard duplo, ensure_migrations quebra.
+    if neuron_cols and "updated_at" in neuron_cols:
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_neurons_topic_updated ON neurons(topic, updated_at)")
+
     conn.commit()
+
+def get_recent_topics(limit=20) -> list[str]:
+    """Obtém os tópicos mais recentes da tabela neurons (sliding window)."""
+    conn = get_connection()
+    try:
+        rows = conn.execute("""
+            SELECT topic 
+            FROM neurons 
+            WHERE topic IS NOT NULL 
+            GROUP BY topic 
+            ORDER BY MAX(updated_at) DESC 
+            LIMIT ?
+        """, (limit,)).fetchall()
+        return [row['topic'] for row in rows]
+    finally:
+        conn.close()
 
 def init_db():
     """Inicializa o banco de dados com o esquema unificado."""

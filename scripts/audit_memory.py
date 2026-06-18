@@ -110,6 +110,8 @@ def run_audit(fix=False):
         
         # 1. Parse File
         frontmatter, content = parse_markdown(md_file)
+        if frontmatter.get("type") == "redirect":
+            continue
         file_hash = get_content_hash(content)
         
         # 2. Check DB

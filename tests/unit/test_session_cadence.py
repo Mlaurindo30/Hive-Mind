@@ -240,6 +240,11 @@ class TestCanonicalRoles:
         source = (PROJECT_ROOT / "core" / "auth.py").read_text(encoding="utf-8")
         assert "session_summarizer" in source, "Papel session_summarizer ausente em HIVE_LLM_ROLES"
         assert "daily_writer" in source, "Papel daily_writer ausente em HIVE_LLM_ROLES"
+        assert "alias_miner" in source, "Papel alias_miner ausente em HIVE_LLM_ROLES"
+        assert "topic_router" in source, "Papel topic_router ausente em HIVE_LLM_ROLES"
+        assert "sector_classifier" in source, "Papel sector_classifier ausente em HIVE_LLM_ROLES"
+        assert "weekly_synthesizer" in source, "Papel weekly_synthesizer ausente em HIVE_LLM_ROLES"
+        assert "drift_detector" in source, "Papel drift_detector ausente em HIVE_LLM_ROLES"
 
 
 class TestModelsExist:
