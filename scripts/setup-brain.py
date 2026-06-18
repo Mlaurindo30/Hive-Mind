@@ -56,6 +56,10 @@ def describe_role(role: str, env: Dict[str, str]) -> str:
 
 def is_provider_configured(p_name: str, env: Dict[str, str]) -> bool:
     cfg = PROVIDERS_CONFIG[p_name]
+    # antigravity / gemini-cli: configurado = existe o login OAuth do CLI no disco.
+    if "gemini_cli_oauth" in cfg["auth_type"]:
+        from pathlib import Path
+        return (Path.home() / ".gemini" / "oauth_creds.json").is_file()
     if "oauth" in cfg["auth_type"]:
         if f"{p_name.upper()}_ACCESS_TOKEN" in env: return True
     if cfg['env_var'] in env or "local" in cfg['auth_type']:

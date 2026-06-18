@@ -52,6 +52,23 @@ PROVIDERS_CONFIG = {
             "scopes": "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile"
         }
     },
+    # Reaproveitam o login OAuth do Gemini/Antigravity CLI (~/.gemini/oauth_creds.json).
+    # Mesma credencial, ENDPOINTS/POOLS DE QUOTA SEPARADOS → um é fallback do outro.
+    # Tratados direto em core.llm_client (não passam por get_credentials).
+    "antigravity": {
+        "env_var": "ANTIGRAVITY_UNUSED",
+        "base_url": "https://daily-cloudcode-pa.googleapis.com",
+        "auth_type": ["gemini_cli_oauth"],
+        "doc": "Login do Antigravity CLI (`agy`) — tier Antigravity, acesso a gemini-3-*.",
+        "models_hint": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-pro-preview", "gemini-3-flash-preview"],
+    },
+    "gemini-cli": {
+        "env_var": "GEMINI_CLI_UNUSED",
+        "base_url": "https://cloudcode-pa.googleapis.com",
+        "auth_type": ["gemini_cli_oauth"],
+        "doc": "Login do Gemini CLI (`gemini`) — Code Assist estável (pool separado do antigravity).",
+        "models_hint": ["gemini-2.5-flash", "gemini-2.5-pro"],
+    },
     "openai": {
         "env_var": "OPENAI_API_KEY",
         "base_url": "https://api.openai.com/v1",

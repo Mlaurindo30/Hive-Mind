@@ -28,17 +28,34 @@ import requests
 
 GEMINI_DIR = Path(os.environ.get("GEMINI_CLI_DIR", str(Path.home() / ".gemini")))
 CREDS_PATH = GEMINI_DIR / "oauth_creds.json"
-# Endpoint Code Assist. O Antigravity (CLI/IDE) usa o host `daily-cloudcode-pa`, que
-# é um POOL DE QUOTA SEPARADO (tier Antigravity, com acesso a gemini-3-*) — a mesma
-# OAuth do ~/.gemini/oauth_creds.json funciona nele. Default = antigravity; override
-# via GEMINI_CLI_ENDPOINT (ex.: a versão estável https://cloudcode-pa.googleapis.com).
-CODE_ASSIST_ENDPOINT = os.environ.get(
-    "GEMINI_CLI_ENDPOINT", "https://daily-cloudcode-pa.googleapis.com")
 API_VERSION = "v1internal"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 
+# Dois endpoints Code Assist, MESMA OAuth (~/.gemini/oauth_creds.json), porém POOLS DE
+# QUOTA SEPARADOS — por isso vale ter os dois (um vira fallback do outro):
+#   antigravity → daily-cloudcode-pa (tier Antigravity, acesso a gemini-3-*)
+#   gemini-cli  → cloudcode-pa       (Code Assist estável)
+# Escolha por nome de provider; GEMINI_CLI_ENDPOINT força um host p/ todos (override).
+_ENDPOINTS = {
+    "antigravity": "https://daily-cloudcode-pa.googleapis.com",
+    "gemini-cli": "https://cloudcode-pa.googleapis.com",
+    "code-assist": "https://cloudcode-pa.googleapis.com",
+}
+DEFAULT_ENDPOINT = "https://daily-cloudcode-pa.googleapis.com"   # antigravity
+# Compat: alguns lugares/imports antigos referenciam CODE_ASSIST_ENDPOINT.
+CODE_ASSIST_ENDPOINT = os.environ.get("GEMINI_CLI_ENDPOINT", DEFAULT_ENDPOINT)
+
+
+def _endpoint_for(provider: Optional[str]) -> str:
+    """Host Code Assist do provider (env GEMINI_CLI_ENDPOINT força p/ todos)."""
+    override = os.environ.get("GEMINI_CLI_ENDPOINT")
+    if override:
+        return override
+    return _ENDPOINTS.get((provider or "").lower(), DEFAULT_ENDPOINT)
+
+
 _client_creds_cache: Optional[tuple] = None   # (client_id, client_secret)
-_project_cache: Optional[str] = None
+_project_cache: dict = {}                      # {endpoint: projectId}
 
 
 class GeminiCliError(Exception):
@@ -151,23 +168,23 @@ def _headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 
-def get_project_id(token: str) -> str:
-    """projectId do Code Assist (via loadCodeAssist). Cacheado por processo."""
-    global _project_cache
-    if _project_cache:
-        return _project_cache
+def get_project_id(token: str, endpoint: Optional[str] = None) -> str:
+    """projectId do Code Assist via loadCodeAssist. Cacheado POR ENDPOINT (antigravity
+    e cloudcode-pa têm projects distintos)."""
+    endpoint = endpoint or DEFAULT_ENDPOINT
     if os.environ.get("GEMINI_CLI_PROJECT"):
-        _project_cache = os.environ["GEMINI_CLI_PROJECT"]
-        return _project_cache
-    r = requests.post(f"{CODE_ASSIST_ENDPOINT}/{API_VERSION}:loadCodeAssist",
+        return os.environ["GEMINI_CLI_PROJECT"]
+    if endpoint in _project_cache:
+        return _project_cache[endpoint]
+    r = requests.post(f"{endpoint}/{API_VERSION}:loadCodeAssist",
                       headers=_headers(token), json={"metadata": {"pluginType": "GEMINI"}},
                       timeout=30)
     if not r.ok:
-        raise GeminiCliError(f"loadCodeAssist falhou: {r.status_code} {r.text[:200]}")
+        raise GeminiCliError(f"loadCodeAssist falhou ({endpoint}): {r.status_code} {r.text[:200]}")
     proj = r.json().get("cloudaicompanionProject")
     if not proj:
         raise GeminiCliError("loadCodeAssist não devolveu cloudaicompanionProject.")
-    _project_cache = proj
+    _project_cache[endpoint] = proj
     return proj
 
 
@@ -225,14 +242,17 @@ def _extract_text(data: dict) -> str:
 
 
 def call_gemini_cli_structured(prompt: str, system_prompt: str, response_model: Any,
-                               model: str, image_path: Optional[str] = None) -> Any:
+                               model: str, image_path: Optional[str] = None,
+                               provider: Optional[str] = None) -> Any:
     """Chamada estruturada via Code Assist. Retorna instância de response_model.
 
-    Espelha o branch google do call_llm_structured, mas no envelope Code Assist
-    (`{model, project, request:{contents, generationConfig}}`) e endpoint cloudcode-pa."""
+    `provider` escolhe o endpoint/quota: 'antigravity' (daily-cloudcode-pa) ou
+    'gemini-cli'/'code-assist' (cloudcode-pa). Envelope Code Assist
+    (`{model, project, request:{contents, generationConfig}}`)."""
     import base64
+    endpoint = _endpoint_for(provider)
     token = get_access_token()
-    project = get_project_id(token)
+    project = get_project_id(token, endpoint)
     # Code Assist não aceita $defs/$ref no responseSchema → inline + saneamento.
     schema = _to_gemini_schema(response_model.model_json_schema())
 
@@ -253,7 +273,7 @@ def call_gemini_cli_structured(prompt: str, system_prompt: str, response_model: 
             },
         },
     }
-    r = requests.post(f"{CODE_ASSIST_ENDPOINT}/{API_VERSION}:generateContent",
+    r = requests.post(f"{endpoint}/{API_VERSION}:generateContent",
                       headers=_headers(token), json=body, timeout=120)
     if r.status_code in (401, 403):
         # auth/scope — sinaliza p/ o fallback do papel não insistir no mesmo alvo.
