@@ -1,6 +1,6 @@
 # Memória Viva — Design do Serviço Inteligente do Hive-Mind
 
-> **Versão**: 2.11 (provider gemini-cli/Code Assist — quota Unlimited; OAuth do CLI reaproveitado; Fase 4 desenhada)
+> **Versão**: 2.12 (gemini-cli/Code Assist + F4.0 resiliência feitos; pronto p/ F4.1+ da Fase 4)
 > **Data**: 2026-06-17
 > **Escopo**: Definição completa do comportamento inteligente do serviço de memória do Sinapse — **estrutura do vault modelada na ANATOMIA CEREBRAL** (córtex com 5 lobos + diencéfalo + cerebelo + tronco), eixo primário por **projeto**, camada de **MOCs (consciência)** e **sinapses** automáticas, cadência (diária/sessão/semanal), formação autônoma de neurônios/pastas/MOCs, nomenclatura human-readable, multi-setor, métricas de "vivo", e plano de migração.
 > **Audiência**: Michel (autor do vault), futuros agentes IA, contribuidores do projeto.
@@ -1350,7 +1350,7 @@ boundedness (§13.2.1) merged. **Go-live recomendado** só após M9 verde por �
 > (que é `document`, ingestão graphify). Derivar projeto do `source_file`/caminho. Todo
 > script: INERTE até validado, teste real, log-only/`--apply`, boundedness.
 
-#### F4.0 — Resiliência do dream multi-projeto (HARDENING — pré-requisito) ⚠️
+#### F4.0 — Resiliência do dream multi-projeto (HARDENING) — ✅ FEITO (`5c18f55`)
 
 > **Descoberto em 2026-06-18**: com a janela balanceada (10 projetos/ciclo), o loop
 > por-projeto **não é resiliente** — um `sqlite3.OperationalError: database is locked`
@@ -1452,7 +1452,7 @@ boundedness (§13.2.1) merged. **Go-live recomendado** só após M9 verde por �
   **M12** conflitos abertos. `health_dashboard` calcula; `weekly` embute conflitos + decisões.
 
 **Entregáveis**: 4-5 scripts novos + hardening do dream (F4.0) + 4 papéis LLM + 4-5 timers
-+ 3 métricas. **Pré-condições**: ✅ **LLM resolvido** (provider `gemini-cli`/Code Assist, quota Unlimited — `e6817b2`); falta **F4.0** (resiliência do dream) antes de habilitar cadências.
++ 3 métricas. **Pré-condições**: ✅ **LLM resolvido** (`gemini-cli`/Code Assist — `e6817b2`) e ✅ **F4.0 resiliência** (`5c18f55`). Pronto p/ implementar F4.1+.
 
 ### Cronograma
 
@@ -1875,10 +1875,10 @@ F4.1 decisões → F4.2 projetos → F4.3 padrões → F4.4 conflitos. **LLM já
 | Fase 3 (drift/staleness/health) | ✅ **implementada** | F3.1-F3.4 (22 testes); health LIVE, drift manual |
 | Ponte claude-mem→hive_mind (multi-projeto) | ✅ **LIVE** | `claude_mem_bridge.py` (`0074de6`); 3955 obs c/ project; sinapse-bridge.timer |
 | Janela balanceada do dream (round-robin) | ✅ **LIVE** | `fetch_balanced_observations` (`07a6e64`); 30-obs = 10 projetos |
-| Resiliência do dream multi-projeto | ⚠️ **gap** | `database is locked` aborta ciclo (M9=error/225s) → **F4.0** |
+| Resiliência do dream multi-projeto | ✅ **F4.0 feito** | WAL+busy_timeout + try/except por projeto; ended_reason=partial (`5c18f55`) |
 | Provider LLM do dream | ✅ **gemini-cli (Code Assist)** | quota Unlimited; `core/gemini_cli_client.py` (`e6817b2`); OAuth do CLI reaproveitado |
 | Fase 4 (frontal/padrões/conflitos) | 🔵 **desenhada** | §11/Fase 4 (F4.0-F4.6); auto-preenchimento total |
 
 ---
 
-*Documento vivo. Versão 2.11 (LLM do dream via gemini-cli/Code Assist `e6817b2` — quota Unlimited; Fase 4 desenhada, falta F4.0 resiliência). Próxima: F4.0 + implementar F4.1+.*
+*Documento vivo. Versão 2.12 (LLM gemini-cli `e6817b2` + F4.0 resiliência `5c18f55` feitos; Fase 4 pronta p/ F4.1 decisões em diante). Próxima: implementar F4.1-F4.5.*
