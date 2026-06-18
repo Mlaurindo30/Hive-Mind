@@ -37,20 +37,37 @@ from core.schemas.topic_models import TopicMergeProposal
 SIMILARITY_THRESHOLD = 0.85
 SAMPLE_NEURONS_LIMIT = 5
 
+def _proj_topic_from_source(source_file: str) -> Optional[tuple]:
+    """Deriva (projeto, tópico) do path anatômico do neurônio:
+    .../cortex/temporal/{projeto}/{topico}/neuronio-*.md. None se não casar."""
+    if not source_file:
+        return None
+    parts = Path(source_file).parts
+    if "temporal" not in parts:
+        return None
+    i = parts.index("temporal")
+    if i + 2 >= len(parts):
+        return None
+    project, topic = parts[i + 1], parts[i + 2]
+    if project.startswith("_") or topic.startswith("_"):  # ignora MOCs/_global
+        return None
+    return project, topic
+
+
 def get_topics_data() -> Dict[str, List[str]]:
-    """Obtém tópicos agrupados por projeto."""
+    """Tópicos agrupados por projeto — derivados do source_file (a tabela neurons
+    NÃO tem coluna project; o eixo anatômico vive no path)."""
     conn = db.get_connection()
     try:
-        rows = conn.execute("""
-            SELECT DISTINCT project, topic 
-            FROM neurons 
-            WHERE topic IS NOT NULL AND project IS NOT NULL
-        """).fetchall()
-        
-        data = defaultdict(list)
+        rows = conn.execute(
+            "SELECT source_file FROM neurons WHERE source_file LIKE '%cortex/temporal/%'"
+        ).fetchall()
+        data = defaultdict(set)
         for row in rows:
-            data[row['project']].append(row['topic'])
-        return dict(data)
+            pt = _proj_topic_from_source(row["source_file"])
+            if pt:
+                data[pt[0]].add(pt[1])
+        return {k: sorted(v) for k, v in data.items()}
     finally:
         conn.close()
 
@@ -86,13 +103,12 @@ def get_sample_neurons(project: str, topic: str) -> List[str]:
     """Obtém títulos de alguns neurônios de um tópico para contexto."""
     conn = db.get_connection()
     try:
-        rows = conn.execute("""
-            SELECT title 
-            FROM neurons 
-            WHERE project = ? AND topic = ? 
-            LIMIT ?
-        """, (project, topic, SAMPLE_NEURONS_LIMIT)).fetchall()
-        return [row['title'] for row in rows if row['title']]
+        # neurons não tem project; filtra pelo path. `title` não existe → `label`.
+        pattern = f"%cortex/temporal/{project}/{topic}/%"
+        rows = conn.execute(
+            "SELECT label FROM neurons WHERE source_file LIKE ? LIMIT ?",
+            (pattern, SAMPLE_NEURONS_LIMIT)).fetchall()
+        return [row['label'] for row in rows if row['label']]
     finally:
         conn.close()
 
@@ -179,11 +195,11 @@ def execute_merge(project: str, old_topics: List[str], new_topic: str):
     
     conn = db.get_connection()
     try:
-        # 1. Identificar todos os neurônios dos tópicos antigos
-        placeholders = ', '.join(['?'] * len(old_topics))
+        # 1. Identificar neurônios dos tópicos antigos via path (sem coluna project).
+        like_clauses = " OR ".join(["source_file LIKE ?"] * len(old_topics))
+        patterns = [f"%cortex/temporal/{project}/{t}/%" for t in old_topics]
         neurons = conn.execute(
-            f"SELECT id, source_file FROM neurons WHERE project = ? AND topic IN ({placeholders})",
-            [project] + old_topics
+            f"SELECT id, source_file FROM neurons WHERE {like_clauses}", patterns
         ).fetchall()
         
         target_dir = cp.TEMPORAL / project / new_topic
