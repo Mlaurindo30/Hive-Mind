@@ -178,6 +178,112 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 """,
+        # ===== Cadências da Memória Viva (doc 08, §14.4-P1) =====
+        # Reprodutibilidade: antes estes timers viviam só em .config/ (ou à mão) e
+        # sumiam num reinstall. Agora são canônicos aqui. ExecStart aponta SEMPRE p/
+        # .venv/bin/python; oneshot; falha de LLM não derruba o ciclo (scripts tratam).
+        "sinapse-dream.service": f"""[Unit]
+Description=Memória Viva - Dream Cycle (destila observations -> neurônios)
+After=network.target sinapse-claude-mem.service
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/dream_cycle.py
+""",
+        "sinapse-dream.timer": """[Unit]
+Description=Dispara o dream cycle diariamente (off-hours)
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=sinapse-dream.service
+
+[Install]
+WantedBy=timers.target
+""",
+        "sinapse-daily.service": f"""[Unit]
+Description=Memória Viva - Daily Log Writer (cerebelo/diario)
+After=network.target
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/daily_writer.py
+""",
+        "sinapse-daily.timer": """[Unit]
+Description=Dispara o daily log writer todo dia 23:55
+
+[Timer]
+OnCalendar=*-*-* 23:55:00
+Persistent=true
+Unit=sinapse-daily.service
+
+[Install]
+WantedBy=timers.target
+""",
+        "sinapse-weekly.service": f"""[Unit]
+Description=Memória Viva - Weekly Synthesizer (cerebelo/semanal)
+After=network.target sinapse-claude-mem.service
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/weekly_synthesizer.py
+""",
+        "sinapse-weekly.timer": """[Unit]
+Description=Dispara o weekly synthesizer aos domingos 04:00
+
+[Timer]
+OnCalendar=Sun 04:00
+Persistent=true
+Unit=sinapse-weekly.service
+
+[Install]
+WantedBy=timers.target
+""",
+        # topic_consolidator roda SEM --apply: log-only por design (R8/§14.4-P1).
+        # Merge real só sob revisão humana — nunca automatizar a fusão.
+        "sinapse-topics.service": f"""[Unit]
+Description=Memória Viva - Topic Consolidator (log-only, SEM --apply)
+After=network.target sinapse-claude-mem.service
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/topic_consolidator.py
+""",
+        "sinapse-topics.timer": """[Unit]
+Description=Dispara o topic consolidator (log-only) aos domingos 06:00
+
+[Timer]
+OnCalendar=Sun 06:00
+Persistent=true
+Unit=sinapse-topics.service
+
+[Install]
+WantedBy=timers.target
+""",
     }
 
 
@@ -224,6 +330,13 @@ def install(start: bool) -> int:
         "sinapse-capture-realtime.service",
         "sinapse-capture-tailer.timer",
         "sinapse-maintenance.timer",
+        # Memória Viva (doc 08): cadências seguras. daily=markdown; weekly=resumo;
+        # topics=log-only (sem --apply). dream NÃO entra aqui de propósito: seu
+        # go-live é gated por M9 verde >= 7d (§14.4-P2) — habilitar manualmente
+        # só após instrumentar dream_cycle_log.
+        "sinapse-daily.timer",
+        "sinapse-weekly.timer",
+        "sinapse-topics.timer",
     ]
     if api_enabled():
         enabled.append("sinapse-api.service")
