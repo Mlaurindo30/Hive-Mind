@@ -440,17 +440,25 @@ def get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]:
     model = _v(f"HIVE_{key}_MODEL")
     fb_provider = _v(f"HIVE_{key}_FALLBACK_PROVIDER")
     fb_model = _v(f"HIVE_{key}_FALLBACK_MODEL")
+    # 2º fallback (rede final, ex.: OmniRoute) — mesmo contrato de herança do 1º.
+    fb2_provider = _v(f"HIVE_{key}_FALLBACK2_PROVIDER")
+    fb2_model = _v(f"HIVE_{key}_FALLBACK2_MODEL")
 
     if not (provider and model) and key != "DREAMER":
-        # Herda o primário do Dreamer — e, sem fallback próprio, o fallback dele
+        # Herda o primário do Dreamer — e, sem fallback próprio, os fallbacks dele
         provider = _v("HIVE_DREAMER_PROVIDER")
         model = _v("HIVE_DREAMER_MODEL")
         if not (fb_provider and fb_model):
             fb_provider = _v("HIVE_DREAMER_FALLBACK_PROVIDER")
             fb_model = _v("HIVE_DREAMER_FALLBACK_MODEL")
+        if not (fb2_provider and fb2_model):
+            fb2_provider = _v("HIVE_DREAMER_FALLBACK2_PROVIDER")
+            fb2_model = _v("HIVE_DREAMER_FALLBACK2_MODEL")
 
     if not (fb_provider and fb_model):
         fb_provider = fb_model = None
+    if not (fb2_provider and fb2_model):
+        fb2_provider = fb2_model = None
     if not (provider and model):
         return None
     return {
@@ -458,6 +466,8 @@ def get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]:
         "model": model,
         "fallback_provider": fb_provider,
         "fallback_model": fb_model,
+        "fallback2_provider": fb2_provider,
+        "fallback2_model": fb2_model,
     }
 
 def get_credentials(provider_name: str, prefer_oauth: bool = True) -> Optional[Dict[str, Any]]:

@@ -321,6 +321,9 @@ def call_llm_with_fallback(role: str, prompt: str, system_prompt: str, response_
     targets = [(cfg["provider"], cfg["model"])]
     if cfg.get("fallback_provider") and cfg.get("fallback_model"):
         targets.append((cfg["fallback_provider"], cfg["fallback_model"]))
+    # 2º fallback (rede final, ex.: OmniRoute com 226 providers internos).
+    if cfg.get("fallback2_provider") and cfg.get("fallback2_model"):
+        targets.append((cfg["fallback2_provider"], cfg["fallback2_model"]))
 
     # Preservamos a primeira exceção vista por alvo para diagnóstico
     # (a do fallback pode ser diferente da do primário — ex.: transient

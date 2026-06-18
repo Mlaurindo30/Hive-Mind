@@ -163,3 +163,41 @@ class TestLoadEnvInjectsIntoOsEnviron:
         assert cfg is not None
         assert cfg["provider"] == "anthropic"
         assert cfg["model"] == "claude-3-5-sonnet"
+
+
+class TestThirdLevelFallback:
+    """3º nível de fallback (FALLBACK2) — herança do Dreamer p/ todos os papéis."""
+
+    def test_dreamer_fallback2_resolve(self, monkeypatch):
+        for k in list(os.environ):
+            if k.startswith("HIVE_"):
+                monkeypatch.delenv(k, raising=False)
+        monkeypatch.setenv("HIVE_DREAMER_PROVIDER", "antigravity")
+        monkeypatch.setenv("HIVE_DREAMER_MODEL", "gemini-2.5-flash")
+        monkeypatch.setenv("HIVE_DREAMER_FALLBACK_PROVIDER", "gemini-cli")
+        monkeypatch.setenv("HIVE_DREAMER_FALLBACK_MODEL", "gemini-2.5-flash")
+        monkeypatch.setenv("HIVE_DREAMER_FALLBACK2_PROVIDER", "omniroute")
+        monkeypatch.setenv("HIVE_DREAMER_FALLBACK2_MODEL", "oc/deepseek-v4-flash-free")
+        cfg = auth.get_role_config("dreamer")
+        assert cfg["fallback2_provider"] == "omniroute"
+        assert cfg["fallback2_model"] == "oc/deepseek-v4-flash-free"
+
+    def test_papel_herda_fallback2_do_dreamer(self, monkeypatch):
+        for k in list(os.environ):
+            if k.startswith("HIVE_"):
+                monkeypatch.delenv(k, raising=False)
+        monkeypatch.setenv("HIVE_DREAMER_PROVIDER", "antigravity")
+        monkeypatch.setenv("HIVE_DREAMER_MODEL", "gemini-2.5-flash")
+        monkeypatch.setenv("HIVE_DREAMER_FALLBACK2_PROVIDER", "omniroute")
+        monkeypatch.setenv("HIVE_DREAMER_FALLBACK2_MODEL", "auto")
+        cfg = auth.get_role_config("pattern_distiller")   # herda tudo do dreamer
+        assert cfg["fallback2_provider"] == "omniroute" and cfg["fallback2_model"] == "auto"
+
+    def test_sem_fallback2_fica_none(self, monkeypatch):
+        for k in list(os.environ):
+            if k.startswith("HIVE_"):
+                monkeypatch.delenv(k, raising=False)
+        monkeypatch.setenv("HIVE_DREAMER_PROVIDER", "antigravity")
+        monkeypatch.setenv("HIVE_DREAMER_MODEL", "gemini-2.5-flash")
+        cfg = auth.get_role_config("dreamer")
+        assert cfg["fallback2_provider"] is None and cfg["fallback2_model"] is None
