@@ -1,6 +1,6 @@
 # Memória Viva — Design do Serviço Inteligente do Hive-Mind
 
-> **Versão**: 2.10 (Fase 4 desenhada — frontal/padrões/conflitos + resiliência F4.0; janela balanceada LIVE)
+> **Versão**: 2.11 (provider gemini-cli/Code Assist — quota Unlimited; OAuth do CLI reaproveitado; Fase 4 desenhada)
 > **Data**: 2026-06-17
 > **Escopo**: Definição completa do comportamento inteligente do serviço de memória do Sinapse — **estrutura do vault modelada na ANATOMIA CEREBRAL** (córtex com 5 lobos + diencéfalo + cerebelo + tronco), eixo primário por **projeto**, camada de **MOCs (consciência)** e **sinapses** automáticas, cadência (diária/sessão/semanal), formação autônoma de neurônios/pastas/MOCs, nomenclatura human-readable, multi-setor, métricas de "vivo", e plano de migração.
 > **Audiência**: Michel (autor do vault), futuros agentes IA, contribuidores do projeto.
@@ -1452,8 +1452,7 @@ boundedness (§13.2.1) merged. **Go-live recomendado** só após M9 verde por �
   **M12** conflitos abertos. `health_dashboard` calcula; `weekly` embute conflitos + decisões.
 
 **Entregáveis**: 4-5 scripts novos + hardening do dream (F4.0) + 4 papéis LLM + 4-5 timers
-+ 3 métricas. **Pré-condições**: **OAuth do gemini corrigido** (senão F4.3/F4.4/F4.2 com LLM
-rendem pouco — ver achado de yield) e **F4.0** (resiliência) antes de habilitar cadências.
++ 3 métricas. **Pré-condições**: ✅ **LLM resolvido** (provider `gemini-cli`/Code Assist, quota Unlimited — `e6817b2`); falta **F4.0** (resiliência do dream) antes de habilitar cadências.
 
 ### Cronograma
 
@@ -1857,8 +1856,8 @@ Papel `drift_detector` já registrado em `core/auth`.
 Desenhada task-a-task em **§11 → Fase 4** (F4.0-F4.6). Ordem obrigatória:
 **F4.0 (resiliência do dream) primeiro** — o loop multi-projeto não é resiliente
 (`database is locked` abortou um ciclo inteiro, M9=`error`/225s em 2026-06-18). Depois
-F4.1 decisões → F4.2 projetos → F4.3 padrões → F4.4 conflitos. **Pré-condição externa**:
-corrigir o **OAuth do gemini** (yield baixo no fallback). Cada script INERTE até validado
+F4.1 decisões → F4.2 projetos → F4.3 padrões → F4.4 conflitos. **LLM já resolvido**
+(provider `gemini-cli`/Code Assist, quota Unlimited — `e6817b2`). Cada script INERTE até validado
 (R1) + testado (R5); nada que mute neurônios sem `--apply`.
 
 ### 14.5 Estado de verdade (snapshot 2026-06-17, manter atualizado)
@@ -1877,9 +1876,9 @@ corrigir o **OAuth do gemini** (yield baixo no fallback). Cada script INERTE at�
 | Ponte claude-mem→hive_mind (multi-projeto) | ✅ **LIVE** | `claude_mem_bridge.py` (`0074de6`); 3955 obs c/ project; sinapse-bridge.timer |
 | Janela balanceada do dream (round-robin) | ✅ **LIVE** | `fetch_balanced_observations` (`07a6e64`); 30-obs = 10 projetos |
 | Resiliência do dream multi-projeto | ⚠️ **gap** | `database is locked` aborta ciclo (M9=error/225s) → **F4.0** |
-| OAuth gemini (provider primário) | ⚠️ **quebrado** | refresh falha; fallback ollama-cloud salva mas yield baixo |
+| Provider LLM do dream | ✅ **gemini-cli (Code Assist)** | quota Unlimited; `core/gemini_cli_client.py` (`e6817b2`); OAuth do CLI reaproveitado |
 | Fase 4 (frontal/padrões/conflitos) | 🔵 **desenhada** | §11/Fase 4 (F4.0-F4.6); auto-preenchimento total |
 
 ---
 
-*Documento vivo. Versão 2.10 (Fase 4 desenhada §11/F4.0-F4.6; janela balanceada `07a6e64` LIVE; achados: dream não-resiliente a lock + OAuth gemini quebrado). Próxima: F4.0 (resiliência) + OAuth gemini, depois F4.1+.*
+*Documento vivo. Versão 2.11 (LLM do dream via gemini-cli/Code Assist `e6817b2` — quota Unlimited; Fase 4 desenhada, falta F4.0 resiliência). Próxima: F4.0 + implementar F4.1+.*
