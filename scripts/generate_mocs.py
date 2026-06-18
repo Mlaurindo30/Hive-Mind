@@ -66,6 +66,8 @@ def scan_neurons() -> list[dict]:
         rel = md.relative_to(cp.TEMPORAL).parts
         if len(rel) < 3:                       # precisa de proj/top/arquivo
             continue
+        if rel[0] == "arquivo":                # memória fria (drift_detector) sai dos MOCs ativos
+            continue
         project, topic = rel[0], rel[1]
         fm = _frontmatter(md)
         if fm.get("type") == "redirect":
