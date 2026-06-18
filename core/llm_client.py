@@ -217,6 +217,9 @@ def call_llm_structured(prompt: str, system_prompt: str, response_model: Any,
                     {"role": "user", "content": user_content}
                 ],
                 "temperature": 0.1,
+                # Explícito: gateways como o OmniRoute fazem streaming por default quando
+                # `stream` é omitido — e nós parseamos JSON único (resp.json()). Forçar false.
+                "stream": False,
                 # OpenAI Structured Outputs Format
                 "response_format": {
                     "type": "json_schema",
