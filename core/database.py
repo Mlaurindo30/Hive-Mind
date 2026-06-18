@@ -278,6 +278,22 @@ def ensure_migrations(conn):
     if neuron_cols and "updated_at" in neuron_cols:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_neurons_topic_updated ON neurons(topic, updated_at)")
 
+    # Memória Viva M9 (doc 08, §14.4-P2): telemetria de sobrevivência do dream cycle.
+    # 1 linha por ciclo — permite medir duração e o motivo de término (ok /
+    # BUDGET_EXHAUSTED / error) antes de confiar no go-live do sinapse-dream.timer.
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS dream_cycle_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            started_at DATETIME NOT NULL,
+            ended_at DATETIME,
+            duration_s REAL,
+            observations_processed INTEGER DEFAULT 0,
+            ambiguities_processed INTEGER DEFAULT 0,
+            ended_reason TEXT
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_dream_cycle_started ON dream_cycle_log(started_at)")
+
     conn.commit()
 
 def get_recent_topics(limit=20) -> list[str]:

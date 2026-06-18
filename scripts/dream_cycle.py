@@ -448,7 +448,8 @@ source_image: {img_path.name}
 # Fluxo Principal (Main Loop)
 # ---------------------------------------------------------------------------
 
-def run_dream_cycle():
+def _run_dream_cycle_inner() -> Dict[str, int]:
+    """Corpo do ciclo. Retorna contadores p/ a telemetria M9 (ver run_dream_cycle)."""
     print(f"=== Hive-Mind: Ciclo de Sonho V2 (Corporate Grade) ===")
     cycle_t0 = time.perf_counter()
     stage_metrics: Dict[str, float] = {}
@@ -479,7 +480,7 @@ def run_dream_cycle():
     if not obs:
         print("  Cérebro descansado. Sem novas observações na fila.")
         conn.close()
-        return
+        return {"observations": 0, "persisted": 0}
 
     # Arquiva os logs brutos para a Inbox sensorial (cortex/parietal/inbox)
     from core import paths as cp
@@ -671,6 +672,58 @@ source: hive-dreamer
 
     print(f"=== Ciclo de Sonho Concluído ({total_persisted} neurônios persistidos em {len(distilled_by_project)} projeto(s)) ===")
     conn.close()
+    return {"observations": len(obs), "persisted": total_persisted}
+
+
+def _log_dream_cycle(started_iso: str, t0: float, obs_count: int, reason: str) -> None:
+    """Grava 1 linha em dream_cycle_log (métrica M9, doc 08 §14.4-P2). Não-fatal."""
+    try:
+        duration = round(time.perf_counter() - t0, 3)
+        conn = get_connection()
+        ensure_migrations(conn)
+        conn.execute(
+            """INSERT INTO dream_cycle_log
+               (started_at, ended_at, duration_s, observations_processed,
+                ambiguities_processed, ended_reason)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (started_iso, datetime.now().isoformat(), duration, obs_count, 0, reason),
+        )
+        conn.commit()
+        conn.close()
+        print(f"  [M9] dream_cycle_log: {reason} em {duration}s ({obs_count} obs)")
+    except Exception as e:  # telemetria nunca derruba o ciclo
+        print(f"  [M9] falha ao registrar dream_cycle_log (não-fatal): {e}")
+
+
+def run_dream_cycle() -> Dict[str, int]:
+    """Wrapper de telemetria M9: cronometra o ciclo e registra o desfecho
+    (ok / failed / empty / BUDGET_EXHAUSTED / error) em dream_cycle_log.
+
+    Mantém a assinatura pública usada pelos timers/__main__ — o corpo real é
+    `_run_dream_cycle_inner`. O `finally` garante 1 linha por ciclo mesmo se o
+    inner levantar exceção (registrada como 'error')."""
+    started_iso = datetime.now().isoformat()
+    t0 = time.perf_counter()
+    obs_count = 0
+    reason = "error"
+    result: Dict[str, int] = {"observations": 0, "persisted": 0}
+    try:
+        result = _run_dream_cycle_inner() or result
+        obs_count = result.get("observations", 0)
+        elapsed = time.perf_counter() - t0
+        if obs_count == 0:
+            reason = "empty"
+        elif elapsed >= MAX_CYCLE_SECONDS:
+            reason = "BUDGET_EXHAUSTED"
+        else:
+            reason = "ok" if result.get("persisted", 0) > 0 else "failed"
+        return result
+    except Exception:
+        reason = "error"
+        raise
+    finally:
+        _log_dream_cycle(started_iso, t0, obs_count, reason)
+
 
 def _persist_cycle_metrics(metrics: Dict[str, float], status: str) -> None:
     """Persiste métricas de latência do ciclo para observabilidade operacional."""
