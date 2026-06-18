@@ -146,3 +146,34 @@ def test_call_usa_endpoint_do_provider(monkeypatch):
     monkeypatch.setattr(gc.requests, "post", fake_post)
     gc.call_gemini_cli_structured("p", "s", Fato, model="gemini-2.5-flash", provider="gemini-cli")
     assert "cloudcode-pa.googleapis.com" in captured["url"] and "daily-" not in captured["url"]
+
+
+def test_model_chain_rotaciona():
+    chain = gc._model_chain("antigravity", "gemini-2.5-flash")
+    assert chain[0] == "gemini-2.5-flash"           # pedido primeiro
+    assert "gemini-3-pro-preview" in chain          # demais do provider
+    assert chain.count("gemini-2.5-flash") == 1     # sem duplicar
+
+
+def test_429_rotaciona_para_proximo_modelo(monkeypatch):
+    _patch_auth(monkeypatch)
+    monkeypatch.delenv("GEMINI_CLI_ENDPOINT", raising=False)
+    calls = []
+    def fake_post(url, headers=None, json=None, timeout=None):
+        m = json["model"]; calls.append(m)
+        if m == "gemini-2.5-flash":        # 1º modelo: rate-limited
+            return _Resp(429, text="exhausted on this model")
+        text = '{"resumo":"ok","confianca":1.0}'
+        return _Resp(200, {"response": {"candidates": [{"content": {"parts": [{"text": text}]}}]}})
+    monkeypatch.setattr(gc.requests, "post", fake_post)
+    out = gc.call_gemini_cli_structured("p", "s", Fato, model="gemini-2.5-flash", provider="antigravity")
+    assert out.resumo == "ok"
+    assert calls[0] == "gemini-2.5-flash" and calls[1] == "gemini-2.5-pro"  # rotacionou
+
+
+def test_todos_modelos_429_levanta_transient(monkeypatch):
+    _patch_auth(monkeypatch)
+    monkeypatch.setattr(gc.requests, "post", lambda *a, **k: _Resp(429, text="exhausted"))
+    with pytest.raises(gc.GeminiCliError) as exc:
+        gc.call_gemini_cli_structured("p", "s", Fato, model="gemini-2.5-flash", provider="gemini-cli")
+    assert "429" in str(exc.value)   # classificado transient → fallback do papel

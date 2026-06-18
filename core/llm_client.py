@@ -227,8 +227,10 @@ def call_llm_structured(prompt: str, system_prompt: str, response_model: Any,
                     }
                 }
             }
-            # Se for provedor local que não suporta 'strict' do OpenAI
-            if auth_creds['type'] == "local" or provider in ["anthropic", "openrouter", "deepseek"]:
+            # Se for provedor local que não suporta 'strict' do OpenAI. OmniRoute roteia
+            # p/ 226 backends heterogêneos → usa json_object (schema no prompt) p/ máxima
+            # compatibilidade em vez de json_schema strict.
+            if auth_creds['type'] == "local" or provider in ["anthropic", "openrouter", "deepseek", "omniroute"]:
                 payload["response_format"] = {"type": "json_object"}
                 payload["messages"][0]["content"] += f"\n\nOUTPUT MUST MATCH THIS JSON SCHEMA EXACTLY:\n{json.dumps(schema)}"
 

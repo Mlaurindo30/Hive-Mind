@@ -69,6 +69,15 @@ PROVIDERS_CONFIG = {
         "doc": "Login do Gemini CLI (`gemini`) — Code Assist estável (pool separado do antigravity).",
         "models_hint": ["gemini-2.5-flash", "gemini-2.5-pro"],
     },
+    # OmniRoute — gateway local OpenAI-compatible (226 providers, auto-fallback interno).
+    # Ótimo como ÚLTIMO fallback: se os pools Google esgotarem, ele roteia p/ 50+ free.
+    "omniroute": {
+        "env_var": "OMNIROUTE_API_KEY",
+        "base_url": _env("OMNIROUTE_BASE_URL") or "http://localhost:20128/v1",
+        "auth_type": ["api_key"],
+        "doc": "OmniRoute gateway local (http://localhost:20128). API key no Dashboard → Endpoints.",
+        "models_hint": ["auto", "gemini-2.5-flash", "gpt-4o-mini", "claude-3-5-sonnet"],
+    },
     "openai": {
         "env_var": "OPENAI_API_KEY",
         "base_url": "https://api.openai.com/v1",
