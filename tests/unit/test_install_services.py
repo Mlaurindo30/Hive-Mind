@@ -48,6 +48,8 @@ MEMORIA_VIVA_UNITS = [
     "sinapse-conflicts.service", "sinapse-conflicts.timer",
     # F4.5
     "sinapse-work.service", "sinapse-work.timer",
+    # Revisão diária
+    "sinapse-review.service", "sinapse-review.timer",
 ]
 
 

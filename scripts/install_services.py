@@ -448,6 +448,32 @@ Unit=sinapse-conflicts.service
 [Install]
 WantedBy=timers.target
 """,
+        # Revisão diária automática (independe de sessão de chat): resume M9/saúde/projetos.
+        "sinapse-review.service": f"""[Unit]
+Description=Memória Viva - Daily Review (insula/saude/revisao)
+After=network.target
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/review_writer.py
+""",
+        "sinapse-review.timer": """[Unit]
+Description=Dispara a revisão diária às 08:07 (após o ciclo noturno do dream)
+
+[Timer]
+OnCalendar=*-*-* 08:07:00
+Persistent=true
+Unit=sinapse-review.service
+
+[Install]
+WantedBy=timers.target
+""",
         # F4.5 work_tracker: quadro de trabalho ativo (arquivo próprio, idempotente).
         "sinapse-work.service": f"""[Unit]
 Description=Memória Viva - Work Tracker (frontal/trabalho/ativo)
@@ -562,6 +588,7 @@ def install(start: bool) -> int:
         "sinapse-patterns.timer",
         "sinapse-conflicts.timer",
         "sinapse-work.timer",
+        "sinapse-review.timer",   # revisão diária 08:07 (não depende de sessão)
     ]
     if api_enabled():
         enabled.append("sinapse-api.service")
