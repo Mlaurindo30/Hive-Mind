@@ -1,6 +1,6 @@
 # Memória Viva — Design do Serviço Inteligente do Hive-Mind
 
-> **Versão**: 2.14 (Fase 4 COMPLETA F4.0-F4.5 — todas as regiões do cérebro se auto-preenchem; gemini-cli + schema fix)
+> **Versão**: 2.15 (Fase 4 completa + dream timer LIVE + frontal materializado: 37 decisões/8 projetos)
 > **Data**: 2026-06-17
 > **Escopo**: Definição completa do comportamento inteligente do serviço de memória do Sinapse — **estrutura do vault modelada na ANATOMIA CEREBRAL** (córtex com 5 lobos + diencéfalo + cerebelo + tronco), eixo primário por **projeto**, camada de **MOCs (consciência)** e **sinapses** automáticas, cadência (diária/sessão/semanal), formação autônoma de neurônios/pastas/MOCs, nomenclatura human-readable, multi-setor, métricas de "vivo", e plano de migração.
 > **Audiência**: Michel (autor do vault), futuros agentes IA, contribuidores do projeto.
@@ -1871,7 +1871,7 @@ F4.1 decisões → F4.2 projetos → F4.3 padrões → F4.4 conflitos. **LLM já
 | Fase 2 (alias/topic-merge/setor/weekly) | ✅ **daily/weekly/topics LIVE** | timers habilitados (`999db80`); dream gated por M9 |
 | M9 (sobrevivência) | ✅ **instrumentado** | `dream_cycle_log` (`e06a2d4`); falta acumular 7d verde |
 | Timers em `install_services.py` | ✅ **canônicos** | 8 units + `check()` ok (`999db80`) |
-| `sinapse-dream.timer` | ⏳ definido, **não habilitado** | go-live após M9 verde ≥ 7d |
+| `sinapse-dream.timer` | ✅ **ENABLED** (2026-06-18) | go-live com override consentido; próximo 03:00; reversível |
 | Fase 3 (drift/staleness/health) | ✅ **implementada** | F3.1-F3.4 (22 testes); health LIVE, drift manual |
 | Ponte claude-mem→hive_mind (multi-projeto) | ✅ **LIVE** | `claude_mem_bridge.py` (`0074de6`); 3955 obs c/ project; sinapse-bridge.timer |
 | Janela balanceada do dream (round-robin) | ✅ **LIVE** | `fetch_balanced_observations` (`07a6e64`); 30-obs = 10 projetos |
@@ -1886,4 +1886,4 @@ F4.1 decisões → F4.2 projetos → F4.3 padrões → F4.4 conflitos. **LLM já
 
 ---
 
-*Documento vivo. Versão 2.14 (Fase 4 completa F4.0-F4.5: frontal/decisoes+projetos+trabalho, cerebelo/padroes, insula/conflitos auto-preenchidos; 350 testes). Próxima: habilitar sinapse-dream.timer após M9 verde + ligar cadências F4.*
+*Documento vivo. Versão 2.15 (Fase 4 completa; sinapse-dream.timer ENABLED 2026-06-18; frontal materializado — 37 decisões + 8 status de projeto). O cérebro agora vive sozinho: ingere, destila, segrega, sintetiza e se auto-preenche.*
