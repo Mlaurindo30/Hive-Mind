@@ -1572,10 +1572,12 @@ de ingestão do eixo projeto.
 quarentenado; `hive_mind.db` passou a refletir a distribuição correta de projetos.
 Teste real: `tests/unit/test_claude_mem_bridge.py` (5 testes, 2 DBs).
 
-> **Follow-up conhecido (não-bloqueante)**: o dream processa `ORDER BY created_at LIMIT 30`
-> (mais antigas primeiro). Com o backlog importado, ele consome **um projeto por vez** na
-> ordem cronológica — pode demorar p/ alcançar projetos recentes. Otimização futura
-> (Fase 4?): janela balanceada por projeto ou quota round-robin.
+> **Follow-up — ✅ RESOLVIDO (`07a6e64`)**: o dream usava `ORDER BY created_at LIMIT 30`
+> (mais antigas primeiro) → consumia **um projeto por vez**. Agora `fetch_balanced_observations`
+> usa `ROW_NUMBER() OVER (PARTITION BY project ORDER BY created_at)` (round-robin): pega a
+> mais antiga de **cada** projeto primeiro, mantendo o teto `MAX_OBS_PER_CYCLE`. Validado:
+> a janela de 30 passou de **1 projeto** (michel) para **10 projetos** num único ciclo.
+> +5 testes (`test_dream_balanced_window.py`).
 
 ### 13.3 Nota operacional — reiniciar sessões MCP ativas
 
