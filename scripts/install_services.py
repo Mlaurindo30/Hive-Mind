@@ -396,6 +396,32 @@ Unit=sinapse-projects.service
 [Install]
 WantedBy=timers.target
 """,
+        # F4.3 pattern_distiller: memória procedural (LLM). Semanal; arquivos próprios.
+        "sinapse-patterns.service": f"""[Unit]
+Description=Memória Viva - Pattern Distiller (cerebelo/padroes)
+After=network.target sinapse-claude-mem.service
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/pattern_distiller.py --apply
+""",
+        "sinapse-patterns.timer": """[Unit]
+Description=Dispara o pattern distiller aos domingos 05:00
+
+[Timer]
+OnCalendar=Sun 05:00
+Persistent=true
+Unit=sinapse-patterns.service
+
+[Install]
+WantedBy=timers.target
+""",
         # drift roda log-only (SEM --apply): apenas reporta candidatos a cold/stale.
         "sinapse-drift.service": f"""[Unit]
 Description=Memória Viva - Drift Detector (log-only, SEM --apply)
@@ -481,6 +507,7 @@ def install(start: bool) -> int:
         # Fase 4: decisions/projects materializam arquivos próprios (idempotente) → seguro.
         "sinapse-decisions.timer",
         "sinapse-projects.timer",
+        "sinapse-patterns.timer",
     ]
     if api_enabled():
         enabled.append("sinapse-api.service")
