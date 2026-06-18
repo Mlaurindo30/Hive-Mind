@@ -8,7 +8,7 @@
 > estrutura anatômica, `core/paths.py`, camada MOC+sinapses (§7.6), **plumbing de
 > `observation.project` ✅ (§13.2)** e **boundedness ✅ (§13.2.1)**. Os **scripts da Fase 1**
 > (session/daily) estão **escritos e testados, porém INERTES** (hooks/timers OFF até go-live).
-> **Fase 2** (memória inteligente: alias/topic-merge/setor/weekly) com **scripts escritos e testados, INERTES**. Fase 3 permanece proposta.
+> **Fase 1 LIVE** (cadência de sessão via hooks + daily timer). **Fase 2** (alias/topic-merge/setor/weekly) validada funcionalmente, scripts INERTES (timers não instalados). Fase 3 proposta.
 
 ---
 
@@ -1216,7 +1216,7 @@ systemctl --user restart sinapse-watcher
 
 ## 11. Roadmap Fase 1-3
 
-### Fase 1 — Cadência básica (2-3 sprints, W28-W30) — ⏳ scripts prontos (INERTES), go-live pendente
+### Fase 1 — Cadência básica (W28-W30) — ✅ LIVE (hooks ativos + daily timer instalado)
 
 **Tasks**:
 1. ✅ `scripts/daily_writer.py` — gera `cerebro/cerebelo/diario/YYYY/MM/YYYY-MM-DD.md` *(escrito + testado)*
@@ -1264,7 +1264,7 @@ boundedness (§13.2.1) merged. **Go-live recomendado** só após M9 verde por �
 | Fase | Duração | Risco principal | Status |
 |---|---|---|---|
 | Fase 0 | 2 sprints (W25-W26) | Migration quebra links existentes | ✅ **CONCLUÍDA** (2026-06-17, 261 testes) |
-| Fase 1 | 2-3 sprints (W27-W29) | Hooks disparam em sessões de teste | ⏳ **scripts prontos (INERTES)** — falta instalar timer + wirar hooks (go-live) |
+| Fase 1 | 2-3 sprints (W27-W29) | Hooks disparam em sessões de teste | ✅ **LIVE** — hooks (SessionStart/PostToolUse/Stop) ativos em .claude/settings.json + daily timer instalado; 6 session logs + daily gerados |
 | Fase 2 | 2-3 sprints (W30-W32) | Topic consolidator faz merge errado | ⏳ **scripts prontos (INERTES)** — falta instalar 3 timers (go-live) |
 | Fase 3 | 2 sprints (W33-W34) | LLM summarizer produz weekly ruins | proposta |
 
