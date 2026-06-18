@@ -40,6 +40,8 @@ MEMORIA_VIVA_UNITS = [
     "sinapse-drift.service", "sinapse-drift.timer",
     # Ponte multi-projeto
     "sinapse-bridge.service", "sinapse-bridge.timer",
+    # Fase 4 (F4.1)
+    "sinapse-decisions.service", "sinapse-decisions.timer",
 ]
 
 

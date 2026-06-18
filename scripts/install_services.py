@@ -342,6 +342,34 @@ Unit=sinapse-health.service
 [Install]
 WantedBy=timers.target
 """,
+        # ===== Fase 4 — memória executiva (F4.1) =====
+        # decision_promoter materializa decisões em frontal/decisoes/. Roda --apply:
+        # cria/atualiza arquivos PRÓPRIOS (idempotentes, regeneráveis), NÃO muta neurônios.
+        "sinapse-decisions.service": f"""[Unit]
+Description=Memória Viva - Decision Promoter (frontal/decisoes)
+After=network.target
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/decision_promoter.py --apply
+""",
+        "sinapse-decisions.timer": """[Unit]
+Description=Dispara o decision promoter diariamente 23:40 (pós-dream)
+
+[Timer]
+OnCalendar=*-*-* 23:40:00
+Persistent=true
+Unit=sinapse-decisions.service
+
+[Install]
+WantedBy=timers.target
+""",
         # drift roda log-only (SEM --apply): apenas reporta candidatos a cold/stale.
         "sinapse-drift.service": f"""[Unit]
 Description=Memória Viva - Drift Detector (log-only, SEM --apply)
@@ -424,6 +452,8 @@ def install(start: bool) -> int:
         "sinapse-topics.timer",
         # Fase 3: health é read-only (snapshot). drift NÃO entra (roda --apply só à mão).
         "sinapse-health.timer",
+        # Fase 4: decisions materializa arquivos próprios (idempotente) → seguro no enabled.
+        "sinapse-decisions.timer",
     ]
     if api_enabled():
         enabled.append("sinapse-api.service")
