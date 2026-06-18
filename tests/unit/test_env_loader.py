@@ -50,11 +50,14 @@ def tmp_env_file(tmp_path, monkeypatch):
 
 @pytest.fixture()
 def clean_hive_env(monkeypatch):
-    """Remove todas as HIVE_* e chaves usadas no teste de os.environ."""
-    keys_to_clear = [
-        "HIVE_DREAMER_PROVIDER", "HIVE_DREAMER_MODEL",
-        "GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
-        "EXTRA_SHELL_VAR", "HIVE_VISION_PROVIDER",
+    """Remove TODAS as HIVE_* (dinâmico) + chaves usadas no teste de os.environ.
+
+    Dinâmico (não lista fixa) para o teste ser robusto a poluição de import:
+    outros módulos chamam load_env() ao serem importados na coleção do pytest,
+    deixando HIVE_* no os.environ. Limpamos tudo p/ garantir 'shell fresca'."""
+    import os as _os
+    keys_to_clear = [k for k in list(_os.environ) if k.startswith("HIVE_")] + [
+        "GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "EXTRA_SHELL_VAR",
     ]
     for k in keys_to_clear:
         monkeypatch.delenv(k, raising=False)

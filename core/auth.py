@@ -357,11 +357,14 @@ def refresh_oauth_token(provider_name: str):
 
 # Papéis canônicos de LLM do Hive-Mind. Outros nomes também são aceitos por
 # get_role_config (qualquer papel sem vars próprias herda do Dreamer).
-# Fase 1 (Memória Viva §11): session_summarizer e daily_writer são os novos
-# papéis da cadência básica (hooks SessionStart/Stop/PostToolUse + timer 23:55).
+# Fase 1 (Memória Viva §11): session_summarizer e daily_writer.
+# Fase 2 (Memória Inteligente): alias_miner, topic_router, sector_classifier,
+# weekly_synthesizer. Fase 3 (infra adiantada): drift_detector.
 HIVE_LLM_ROLES = (
     "dreamer", "graphify", "vision", "synthesis", "claude_mem",
     "session_summarizer", "daily_writer",
+    "alias_miner", "topic_router", "sector_classifier", "weekly_synthesizer",
+    "drift_detector",
 )
 
 def get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]:

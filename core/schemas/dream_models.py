@@ -9,6 +9,7 @@ class ExtractedFact(BaseModel):
     label: str = Field(description="Título curto e conciso do fato (máximo 5 palavras).")
     content: str = Field(description="O fato, decisão ou preferência detalhada.")
     integrity_hash: Optional[str] = Field(None, description="Hash SHA256 do conteúdo para garantir unicidade e integridade.")
+    alias: Optional[str] = Field(None, description="Slug kebab-case human-readable para o fato. Ex: 'python-pydantic-alias'.")
     type: Literal["fact", "preference", "decision", "lore"] = Field(
         description="Categoria semântica do fato extraído."
     )

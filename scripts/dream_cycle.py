@@ -30,7 +30,7 @@ try:
 except ImportError:
     pass
 
-from core.database import get_connection, ensure_migrations
+from core.database import get_connection, ensure_migrations, get_recent_topics
 from core.schemas.dream_models import DistillerOutput, ValidatorOutput, RouterOutput
 from core.schemas.vision_models import VisionAnalysis
 from core.schemas.synthesis_models import SynthesisOutput, SynthesisTask
@@ -198,7 +198,12 @@ def agent_route(facts: List[Any]) -> Optional[RouterOutput]:
         if topic_dir.is_dir() and not topic_dir.name.startswith("_")
     })
 
-    prompt = f"TÓPICOS EXISTENTES NO ATLAS:\n{existing_topics}\n\nFATOS A SEREM ROTEADOS:\n{json.dumps([f.model_dump() for f in facts], indent=2)}"
+    # SLIDING WINDOW (Task 3): tópicos mais recentes do banco de dados
+    recent_topics = get_recent_topics(limit=20)
+
+    prompt = f"TÓPICOS EXISTENTES NO ATLAS:\n{existing_topics}\n\n"
+    prompt += f"TÓPICOS RECENTES (SLIDING WINDOW - PREFERIR ESTES SE MATCH >= 0.7):\n{recent_topics}\n\n"
+    prompt += f"FATOS A SEREM ROTEADOS:\n{json.dumps([f.model_dump() for f in facts], indent=2)}"
 
     max_attempts = 3
     attempt = 0
@@ -577,17 +582,24 @@ def run_dream_cycle():
             if not fact:
                 continue
 
-            safe_topic = r.topic.lower().replace(" ", "_")
+            # Sanitização robusta: lowercase, snake_case, sem caracteres especiais
+            safe_topic = re.sub(r'[^a-z0-9_]', '', r.topic.lower().replace(" ", "_"))
+            if not safe_topic:
+                safe_topic = "general"
+
             # nome anatômico: fact-{hash} → neuronio-{hash}
             nid = fact.id.replace("fact-", "neuronio-", 1) if fact.id.startswith("fact-") else fact.id
             note_file = cp.TEMPORAL / proj / safe_topic / f"{nid}.md"
             note_file.parent.mkdir(parents=True, exist_ok=True)
+
+            aliases_val = json.dumps([fact.alias] if fact.alias else [])
 
             content = f"""---
 type: {fact.type}
 project: {proj}
 topic: {safe_topic}
 integrity_hash: {fact.integrity_hash}
+aliases: {aliases_val}
 last_updated: {now.strftime('%Y-%m-%d %H:%M')}
 source: hive-dreamer
 ---
@@ -604,6 +616,22 @@ source: hive-dreamer
 
 #consolidated #{safe_topic}
 """
+
+            # Atualiza banco de dados (tabela neurons)
+            source_rel = str(note_file.relative_to(SINAPSE_HOME))
+            conn.execute("""
+                INSERT INTO neurons (id, label, type, content, hash, source_file, topic, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(id) DO UPDATE SET
+                    content=excluded.content,
+                    label=excluded.label,
+                    hash=excluded.hash,
+                    source_file=excluded.source_file,
+                    topic=excluded.topic,
+                    updated_at=CURRENT_TIMESTAMP
+            """, (nid, fact.label, fact.type, fact.content, fact.integrity_hash, source_rel, safe_topic))
+            conn.commit()
+
             mode = "a" if r.action in ["append", "merge"] and note_file.exists() else "w"
             if mode == "a":
                 content = f"\n\n---\n## Atualização de {now.strftime('%Y-%m-%d')}\n{fact.content}\n"

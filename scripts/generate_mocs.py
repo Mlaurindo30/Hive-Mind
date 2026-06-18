@@ -66,6 +66,8 @@ def scan_neurons() -> list[dict]:
             continue
         project, topic = rel[0], rel[1]
         fm = _frontmatter(md)
+        if fm.get("type") == "redirect":
+            continue
         sectors = [s.strip() for s in re.split(r"[,\[\]]", fm.get("sectors", "")) if s.strip()]
         out.append({"path": md, "project": project, "topic": topic,
                     "title": _title(md), "stem": md.stem, "sectors": sectors})

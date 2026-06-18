@@ -27,6 +27,7 @@ system_prompt: |
         "id": "short-unique-slug",
         "label": "Short Title",
         "content": "Detailed fact description",
+        "alias": "kebab-case-slug",
         "type": "fact", 
         "source_quotes": ["Exact quote from log"]
       }
