@@ -365,6 +365,10 @@ HIVE_LLM_ROLES = (
     "session_summarizer", "daily_writer",
     "alias_miner", "topic_router", "sector_classifier", "weekly_synthesizer",
     "drift_detector",
+    # Fase 4 (memória executiva e procedural): decision_promoter/project_synthesizer
+    # são file-based (sem LLM hoje), mas reservados; pattern_distiller e
+    # conflict_detector usam LLM (herdam do dreamer = gemini-cli por default).
+    "decision_promoter", "project_synthesizer", "pattern_distiller", "conflict_detector",
 )
 
 def get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]:
