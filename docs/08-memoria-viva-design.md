@@ -1,6 +1,6 @@
 # Memória Viva — Design do Serviço Inteligente do Hive-Mind
 
-> **Versão**: 2.15 (Fase 4 completa + dream timer LIVE + frontal materializado: 37 decisões/8 projetos)
+> **Versão**: 2.16 (provider migrado p/ Antigravity daily-cloudcode-pa; sinapse-review timer diário — revisão sem depender de sessão)
 > **Data**: 2026-06-17
 > **Escopo**: Definição completa do comportamento inteligente do serviço de memória do Sinapse — **estrutura do vault modelada na ANATOMIA CEREBRAL** (córtex com 5 lobos + diencéfalo + cerebelo + tronco), eixo primário por **projeto**, camada de **MOCs (consciência)** e **sinapses** automáticas, cadência (diária/sessão/semanal), formação autônoma de neurônios/pastas/MOCs, nomenclatura human-readable, multi-setor, métricas de "vivo", e plano de migração.
 > **Audiência**: Michel (autor do vault), futuros agentes IA, contribuidores do projeto.
@@ -1876,7 +1876,7 @@ F4.1 decisões → F4.2 projetos → F4.3 padrões → F4.4 conflitos. **LLM já
 | Ponte claude-mem→hive_mind (multi-projeto) | ✅ **LIVE** | `claude_mem_bridge.py` (`0074de6`); 3955 obs c/ project; sinapse-bridge.timer |
 | Janela balanceada do dream (round-robin) | ✅ **LIVE** | `fetch_balanced_observations` (`07a6e64`); 30-obs = 10 projetos |
 | Resiliência do dream multi-projeto | ✅ **F4.0 feito** | WAL+busy_timeout + try/except por projeto; ended_reason=partial (`5c18f55`) |
-| Provider LLM do dream | ✅ **gemini-cli (Code Assist)** | quota Unlimited; `core/gemini_cli_client.py` (`e6817b2`); OAuth do CLI reaproveitado |
+| Provider LLM do dream | ✅ **Antigravity (daily-cloudcode-pa)** | tier Antigravity + gemini-3; OAuth do CLI; `f7f9aa8` (endpoint configurável GEMINI_CLI_ENDPOINT) |
 | frontal/decisoes (F4.1) | ✅ **LIVE** | `decision_promoter` (`66fee55`); sinapse-decisions.timer; 37 decisões |
 | Fase 4 (F4.0-F4.5) | ✅ **IMPLEMENTADA** | frontal+padrões+conflitos+trabalho auto-preenchidos (`66fee55`→`f1878cb`) |
 | frontal/projetos (F4.2) | ✅ LIVE | project_synthesizer; sinapse-projects.timer |
@@ -1886,4 +1886,4 @@ F4.1 decisões → F4.2 projetos → F4.3 padrões → F4.4 conflitos. **LLM já
 
 ---
 
-*Documento vivo. Versão 2.15 (Fase 4 completa; sinapse-dream.timer ENABLED 2026-06-18; frontal materializado — 37 decisões + 8 status de projeto). O cérebro agora vive sozinho: ingere, destila, segrega, sintetiza e se auto-preenche.*
+*Documento vivo. Versão 2.16 (LLM via Antigravity `daily-cloudcode-pa` (gemini-3); sinapse-review.timer 08:07 escreve revisão em insula/saude; 356 testes). O cérebro vive e se revisa sozinho.*
