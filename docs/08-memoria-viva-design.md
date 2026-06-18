@@ -1,6 +1,6 @@
 # Memória Viva — Design do Serviço Inteligente do Hive-Mind
 
-> **Versão**: 2.8 (Fase 3 implementada — drift/staleness/health; P1+P2+P3 ✅; health LIVE, drift/dream manuais)
+> **Versão**: 2.9 (ponte claude-mem→hive_mind — eixo multi-projeto restaurado; dream segrega por projeto de verdade)
 > **Data**: 2026-06-17
 > **Escopo**: Definição completa do comportamento inteligente do serviço de memória do Sinapse — **estrutura do vault modelada na ANATOMIA CEREBRAL** (córtex com 5 lobos + diencéfalo + cerebelo + tronco), eixo primário por **projeto**, camada de **MOCs (consciência)** e **sinapses** automáticas, cadência (diária/sessão/semanal), formação autônoma de neurônios/pastas/MOCs, nomenclatura human-readable, multi-setor, métricas de "vivo", e plano de migração.
 > **Audiência**: Michel (autor do vault), futuros agentes IA, contribuidores do projeto.
@@ -1545,6 +1545,38 @@ ciclo existir.)*
 go-live de qualquer cadência (dream diário, session_update por tool call) —
 satisfeita por `6a3e103`.
 
+### 13.2.2 Ponte `claude-mem → hive_mind` — ✅ EXECUTADO (eixo multi-projeto)
+
+**Bug encontrado (2026-06-18)**: o `_resolve_project` (§13.2) estava correto, mas
+**nunca recebia o dado**. O `dream_cycle` lê `hive_mind.db.observations`, onde
+`project` vinha **NULL em 581/582 linhas** (entulho de teste/auditoria/legado, sem
+`session_id`). O trabalho real multi-projeto vive em **`claude-mem.db`** (project
+completo: Hive-Mind, ComfyUI, Thoth, open-design, michel, OpenAlice, agent-langgraph…)
+e **não havia ponte** entre os dois bancos. Resultado: o dream colapsava tudo no
+default `Hive-Mind/`.
+
+**Correção — `scripts/claude_mem_bridge.py`** (commit `0074de6`):
+- Importa `claude-mem.db.observations` → `hive_mind.db.observations` **preservando `project`**.
+- **Idempotente**: id determinístico `cm-{content_hash}` + `INSERT OR IGNORE` (re-rodar não duplica).
+- **Read-only na fonte**; mapeia `text`/`narrative` → `content`; preserva `created_at`.
+- **Boundedness** (R8): `--limit` (default 1000/execução).
+- `quarantine_legacy()`: marca o entulho (project NULL, não-bridged, pendente) como
+  `archived=2` p/ o dream parar de gerar neurônio-lixo.
+- **Cadência**: `sinapse-bridge.timer` (02:45, antes do dream, no `enabled`).
+
+**Arquitetura preservada**: o dream continua lendo `hive_mind.db` e usando `archived`
+como marcador de já-consolidado — código do dream **intacto**. A ponte é o novo órgão
+de ingestão do eixo projeto.
+
+**Validação real (R1)**: 3955 obs importadas (todos os projetos), 420 entulho
+quarentenado; `hive_mind.db` passou a refletir a distribuição correta de projetos.
+Teste real: `tests/unit/test_claude_mem_bridge.py` (5 testes, 2 DBs).
+
+> **Follow-up conhecido (não-bloqueante)**: o dream processa `ORDER BY created_at LIMIT 30`
+> (mais antigas primeiro). Com o backlog importado, ele consome **um projeto por vez** na
+> ordem cronológica — pode demorar p/ alcançar projetos recentes. Otimização futura
+> (Fase 4?): janela balanceada por projeto ou quota round-robin.
+
 ### 13.3 Nota operacional — reiniciar sessões MCP ativas
 
 A sessão que reescreveu `brain/Patterns.md` cacheou os paths antigos no startup. Sessões
@@ -1712,7 +1744,8 @@ Papel `drift_detector` já registrado em `core/auth`.
 | Timers em `install_services.py` | ✅ **canônicos** | 8 units + `check()` ok (`999db80`) |
 | `sinapse-dream.timer` | ⏳ definido, **não habilitado** | go-live após M9 verde ≥ 7d |
 | Fase 3 (drift/staleness/health) | ✅ **implementada** | F3.1-F3.4 (22 testes); health LIVE, drift manual |
+| Ponte claude-mem→hive_mind (multi-projeto) | ✅ **LIVE** | `claude_mem_bridge.py` (`0074de6`); 3955 obs c/ project; sinapse-bridge.timer |
 
 ---
 
-*Documento vivo. Versão 2.8 (Fase 3 implementada F3.1-F3.4 `bb1bdcc`/`e1c5089`/`7b59818`; health LIVE, drift manual, dream gated por M9). Próxima revisão: após 7d de M9 verde → habilitar dream.*
+*Documento vivo. Versão 2.9 (ponte multi-projeto `0074de6` — dream cria cortex/temporal/{projeto}/ corretamente; validado: pasta michel/ criada com 7 neurônios). Próxima revisão: corrigir OAuth do gemini + Fase 4 (frontal/padrões + janela balanceada por projeto).*
