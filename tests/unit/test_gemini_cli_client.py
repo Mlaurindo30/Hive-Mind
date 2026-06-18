@@ -35,7 +35,7 @@ class _Resp:
 
 def _patch_auth(monkeypatch):
     monkeypatch.setattr(gc, "get_access_token", lambda: "tok-123")
-    monkeypatch.setattr(gc, "get_project_id", lambda token: "proj-x")
+    monkeypatch.setattr(gc, "get_project_id", lambda token, endpoint=None: "proj-x")
 
 
 def test_extract_text_shape():
@@ -88,8 +88,8 @@ def test_llm_client_dispatch_para_gemini_cli(monkeypatch):
     """call_llm_structured(provider='gemini-cli') deve rotear p/ o módulo Code Assist."""
     import core.llm_client as llm
     called = {}
-    def fake(prompt, system_prompt, response_model, model, image_path=None):
-        called["hit"] = (model, response_model)
+    def fake(prompt, system_prompt, response_model, model, image_path=None, provider=None):
+        called["hit"] = (model, provider)
         return Fato(resumo="ok", confianca=1.0)
     monkeypatch.setattr("core.gemini_cli_client.call_gemini_cli_structured", fake)
     out = llm.call_llm_structured("p", "s", Fato, provider="gemini-cli", model="gemini-2.5-flash")
@@ -120,3 +120,29 @@ def test_to_gemini_schema_inline_refs_e_remove_defs():
     # Optional → nullable
     assert clean["properties"]["opt"]["type"] == "string"
     assert clean["properties"]["opt"]["nullable"] is True
+
+
+def test_endpoint_por_provider(monkeypatch):
+    monkeypatch.delenv("GEMINI_CLI_ENDPOINT", raising=False)
+    assert "daily-cloudcode-pa" in gc._endpoint_for("antigravity")
+    assert gc._endpoint_for("gemini-cli").endswith("cloudcode-pa.googleapis.com")
+    assert "daily-cloudcode-pa" not in gc._endpoint_for("gemini-cli")
+    assert "daily-cloudcode-pa" in gc._endpoint_for(None)   # default antigravity
+
+
+def test_env_override_endpoint(monkeypatch):
+    monkeypatch.setenv("GEMINI_CLI_ENDPOINT", "https://x.example.com")
+    assert gc._endpoint_for("gemini-cli") == "https://x.example.com"
+
+
+def test_call_usa_endpoint_do_provider(monkeypatch):
+    _patch_auth(monkeypatch)
+    monkeypatch.delenv("GEMINI_CLI_ENDPOINT", raising=False)
+    captured = {}
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["url"] = url
+        text = '{"resumo":"x","confianca":0.5}'
+        return _Resp(200, {"response": {"candidates": [{"content": {"parts": [{"text": text}]}}]}})
+    monkeypatch.setattr(gc.requests, "post", fake_post)
+    gc.call_gemini_cli_structured("p", "s", Fato, model="gemini-2.5-flash", provider="gemini-cli")
+    assert "cloudcode-pa.googleapis.com" in captured["url"] and "daily-" not in captured["url"]
