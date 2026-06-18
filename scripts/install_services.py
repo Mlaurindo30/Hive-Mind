@@ -370,6 +370,32 @@ Unit=sinapse-decisions.service
 [Install]
 WantedBy=timers.target
 """,
+        # F4.2 project_synthesizer: status agregado por projeto (arquivos próprios, idempotente).
+        "sinapse-projects.service": f"""[Unit]
+Description=Memória Viva - Project Synthesizer (frontal/projetos)
+After=network.target
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/project_synthesizer.py --apply
+""",
+        "sinapse-projects.timer": """[Unit]
+Description=Dispara o project synthesizer diariamente 23:42
+
+[Timer]
+OnCalendar=*-*-* 23:42:00
+Persistent=true
+Unit=sinapse-projects.service
+
+[Install]
+WantedBy=timers.target
+""",
         # drift roda log-only (SEM --apply): apenas reporta candidatos a cold/stale.
         "sinapse-drift.service": f"""[Unit]
 Description=Memória Viva - Drift Detector (log-only, SEM --apply)
@@ -452,8 +478,9 @@ def install(start: bool) -> int:
         "sinapse-topics.timer",
         # Fase 3: health é read-only (snapshot). drift NÃO entra (roda --apply só à mão).
         "sinapse-health.timer",
-        # Fase 4: decisions materializa arquivos próprios (idempotente) → seguro no enabled.
+        # Fase 4: decisions/projects materializam arquivos próprios (idempotente) → seguro.
         "sinapse-decisions.timer",
+        "sinapse-projects.timer",
     ]
     if api_enabled():
         enabled.append("sinapse-api.service")
