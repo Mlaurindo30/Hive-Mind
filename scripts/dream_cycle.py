@@ -46,6 +46,33 @@ PROMPTS_DIR = SCHEMAS_DIR / "prompts"
 # llm_client). O gap real era a síntese sem teto → aqui ela ganha cap + deadline.
 MAX_CYCLE_SECONDS = int(os.environ.get("HIVE_MAX_CYCLE_SECONDS", "600"))
 MAX_AMBIGUITIES = int(os.environ.get("HIVE_MAX_AMBIGUITIES", "50"))
+MAX_OBS_PER_CYCLE = int(os.environ.get("HIVE_MAX_OBS_PER_CYCLE", "30"))
+
+
+def fetch_balanced_observations(conn, limit: int = MAX_OBS_PER_CYCLE) -> list:
+    """Janela BALANCEADA por projeto (round-robin), em vez de só 'mais antigas'.
+
+    Antes: `ORDER BY created_at LIMIT 30` → com backlog de milhares, o ciclo
+    consumia UM projeto por vez (cronológico) e projetos recentes demoravam dias.
+
+    Agora: rankeia cada observação dentro do seu projeto (ROW_NUMBER por created_at)
+    e ordena por rank — assim pega a mais antiga de CADA projeto primeiro, depois a
+    2ª de cada, etc. Resultado: todos os projetos pendentes avançam a cada ciclo,
+    mantendo o teto de boundedness (LIMIT). Empata por created_at (determinístico)."""
+    return conn.execute(
+        """
+        SELECT * FROM (
+            SELECT *, ROW_NUMBER() OVER (
+                PARTITION BY COALESCE(project, '_sem_projeto')
+                ORDER BY created_at ASC, id ASC
+            ) AS _rk
+            FROM observations WHERE archived = 0
+        )
+        ORDER BY _rk ASC, created_at ASC, id ASC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
 
 def load_yaml(path: Path) -> dict:
     with open(path, "r", encoding="utf-8") as f:
@@ -475,7 +502,7 @@ def _run_dream_cycle_inner() -> Dict[str, int]:
     # --- INGESTÃO ---
     conn = get_connection()
     ensure_migrations(conn)
-    obs = conn.execute("SELECT * FROM observations WHERE archived = 0 ORDER BY created_at LIMIT 30").fetchall()
+    obs = fetch_balanced_observations(conn)
 
     if not obs:
         print("  Cérebro descansado. Sem novas observações na fila.")
