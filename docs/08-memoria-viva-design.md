@@ -1,6 +1,6 @@
 # Memória Viva — Design do Serviço Inteligente do Hive-Mind
 
-> **Versão**: 2.17 (LLM dual: antigravity+gemini-cli como pools de quota separados c/ fallback; ambos no setup-brain)
+> **Versão**: 2.18 (LLM: rotação de modelo no 429 [quota por-modelo] + OmniRoute como provider/gateway; resiliência de quota em 3 camadas: modelo→provider→OmniRoute)
 > **Data**: 2026-06-17
 > **Escopo**: Definição completa do comportamento inteligente do serviço de memória do Sinapse — **estrutura do vault modelada na ANATOMIA CEREBRAL** (córtex com 5 lobos + diencéfalo + cerebelo + tronco), eixo primário por **projeto**, camada de **MOCs (consciência)** e **sinapses** automáticas, cadência (diária/sessão/semanal), formação autônoma de neurônios/pastas/MOCs, nomenclatura human-readable, multi-setor, métricas de "vivo", e plano de migração.
 > **Audiência**: Michel (autor do vault), futuros agentes IA, contribuidores do projeto.
@@ -1876,7 +1876,7 @@ F4.1 decisões → F4.2 projetos → F4.3 padrões → F4.4 conflitos. **LLM já
 | Ponte claude-mem→hive_mind (multi-projeto) | ✅ **LIVE** | `claude_mem_bridge.py` (`0074de6`); 3955 obs c/ project; sinapse-bridge.timer |
 | Janela balanceada do dream (round-robin) | ✅ **LIVE** | `fetch_balanced_observations` (`07a6e64`); 30-obs = 10 projetos |
 | Resiliência do dream multi-projeto | ✅ **F4.0 feito** | WAL+busy_timeout + try/except por projeto; ended_reason=partial (`5c18f55`) |
-| Provider LLM do dream | ✅ **Antigravity + gemini-cli (2 pools)** | mesma OAuth, endpoints/quotas separados → um é fallback do outro (`46e8267`); ambos no setup-brain |
+| Provider LLM do dream | ✅ **Antigravity+gemini-cli + rotação de modelo + OmniRoute** | 429 é por-modelo → rotaciona modelos antes de trocar provider; OmniRoute (gateway 226 providers) registrado como fallback |
 | frontal/decisoes (F4.1) | ✅ **LIVE** | `decision_promoter` (`66fee55`); sinapse-decisions.timer; 37 decisões |
 | Fase 4 (F4.0-F4.5) | ✅ **IMPLEMENTADA** | frontal+padrões+conflitos+trabalho auto-preenchidos (`66fee55`→`f1878cb`) |
 | frontal/projetos (F4.2) | ✅ LIVE | project_synthesizer; sinapse-projects.timer |
@@ -1886,4 +1886,4 @@ F4.1 decisões → F4.2 projetos → F4.3 padrões → F4.4 conflitos. **LLM já
 
 ---
 
-*Documento vivo. Versão 2.17 (LLM dual-pool: antigravity (gemini-3) primário + gemini-cli fallback, mesma OAuth; ambos no setup-brain; 359 testes). Resiliência de quota: um pool cobre o outro.*
+*Documento vivo. Versão 2.18 (resiliência de quota em camadas: rotação de MODELO no 429 → fallback de PROVIDER (antigravity↔gemini-cli) → OmniRoute (226 providers); 362 testes). Memória nunca trava por limite.*
