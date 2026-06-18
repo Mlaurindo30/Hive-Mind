@@ -1,9 +1,11 @@
 # Memória Viva — Design do Serviço Inteligente do Hive-Mind
 
-> **Versão**: 2.4 (modelo anatômico — Fase 2 implementada e reconciliada)
+> **Versão**: 2.5 (modelo anatômico — contrato de implementação §14 + Fase 1 LIVE)
 > **Data**: 2026-06-17
 > **Escopo**: Definição completa do comportamento inteligente do serviço de memória do Sinapse — **estrutura do vault modelada na ANATOMIA CEREBRAL** (córtex com 5 lobos + diencéfalo + cerebelo + tronco), eixo primário por **projeto**, camada de **MOCs (consciência)** e **sinapses** automáticas, cadência (diária/sessão/semanal), formação autônoma de neurônios/pastas/MOCs, nomenclatura human-readable, multi-setor, métricas de "vivo", e plano de migração.
 > **Audiência**: Michel (autor do vault), futuros agentes IA, contribuidores do projeto.
+>
+> ⚠️ **AGENTES: antes de implementar QUALQUER coisa, leia a §14 (Contrato de Implementação). NÃO inventar schema/paths — seguir os fatos da §14.2.**
 > **Status**: Documento vivo. **Fase 0 ✅ + incrementos executados (2026-06-17, 261 testes verdes)**:
 > estrutura anatômica, `core/paths.py`, camada MOC+sinapses (§7.6), **plumbing de
 > `observation.project` ✅ (§13.2)** e **boundedness ✅ (§13.2.1)**. Os **scripts da Fase 1**
@@ -1507,4 +1509,120 @@ após M9 (sobrevivência do dream cycle) verde por ≥ 7 dias. Ver §11.
 
 ---
 
-*Documento vivo. Versão 2.1 (modelo anatômico cerebral — revisão pós-Fase 0). Próxima revisão: após Fase 1 (cadência básica) ou conclusão do incremento §13.2.*
+## 14. CONTRATO DE IMPLEMENTAÇÃO PARA AGENTES (LEIA ANTES DE CODAR)
+
+> **Propósito**: este documento é a fonte da verdade. Qualquer agente (Claude, Gemini,
+> Codex…) que for implementar algo aqui **DEVE seguir esta seção à risca e NÃO inventar**.
+> As regras abaixo nasceram de **falhas reais** (entregas que passavam em testes mockados
+> mas quebravam contra o sistema real). Violar qualquer uma = retrabalho garantido.
+
+### 14.1 Regras invioláveis (não-negociáveis)
+
+| # | Regra | Por quê (falha real que originou) |
+|---|-------|-----------------------------------|
+| **R1** | **VALIDE contra o sistema REAL, não só mocks.** Todo script novo tem que rodar 1× contra o `hive_mind.db`/vault reais (modo `--dry-run`/log-only) antes do commit. | `topic_consolidator` passou nos testes (DB mockado) mas quebrou em runtime: assumia colunas inexistentes |
+| **R2** | **NÃO invente schema.** Consulte o real: `sqlite3 hive_mind.db "SELECT name FROM pragma_table_info('neurons')"`. Ver §14.2. | gemini assumiu `neurons.project` e `neurons.title` — **nenhuma das duas existe** |
+| **R3** | **SEM efeito colateral no import.** Nunca chame `load_env()`, `get_role_config()`, conexão de DB ou I/O no nível de módulo. Faça lazy em `main()`/função de entrada. | 3 scripts chamavam `load_env()` no import → poluíam `test_env_loader` |
+| **R4** | **`ensure_migrations` é idempotente e defensiva.** Todo `ALTER`/`CREATE INDEX` em tabela precisa de guard (`if cols and "x" in cols`) — o DB de teste/legado pode não ter a tabela/coluna. | índice `idx_neurons_topic_updated` fora do guard quebrou 13 testes |
+| **R5** | **Todo script novo tem teste real** (import/compile + 1 caso contra dados reais ou fixture fiel ao schema). Sem teste = não existe. | `topic_consolidator` foi entregue **sem teste** → SyntaxError passou |
+| **R6** | **Paths SÓ via `core/paths.py`.** Nunca hardcode `cerebro/...`. | writers recriavam pastas antigas pós-migração |
+| **R7** | **Frontmatter é YAML.** Parse com `yaml.safe_load`, nunca regex linha-a-linha — listas em bloco (`sectors:\n  - x`) quebram parsers ingênuos. | `generate_mocs` não lia setores em bloco → 0 MOCs de setor |
+| **R8** | **Boundedness obrigatória** em qualquer coisa que toque LLM+SQLite+FS no mesmo ciclo: cap de entrada + deadline wall-clock + saída limpa (`BUDGET_EXHAUSTED`, exit 0). Ver §13.2.1. | freeze 2026-06-17 |
+| **R9** | **INERTE por padrão.** Um script novo NÃO liga hooks nem timers sozinho. Go-live é passo explícito e gated (§14.4-P1). | hooks Fase 1 foram para LIVE sem registro no doc |
+| **R10** | **DoD antes de commit** (§14.3). `python -m pytest tests/unit/ -q` 100% verde, 0 quebrado. | — |
+
+### 14.2 Fatos do sistema que você NÃO pode inventar
+
+```
+Tabela neurons (hive_mind.db) — colunas REAIS:
+  id, label, type, source_file, content, hash, metadata, community,
+  created_at, updated_at, indexed_at, visibility, topic
+  → NÃO existe coluna `project`. NÃO existe coluna `title` (use `label`).
+
+Eixo projeto/tópico vive no PATH (source_file), relativo a SINAPSE_HOME:
+  cerebro/cortex/temporal/{PROJETO}/{TOPICO}/neuronio-{hash16}.md
+  → para filtrar por projeto/tópico: `source_file LIKE '%cortex/temporal/{proj}/{top}/%'`
+  → para derivar: parts = Path(source_file).parts; i = parts.index('temporal');
+    projeto, topico = parts[i+1], parts[i+2]  (ignore se começa com '_' = MOC)
+
+observation.project (claude-mem.db) é a fonte da verdade do projeto na INGESTÃO
+  (dream_cycle._resolve_project). Mas isso NÃO vira coluna em neurons — vira o PATH.
+
+LLM: core.auth.get_role_config(role) → {provider, model, fallback_*}. Papéis herdam
+  do 'dreamer' se HIVE_{ROLE}_* ausente. core.llm_client JÁ tem timeout (60/120s)
+  e fallback automático. NÃO reimplemente timeout/retry.
+
+Frontmatter dos neurônios: YAML. sectors/aliases/related podem ser listas em BLOCO.
+
+Paths canônicos: core/paths.py (TEMPORAL, FRONTAL, DAILY_ROOT, neuron_path(),
+  project_moc(), sector_moc(), …). Importe de lá.
+```
+
+### 14.3 Definition of Done (checklist antes de QUALQUER commit)
+
+1. [ ] `python -m pytest tests/unit/ -q` → **100% verde, 0 quebrado, 0 skipped novo**.
+2. [ ] Script novo tem teste (R5) e **rodou 1× contra o real** em modo seguro (R1).
+3. [ ] Zero `load_env()`/IO no import (R3); paths via `core/paths.py` (R6).
+4. [ ] Se mexeu em `ensure_migrations`: guards presentes (R4) e `test_database`/`test_causal_edges` verdes.
+5. [ ] Docs atualizados: marque ✅/⏳ a fase/item neste 08 **e** em `docs/01-architecture.md` se houver módulo/endpoint/schema novo.
+6. [ ] Commit semântico; **nada de go-live (hooks/timer) sem §14.4-P1**.
+
+### 14.4 Backlog priorizado — cada item DESENHADO (não improvisar)
+
+#### P1 — Timers no `install_services.py` (reprodutibilidade) + go-live Fase 2
+
+**Problema**: a `sinapse-daily.timer` foi instalada à mão; os timers da Fase 2 não
+existem; **nenhum** está em `scripts/install_services.py` → some no próximo reinstall.
+
+- **ONDE**: `scripts/install_services.py` — dict `unit_definitions()` + lista `enabled` em `install()`.
+- **O QUÊ** (4 units novas, padrão = `sinapse-maintenance.*` já existente):
+  | Unit | Calendário | ExecStart | Flag segura |
+  |---|---|---|---|
+  | `sinapse-dream.service/.timer` | `OnCalendar=03:00` | `scripts/dream_cycle.py` | — |
+  | `sinapse-daily.service/.timer` | `OnCalendar=23:55` | `scripts/daily_writer.py` | — (já existe em `.config/`) |
+  | `sinapse-weekly.service/.timer` | `OnCalendar=Sun 04:00` | `scripts/weekly_synthesizer.py` | sem `--dry-run` (gera de verdade) |
+  | `sinapse-topics.service/.timer` | `OnCalendar=Sun 06:00` | `scripts/topic_consolidator.py` | **SEM `--apply`** (log-only por padrão!) |
+- **COMO**: service `Type=oneshot`, `WorkingDirectory={path}`, `Environment=PATH=...`,
+  `ExecStart={path}/.venv/bin/python {path}/scripts/<x>.py`. Timer com `Persistent=true`.
+  Adicionar os 4 `.timer` à lista `enabled`.
+- **VALIDAÇÃO**: `python scripts/install_services.py` (idempotente) → `systemctl --user
+  list-timers` mostra os 4; rodar cada `.service` 1× (`systemctl --user start x`) sem erro;
+  conferir saída no vault (`cerebelo/diario`, `cerebelo/semanal`, log de merge).
+- **PRÉ-CONDIÇÃO**: boundedness (§13.2.1) ✅ já merged. `topic_consolidator` default é
+  log-only (NUNCA habilitar `--apply` automático sem revisão humana).
+
+#### P2 — Instrumentar a métrica M9 (sobrevivência do dream cycle)
+
+Hoje o gate "M9 verde por 7d" é **inverificável** (não há log de ciclo). Antes de
+confiar no go-live automático do dream:
+
+- **ONDE**: `core/database.py` (migration) + `scripts/dream_cycle.py` (fim de `run_dream_cycle`).
+- **O QUÊ**: tabela `dream_cycle_log(id INTEGER PK, started_at TEXT, ended_at TEXT,
+  duration_s REAL, observations_processed INT, ambiguities_processed INT, ended_reason TEXT)`.
+  `ended_reason ∈ {ok, BUDGET_EXHAUSTED, error}`. Gravar 1 linha por ciclo.
+- **VALIDAÇÃO**: rodar `dream_cycle` 1× → 1 linha; query do M9 (§9.2) retorna `duration_s`.
+- **GATE**: só ligar `sinapse-dream.timer` em produção após M9 ≤ `MAX_CYCLE_SECONDS` por 7 dias.
+
+#### P3 — Fase 3 (síntese viva) — desenhada, ainda NÃO implementar sem P1+P2
+
+Seguir §11 (Fase 3) com os mesmos contratos. Cada script INERTE até validado (R1) +
+testado (R5). Itens: `drift_detector.py` (atoms >90d → `cortex/temporal/arquivo/`;
+decisions >180d → flag), `decision_staleness.py`, `health_dashboard.py` (M1-M9 →
+`cortex/insula/saude/`). Papel `drift_detector` já registrado em `core/auth`.
+
+### 14.5 Estado de verdade (snapshot 2026-06-17, manter atualizado)
+
+| Camada | Estado | Observação |
+|---|---|---|
+| Fase 0 (anatomia, paths, MOC+sinapses) | ✅ LIVE | 278 testes |
+| Plumbing `observation.project` (§13.2) | ✅ LIVE | segrega por projeto |
+| Boundedness (§13.2.1) | ✅ LIVE | debounce + cap síntese |
+| Fase 1 (cadência sessão/diária) | ✅ **LIVE** | hooks em `.claude/settings.json` (untracked) + `sinapse-daily.timer` instalada |
+| Fase 2 (alias/topic-merge/setor/weekly) | ⚠️ **scripts validados, INERTES** | timers NÃO instalados → **P1**; topic_consolidator corrigido (schema) |
+| M9 (sobrevivência) | ❌ não instrumentado | **P2** |
+| Timers em `install_services.py` | ❌ ausentes | **P1** (risco de perder no reinstall) |
+| Fase 3 | ❌ proposta | **P3** (depende de P1+P2) |
+
+---
+
+*Documento vivo. Versão 2.5 (modelo anatômico — contrato de implementação §14 + Fase 1 LIVE + Fase 2 validada). Próxima revisão: após P1 (timers no install_services + go-live Fase 2).*
