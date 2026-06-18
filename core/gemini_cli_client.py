@@ -28,7 +28,12 @@ import requests
 
 GEMINI_DIR = Path(os.environ.get("GEMINI_CLI_DIR", str(Path.home() / ".gemini")))
 CREDS_PATH = GEMINI_DIR / "oauth_creds.json"
-CODE_ASSIST_ENDPOINT = "https://cloudcode-pa.googleapis.com"
+# Endpoint Code Assist. O Antigravity (CLI/IDE) usa o host `daily-cloudcode-pa`, que
+# é um POOL DE QUOTA SEPARADO (tier Antigravity, com acesso a gemini-3-*) — a mesma
+# OAuth do ~/.gemini/oauth_creds.json funciona nele. Default = antigravity; override
+# via GEMINI_CLI_ENDPOINT (ex.: a versão estável https://cloudcode-pa.googleapis.com).
+CODE_ASSIST_ENDPOINT = os.environ.get(
+    "GEMINI_CLI_ENDPOINT", "https://daily-cloudcode-pa.googleapis.com")
 API_VERSION = "v1internal"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 

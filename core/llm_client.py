@@ -143,7 +143,7 @@ def call_llm_structured(prompt: str, system_prompt: str, response_model: Any,
     # Provider 'gemini-cli': usa o OAuth do Gemini CLI via Code Assist (cloudcode-pa),
     # quota "Unlimited". Credenciais vêm de ~/.gemini (não de env) → tratado aqui,
     # antes do get_credentials padrão. Participa do fallback do papel normalmente.
-    if provider in ("gemini-cli", "code-assist"):
+    if provider in ("gemini-cli", "code-assist", "antigravity"):
         from core.gemini_cli_client import call_gemini_cli_structured
         return call_gemini_cli_structured(prompt, system_prompt, response_model, model, image_path)
 
