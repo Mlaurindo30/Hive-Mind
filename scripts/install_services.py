@@ -422,6 +422,32 @@ Unit=sinapse-patterns.service
 [Install]
 WantedBy=timers.target
 """,
+        # F4.4 conflict_detector: read-only nos neurônios, gera relatório (insula/conflitos).
+        "sinapse-conflicts.service": f"""[Unit]
+Description=Memória Viva - Conflict Detector (insula/conflitos)
+After=network.target sinapse-claude-mem.service
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/conflict_detector.py --apply
+""",
+        "sinapse-conflicts.timer": """[Unit]
+Description=Dispara o conflict detector aos domingos 05:30
+
+[Timer]
+OnCalendar=Sun 05:30
+Persistent=true
+Unit=sinapse-conflicts.service
+
+[Install]
+WantedBy=timers.target
+""",
         # drift roda log-only (SEM --apply): apenas reporta candidatos a cold/stale.
         "sinapse-drift.service": f"""[Unit]
 Description=Memória Viva - Drift Detector (log-only, SEM --apply)
@@ -508,6 +534,7 @@ def install(start: bool) -> int:
         "sinapse-decisions.timer",
         "sinapse-projects.timer",
         "sinapse-patterns.timer",
+        "sinapse-conflicts.timer",
     ]
     if api_enabled():
         enabled.append("sinapse-api.service")

@@ -43,8 +43,9 @@ MEMORIA_VIVA_UNITS = [
     # Fase 4 (F4.1/F4.2)
     "sinapse-decisions.service", "sinapse-decisions.timer",
     "sinapse-projects.service", "sinapse-projects.timer",
-    # F4.3
+    # F4.3/F4.4
     "sinapse-patterns.service", "sinapse-patterns.timer",
+    "sinapse-conflicts.service", "sinapse-conflicts.timer",
 ]
 
 
