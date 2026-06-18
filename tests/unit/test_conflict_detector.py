@@ -81,6 +81,18 @@ def test_read_only_nao_altera_neuronios(vault, tmp_path):
     assert before == after
 
 
+def test_resiliencia_julgamento_falho_nao_derruba(vault, tmp_path):
+    """Um erro de LLM (ex.: JSON inválido do fallback) num par não aborta o relatório."""
+    def _boom(a, b):
+        raise ValueError("Invalid JSON do fallback")
+    croot = tmp_path / "c"
+    stats = cd.run(temporal_root=vault, conflicts_root=croot, apply=True, threshold=0.9,
+                   embed_fn=_fake_embed, llm_fn=_boom)
+    assert stats["judge_errors"] >= 1          # registrou a falha
+    assert stats["conflicts"] == 0             # nenhum conflito (todos falharam)
+    assert next(croot.glob("*.md")).exists()   # mas o relatório foi gerado
+
+
 def test_report_vazio_quando_sem_conflito(vault, tmp_path):
     croot = tmp_path / "c"
     stats = cd.run(temporal_root=vault, conflicts_root=croot, apply=True, threshold=0.9,

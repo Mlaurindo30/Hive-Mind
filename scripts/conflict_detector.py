@@ -117,14 +117,23 @@ def run(*, temporal_root: Path = TEMPORAL, conflicts_root: Path = CONFLICTS_ROOT
     neurons = scan_neuronios(temporal_root)
     pairs = find_candidate_pairs(neurons, threshold=threshold, cap=cap, embed_fn=embed_fn)
     conflicts = []
+    judge_errors = 0
     for i, j, sim in pairs:
-        c = judge_conflict(neurons[i], neurons[j], llm_fn=llm_fn)
+        try:
+            c = judge_conflict(neurons[i], neurons[j], llm_fn=llm_fn)
+        except Exception as e:
+            # Resiliência (F4.0): um hiccup de LLM (rate-limit/JSON inválido do
+            # fallback) num par não derruba o relatório inteiro. Loga e segue.
+            judge_errors += 1
+            print(f"  [Resiliência] julgamento falhou no par {i}/{j}: {e}")
+            continue
         if c:
             c["sim"] = round(sim, 3)
             conflicts.append(c)
     dest = write_report(conflicts, conflicts_root, dry_run=not apply)
     stats = {"neurons": len(neurons), "candidate_pairs": len(pairs),
-             "conflicts": len(conflicts), "applied": apply, "report": str(dest)}
+             "conflicts": len(conflicts), "judge_errors": judge_errors,
+             "applied": apply, "report": str(dest)}
     print(f"conflict_detector: {stats}")
     return stats
 
