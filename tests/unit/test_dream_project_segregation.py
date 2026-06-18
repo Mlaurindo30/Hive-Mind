@@ -112,9 +112,14 @@ class TestDreamCycleProjectSegregation:
         assert "def _mark_observations(status: int, ids: Optional[List[str]]" in source, (
             "Esperava assinatura _mark_observations(status, ids=None) para segregar por bucket"
         )
-        # Chamadas devem passar os IDs específicos do bucket
-        assert "_mark_observations(1, proj_obs_ids)" in source, (
-            "Consolidação por bucket ausente: esperava _mark_observations(1, proj_obs_ids)"
+        # Consolidação por bucket: após o refactor F4.0, a persistência de cada
+        # projeto vive em _route_and_persist_project(...), que recebe os IDs do
+        # bucket (proj_obs_ids) e _mark_observations, e consolida via mark_obs(1, ...).
+        assert "mark_obs(1, proj_obs_ids)" in source, (
+            "Consolidação por bucket ausente: esperava mark_obs(1, proj_obs_ids) no helper"
+        )
+        assert "_route_and_persist_project(" in source and "proj_obs_ids, _mark_observations" in source, (
+            "Esperava o helper _route_and_persist_project recebendo proj_obs_ids + _mark_observations"
         )
         assert "_mark_observations(2, proj_ids)" in source, (
             "Quarentena por bucket ausente: esperava _mark_observations(2, proj_ids)"

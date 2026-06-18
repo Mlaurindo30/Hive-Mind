@@ -475,6 +475,83 @@ source_image: {img_path.name}
 # Fluxo Principal (Main Loop)
 # ---------------------------------------------------------------------------
 
+def _route_and_persist_project(conn, now, proj, distilled, proj_obs_ids, mark_obs) -> int:
+    """Roteia + persiste os fatos de UM projeto (neurônios .md + tabela neurons).
+
+    Extraído do loop principal p/ a resiliência F4.0: o chamador envolve em try/except,
+    isolando a falha de um projeto sem abortar o ciclo. Erros (LLM/DB) sobem; quem
+    isola decide preservar as obs p/ reprocessar. Retorna nº de neurônios persistidos."""
+    from core import paths as cp
+    routed = agent_route(distilled.facts)
+    if not routed or not routed.routed_facts:
+        mark_obs(2, proj_obs_ids)
+        print(f"  [Pipeline] Projeto '{proj}': {len(proj_obs_ids)} obs em quarentena (roteador falhou).")
+        return 0
+
+    persisted = 0
+    fact_map = {f.id: f for f in distilled.facts}
+    for r in routed.routed_facts:
+        fact = fact_map.get(r.fact_id)
+        if not fact:
+            continue
+
+        safe_topic = re.sub(r'[^a-z0-9_]', '', r.topic.lower().replace(" ", "_")) or "general"
+        nid = fact.id.replace("fact-", "neuronio-", 1) if fact.id.startswith("fact-") else fact.id
+        note_file = cp.TEMPORAL / proj / safe_topic / f"{nid}.md"
+        note_file.parent.mkdir(parents=True, exist_ok=True)
+        aliases_val = json.dumps([fact.alias] if fact.alias else [])
+
+        content = f"""---
+type: {fact.type}
+project: {proj}
+topic: {safe_topic}
+integrity_hash: {fact.integrity_hash}
+aliases: {aliases_val}
+last_updated: {now.strftime('%Y-%m-%d %H:%M')}
+source: hive-dreamer
+---
+# {fact.label}
+
+{fact.content}
+
+## Evidência (Groundedness)
+> {fact.source_quotes[0] if fact.source_quotes else 'N/A'}
+
+## Sinapses
+- projeto:: [[_{proj}]]
+- tópico:: [[_{safe_topic}]]
+
+#consolidated #{safe_topic}
+"""
+
+        source_rel = str(note_file.relative_to(SINAPSE_HOME))
+        conn.execute("""
+            INSERT INTO neurons (id, label, type, content, hash, source_file, topic, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(id) DO UPDATE SET
+                content=excluded.content,
+                label=excluded.label,
+                hash=excluded.hash,
+                source_file=excluded.source_file,
+                topic=excluded.topic,
+                updated_at=CURRENT_TIMESTAMP
+        """, (nid, fact.label, fact.type, fact.content, fact.integrity_hash, source_rel, safe_topic))
+        conn.commit()
+
+        mode = "a" if r.action in ["append", "merge"] and note_file.exists() else "w"
+        if mode == "a":
+            content = f"\n\n---\n## Atualização de {now.strftime('%Y-%m-%d')}\n{fact.content}\n"
+        with open(note_file, mode) as f:
+            f.write(content)
+
+        print(f"  [+] Neurônio {r.action}: {proj}/{safe_topic}/{nid}.md")
+        persisted += 1
+
+    # Obs do projeto consolidadas só após persistência bem-sucedida.
+    mark_obs(1, proj_obs_ids)
+    return persisted
+
+
 def _run_dream_cycle_inner() -> Dict[str, int]:
     """Corpo do ciclo. Retorna contadores p/ a telemetria M9 (ver run_dream_cycle)."""
     print(f"=== Hive-Mind: Ciclo de Sonho V2 (Corporate Grade) ===")
@@ -563,22 +640,31 @@ def _run_dream_cycle_inner() -> Dict[str, int]:
     distilled_by_project: Dict[str, DistillerOutput] = {}
     distill_failures: List[str] = []
     distill_empties: List[str] = []
+    project_errors: List[str] = []   # F4.0: projetos que ERRARAM (LLM/DB) — isolados
 
     for proj, proj_obs in project_buckets.items():
         proj_ids = [o["id"] for o in proj_obs]
-        proj_logs = "\n".join(f"- [{o['type']}] {o['title']}: {o['content']}" for o in proj_obs)
-        print(f"  [Distiller] Projeto '{proj}': processando {len(proj_obs)} observações...")
-        distilled, distill_status = agent_distill_and_validate(proj_logs)
-        if distill_status == "failed":
-            _mark_observations(2, proj_ids)
-            distill_failures.append(proj)
-            print(f"  [Pipeline] Projeto '{proj}': {len(proj_ids)} obs em quarentena.")
-        elif distill_status == "empty" or not distilled or not distilled.facts:
-            _mark_observations(1, proj_ids)
-            distill_empties.append(proj)
-            print(f"  [Distiller] Projeto '{proj}': sem fatos extraídos.")
-        else:
-            distilled_by_project[proj] = distilled
+        try:
+            proj_logs = "\n".join(f"- [{o['type']}] {o['title']}: {o['content']}" for o in proj_obs)
+            print(f"  [Distiller] Projeto '{proj}': processando {len(proj_obs)} observações...")
+            distilled, distill_status = agent_distill_and_validate(proj_logs)
+            if distill_status == "failed":
+                _mark_observations(2, proj_ids)
+                distill_failures.append(proj)
+                print(f"  [Pipeline] Projeto '{proj}': {len(proj_ids)} obs em quarentena.")
+            elif distill_status == "empty" or not distilled or not distilled.facts:
+                _mark_observations(1, proj_ids)
+                distill_empties.append(proj)
+                print(f"  [Distiller] Projeto '{proj}': sem fatos extraídos.")
+            else:
+                distilled_by_project[proj] = distilled
+        except Exception as e:
+            # F4.0 resiliência: erro (LLM/`database is locked`/etc.) num projeto NÃO
+            # aborta o ciclo. Obs ficam archived=0 (reprocessa no próximo ciclo) —
+            # não quarentena, pois é erro transitório, não dado ruim.
+            project_errors.append(proj)
+            print(f"  [Resiliência] Projeto '{proj}' falhou no distill: {e}. Obs preservadas p/ reprocessar.")
+            continue
     mark_stage("distill_validate_ms", distill_t0)
 
     if not distilled_by_project:
@@ -598,80 +684,15 @@ def _run_dream_cycle_inner() -> Dict[str, int]:
     print("  [Storage] Persistindo neurônios no córtex temporal...")
     for proj, distilled in distilled_by_project.items():
         proj_obs_ids = [o["id"] for o in project_buckets[proj]]
-        routed = agent_route(distilled.facts)
-        if not routed or not routed.routed_facts:
-            _mark_observations(2, proj_obs_ids)
-            print(f"  [Pipeline] Projeto '{proj}': {len(proj_obs_ids)} obs em quarentena (roteador falhou).")
+        try:
+            total_persisted += _route_and_persist_project(
+                conn, now, proj, distilled, proj_obs_ids, _mark_observations)
+        except Exception as e:
+            # F4.0: erro num projeto (LLM/`database is locked`/IO) não aborta o ciclo.
+            # Obs ficam archived=0 p/ reprocessar (não quarentena — erro transitório).
+            project_errors.append(proj)
+            print(f"  [Resiliência] Projeto '{proj}' falhou na persistência: {e}. Obs preservadas p/ reprocessar.")
             continue
-
-        fact_map = {f.id: f for f in distilled.facts}
-        for r in routed.routed_facts:
-            fact = fact_map.get(r.fact_id)
-            if not fact:
-                continue
-
-            # Sanitização robusta: lowercase, snake_case, sem caracteres especiais
-            safe_topic = re.sub(r'[^a-z0-9_]', '', r.topic.lower().replace(" ", "_"))
-            if not safe_topic:
-                safe_topic = "general"
-
-            # nome anatômico: fact-{hash} → neuronio-{hash}
-            nid = fact.id.replace("fact-", "neuronio-", 1) if fact.id.startswith("fact-") else fact.id
-            note_file = cp.TEMPORAL / proj / safe_topic / f"{nid}.md"
-            note_file.parent.mkdir(parents=True, exist_ok=True)
-
-            aliases_val = json.dumps([fact.alias] if fact.alias else [])
-
-            content = f"""---
-type: {fact.type}
-project: {proj}
-topic: {safe_topic}
-integrity_hash: {fact.integrity_hash}
-aliases: {aliases_val}
-last_updated: {now.strftime('%Y-%m-%d %H:%M')}
-source: hive-dreamer
----
-# {fact.label}
-
-{fact.content}
-
-## Evidência (Groundedness)
-> {fact.source_quotes[0] if fact.source_quotes else 'N/A'}
-
-## Sinapses
-- projeto:: [[_{proj}]]
-- tópico:: [[_{safe_topic}]]
-
-#consolidated #{safe_topic}
-"""
-
-            # Atualiza banco de dados (tabela neurons)
-            source_rel = str(note_file.relative_to(SINAPSE_HOME))
-            conn.execute("""
-                INSERT INTO neurons (id, label, type, content, hash, source_file, topic, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(id) DO UPDATE SET
-                    content=excluded.content,
-                    label=excluded.label,
-                    hash=excluded.hash,
-                    source_file=excluded.source_file,
-                    topic=excluded.topic,
-                    updated_at=CURRENT_TIMESTAMP
-            """, (nid, fact.label, fact.type, fact.content, fact.integrity_hash, source_rel, safe_topic))
-            conn.commit()
-
-            mode = "a" if r.action in ["append", "merge"] and note_file.exists() else "w"
-            if mode == "a":
-                content = f"\n\n---\n## Atualização de {now.strftime('%Y-%m-%d')}\n{fact.content}\n"
-
-            with open(note_file, mode) as f:
-                f.write(content)
-
-            print(f"  [+] Neurônio {r.action}: {proj}/{safe_topic}/{nid}.md")
-            total_persisted += 1
-
-        # Marca as obs deste projeto como consolidadas após persistência bem-sucedida
-        _mark_observations(1, proj_obs_ids)
     # route_ms = duração do bloco inteiro (roteamento + persistência).
     # Para deitar decomposto, teríamos que medir `agent_route` e o loop
     # interno separadamente; por ora, mede-se o agregado.
@@ -697,9 +718,12 @@ source: hive-dreamer
     status_final = "ok" if total_persisted > 0 else "failed"
     _persist_cycle_metrics(stage_metrics, status=status_final)
 
+    if project_errors:
+        print(f"  [Resiliência] {len(project_errors)} projeto(s) falharam e serão reprocessados: {', '.join(project_errors)}")
     print(f"=== Ciclo de Sonho Concluído ({total_persisted} neurônios persistidos em {len(distilled_by_project)} projeto(s)) ===")
     conn.close()
-    return {"observations": len(obs), "persisted": total_persisted}
+    return {"observations": len(obs), "persisted": total_persisted,
+            "errors": len(project_errors)}
 
 
 def _log_dream_cycle(started_iso: str, t0: float, obs_count: int, reason: str) -> None:
@@ -742,6 +766,9 @@ def run_dream_cycle() -> Dict[str, int]:
             reason = "empty"
         elif elapsed >= MAX_CYCLE_SECONDS:
             reason = "BUDGET_EXHAUSTED"
+        elif result.get("errors", 0) > 0:
+            # F4.0: o ciclo concluiu, mas ≥1 projeto falhou (e será reprocessado).
+            reason = "partial"
         else:
             reason = "ok" if result.get("persisted", 0) > 0 else "failed"
         return result

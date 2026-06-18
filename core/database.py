@@ -57,9 +57,18 @@ def get_connection():
     conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
 
-    # Ativa chaves estrangeiras e tolerância a locks concorrentes
+    # Ativa chaves estrangeiras e tolerância a locks concorrentes.
+    # F4.0 (resiliência): WAL deixa leitores concorrentes (capture-realtime,
+    # graphify-watch, sqlite-vec worker) não bloquearem o writer do dream, e o
+    # busy_timeout maior absorve picos de contenção — antes um ciclo de 225s
+    # abortava com 'database is locked'. WAL é persistente (setar 1x basta, mas
+    # é idempotente). Falha do PRAGMA não é fatal (DB read-only/legado).
     conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA busy_timeout = 5000;")
+    conn.execute("PRAGMA busy_timeout = 30000;")
+    try:
+        conn.execute("PRAGMA journal_mode = WAL;")
+    except sqlite3.OperationalError:
+        pass
 
     if sqlite_vec:
         conn.enable_load_extension(True)
