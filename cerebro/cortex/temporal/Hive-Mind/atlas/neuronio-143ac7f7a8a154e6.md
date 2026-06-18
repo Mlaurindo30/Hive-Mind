@@ -5,6 +5,10 @@ topic: atlas
 integrity_hash: 143ac7f7a8a154e6
 last_updated: 2026-06-17 15:15
 source: hive-dreamer
+aliases:
+- dec-decisao-2
+sectors:
+- pkm
 ---
 # Decisão 2
 

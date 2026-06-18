@@ -42,15 +42,17 @@ def _title(md: Path) -> str:
 
 
 def _frontmatter(md: Path) -> dict:
+    """Parse YAML real do frontmatter (lida com listas em bloco, ex.: sectors)."""
+    import yaml
     txt = md.read_text(errors="ignore")
     m = re.match(r"^---\n(.*?)\n---", txt, re.S)
-    fm = {}
-    if m:
-        for ln in m.group(1).splitlines():
-            if ":" in ln:
-                k, v = ln.split(":", 1)
-                fm[k.strip()] = v.strip()
-    return fm
+    if not m:
+        return {}
+    try:
+        fm = yaml.safe_load(m.group(1))
+        return fm if isinstance(fm, dict) else {}
+    except yaml.YAMLError:
+        return {}
 
 
 def scan_neurons() -> list[dict]:
@@ -68,7 +70,11 @@ def scan_neurons() -> list[dict]:
         fm = _frontmatter(md)
         if fm.get("type") == "redirect":
             continue
-        sectors = [s.strip() for s in re.split(r"[,\[\]]", fm.get("sectors", "")) if s.strip()]
+        raw = fm.get("sectors", [])
+        if isinstance(raw, list):
+            sectors = [str(s).strip() for s in raw if str(s).strip()]
+        else:
+            sectors = [s.strip() for s in re.split(r"[,\[\]]", str(raw or "")) if s.strip()]
         out.append({"path": md, "project": project, "topic": topic,
                     "title": _title(md), "stem": md.stem, "sectors": sectors})
     return out

@@ -5,6 +5,11 @@ topic: infrastructure
 integrity_hash: 6f6aee5476ea795c
 last_updated: 2026-06-17 15:13
 source: hive-dreamer
+aliases:
+- dec-comfyui-keep-process
+sectors:
+- ai-infra
+- infra
 ---
 # Keep ComfyUI Process and Manage VRAM
 

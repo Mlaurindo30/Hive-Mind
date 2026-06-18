@@ -8,10 +8,14 @@ scope: root
 > Home do cérebro. Workspace global — o "eu" que integra os lobos.
 
 ## Projetos (lobo temporal — memória)
-- [[_Hive-Mind|Hive-Mind]] — 30 neurônio(s)
+- [[_Hive-Mind|Hive-Mind]] — 31 neurônio(s)
 
 ## Setores (diencéfalo — relay cross-projeto)
-- _(nenhum ainda)_
+- [[_ai-infra|ai-infra]]
+- [[_dev-tools|dev-tools]]
+- [[_finance|finance]]
+- [[_infra|infra]]
+- [[_pkm|pkm]]
 
 ## Lobos
 - **Frontal** — decisões, projetos, trabalho → `cortex/frontal/`

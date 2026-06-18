@@ -5,6 +5,11 @@ topic: error_handling
 integrity_hash: e54dc37a8db0e2c3
 last_updated: 2026-06-17 15:13
 source: hive-dreamer
+aliases:
+- ideogram-4-shape-mismatch
+sectors:
+- ai-infra
+- dev-tools
 ---
 # Fix Ideogram 4 Shape Mismatch
 

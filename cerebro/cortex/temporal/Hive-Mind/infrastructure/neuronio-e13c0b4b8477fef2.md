@@ -5,6 +5,10 @@ topic: infrastructure
 integrity_hash: e13c0b4b8477fef2
 last_updated: 2026-06-17 15:15
 source: hive-dreamer
+aliases:
+- dec-migrar-hetzner
+sectors:
+- infra
 ---
 # Migrar servidor
 

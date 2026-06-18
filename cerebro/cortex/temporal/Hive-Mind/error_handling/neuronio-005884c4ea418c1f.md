@@ -1,10 +1,17 @@
 ---
-related: ["[[openai-polling-error-handling]]", "[[neuronio-d12cb3e77ddbd75f]]"]
+related:
+- '[[openai-polling-error-handling]]'
+- '[[neuronio-d12cb3e77ddbd75f]]'
 type: decision
 topic: error_handling
 integrity_hash: 005884c4ea418c1f
 last_updated: 2026-06-10 15:30
 source: hive-dreamer
+aliases:
+- deviceauth-authorization-pending-loop
+sectors:
+- ai-infra
+- dev-tools
 ---
 # Tratamento de erro deviceauth_authorization_pending
 

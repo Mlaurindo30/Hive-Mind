@@ -1,6 +1,10 @@
 ---
 last_updated: 2026-06-10 19:30
 source: hive-synthesizer
+aliases:
+- production-server-16gb-debian12
+sectors:
+- infra
 ---
 The production server now operates with 16GB RAM and runs Debian 12 (previously 8GB RAM and Ubuntu 22.04).
 
