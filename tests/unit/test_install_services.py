@@ -38,6 +38,8 @@ MEMORIA_VIVA_UNITS = [
     # Fase 3 (F3.4)
     "sinapse-health.service", "sinapse-health.timer",
     "sinapse-drift.service", "sinapse-drift.timer",
+    # Ponte multi-projeto
+    "sinapse-bridge.service", "sinapse-bridge.timer",
 ]
 
 
@@ -95,6 +97,6 @@ def test_dream_definido_mas_nao_auto_habilitado():
     assert '"sinapse-drift.timer"' not in enabled_block, (
         "drift NÃO deve ser auto-habilitado (--apply é decisão humana)")
     # As cadências seguras, por outro lado, devem estar habilitadas:
-    for safe in ("sinapse-daily.timer", "sinapse-weekly.timer",
+    for safe in ("sinapse-bridge.timer", "sinapse-daily.timer", "sinapse-weekly.timer",
                  "sinapse-topics.timer", "sinapse-health.timer"):
         assert f'"{safe}"' in enabled_block, f"{safe} deveria estar em enabled"

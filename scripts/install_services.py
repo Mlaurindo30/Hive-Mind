@@ -178,6 +178,35 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 """,
+        # ===== Ponte claude-mem → hive_mind (preserva project p/ o dream) =====
+        # Read-only na fonte, idempotente; roda ANTES do dream p/ alimentar o eixo
+        # multi-projeto. Seguro → vai no enabled.
+        "sinapse-bridge.service": f"""[Unit]
+Description=Memória Viva - Bridge claude-mem -> hive_mind (preserva project)
+After=network.target sinapse-claude-mem.service
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=CLAUDE_MEM_DB=%h/.claude-mem/claude-mem.db
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/claude_mem_bridge.py
+""",
+        "sinapse-bridge.timer": """[Unit]
+Description=Dispara a ponte claude-mem->hive_mind diariamente 02:45 (antes do dream)
+
+[Timer]
+OnCalendar=*-*-* 02:45:00
+Persistent=true
+Unit=sinapse-bridge.service
+
+[Install]
+WantedBy=timers.target
+""",
         # ===== Cadências da Memória Viva (doc 08, §14.4-P1) =====
         # Reprodutibilidade: antes estes timers viviam só em .config/ (ou à mão) e
         # sumiam num reinstall. Agora são canônicos aqui. ExecStart aponta SEMPRE p/
@@ -389,6 +418,7 @@ def install(start: bool) -> int:
         # topics=log-only (sem --apply). dream NÃO entra aqui de propósito: seu
         # go-live é gated por M9 verde >= 7d (§14.4-P2) — habilitar manualmente
         # só após instrumentar dream_cycle_log.
+        "sinapse-bridge.timer",   # alimenta o eixo multi-projeto antes do dream
         "sinapse-daily.timer",
         "sinapse-weekly.timer",
         "sinapse-topics.timer",
