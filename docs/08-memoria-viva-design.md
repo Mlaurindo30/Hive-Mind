@@ -1,6 +1,6 @@
 # Memória Viva — Design do Serviço Inteligente do Hive-Mind
 
-> **Versão**: 2.19 (OmniRoute LIVE e validado como provider — gateway 345 modelos OpenAI-compat; stream:false; 3 camadas de resiliência de quota)
+> **Versão**: 2.20 (cadeia de 3 fallbacks: antigravity->gemini-cli->omniroute, herdada por todos os papéis; OmniRoute descobre modelos da sua key)
 > **Data**: 2026-06-17
 > **Escopo**: Definição completa do comportamento inteligente do serviço de memória do Sinapse — **estrutura do vault modelada na ANATOMIA CEREBRAL** (córtex com 5 lobos + diencéfalo + cerebelo + tronco), eixo primário por **projeto**, camada de **MOCs (consciência)** e **sinapses** automáticas, cadência (diária/sessão/semanal), formação autônoma de neurônios/pastas/MOCs, nomenclatura human-readable, multi-setor, métricas de "vivo", e plano de migração.
 > **Audiência**: Michel (autor do vault), futuros agentes IA, contribuidores do projeto.
@@ -1886,4 +1886,4 @@ F4.1 decisões → F4.2 projetos → F4.3 padrões → F4.4 conflitos. **LLM já
 
 ---
 
-*Documento vivo. Versão 2.19 (OmniRoute validado como provider — 345 modelos, sem auth obrigatória; rotação de modelo no 429 + fallback de provider + OmniRoute; 362 testes). Resiliência de quota em camadas.*
+*Documento vivo. Versão 2.20 (fallback de 3 níveis antigravity->gemini-cli->omniroute via HIVE_*_FALLBACK2_*, propaga a todos os papéis; setup-brain descobre modelos do OmniRoute com a API key real; 365 testes).*
