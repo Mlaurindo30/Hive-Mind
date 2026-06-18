@@ -1,0 +1,211 @@
+"""
+core/gemini_cli_client.py — Provider 'gemini-cli' via Code Assist (cloudcode-pa).
+
+Reaproveita o OAuth do Gemini CLI (`~/.gemini/oauth_creds.json`) para falar com o
+endpoint **Code Assist** (`cloudcode-pa.googleapis.com/v1internal`), que tem a quota
+do tier "Gemini Code Assist" (Unlimited) — MUITO maior que a do AI Studio (API key).
+
+Por que existe: a API generativelanguage (que usávamos) com OAuth dá 403
+ACCESS_TOKEN_SCOPE_INSUFFICIENT; com API key tem quota pequena. O Code Assist usa o
+MESMO login do CLI e a quota generosa. Validado (2026-06-18): gemini-2.5-flash → 200.
+
+Credenciais do client OAuth: são as do **gemini-cli** (desktop app público, embutidas
+no pacote npm aberto) — NÃO são segredos do usuário. Descobertas em runtime no bundle
+instalado (sem hardcode no repo). Token/refresh ficam em ~/.gemini (fora do repo).
+
+Sem dependências novas (só requests + stdlib).
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import time
+from pathlib import Path
+from typing import Any, Optional
+
+import requests
+
+GEMINI_DIR = Path(os.environ.get("GEMINI_CLI_DIR", str(Path.home() / ".gemini")))
+CREDS_PATH = GEMINI_DIR / "oauth_creds.json"
+CODE_ASSIST_ENDPOINT = "https://cloudcode-pa.googleapis.com"
+API_VERSION = "v1internal"
+TOKEN_URL = "https://oauth2.googleapis.com/token"
+
+_client_creds_cache: Optional[tuple] = None   # (client_id, client_secret)
+_project_cache: Optional[str] = None
+
+
+class GeminiCliError(Exception):
+    """Erro do provider gemini-cli (mensagem classificável por call_llm_with_fallback)."""
+
+
+def _bundle_dir() -> Optional[Path]:
+    """Localiza o bundle do @google/gemini-cli instalado (p/ extrair client creds)."""
+    candidates = [
+        Path.home() / ".npm-global/lib/node_modules/@google/gemini-cli/bundle",
+        Path("/usr/lib/node_modules/@google/gemini-cli/bundle"),
+        Path("/usr/local/lib/node_modules/@google/gemini-cli/bundle"),
+    ]
+    for c in candidates:
+        if c.is_dir():
+            return c
+    return None
+
+
+def _discover_client_creds() -> tuple:
+    """client_id + client_secret do gemini-cli (do bundle instalado). Cacheado.
+
+    São credenciais de app desktop público (não confidenciais); ficam embutidas no
+    pacote npm aberto. Não as hardcodamos no nosso repo."""
+    global _client_creds_cache
+    if _client_creds_cache:
+        return _client_creds_cache
+    # Permite override por env (operador), senão lê do bundle.
+    cid = os.environ.get("GEMINI_CLI_CLIENT_ID")
+    csecret = os.environ.get("GEMINI_CLI_CLIENT_SECRET")
+    if not (cid and csecret):
+        bundle = _bundle_dir()
+        if not bundle:
+            raise GeminiCliError(
+                "gemini-cli não instalado: bundle não encontrado p/ refresh do OAuth.")
+        # O bundle tem 2 client_ids (gemini-cli e gcloud SDK). O token de
+        # ~/.gemini/oauth_creds.json é emitido pelo CLIENT DO GEMINI-CLI — o refresh
+        # PRECISA desse par. Varremos todos os .js coletando: (a) o client_id do
+        # gemini-cli (prefixo conhecido 681255809395, com fallback p/ qualquer outro
+        # que NÃO seja o gcloud 764086051850) e (b) o único secret GOCSPX-*.
+        GEMINI_CLI_PREFIX = "681255809395-"
+        GCLOUD_PREFIX = "764086051850-"
+        found_cli_id = found_other_id = None
+        for js in bundle.rglob("*.js"):
+            try:
+                txt = js.read_text(errors="ignore")
+            except OSError:
+                continue
+            for m in re.finditer(r"(\d+-[a-z0-9]+\.apps\.googleusercontent\.com)", txt):
+                val = m.group(1)
+                if val.startswith(GEMINI_CLI_PREFIX):
+                    found_cli_id = val
+                elif not val.startswith(GCLOUD_PREFIX):
+                    found_other_id = found_other_id or val
+            if not csecret:
+                ms = re.search(r"(GOCSPX-[A-Za-z0-9_\-]+)", txt)
+                if ms:
+                    csecret = ms.group(1)
+            if found_cli_id and csecret:
+                break
+        cid = cid or found_cli_id or found_other_id
+    if not (cid and csecret):
+        raise GeminiCliError("client_id/secret do gemini-cli não localizados no bundle.")
+    _client_creds_cache = (cid, csecret)
+    return _client_creds_cache
+
+
+def _load_creds() -> dict:
+    if not CREDS_PATH.is_file():
+        raise GeminiCliError(
+            f"OAuth do gemini-cli ausente em {CREDS_PATH} — rode `gemini` e faça login.")
+    return json.loads(CREDS_PATH.read_text())
+
+
+def _save_creds(creds: dict) -> None:
+    CREDS_PATH.write_text(json.dumps(creds))
+    try:
+        CREDS_PATH.chmod(0o600)
+    except OSError:
+        pass
+
+
+def _refresh(creds: dict) -> dict:
+    """Renova o access_token via refresh_token + client creds do CLI. Persiste."""
+    cid, csecret = _discover_client_creds()
+    r = requests.post(TOKEN_URL, data={
+        "grant_type": "refresh_token",
+        "refresh_token": creds["refresh_token"],
+        "client_id": cid,
+        "client_secret": csecret,
+    }, timeout=30)
+    if not r.ok:
+        raise GeminiCliError(f"falha no refresh OAuth do gemini-cli: {r.status_code} {r.text[:200]}")
+    tok = r.json()
+    creds["access_token"] = tok["access_token"]
+    creds["expiry_date"] = int((time.time() + tok.get("expires_in", 3600)) * 1000)
+    _save_creds(creds)
+    return creds
+
+
+def get_access_token() -> str:
+    """access_token válido (renova com folga de 60s se expirado)."""
+    creds = _load_creds()
+    if creds.get("expiry_date", 0) / 1000.0 <= time.time() + 60:
+        creds = _refresh(creds)
+    return creds["access_token"]
+
+
+def _headers(token: str) -> dict:
+    return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+
+
+def get_project_id(token: str) -> str:
+    """projectId do Code Assist (via loadCodeAssist). Cacheado por processo."""
+    global _project_cache
+    if _project_cache:
+        return _project_cache
+    if os.environ.get("GEMINI_CLI_PROJECT"):
+        _project_cache = os.environ["GEMINI_CLI_PROJECT"]
+        return _project_cache
+    r = requests.post(f"{CODE_ASSIST_ENDPOINT}/{API_VERSION}:loadCodeAssist",
+                      headers=_headers(token), json={"metadata": {"pluginType": "GEMINI"}},
+                      timeout=30)
+    if not r.ok:
+        raise GeminiCliError(f"loadCodeAssist falhou: {r.status_code} {r.text[:200]}")
+    proj = r.json().get("cloudaicompanionProject")
+    if not proj:
+        raise GeminiCliError("loadCodeAssist não devolveu cloudaicompanionProject.")
+    _project_cache = proj
+    return proj
+
+
+def _extract_text(data: dict) -> str:
+    resp = data.get("response", data)
+    parts = resp["candidates"][0]["content"]["parts"]
+    return "".join(p.get("text", "") for p in parts)
+
+
+def call_gemini_cli_structured(prompt: str, system_prompt: str, response_model: Any,
+                               model: str, image_path: Optional[str] = None) -> Any:
+    """Chamada estruturada via Code Assist. Retorna instância de response_model.
+
+    Espelha o branch google do call_llm_structured, mas no envelope Code Assist
+    (`{model, project, request:{contents, generationConfig}}`) e endpoint cloudcode-pa."""
+    import base64
+    token = get_access_token()
+    project = get_project_id(token)
+    schema = response_model.model_json_schema()
+
+    parts: list[dict] = [{"text": f"{system_prompt}\n\n{prompt}"}]
+    if image_path:
+        with open(image_path, "rb") as f:
+            parts.append({"inlineData": {"mimeType": "image/png",
+                                         "data": base64.b64encode(f.read()).decode("utf-8")}})
+    body = {
+        "model": model,
+        "project": project,
+        "request": {
+            "contents": [{"role": "user", "parts": parts}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "responseMimeType": "application/json",
+                "responseSchema": schema,
+            },
+        },
+    }
+    r = requests.post(f"{CODE_ASSIST_ENDPOINT}/{API_VERSION}:generateContent",
+                      headers=_headers(token), json=body, timeout=120)
+    if r.status_code in (401, 403):
+        # auth/scope — sinaliza p/ o fallback do papel não insistir no mesmo alvo.
+        raise GeminiCliError(f"authentication failed (gemini-cli {r.status_code}): {r.text[:200]}")
+    if not r.ok:
+        raise GeminiCliError(f"gemini-cli {r.status_code}: {r.text[:200]}")
+    text = _extract_text(r.json())
+    return response_model.model_validate_json(text)
