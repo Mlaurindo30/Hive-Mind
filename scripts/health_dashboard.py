@@ -22,6 +22,7 @@ ainda não dá pra medir vira `n/a` — nunca inventamos número. Sem LLM, sem l
   M10 decisions_promoted_30d     dec-*.md em frontal/decisoes criados nos últimos 30d
   M11 patterns_distilled_90d     *.md em cerebelo/padroes criados nos últimos 90d
   M12 conflicts_open             count do último conflict-report em insula/conflitos
+  M13 alerts_dispatched_today    alerta-*.md (type: health-alert) em inbox/hoje
 """
 from __future__ import annotations
 
@@ -40,6 +41,7 @@ sys.path.insert(0, str(_HERE.parent))
 from core import paths as cp  # noqa: E402
 from core.database import get_connection, ensure_migrations  # noqa: E402
 from scripts.drift_detector import scan_neuronios, DECISION_TYPES  # noqa: E402
+from scripts.alert_dispatcher import m13_alerts_dispatched_today  # noqa: E402
 
 MAX_CYCLE_SECONDS = int(os.environ.get("HIVE_MAX_CYCLE_SECONDS", "600"))
 NA = "n/a"
@@ -171,6 +173,7 @@ def compute_metrics(conn, *, temporal_root: Path = cp.TEMPORAL,
                     decisions_root: Path = cp.DECISIONS_ROOT,
                     padroes_root: Path = cp.PADROES_ROOT,
                     conflicts_root: Path = cp.CONFLICTS_ROOT,
+                    inbox_root: Path = cp.INBOX_ROOT,
                     now: Optional[datetime] = None,
                     max_cycle_s: int = MAX_CYCLE_SECONDS) -> dict:
     now = now or datetime.now()
@@ -187,6 +190,7 @@ def compute_metrics(conn, *, temporal_root: Path = cp.TEMPORAL,
         "M10_decisions_promoted_30d": m10_decisions_promoted_30d(decisions_root, now=now),
         "M11_patterns_distilled_90d": m11_patterns_distilled_90d(padroes_root, now=now),
         "M12_conflicts_open": m12_conflicts_open(conflicts_root),
+        "M13_alerts_dispatched_today": m13_alerts_dispatched_today(inbox_root, now=now),
     }
 
 
@@ -233,6 +237,7 @@ def render_snapshot(m: dict, alerts: list[str], *, now: datetime) -> str:
         ("M10 decisões promovidas (30d)", _fmt(m.get("M10_decisions_promoted_30d"))),
         ("M11 padrões destilados (90d)", _fmt(m.get("M11_patterns_distilled_90d"))),
         ("M12 conflitos abertos", _fmt(m.get("M12_conflicts_open"))),
+        ("M13 alertas despachados (hoje)", _fmt(m.get("M13_alerts_dispatched_today"))),
     ]
     table = "\n".join(f"| {k} | {v} |" for k, v in rows)
     alert_block = ("\n".join(f"- ⚠️ {a}" for a in alerts)
