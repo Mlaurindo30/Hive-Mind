@@ -16,21 +16,26 @@ USER_UNITS = Path.home() / ".config" / "systemd" / "user"
 
 def unit_definitions() -> dict[str, str]:
     path = str(ROOT)
+    claude_mem_data = str(Path.home() / ".claude-mem")
+    claude_mem_db = str(Path.home() / ".claude-mem" / "claude-mem.db")
+    claude_mem_models = str(Path.home() / ".claude-mem" / "models")
     common_unit = "StartLimitIntervalSec=60\nStartLimitBurst=3"
     return {
         "sinapse-claude-mem.service": f"""[Unit]
-Description=Sinapse Agent - claude-mem Worker (global)
+Description=Sinapse Agent - claude-mem Worker (global multi-project data)
 After=network.target
 {common_unit}
 
 [Service]
 Type=simple
 UMask=0077
-WorkingDirectory=%h/.claude-mem
+WorkingDirectory={path}
+Environment=CLAUDE_MEM_DATA_DIR={claude_mem_data}
 Environment=CLAUDE_MEM_WORKER_HOST=127.0.0.1
 Environment=CLAUDE_MEM_WORKER_PORT=37700
 Environment=CLAUDE_MEM_CHROMA_ENABLED=false
 Environment=CLAUDE_MEM_MANAGED=true
+Environment=FASTEMBED_CACHE_PATH={claude_mem_models}
 Environment=PATH={path}/.tools/bin:{path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart={path}/scripts/claude-mem-local.sh
 Restart=on-failure
@@ -49,8 +54,8 @@ Type=simple
 UMask=0077
 WorkingDirectory={path}
 Environment=VEC_WORKER_PORT=37701
-Environment=CLAUDE_MEM_DB=%h/.claude-mem/claude-mem.db
-Environment=FASTEMBED_CACHE_PATH=%h/.claude-mem/models
+Environment=CLAUDE_MEM_DB={claude_mem_db}
+Environment=FASTEMBED_CACHE_PATH={claude_mem_models}
 Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart={path}/.venv/bin/python {path}/plugins/sqlite-vec-worker/worker.py
 Restart=on-failure
@@ -120,6 +125,7 @@ After=network.target sinapse-claude-mem.service
 Type=simple
 UMask=0077
 WorkingDirectory={path}
+Environment=CLAUDE_MEM_DATA_DIR={claude_mem_data}
 Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart={path}/.venv/bin/python {path}/scripts/capture-realtime.py
 Restart=always
@@ -165,6 +171,7 @@ After=sinapse-claude-mem.service
 Type=oneshot
 UMask=0077
 WorkingDirectory={path}
+Environment=CLAUDE_MEM_DATA_DIR={claude_mem_data}
 Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart={path}/.venv/bin/python {path}/scripts/capture_maintenance.py
 """,
@@ -191,7 +198,7 @@ Type=oneshot
 UMask=0077
 WorkingDirectory={path}
 Environment=SINAPSE_HOME={path}
-Environment=CLAUDE_MEM_DB=%h/.claude-mem/claude-mem.db
+Environment=CLAUDE_MEM_DB={claude_mem_db}
 Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 Environment=PYTHONUNBUFFERED=1
 ExecStart={path}/.venv/bin/python {path}/scripts/claude_mem_bridge.py

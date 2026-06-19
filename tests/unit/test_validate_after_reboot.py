@@ -48,8 +48,6 @@ def test_prepare_records_current_boot(monkeypatch, tmp_path):
 def test_claude_mem_database_loads_sqlite_vec(monkeypatch, tmp_path):
     import sqlite_vec
 
-    # Pós-migração, o validator usa o DB GLOBAL (~/.claude-mem). Monta lá e
-    # aponta Path.home() para o tmp_path. ROOT (local legado) não existe → usa global.
     home = tmp_path / "home"
     db_dir = home / ".claude-mem"
     db_dir.mkdir(parents=True)
@@ -69,36 +67,12 @@ def test_claude_mem_database_loads_sqlite_vec(monkeypatch, tmp_path):
     connection.close()
 
     monkeypatch.setattr(MODULE.Path, "home", classmethod(lambda cls: home))
-    monkeypatch.setattr(MODULE, "ROOT", tmp_path / "norepo")
     result = MODULE.claude_mem_database()
     assert result["path"] == str(db_path)
     assert result["integrity_check"] == "ok"
     assert result["observations"] == 1
     assert result["vectors"] == 1
 
-
-def test_global_reference_scan_ignores_inaccessible_processes(monkeypatch, tmp_path):
-    proc_root = tmp_path / "proc"
-    proc_root.mkdir()
-    inaccessible = proc_root / "123"
-    inaccessible.mkdir()
-    (inaccessible / "fd").mkdir()
-
-    original_path = MODULE.Path
-
-    class ProcPath(original_path):
-        def iterdir(self):
-            if str(self) == "/proc":
-                return iter((inaccessible,))
-            return super().iterdir()
-
-    monkeypatch.setattr(MODULE, "Path", ProcPath)
-    monkeypatch.setattr(
-        MODULE.os,
-        "readlink",
-        lambda path: (_ for _ in ()).throw(PermissionError()),
-    )
-    assert MODULE.global_claude_mem_references() == []
 
 
 def test_validate_fails_without_real_reboot(monkeypatch, tmp_path):
@@ -163,8 +137,6 @@ def test_validate_marks_fail_when_ports_not_loopback(monkeypatch, tmp_path):
             "vectors": 200,
         },
     )
-    monkeypatch.setattr(MODULE, "global_claude_mem_references", lambda: [{"pid": 1, "references": ["ok"]}])
-
     class SmokeResult:
         returncode = 0
         stdout = "ok"

@@ -30,6 +30,7 @@ from typing import Optional
 
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent))
+ROOT = _HERE.parent
 
 from core.database import get_connection, ensure_migrations  # noqa: E402
 

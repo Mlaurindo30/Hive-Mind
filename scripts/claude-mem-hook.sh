@@ -12,11 +12,17 @@ export FASTEMBED_CACHE_PATH="${FASTEMBED_CACHE_PATH:-$CLAUDE_MEM_DATA_DIR/models
 
 mkdir -p "$CLAUDE_MEM_DATA_DIR" "$FASTEMBED_CACHE_PATH"
 
-# Resolve the global plugin directory (version-independent).
 GLOBAL_PLUGIN=""
 for candidate in \
+    "$HOME/.codex/plugins/cache/claude-mem-local/claude-mem/"* \
+    "$HOME/.codex/plugins/cache/thedotmack/claude-mem/"* \
     "$HOME/.claude/plugins/marketplaces/thedotmack/plugin" \
     "$HOME/.claude/plugins/cache/thedotmack/claude-mem/"*"/plugin"; do
+    candidate="${candidate%/}"
+    if [ -f "$candidate/plugin/scripts/worker-service.cjs" ]; then
+        GLOBAL_PLUGIN="$candidate/plugin"
+        break
+    fi
     if [ -f "$candidate/scripts/worker-service.cjs" ]; then
         GLOBAL_PLUGIN="$candidate"
         break
@@ -37,30 +43,28 @@ if [ -z "$BUN" ] || [ ! -x "$BUN" ]; then
     exit 2
 fi
 
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-    cat <<EOF
-Usage: $0 [mcp-server|start|stop|restart|status|hook ...]
-
-Without arguments this runs the claude-mem worker in the foreground for systemd.
-Uses the native claude-mem plugin/runtime; data lives in:
-  $CLAUDE_MEM_DATA_DIR
-EOF
-    exit 0
-fi
-
-if [[ "${1:-}" == "mcp-server" ]]; then
-    shift
-    exec "$BUN" "$GLOBAL_PLUGIN/scripts/mcp-server.cjs" "$@"
-fi
-
-if [[ "$#" -eq 0 ]]; then
-    if [ ! -f "$GLOBAL_PLUGIN/scripts/worker-wrapper.cjs" ]; then
-        echo "claude-mem worker-wrapper.cjs not found in $GLOBAL_PLUGIN" >&2
+case "${1:-}" in
+    version-check)
+        shift
+        export CLAUDE_MEM_CODEX_HOOK=1
+        exec node "$GLOBAL_PLUGIN/scripts/version-check.js" "$@"
+        ;;
+    ensure-worker)
+        shift
+        if command -v systemctl >/dev/null 2>&1 \
+            && systemctl --user list-unit-files sinapse-claude-mem.service >/dev/null 2>&1; then
+            systemctl --user start sinapse-claude-mem.service >/dev/null 2>&1 || true
+            exit 0
+        fi
+        exec "$ROOT/scripts/claude-mem-local.sh" start "$@"
+        ;;
+    hook)
+        shift
+        exec node "$GLOBAL_PLUGIN/scripts/bun-runner.js" \
+            "$GLOBAL_PLUGIN/scripts/worker-service.cjs" hook "$@"
+        ;;
+    *)
+        echo "Usage: $0 {version-check|ensure-worker|hook ...}" >&2
         exit 2
-    fi
-    # Foreground supervisor for systemd Type=simple. It owns the child worker
-    # and exits if the worker dies instead of daemonizing behind systemd.
-    exec "$BUN" "$GLOBAL_PLUGIN/scripts/worker-wrapper.cjs"
-fi
-
-exec "$BUN" "$GLOBAL_PLUGIN/scripts/worker-service.cjs" "$@"
+        ;;
+esac

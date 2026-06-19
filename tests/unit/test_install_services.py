@@ -80,6 +80,28 @@ def test_execstart_usa_venv_local():
                     f"{name}: ExecStart deve usar .venv/bin/python — {line!r}")
 
 
+def test_claude_mem_units_usam_banco_global():
+    from pathlib import Path as _Path
+    global_home = str(_Path.home())
+    expected_db = f"{global_home}/.claude-mem/claude-mem.db"
+    expected_data = f"{global_home}/.claude-mem"
+    expected_models = f"{global_home}/.claude-mem/models"
+
+    assert f"WorkingDirectory={MOD.ROOT}" in DEFS["sinapse-claude-mem.service"]
+    assert f"Environment=CLAUDE_MEM_DATA_DIR={expected_data}" in DEFS["sinapse-claude-mem.service"]
+    assert f"Environment=CLAUDE_MEM_DB={expected_db}" in DEFS["sinapse-sqlite-vec.service"]
+    assert f"Environment=FASTEMBED_CACHE_PATH={expected_models}" in DEFS["sinapse-sqlite-vec.service"]
+    assert f"Environment=CLAUDE_MEM_DATA_DIR={expected_data}" in DEFS["sinapse-capture-realtime.service"]
+    assert f"Environment=CLAUDE_MEM_DB={expected_db}" in DEFS["sinapse-bridge.service"]
+
+
+def test_claude_mem_launcher_usa_wrapper_foreground_para_systemd():
+    """A unit Type=simple precisa de processo foreground, não worker daemonizado."""
+    launcher = (SCRIPTS / "claude-mem-local.sh").read_text()
+    assert "worker-wrapper.cjs" in launcher
+    assert 'exec "$BUN" "$GLOBAL_PLUGIN/scripts/worker-wrapper.cjs"' in launcher
+
+
 def test_topics_e_log_only_sem_apply():
     """topic_consolidator NUNCA roda com --apply via timer (merge é revisão humana)."""
     svc = DEFS["sinapse-topics.service"]

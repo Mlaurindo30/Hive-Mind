@@ -79,6 +79,11 @@ def test_bridge_preserva_project(hm_path, cm_path):
     assert _count(hm_path, "project IS NULL") == 0   # null vira default, não fica NULL
 
 
+def test_default_claude_mem_db_aponta_para_global(monkeypatch):
+    monkeypatch.delenv("CLAUDE_MEM_DB", raising=False)
+    assert br.CLAUDE_MEM_DB == br.Path.home() / ".claude-mem" / "claude-mem.db"
+
+
 def test_bridge_idempotente(hm_path, cm_path):
     br.bridge(cm_db=cm_path)
     stats2 = br.bridge(cm_db=cm_path)
