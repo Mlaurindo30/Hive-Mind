@@ -269,10 +269,136 @@ def write_snapshot(m: dict, alerts: list[str], *, saude_root: Path = cp.SAUDE_RO
     return dest
 
 
+# ---- F5.3 — Dashboard Dataview -----------------------------------------------
+
+_DASHBOARD_TEMPLATE = """\
+---
+type: health-dashboard
+description: Dashboard de saúde da memória (M1-M13) — gerado por health_dashboard.py
+generated_at: {generated_at}
+---
+# Dashboard de Saúde da Memória
+
+> Gerado em {generated_at} por `health_dashboard.py --generate-dashboard`.
+> Requer plugin **Dataview** ativo no Obsidian para renderizar os blocos abaixo.
+
+## Últimos 7 dias — métricas principais
+
+```dataviewjs
+const saude = '"cortex/insula/saude"';
+const pages = dv.pages(saude)
+  .filter(p => /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(p.file.name))
+  .sort(p => p.file.name, 'desc')
+  .slice(0, 7);
+
+function extractMetric(content, label) {{
+  const re = new RegExp('\\\\| ' + label + ' \\\\| ([^|]+) \\\\|');
+  const m = content.match(re);
+  return m ? m[1].trim() : 'n/a';
+}}
+
+const rows = [];
+for (const page of pages) {{
+  const file = app.vault.getAbstractFileByPath(page.file.path);
+  const content = await app.vault.read(file);
+  rows.push([
+    page.file.name,
+    extractMetric(content, 'M1 átomos/dia'),
+    extractMetric(content, 'M2 daily logs \\\\(7d\\\\)'),
+    extractMetric(content, 'M4 órfãos %'),
+    extractMetric(content, 'M9 dream survival'),
+    extractMetric(content, 'M12 conflitos abertos'),
+    extractMetric(content, 'M13 alertas despachados \\\\(hoje\\\\)'),
+  ]);
+}}
+
+dv.table(
+  ['Data', 'M1 átomos', 'M2 daily(7d)', 'M4 órfãos%', 'M9 dream', 'M12 conflitos', 'M13 alertas'],
+  rows
+);
+```
+
+## Histórico de alertas — últimos 30 dias
+
+```dataviewjs
+const saude = '"cortex/insula/saude"';
+const pages = dv.pages(saude)
+  .filter(p => /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(p.file.name))
+  .sort(p => p.file.name, 'desc')
+  .slice(0, 30);
+
+function extractAlerts(content) {{
+  const m = content.match(/## Alertas\\n([\\s\\S]*?)(?=\\n## |$)/);
+  if (!m) return [];
+  return m[1].split('\\n')
+    .filter(l => l.includes('⚠️'))
+    .map(l => l.replace(/^-\\s*⚠️\\s*/, '').trim())
+    .filter(Boolean);
+}}
+
+const alertRows = [];
+for (const page of pages) {{
+  const file = app.vault.getAbstractFileByPath(page.file.path);
+  const content = await app.vault.read(file);
+  for (const alert of extractAlerts(content)) {{
+    alertRows.push([page.file.name, alert]);
+  }}
+}}
+
+if (alertRows.length === 0) {{
+  dv.paragraph('✅ Nenhum alerta nos últimos 30 dias.');
+}} else {{
+  dv.table(['Data', 'Alerta'], alertRows);
+}}
+```
+
+## Tendência de M1 (átomos/dia) — últimos 30 dias
+
+```dataviewjs
+const saude = '"cortex/insula/saude"';
+const pages = dv.pages(saude)
+  .filter(p => /^\\d{{4}}-\\d{{2}}-\\d{{2}}$/.test(p.file.name))
+  .sort(p => p.file.name, 'asc')
+  .slice(-30);
+
+const rows = [];
+for (const page of pages) {{
+  const file = app.vault.getAbstractFileByPath(page.file.path);
+  const content = await app.vault.read(file);
+  const m = content.match(/\\| M1 átomos\\/dia \\| ([^|]+) \\|/);
+  const v = m ? m[1].trim() : 'n/a';
+  rows.push([page.file.name, v === 'n/a' ? v : Number(v)]);
+}}
+
+dv.table(['Data', 'M1 átomos/dia'], rows);
+```
+"""
+
+
+def generate_dashboard(saude_root: Path = cp.SAUDE_ROOT) -> Path:
+    """Gera `_Dashboard.md` com blocos Dataview JS em saude_root. Sobrescreve se existir."""
+    saude_root.mkdir(parents=True, exist_ok=True)
+    dest = saude_root / "_Dashboard.md"
+    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    dest.write_text(
+        _DASHBOARD_TEMPLATE.format(generated_at=generated_at),
+        encoding="utf-8",
+    )
+    return dest
+
+
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Gera snapshot de saúde da memória (M1-M9).")
+    ap = argparse.ArgumentParser(description="Gera snapshot de saúde da memória (M1-M13).")
     ap.add_argument("--dry-run", action="store_true", help="imprime, não escreve arquivo")
+    ap.add_argument("--generate-dashboard", action="store_true",
+                    help="Gera _Dashboard.md com blocos Dataview JS (F5.3)")
     args = ap.parse_args()
+
+    if args.generate_dashboard:
+        dest = generate_dashboard()
+        print(f"[health] dashboard gerado em {dest}")
+        return 0
+
     conn = get_connection()
     ensure_migrations(conn)
     try:

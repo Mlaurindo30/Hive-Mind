@@ -233,6 +233,33 @@ def test_alert_m12_dispara_quando_ha_conflitos(tmp_path):
     c.close()
 
 
+def test_generate_dashboard_cria_arquivo(tmp_path):
+    dest = hd.generate_dashboard(tmp_path / "saude")
+    assert dest.exists()
+    assert dest.name == "_Dashboard.md"
+
+
+def test_generate_dashboard_frontmatter(tmp_path):
+    dest = hd.generate_dashboard(tmp_path / "saude")
+    content = dest.read_text(encoding="utf-8")
+    assert "type: health-dashboard" in content
+
+
+def test_generate_dashboard_contem_blocos_dataviewjs(tmp_path):
+    dest = hd.generate_dashboard(tmp_path / "saude")
+    content = dest.read_text(encoding="utf-8")
+    assert "```dataviewjs" in content
+    assert "cortex/insula/saude" in content
+
+
+def test_generate_dashboard_idempotente(tmp_path):
+    saude = tmp_path / "saude"
+    p1 = hd.generate_dashboard(saude)
+    p2 = hd.generate_dashboard(saude)
+    assert p1 == p2
+    assert len(list(saude.glob("_Dashboard.md"))) == 1
+
+
 def test_render_snapshot_contem_m10_m11_m12(tmp_path):
     c = _conn()
     m = hd.compute_metrics(
