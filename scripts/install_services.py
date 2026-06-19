@@ -342,6 +342,33 @@ Unit=sinapse-health.service
 [Install]
 WantedBy=timers.target
 """,
+        # F5.1 alert_dispatcher: lê snapshot M1-M13, despacha para parietal/inbox/.
+        # Read-only no snapshot → seguro no enabled.
+        "sinapse-alert.service": f"""[Unit]
+Description=Memória Viva - Alert Dispatcher (M1-M13 -> parietal/inbox)
+After=network.target sinapse-health.service
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/alert_dispatcher.py --apply
+""",
+        "sinapse-alert.timer": """[Unit]
+Description=Despacha alertas de saúde para inbox/ diariamente 23:52 (pós-health)
+
+[Timer]
+OnCalendar=*-*-* 23:52:00
+Persistent=true
+Unit=sinapse-alert.service
+
+[Install]
+WantedBy=timers.target
+""",
         # ===== Fase 4 — memória executiva (F4.1) =====
         # decision_promoter materializa decisões em frontal/decisoes/. Roda --apply:
         # cria/atualiza arquivos PRÓPRIOS (idempotentes, regeneráveis), NÃO muta neurônios.
@@ -582,6 +609,8 @@ def install(start: bool) -> int:
         "sinapse-topics.timer",
         # Fase 3: health é read-only (snapshot). drift NÃO entra (roda --apply só à mão).
         "sinapse-health.timer",
+        # Fase 5.1: alert_dispatcher lê snapshot e escreve inbox/ (idempotente, seguro).
+        "sinapse-alert.timer",
         # Fase 4: decisions/projects materializam arquivos próprios (idempotente) → seguro.
         "sinapse-decisions.timer",
         "sinapse-projects.timer",
