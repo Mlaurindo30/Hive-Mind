@@ -1,6 +1,6 @@
 # Memória Viva — Design do Serviço Inteligente do Hive-Mind
 
-> **Versão**: 2.24 (F5.1 LIVE: alert_dispatcher + M13 + sinapse-alert.timer; 392 testes)
+> **Versão**: 2.25 (F5.2 LIVE: search_memories HNSW wiring no MCP; core/search.py; 406 testes)
 > **Data**: 2026-06-19
 > **Escopo**: Definição completa do comportamento inteligente do serviço de memória do Sinapse — **estrutura do vault modelada na ANATOMIA CEREBRAL** (córtex com 5 lobos + diencéfalo + cerebelo + tronco), eixo primário por **projeto**, camada de **MOCs (consciência)** e **sinapses** automáticas, cadência (diária/sessão/semanal), formação autônoma de neurônios/pastas/MOCs, nomenclatura human-readable, multi-setor, métricas de "vivo", e plano de migração.
 > **Audiência**: Michel (autor do vault), futuros agentes IA, contribuidores do projeto.
@@ -1979,8 +1979,8 @@ validado (R1) + testado (R5). **Pré-condição**: F4.6 ✅ LIVE.
 | insula/conflitos (F4.4) | ✅ LIVE | conflict_detector (embed+LLM); sinapse-conflicts.timer |
 | frontal/trabalho/ativo (F4.5) | ✅ LIVE | work_tracker; sinapse-work.timer |
 | F4.6 — M10/M11/M12 + integração health/weekly | ✅ **LIVE** | `health_dashboard` calcula M10-M12; `weekly_synthesizer` embute via `_health_section()`; 377 testes |
-| Fase 5 (alert_dispatcher + HNSW wiring + dashboard) | 🟡 **PARCIAL** | F5.1 `alert_dispatcher` ✅ LIVE (392 testes); F5.2 HNSW wiring + F5.3 Dataview pendentes |
+| Fase 5 (alert_dispatcher + HNSW wiring + dashboard) | 🟡 **PARCIAL** | F5.1 `alert_dispatcher` ✅ + F5.2 `search_memories` HNSW ✅ LIVE (406 testes); F5.3 Dataview pendente |
 
 ---
 
-*Documento vivo. Versão 2.24 (F5.1 `alert_dispatcher` LIVE → inbox; M13 `alerts_dispatched_today` no health_dashboard; `sinapse-alert.timer` 23:52; 392 testes; F5.2 HNSW + F5.3 Dataview pendentes).*
+*Documento vivo. Versão 2.25 (F5.1 `alert_dispatcher` ✅ + F5.2 `search_memories` HNSW wiring ✅ LIVE; `core/search.py` com fallback automático; 406 testes; F5.3 Dataview opcional pendente).*

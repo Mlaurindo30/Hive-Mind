@@ -178,6 +178,40 @@ TOOLS = [
             },
             "required": ["goal"]
         }
+    },
+    {
+        "name": "search_memories",
+        "description": (
+            "Busca neurônios do vault por similaridade semântica (HNSW cosine) "
+            "ou full-text. Modo 'semantic' usa fastembed + índice HNSW; faz fallback "
+            "automático para full-text se o índice estiver ausente ou desatualizado (>7d). "
+            "Retorna [{label, source_file, project, topic, score, aliases}]."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Consulta em linguagem natural (PT ou EN)"
+                },
+                "top_k": {
+                    "type": "integer",
+                    "description": "Número máximo de resultados (default 10)",
+                    "default": 10
+                },
+                "project": {
+                    "type": "string",
+                    "description": "Filtrar por projeto (ex: 'Hive-Mind'). Opcional."
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["semantic", "text"],
+                    "description": "Modo de busca: 'semantic' (HNSW, default) ou 'text' (full-text).",
+                    "default": "semantic"
+                }
+            },
+            "required": ["query"]
+        }
     }
 ]
 
@@ -196,6 +230,12 @@ HANDLERS = {
     "sinapse_zettelkasten_split": lambda args: _zettelkasten_split(args.get("source_file", ""), args.get("output_dir", "cerebro/atoms")),
     "sinapse_capture_screen": lambda args: _capture_screen(args.get("description", "")),
     "sinapse_plan_goal": lambda args: _plan_goal(args.get("goal", ""), args.get("context")),
+    "search_memories": lambda args: _search_memories(
+        args.get("query", ""),
+        top_k=int(args.get("top_k", 10)),
+        project=args.get("project"),
+        mode=args.get("mode", "semantic"),
+    ),
 }
 
 
@@ -319,6 +359,18 @@ def _plan_goal(goal: str, context=None):
     steps = planner.decompose_goal(goal, context)
     goal_id = planner.save_goal(goal, steps)
     return {"goal_id": goal_id, "steps": steps}
+
+
+def _search_memories(query: str, top_k: int = 10, project=None, mode: str = "semantic"):
+    """Busca neurônios via HNSW (semantic) ou full-text, com fallback automático."""
+    from core.database import get_connection, ensure_migrations
+    from core.search import search_neurons
+    conn = get_connection()
+    ensure_migrations(conn)
+    try:
+        return search_neurons(conn, query, top_k=top_k, project=project, mode=mode)
+    finally:
+        conn.close()
 
 
 def handle_request(req: dict) -> dict | None:
