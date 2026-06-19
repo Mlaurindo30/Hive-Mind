@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-scripts/health_dashboard.py — Painel de saúde da memória (Memória Viva F3.3).
+scripts/health_dashboard.py — Painel de saúde da memória (Memória Viva F3.3/F4.6).
 
-Calcula M1-M9 (§9.2/§9.3) e grava um snapshot idempotente em
+Calcula M1-M12 (§9.2/§9.3) e grava um snapshot idempotente em
 cortex/insula/saude/YYYY-MM-DD.md com seção de alertas.
 
 HONESTIDADE DE SCHEMA (R1/R2 do §14): a §9.2 original citava colunas/tabelas que NÃO
@@ -10,15 +10,18 @@ existem (backlinks_count, last_reviewed_at, merge_log). Aqui cada métrica é ca
 do que é REALMENTE mensurável (DB neurons + arquivos do vault + dream_cycle_log). O que
 ainda não dá pra medir vira `n/a` — nunca inventamos número. Sem LLM, sem load_env (R3).
 
-  M1 atoms_created_per_day   neurons criados nas últimas 24h (DB)
-  M2 daily_logs_last_7d      arquivos em cerebelo/diario c/ data nos últimos 7d
-  M3 session_logs_last_30d   arquivos em cerebelo/sessoes mtime < 30d
-  M4 orphan_neurons_pct      neuronio-*.md sem `related:` ÷ total
-  M5 topic_consolidation     n/a (sem log de merge ainda)
-  M6 aliases_coverage_pct    neuronio-*.md com `aliases:` ÷ total
-  M7 weekly_summaries_12w    arquivos em cerebelo/semanal
-  M8 decision_staleness_pct  decisions > 180d ÷ total decisions (frontmatter)
-  M9 dream_survival          pior duração de ciclo nos últimos 7d vs MAX_CYCLE_SECONDS
+  M1  atoms_created_per_day      neurons criados nas últimas 24h (DB)
+  M2  daily_logs_last_7d         arquivos em cerebelo/diario c/ data nos últimos 7d
+  M3  session_logs_last_30d      arquivos em cerebelo/sessoes mtime < 30d
+  M4  orphan_neurons_pct         neuronio-*.md sem `related:` ÷ total
+  M5  topic_consolidation        n/a (sem log de merge ainda)
+  M6  aliases_coverage_pct       neuronio-*.md com `aliases:` ÷ total
+  M7  weekly_summaries_12w       arquivos em cerebelo/semanal
+  M8  decision_staleness_pct     decisions > 180d ÷ total decisions (frontmatter)
+  M9  dream_survival             pior duração de ciclo nos últimos 7d vs MAX_CYCLE_SECONDS
+  M10 decisions_promoted_30d     dec-*.md em frontal/decisoes criados nos últimos 30d
+  M11 patterns_distilled_90d     *.md em cerebelo/padroes criados nos últimos 90d
+  M12 conflicts_open             count do último conflict-report em insula/conflitos
 """
 from __future__ import annotations
 
@@ -26,6 +29,7 @@ import argparse
 import os
 import re
 import sys
+import yaml
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -122,10 +126,51 @@ def m9_dream_survival(conn, *, max_cycle_s: int = MAX_CYCLE_SECONDS) -> dict:
     return {"value": round(worst, 1), "ok": ok, "cycles_7d": row["n"]}
 
 
+# ---- F4.6 — métricas do lobo frontal + padrões + conflitos ----------------
+def m10_decisions_promoted_30d(decisions_root: Path = cp.DECISIONS_ROOT, *,
+                               now: Optional[datetime] = None) -> int:
+    if not decisions_root.exists():
+        return 0
+    now = now or datetime.now()
+    cutoff = now.timestamp() - 30 * 86400
+    return sum(1 for f in decisions_root.rglob("dec-*.md")
+               if f.stat().st_mtime >= cutoff)
+
+
+def m11_patterns_distilled_90d(padroes_root: Path = cp.PADROES_ROOT, *,
+                                now: Optional[datetime] = None) -> int:
+    if not padroes_root.exists():
+        return 0
+    now = now or datetime.now()
+    cutoff = now.timestamp() - 90 * 86400
+    return sum(1 for f in padroes_root.glob("*.md") if f.stat().st_mtime >= cutoff)
+
+
+def m12_conflicts_open(conflicts_root: Path = cp.CONFLICTS_ROOT) -> int:
+    """Lê o count do último conflict-report. 0 se não há relatório."""
+    if not conflicts_root.exists():
+        return 0
+    reports = sorted(conflicts_root.glob("*.md"))
+    if not reports:
+        return 0
+    content = reports[-1].read_text(errors="ignore")
+    m = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
+    if not m:
+        return 0
+    try:
+        fm = yaml.safe_load(m.group(1))
+        return int(fm.get("count", 0))
+    except Exception:
+        return 0
+
+
 # ---- orquestração ----------------------------------------------------------
 def compute_metrics(conn, *, temporal_root: Path = cp.TEMPORAL,
                     daily_root: Path = cp.DAILY_ROOT, weekly_root: Path = cp.WEEKLY_ROOT,
                     sessions_root: Path = cp.SESSIONS_ROOT,
+                    decisions_root: Path = cp.DECISIONS_ROOT,
+                    padroes_root: Path = cp.PADROES_ROOT,
+                    conflicts_root: Path = cp.CONFLICTS_ROOT,
                     now: Optional[datetime] = None,
                     max_cycle_s: int = MAX_CYCLE_SECONDS) -> dict:
     now = now or datetime.now()
@@ -139,6 +184,9 @@ def compute_metrics(conn, *, temporal_root: Path = cp.TEMPORAL,
         "M7_weekly_12w": m7_weekly_12w(weekly_root),
         "M8_decision_staleness_pct": m8_decision_staleness_pct(temporal_root, now=now),
         "M9_dream_survival": m9_dream_survival(conn, max_cycle_s=max_cycle_s),
+        "M10_decisions_promoted_30d": m10_decisions_promoted_30d(decisions_root, now=now),
+        "M11_patterns_distilled_90d": m11_patterns_distilled_90d(padroes_root, now=now),
+        "M12_conflicts_open": m12_conflicts_open(conflicts_root),
     }
 
 
@@ -156,6 +204,12 @@ def evaluate_alerts(m: dict) -> list[str]:
     m9 = m["M9_dream_survival"]
     if m9.get("ok") is False:
         alerts.append(f"M9: dream cycle excedeu orçamento/erro (pior={m9['value']}s).")
+    if isinstance(m.get("M10_decisions_promoted_30d"), int) and m["M10_decisions_promoted_30d"] == 0:
+        alerts.append("M10: nenhuma decisão promovida nos últimos 30d.")
+    if isinstance(m.get("M11_patterns_distilled_90d"), int) and m["M11_patterns_distilled_90d"] == 0:
+        alerts.append("M11: nenhum padrão destilado nos últimos 90d.")
+    if isinstance(m.get("M12_conflicts_open"), int) and m["M12_conflicts_open"] > 0:
+        alerts.append(f"M12: {m['M12_conflicts_open']} conflito(s) aberto(s) aguardam revisão.")
     return alerts
 
 
@@ -176,6 +230,9 @@ def render_snapshot(m: dict, alerts: list[str], *, now: datetime) -> str:
         ("M7 weeklies (12w)", _fmt(m["M7_weekly_12w"])),
         ("M8 decisões stale %", _fmt(m["M8_decision_staleness_pct"])),
         ("M9 dream survival", m9_txt),
+        ("M10 decisões promovidas (30d)", _fmt(m.get("M10_decisions_promoted_30d"))),
+        ("M11 padrões destilados (90d)", _fmt(m.get("M11_patterns_distilled_90d"))),
+        ("M12 conflitos abertos", _fmt(m.get("M12_conflicts_open"))),
     ]
     table = "\n".join(f"| {k} | {v} |" for k, v in rows)
     alert_block = ("\n".join(f"- ⚠️ {a}" for a in alerts)

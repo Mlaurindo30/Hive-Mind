@@ -1,7 +1,7 @@
 # Memória Viva — Design do Serviço Inteligente do Hive-Mind
 
-> **Versão**: 2.21 (setup-brain escolhe os 3 níveis de fallback por papel; menu c/ todos os papéis Fase 2-4; herança do Dreamer propaga a cadeia)
-> **Data**: 2026-06-17
+> **Versão**: 2.22 (F4.6 completo: M10/M11/M12 em health_dashboard + testes; 377 testes verdes)
+> **Data**: 2026-06-19
 > **Escopo**: Definição completa do comportamento inteligente do serviço de memória do Sinapse — **estrutura do vault modelada na ANATOMIA CEREBRAL** (córtex com 5 lobos + diencéfalo + cerebelo + tronco), eixo primário por **projeto**, camada de **MOCs (consciência)** e **sinapses** automáticas, cadência (diária/sessão/semanal), formação autônoma de neurônios/pastas/MOCs, nomenclatura human-readable, multi-setor, métricas de "vivo", e plano de migração.
 > **Audiência**: Michel (autor do vault), futuros agentes IA, contribuidores do projeto.
 >
@@ -1883,7 +1883,8 @@ F4.1 decisões → F4.2 projetos → F4.3 padrões → F4.4 conflitos. **LLM já
 | cerebelo/padroes (F4.3) | ✅ LIVE | pattern_distiller (LLM); sinapse-patterns.timer |
 | insula/conflitos (F4.4) | ✅ LIVE | conflict_detector (embed+LLM); sinapse-conflicts.timer |
 | frontal/trabalho/ativo (F4.5) | ✅ LIVE | work_tracker; sinapse-work.timer |
+| F4.6 — M10/M11/M12 + integração health/weekly | ✅ **LIVE** | `health_dashboard` calcula M10-M12; `weekly_synthesizer` embute via `_health_section()`; 377 testes |
 
 ---
 
-*Documento vivo. Versão 2.21 (setup-brain: escolha de primário+fb1+fb2 por papel, menu com 13 papéis; configurar o Dreamer propaga os 3 níveis a todos; 365 testes).*_FALLBACK2_*, propaga a todos os papéis; setup-brain descobre modelos do OmniRoute com a API key real; 365 testes).*
+*Documento vivo. Versão 2.22 (F4.6 completo: M10/M11/M12 implementados em `health_dashboard.py`; `weekly_synthesizer` embute via `_health_section()`; 377 testes verdes).*
