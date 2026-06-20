@@ -91,8 +91,8 @@ entries = {
         "cwd": project_root,
     },
     "claude-mem-local": {
-        "command": "npx",
-        "args": ["-y", "claude-mem@13.6", "mcp-server"],
+        "command": f"{project_root}/scripts/start-claude-mem-mcp.sh",
+        "args": [],
         "cwd": project_root,
     },
     "neural-memory-local": {
@@ -154,7 +154,7 @@ register_codex() {
         codex mcp add sinapse-memory -- \
             "$PROJECT_ROOT/.venv/bin/python" "$PROJECT_ROOT/scripts/sinapse-mcp.py"
         codex mcp add claude-mem-local -- \
-            npx -y claude-mem@13.6 mcp-server
+            "$PROJECT_ROOT/scripts/start-claude-mem-mcp.sh"
         codex mcp add neural-memory-local -- \
             "$PROJECT_ROOT/scripts/neural-memory-local.sh"
         # Mantém o JSON compatível com clientes Codex anteriores.

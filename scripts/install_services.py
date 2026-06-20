@@ -156,7 +156,7 @@ ConditionPathExists={path}/logs/pre-reboot.json
 Type=oneshot
 UMask=0077
 WorkingDirectory={path}
-Environment=PATH={path}/.venv/bin:{path}/.tools/bin:{path}/rtk/target/release:/usr/bin:/bin
+Environment=PATH={path}/.venv/bin:{path}/.tools/bin:{path}/integrations/rtk/target/release:/usr/bin:/bin
 ExecStart={path}/.venv/bin/python {path}/scripts/validate_after_reboot.py validate
 RemainAfterExit=yes
 

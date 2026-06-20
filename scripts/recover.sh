@@ -5,7 +5,7 @@ set -euo pipefail
 SINAPSE_HOME="${SINAPSE_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 PYTHON="$SINAPSE_HOME/.venv/bin/python"
 RECOVERY="$SINAPSE_HOME/scripts/recovery.py"
-export PATH="$SINAPSE_HOME/.venv/bin:$SINAPSE_HOME/rtk/target/release:/usr/local/bin:/usr/bin:/bin"
+export PATH="$SINAPSE_HOME/.venv/bin:$SINAPSE_HOME/integrations/rtk/target/release:/usr/local/bin:/usr/bin:/bin"
 
 case "${1:-verify}" in
     backup)

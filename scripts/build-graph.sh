@@ -8,7 +8,7 @@ SINAPSE_HOME="${SINAPSE_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 VAULT_DIR="$SINAPSE_HOME/cerebro"
 GRAPH_OUT="$VAULT_DIR/graphify-out"
 PYTHON="$SINAPSE_HOME/.venv/bin/python"
-export PATH="$SINAPSE_HOME/.venv/bin:$SINAPSE_HOME/rtk/target/release:/usr/local/bin:/usr/bin:/bin"
+export PATH="$SINAPSE_HOME/.venv/bin:$SINAPSE_HOME/integrations/rtk/target/release:/usr/local/bin:/usr/bin:/bin"
 
 cd "$SINAPSE_HOME" || exit 1
 

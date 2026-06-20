@@ -40,5 +40,5 @@ dev = [
 package = false
 
 [tool.uv.sources]
-graphifyy = { path = "graphify", editable = true }
-neural-memory = { path = "neural-memory", editable = true }
+graphifyy = { path = "integrations/graphify", editable = true }
+neural-memory = { path = "integrations/neural-memory", editable = true }
