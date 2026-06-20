@@ -720,9 +720,9 @@ if [ "$HAS_DREAMER" = "false" ] && [ "$NON_INTERACTIVE" = "false" ] && [ -t 0 ];
     read -p "  Deseja configurar o seu modelo e chaves de IA interativamente agora? [S/n] " -n 1 -r
     echo ""
     if [[ $REPLY =~ ^[SsYy]$ ]] || [ -z "$REPLY" ]; then
-        "$PROJECT_ROOT/scripts/setup-brain.sh"
+        "$PROJECT_ROOT/scripts/setup/setup-brain.sh"
     else
-        echo -e "  Você pode realizar essa configuração mais tarde rodando: ${BOLD}./scripts/setup-brain.sh${NC}"
+        echo -e "  Você pode realizar essa configuração mais tarde rodando: ${BOLD}./scripts/setup/setup-brain.sh${NC}"
         echo ""
     fi
 fi

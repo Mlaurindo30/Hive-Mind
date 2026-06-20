@@ -32,7 +32,7 @@ def _headers() -> dict:
 
 def _trigger_audit() -> None:
     subprocess.run(
-        [sys.executable, str(Path(SINAPSE_HOME) / "scripts" / "audit_memory.py"), "--fix"],
+        [sys.executable, str(Path(SINAPSE_HOME) / "scripts" / "health" / "audit_memory.py"), "--fix"],
         check=False,
         timeout=120,
     )
