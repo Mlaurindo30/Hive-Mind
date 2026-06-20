@@ -662,7 +662,7 @@ def arm_post_reboot() -> int:
     subprocess.run(
         (
             str(ROOT / ".venv" / "bin" / "python"),
-            str(ROOT / "scripts" / "validate_after_reboot.py"),
+            str(ROOT / "scripts" / "health" / "validate_after_reboot.py"),
             "prepare",
         ),
         check=True,
