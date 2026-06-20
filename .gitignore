@@ -33,7 +33,7 @@ cerebro/thinking/session-logs/
 
 # ── Runtime data ───────────────────────────────────────────────────
 claude-mem/data/
-rtk/target/
+integrations/rtk/target/
 backups/
 
 # ── Hermes agent local ────────────────────────────────────────────
@@ -41,9 +41,9 @@ backups/
 
 # ── Embedded repos ─────────────────────────────────────────────────
 claude-mem/
-graphify/
-neural-memory/
-rtk/
+integrations/graphify/
+integrations/neural-memory/
+integrations/rtk/
 
 # ── Secrets ─────────────────────────────────────────────────────────
 .env

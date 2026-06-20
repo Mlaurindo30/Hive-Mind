@@ -10,7 +10,7 @@
 #   2. Sincroniza o ambiente Python local e reproduzível (.venv + uv.lock)
 #   3. Instala Graphify (graphifyy[all]) e indexa o vault cerebro/ (Gemini→Ollama→AST)
 #   4. Registra skills nos agentes detectados (Hermes, Claude, Codex, etc.)
-#   5. Instala claude-mem global (npx nativo, dados em ~/.claude-mem, worker :37700)
+#   5. Instala claude-mem via npx nativo, com dados project-local em claude-mem/data
 #   6. Instala NeuralMemory (nmem) — busca associativa com spreading activation
 #   7. Compila RTK do source (Rust) e instala plugin no Hermes
 #   8. Configura MCP servers (graphify + claude-mem) para Hermes
@@ -135,9 +135,9 @@ uv sync --frozen --all-groups
 PYTHON="$PROJECT_ROOT/.venv/bin/python"
 GRAPHIFY="$PROJECT_ROOT/.venv/bin/graphify"
 NMEM="$PROJECT_ROOT/.venv/bin/nmem"
-export PATH="$PROJECT_ROOT/.venv/bin:$PROJECT_ROOT/rtk/target/release:$PATH"
+export PATH="$PROJECT_ROOT/.venv/bin:$PROJECT_ROOT/integrations/rtk/target/release:$PATH"
 "$PYTHON" -c "import fastapi, yaml, pydantic, graphify, neural_memory, sqlite_vec"
-mkdir -p "$PROJECT_ROOT/neural-memory/data"
+mkdir -p "$PROJECT_ROOT/integrations/neural-memory/data"
 "$PYTHON" "$PROJECT_ROOT/scripts/setup_umc.py" >/dev/null
 echo -e "  ${GREEN}✓${NC} Python $("$PYTHON" -c 'import sys; print(sys.version.split()[0])') em $PROJECT_ROOT/.venv"
 
@@ -148,7 +148,7 @@ echo ""
 # =============================================================================
 echo -e "${BOLD}[3/12] Instalando Graphify (source local)...${NC}"
 
-GRAPHIFY_SRC="$PROJECT_ROOT/graphify"
+GRAPHIFY_SRC="$PROJECT_ROOT/integrations/graphify"
 
 echo -e "  ${GREEN}✓${NC} graphify resolvido do source local ($GRAPHIFY_SRC)"
 
@@ -255,7 +255,7 @@ echo ""
 if command -v hermes &>/dev/null; then
     echo -e "  ${BOLD}Configurando Hermes...${NC}"
     if [ -d "$HOME/.hermes/skills/" ]; then
-        cp "$PROJECT_ROOT/skills/sinapse-consulta.md" "$HOME/.hermes/skills/sinapse-consulta.md" 2>/dev/null && \
+        cp "$PROJECT_ROOT/docs/skills/sinapse-consulta.md" "$HOME/.hermes/skills/sinapse-consulta.md" 2>/dev/null && \
             echo -e "    ${GREEN}✓${NC} skill sinapse-consulta"
     fi
     if [ -d "$HOME/.hermes/plugins/" ]; then
@@ -268,17 +268,21 @@ fi
 echo ""
 
 # =============================================================================
-# 5. INSTALAÇÃO DO CLAUDE-MEM GLOBAL (npx nativo, dados em ~/.claude-mem)
+# 5. INSTALAÇÃO DO CLAUDE-MEM (npx nativo, dados project-local)
 # =============================================================================
-echo -e "${BOLD}[5/12] Instalando claude-mem global (npx nativo)...${NC}"
+echo -e "${BOLD}[5/12] Instalando claude-mem (npx nativo, dados locais)...${NC}"
 
-# O claude-mem agora é global: plugin em ~/.claude/plugins/marketplaces/thedotmack,
-# dados em ~/.claude-mem, hooks nativos por IDE, worker na porta 37700.
-# A instalação nativa (npx claude-mem@13.6 install) registra plugin + hooks
-# para cada IDE detectada. Rodamos uma vez por IDE relevante.
+# O claude-mem usa a instalação nativa (npx/marketplace) para manter hooks e
+# worker compatíveis com upstream, mas o runtime do Hive-Mind força os dados para
+# $PROJECT_ROOT/claude-mem/data via CLAUDE_MEM_DATA_DIR. Não migramos nem copiamos
+# banco/modelos para ~/.claude-mem.
 
 CLAUDE_MEM_VERSION="13.6"
 CLAUDE_MEM_NPX="npx -y claude-mem@${CLAUDE_MEM_VERSION}"
+CLAUDE_MEM_DATA_DIR="$PROJECT_ROOT/claude-mem/data"
+CLAUDE_MEM_DB="$CLAUDE_MEM_DATA_DIR/claude-mem.db"
+CLAUDE_MEM_MODELS="$CLAUDE_MEM_DATA_DIR/models"
+mkdir -p "$CLAUDE_MEM_DATA_DIR" "$CLAUDE_MEM_MODELS"
 
 # Detecta IDEs instaladas (mesmos critérios do detectInstalledIDEs do claude-mem)
 # e roda o install nativo para CADA uma. Ids nativos: claude-code, gemini-cli,
@@ -309,6 +313,8 @@ else
 
     for ide in "${INSTALLED_IDES[@]}"; do
         echo -e "  Instalando hooks nativos para ${ide}..."
+        CLAUDE_MEM_DATA_DIR="$CLAUDE_MEM_DATA_DIR" \
+        FASTEMBED_CACHE_PATH="$CLAUDE_MEM_MODELS" \
         $CLAUDE_MEM_NPX install --ide "$ide" --runtime worker --provider "$MEM_PROVIDER" --no-auto-start 2>&1 | tail -2
         echo -e "  ${GREEN}✓${NC} $ide configurado"
         
@@ -323,21 +329,29 @@ else
         fi
     done
 
-    # Sincroniza a chave do Gemini com o settings.json do claude-mem global
-    if [ "$MEM_PROVIDER" = "gemini" ] && [ -d "$HOME/.claude-mem" ]; then
+    # Sincroniza a chave do Gemini com o settings.json local do claude-mem.
+    if [ "$MEM_PROVIDER" = "gemini" ]; then
         G_KEY="${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}"
-        if [ -f "$HOME/.claude-mem/settings.json" ] && [ -n "$G_KEY" ]; then
-            # Usa python para um merge de JSON seguro em vez de sed
-            "$PYTHON" -c "
-import json, os
-path = '$HOME/.claude-mem/settings.json'
-key = '$G_KEY'
-if os.path.exists(path):
-    with open(path, 'r') as f: data = json.load(f)
-    data['CLAUDE_MEM_GEMINI_API_KEY'] = key
-    data['CLAUDE_MEM_PROVIDER'] = 'gemini'
-    with open(path, 'w') as f: json.dump(data, f, indent=2)
-" 2>/dev/null && echo -e "  ${GREEN}✓${NC} Chave Gemini sincronizada com o worker global"
+        if [ -n "$G_KEY" ]; then
+            # Usa python para um merge de JSON seguro em vez de sed.
+            CLAUDE_MEM_SETTINGS="$CLAUDE_MEM_DATA_DIR/settings.json" CLAUDE_MEM_GEMINI_KEY="$G_KEY" "$PYTHON" -c "
+	import json, os
+	path = os.environ['CLAUDE_MEM_SETTINGS']
+	key = os.environ['CLAUDE_MEM_GEMINI_KEY']
+	os.makedirs(os.path.dirname(path), exist_ok=True)
+	data = {}
+	if os.path.exists(path):
+	    with open(path, 'r') as f: data = json.load(f)
+	data['CLAUDE_MEM_DATA_DIR'] = os.path.dirname(path)
+	data['FASTEMBED_CACHE_PATH'] = os.path.join(os.path.dirname(path), 'models')
+	data['CLAUDE_MEM_WORKER_HOST'] = '127.0.0.1'
+	data['CLAUDE_MEM_WORKER_PORT'] = '37700'
+	data['CLAUDE_MEM_CHROMA_ENABLED'] = 'false'
+	data['CLAUDE_MEM_TRANSCRIPTS_CONFIG_PATH'] = os.path.join(os.path.dirname(path), 'transcript-watch.json')
+	data['CLAUDE_MEM_GEMINI_API_KEY'] = key
+	data['CLAUDE_MEM_PROVIDER'] = 'gemini'
+	with open(path, 'w') as f: json.dump(data, f, indent=2)
+	" 2>/dev/null && echo -e "  ${GREEN}✓${NC} Chave Gemini sincronizada com claude-mem local"
         fi
     fi
     # Gemini moderno (>=0.4x) só executa hooks "confiados". O instalador nativo
@@ -357,30 +371,21 @@ console.log("  gemini trusted_hooks atualizado");
 GEMTRUST
         echo -e "  ${GREEN}✓${NC} Gemini trusted_hooks registrado"
     fi
-fi
 
-# Migração de dados: se existe um db legado no projeto (de instalação anterior),
-# copia para ~/.claude-mem preservando o histórico.
-LEGACY_DB="$PROJECT_ROOT/claude-mem/data/claude-mem.db"
-if [ -f "$LEGACY_DB" ]; then
-    echo -e "  Db legado detectado no projeto ($(du -h "$LEGACY_DB" | cut -f1))."
-    echo -e "  Migrando para ~/.claude-mem/claude-mem.db..."
-    cp "$LEGACY_DB" "$HOME/.claude-mem/claude-mem.db"
-    if [ -f "$PROJECT_ROOT/claude-mem/data/claude-mem.db-wal" ]; then
-        cp "$PROJECT_ROOT/claude-mem/data/claude-mem.db-wal" "$HOME/.claude-mem/claude-mem.db-wal"
-        cp "$PROJECT_ROOT/claude-mem/data/claude-mem.db-shm" "$HOME/.claude-mem/claude-mem.db-shm" 2>/dev/null || true
-        sqlite3 "$HOME/.claude-mem/claude-mem.db" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
+    if [ -d "$HOME/.codex" ]; then
+        "$PYTHON" "$PROJECT_ROOT/scripts/install_codex_claude_mem_hooks.py" >/dev/null
+        echo -e "  ${GREEN}✓${NC} Codex hooks project-local registrados"
     fi
-    echo -e "  ${GREEN}✓${NC} Histórico migrado ($(sqlite3 "$HOME/.claude-mem/claude-mem.db" "SELECT COUNT(*) FROM observations;" 2>/dev/null || echo "?") observações)"
 fi
 
-# Models (FastEmbed cache) — migrar se existir no projeto.
-if [ -d "$PROJECT_ROOT/claude-mem/data/models" ] && [ ! -d "$HOME/.claude-mem/models" ]; then
-    cp -rn "$PROJECT_ROOT/claude-mem/data/models" "$HOME/.claude-mem/models" 2>/dev/null || true
-    echo -e "  ${GREEN}✓${NC} Models migrados para ~/.claude-mem/models"
+if [ -f "$CLAUDE_MEM_DB" ]; then
+    OBS_COUNT="$(sqlite3 "$CLAUDE_MEM_DB" "SELECT COUNT(*) FROM observations;" 2>/dev/null || echo "?")"
+    echo -e "  ${GREEN}✓${NC} Banco claude-mem local preservado ($OBS_COUNT observações)"
+else
+    echo -e "  ${YELLOW}⊘${NC}  Banco claude-mem local ainda não existe; será criado no primeiro start."
 fi
 
-echo -e "  ${GREEN}✓${NC} claude-mem global instalado (dados em ~/.claude-mem, worker :37700)"
+echo -e "  ${GREEN}✓${NC} claude-mem configurado para dados locais ($CLAUDE_MEM_DATA_DIR, worker :37700)"
 echo ""
 
 # =============================================================================
@@ -388,7 +393,7 @@ echo ""
 # =============================================================================
 echo -e "${BOLD}[6/12] Instalando NeuralMemory (spreading activation, source local)...${NC}"
 
-NEURAL_MEMORY_SRC="$PROJECT_ROOT/neural-memory"
+NEURAL_MEMORY_SRC="$PROJECT_ROOT/integrations/neural-memory"
 
 echo -e "  ${GREEN}✓${NC} NeuralMemory resolvido do source local ($NEURAL_MEMORY_SRC)"
 
@@ -406,7 +411,7 @@ echo ""
 # =============================================================================
 echo -e "${BOLD}[7/12] Compilando RTK (source local)...${NC}"
 
-RTK_SRC="$PROJECT_ROOT/rtk"
+RTK_SRC="$PROJECT_ROOT/integrations/rtk"
 RUST_TOOLCHAIN="1.95.0"
 CARGO_BIN="$(command -v cargo 2>/dev/null || true)"
 

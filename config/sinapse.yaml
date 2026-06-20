@@ -50,14 +50,14 @@ claude_mem:
 neural_memory:
   package: neural-memory                # pipx install neural-memory
   install_method: source                  # uv pip install -e neural-memory/
-  src_dir: neural-memory/                 # source local
+  src_dir: integrations/neural-memory/    # source local
   recall_timeout: 5                     # segundos
 
 # =============================================================================
 # RTK (camada 3 — execução: COMO otimizar)
 # =============================================================================
 rtk:
-  plugin_dir: rtk/hooks/hermes/rtk-rewrite/  # plugin Hermes
+  plugin_dir: integrations/rtk/hooks/hermes/rtk-rewrite/  # plugin Hermes
   install_path: ~/.hermes/plugins/rtk-rewrite/  # destino no Hermes
 
 # =============================================================================

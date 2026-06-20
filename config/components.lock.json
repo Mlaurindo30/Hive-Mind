@@ -10,13 +10,13 @@
       "repository": "https://github.com/safishamsi/graphify.git",
       "commit": "990ac706d823bf92275333433fde4ef4782a9139",
       "version": "0.8.16",
-      "patch": "patches/graphify-hive-mind.patch"
+      "patch": "integrations/patches/graphify-hive-mind.patch"
     },
     "neural-memory": {
       "repository": "https://github.com/nhadaututtheky/neural-memory.git",
       "commit": "ca6df1008e34e8af6978fd646f9b692640b4738f",
       "version": "4.58.0",
-      "patch": "patches/neural-memory-event-loop.patch"
+      "patch": "integrations/patches/neural-memory-event-loop.patch"
     },
     "rtk": {
       "repository": "https://github.com/rtk-ai/rtk.git",

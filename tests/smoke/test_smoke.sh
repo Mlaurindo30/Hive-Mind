@@ -7,8 +7,8 @@ set -euo pipefail
 PASS=0; FAIL=0
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PYTHON="${SINAPSE_PYTHON:-$ROOT/.venv/bin/python}"
-export PATH="$ROOT/.venv/bin:$ROOT/.tools/bin:$ROOT/rtk/target/release:/usr/bin:/bin"
-export NEURAL_MEMORY_DIR="$ROOT/neural-memory/data"
+export PATH="$ROOT/.venv/bin:$ROOT/.tools/bin:$ROOT/integrations/rtk/target/release:/usr/bin:/bin"
+export NEURAL_MEMORY_DIR="$ROOT/integrations/neural-memory/data"
 
 check() {
     local desc="$1"; shift
