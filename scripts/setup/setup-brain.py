@@ -345,7 +345,7 @@ def show_model_selection(p_name: str, role: str, level: int = 0):
         try:
             import subprocess
             subprocess.run(
-                (sys.executable, str(PROJECT_ROOT / "scripts" / "sync-claude-mem-provider.py")),
+                (sys.executable, str(PROJECT_ROOT / "scripts" / "setup" / "sync-claude-mem-provider.py")),
                 check=False,
             )
         except Exception as exc:  # nunca quebra o menu

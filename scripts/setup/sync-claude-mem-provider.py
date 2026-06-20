@@ -39,6 +39,7 @@ from core.auth import PROVIDERS_CONFIG, load_env  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent.parent
 CMEM_DATA_DIR = ROOT / "claude-mem" / "data"
 CMEM_SETTINGS = Path(os.environ.get("CLAUDE_MEM_DATA_DIR", str(CMEM_DATA_DIR))) / "settings.json"
+GLOBAL_CMEM_SETTINGS = Path.home() / ".claude-mem" / "settings.json"
 
 # provider do Hive (core/auth) → slot nativo do claude-mem
 GEMINI_PROVIDERS = {"google", "gemini"}
@@ -67,6 +68,10 @@ def local_runtime_updates() -> dict[str, str]:
         "FASTEMBED_CACHE_PATH": str(data_dir / "models"),
         "CLAUDE_MEM_TRANSCRIPTS_CONFIG_PATH": str(data_dir / "transcript-watch.json"),
     }
+
+
+# Chaves de path local que NÃO devem sobrescrever o seed global (worker systemd usa ~/.claude-mem).
+_GLOBAL_SEED_EXCLUDE = {"CLAUDE_MEM_DATA_DIR", "FASTEMBED_CACHE_PATH", "CLAUDE_MEM_TRANSCRIPTS_CONFIG_PATH"}
 
 
 # claude-mem valida CLAUDE_MEM_GEMINI_MODEL contra esta whitelist no save (UI e API).
@@ -110,9 +115,37 @@ def build_updates(provider: str, model: str, env: dict) -> dict:
     }
 
 
+import datetime
 import urllib.request
 
 WORKER = f"http://{os.environ.get('CLAUDE_MEM_WORKER_HOST','127.0.0.1')}:{os.environ.get('CLAUDE_MEM_WORKER_PORT','37700')}"
+WORKER_LOG_DIR = Path.home() / ".claude-mem" / "logs"
+
+
+def _recent_quota_error(minutes: int = 30) -> bool:
+    """True se o worker registrou erro 429 (quota esgotada) nos últimos N minutos."""
+    today = datetime.date.today().isoformat()
+    log_file = WORKER_LOG_DIR / f"claude-mem-{today}.log"
+    if not log_file.exists():
+        return False
+    cutoff = datetime.datetime.now() - datetime.timedelta(minutes=minutes)
+    try:
+        lines = log_file.read_text(errors="replace").splitlines()
+        for line in reversed(lines):
+            if "[ERROR]" not in line:
+                continue
+            if "quota exhausted" not in line.lower() and "status 429" not in line:
+                continue
+            try:
+                ts = datetime.datetime.strptime(line[1:24], "%Y-%m-%d %H:%M:%S.%f")
+                if ts >= cutoff:
+                    return True
+                break
+            except ValueError:
+                pass
+    except Exception:
+        pass
+    return False
 
 
 def apply(updates: dict) -> None:
@@ -140,6 +173,15 @@ def apply(updates: dict) -> None:
         CMEM_SETTINGS.write_text(json.dumps(cfg, indent=2) + "\n")
     except Exception:
         pass  # a API (viewer_settings) é a fonte de verdade; arquivo é só seed
+    # Atualiza o seed global (~/.claude-mem) para restarts do worker systemd.
+    # Exclui paths project-local que não fazem sentido no contexto do worker global.
+    try:
+        if GLOBAL_CMEM_SETTINGS.exists():
+            gcfg = json.loads(GLOBAL_CMEM_SETTINGS.read_text())
+            gcfg.update({k: v for k, v in updates.items() if k not in _GLOBAL_SEED_EXCLUDE})
+            GLOBAL_CMEM_SETTINGS.write_text(json.dumps(gcfg, indent=2) + "\n")
+    except Exception:
+        pass
 
 
 def restart_worker() -> None:
@@ -155,13 +197,31 @@ def main() -> int:
     env = load_env()
     provider = env.get("HIVE_CLAUDE_MEM_PROVIDER", "").strip()
     model = env.get("HIVE_CLAUDE_MEM_MODEL", "").strip()
+
+    # Cascade: herda do DREAMER se o papel claude_mem não estiver configurado
     if not provider or not model:
-        print("⊘ Papel claude_mem não configurado no setup-brain "
-              "(HIVE_CLAUDE_MEM_PROVIDER/MODEL ausentes). Nada a sincronizar.")
+        provider = env.get("HIVE_DREAMER_PROVIDER", "").strip()
+        model = env.get("HIVE_DREAMER_MODEL", "").strip()
+        if provider and model:
+            print(f"  ↩ HIVE_CLAUDE_MEM_PROVIDER/MODEL ausente; herdando DREAMER ({provider}/{model})")
+    if not provider or not model:
+        print("⊘ Papel claude_mem não configurado "
+              "(HIVE_CLAUDE_MEM/DREAMER PROVIDER/MODEL ausentes). Nada a sincronizar.")
         return 0
 
+    # Fallback automático: detecta quota esgotada nos logs e usa HIVE_CLAUDE_MEM_FALLBACK_*
+    force_fallback = "--fallback" in sys.argv
+    if force_fallback or _recent_quota_error():
+        fb_p = env.get("HIVE_CLAUDE_MEM_FALLBACK_PROVIDER", "").strip()
+        fb_m = env.get("HIVE_CLAUDE_MEM_FALLBACK_MODEL", "").strip()
+        if fb_p and fb_m and fb_p.lower() != provider.lower():
+            reason = "--fallback" if force_fallback else "quota esgotada (429) recente"
+            print(f"  ⚠ {reason} em '{provider}'; aplicando fallback '{fb_p}/{fb_m}'")
+            provider, model = fb_p, fb_m
+        elif force_fallback:
+            print(f"  ⚠ --fallback solicitado mas HIVE_CLAUDE_MEM_FALLBACK_PROVIDER/MODEL não configurados.")
+
     updates = build_updates(provider, model, env)
-    # nunca imprime segredos
     safe = {k: ("***" if "KEY" in k or "TOKEN" in k else v) for k, v in updates.items()}
     print(f"claude-mem ← {provider}/{model}")
     print(json.dumps(safe, indent=2))
@@ -170,11 +230,15 @@ def main() -> int:
         return 0
 
     apply(updates)
-    print("✓ aplicado via /api/settings (live) + seed em settings.json")
-    # Slot OpenAI-compat: base_url só carrega no startup → reinicia pra valer.
+    print("✓ aplicado via /api/settings (live) + seeds (projeto + global ~/.claude-mem)")
     if "CLAUDE_MEM_OPENROUTER_BASE_URL" in updates:
         restart_worker()
         print("✓ worker reiniciado (base_url do slot OpenAI-compat aplicado)")
+
+    fb_provider = env.get("HIVE_CLAUDE_MEM_FALLBACK_PROVIDER", "").strip()
+    fb_model = env.get("HIVE_CLAUDE_MEM_FALLBACK_MODEL", "").strip()
+    if fb_provider and fb_model:
+        print(f"  ℹ Fallback disponível: {fb_provider}/{fb_model} (activa quando quota esgotar)")
     return 0
 
 

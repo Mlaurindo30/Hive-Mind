@@ -250,9 +250,14 @@ def _sync_to_claude_mem(key: str, value: str):
     changed = False
     
     if key in ["HIVE_DREAMER_PROVIDER", "HIVE_CLAUDE_MEM_PROVIDER"]:
-        mapping = {"google": "gemini", "anthropic": "claude", "openrouter": "openrouter"}
-        new_val = mapping.get(value.lower())
-        if new_val and data.get("CLAUDE_MEM_PROVIDER") != new_val:
+        v = value.lower()
+        if v in {"google", "gemini", "gemini-cli", "antigravity"}:
+            new_val = "gemini"
+        elif v in {"anthropic", "claude"}:
+            new_val = "claude"
+        else:
+            new_val = "openrouter"  # deepseek, ollama, lmstudio, qwen, openai, etc.
+        if data.get("CLAUDE_MEM_PROVIDER") != new_val:
             data["CLAUDE_MEM_PROVIDER"] = new_val
             changed = True
             
