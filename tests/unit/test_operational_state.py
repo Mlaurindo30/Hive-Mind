@@ -1,6 +1,6 @@
 import sqlite3
 
-from scripts.materialize_operational_state import (
+from scripts.analytics.materialize_operational_state import (
     CAUSE_ID,
     EFFECT_ID,
     GOAL_ID,

@@ -89,7 +89,7 @@ class TestDreamCycleProjectSegregation:
         """Garante que o path de escrita não está mais hardcoded em
         `cp.TEMPORAL / DEFAULT_PROJECT / ...` — deve usar a variável de
         iteração do bucket por projeto."""
-        source = (SCRIPTS_DIR / "dream_cycle.py").read_text(encoding="utf-8")
+        source = (SCRIPTS_DIR / "dream" / "dream_cycle.py").read_text(encoding="utf-8")
         # Proíbe o anti-padrão antigo: escrever neurônio dentro do loop de
         # roteamento apontando para a constante DEFAULT_PROJECT em vez de
         # iterar sobre o bucket.
@@ -107,7 +107,7 @@ class TestDreamCycleProjectSegregation:
         """O novo `_mark_observations` aceita um `ids` opcional para segregar
         a marcação por bucket de projeto (não marca a janela inteira como
         consolidado quando só um bucket foi bem-sucedido)."""
-        source = (SCRIPTS_DIR / "dream_cycle.py").read_text(encoding="utf-8")
+        source = (SCRIPTS_DIR / "dream" / "dream_cycle.py").read_text(encoding="utf-8")
         # Assinatura nova: `def _mark_observations(status, ids=None)`
         assert "def _mark_observations(status: int, ids: Optional[List[str]]" in source, (
             "Esperava assinatura _mark_observations(status, ids=None) para segregar por bucket"

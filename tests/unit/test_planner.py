@@ -24,7 +24,7 @@ if str(_ROOT) not in sys.path:
 
 def _make_goal_plan(steps_data: list[dict]):
     """Builds a real GoalPlan from scripts.planner using the Pydantic models."""
-    from scripts.planner import GoalPlan, GoalStep
+    from scripts.analytics.planner import GoalPlan, GoalStep
     return GoalPlan(steps=[GoalStep(**s) for s in steps_data])
 
 
@@ -40,7 +40,7 @@ def reset_planner_llm_binding():
     """Reset the module-level call_llm_with_fallback to None before each test
     so the patch always wins (avoids bleed-through from a previous test that
     triggered the lazy import)."""
-    import scripts.planner as planner_mod
+    import scripts.analytics.planner as planner_mod
     original = planner_mod.call_llm_with_fallback
     planner_mod.call_llm_with_fallback = None
     yield
@@ -59,8 +59,8 @@ class TestDecomposeGoal:
             {"id": "step-2", "action": "Implementar solução", "why": "Resolver o problema", "depends_on": ["step-1"]},
         ])
 
-        with patch("scripts.planner.call_llm_with_fallback", return_value=mock_plan):
-            import scripts.planner as planner
+        with patch("scripts.analytics.planner.call_llm_with_fallback", return_value=mock_plan):
+            import scripts.analytics.planner as planner
             # Ensure binding points to our mock (autouse fixture zeroed it out)
             planner.call_llm_with_fallback = __import__("unittest.mock", fromlist=["MagicMock"]).MagicMock(return_value=mock_plan)
             steps = planner.decompose_goal("Construir um sistema de login")
@@ -77,7 +77,7 @@ class TestDecomposeGoal:
         from unittest.mock import MagicMock
         goal = "Objetivo que falhou"
 
-        import scripts.planner as planner
+        import scripts.analytics.planner as planner
         planner.call_llm_with_fallback = MagicMock(side_effect=RuntimeError("LLM indisponível"))
         steps = planner.decompose_goal(goal)
 
@@ -93,7 +93,7 @@ class TestDecomposeGoal:
         from unittest.mock import MagicMock
         goal = "Objetivo com dados ruins"
 
-        import scripts.planner as planner
+        import scripts.analytics.planner as planner
         planner.call_llm_with_fallback = MagicMock(side_effect=ValueError("JSON malformado"))
         steps = planner.decompose_goal(goal)
 
@@ -105,7 +105,7 @@ class TestDecomposeGoal:
 class TestSaveGoal:
     def test_save_goal_creates_row(self):
         """save_goal inserts a row with the correct description."""
-        from scripts.planner import save_goal
+        from scripts.analytics.planner import save_goal
 
         steps = [{"id": "step-1", "action": "Fazer X", "why": "Porque sim", "depends_on": []}]
         goal_desc = "Meu objetivo de teste"
@@ -126,7 +126,7 @@ class TestSaveGoal:
     def test_save_goal_idempotent_table(self):
         """Calling save_goal twice on same conn must not raise (DDL is idempotent)
         and each call inserts exactly one distinct row."""
-        from scripts.planner import save_goal
+        from scripts.analytics.planner import save_goal
 
         steps = [{"id": "step-1", "action": "Passo único", "why": "razão", "depends_on": []}]
         conn = _in_memory_conn()

@@ -14,7 +14,7 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS.parent))
 
-from scripts import dream_cycle as dc
+from scripts.dream import dream_cycle as dc
 
 
 def _conn():

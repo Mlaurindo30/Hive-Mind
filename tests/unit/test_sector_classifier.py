@@ -2,7 +2,7 @@ import pytest
 import yaml
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from scripts.sector_classifier import (
+from scripts.knowledge.sector_classifier import (
     get_frontmatter_block, 
     extract_neuron_info, 
     process_file,
@@ -36,7 +36,7 @@ def test_extract_neuron_info_no_title():
     assert title == "Sem Título"
     assert content == "Just content without H1."
 
-@patch("scripts.sector_classifier.call_llm_with_fallback")
+@patch("scripts.knowledge.sector_classifier.call_llm_with_fallback")
 def test_process_file_skips_already_classified(mock_llm):
     # Setup: Arquivo já possui setores específicos (válidos)
     mock_path = MagicMock(spec=Path)
@@ -49,7 +49,7 @@ def test_process_file_skips_already_classified(mock_llm):
     mock_llm.assert_not_called()
     mock_path.write_text.assert_not_called()
 
-@patch("scripts.sector_classifier.call_llm_with_fallback")
+@patch("scripts.knowledge.sector_classifier.call_llm_with_fallback")
 def test_process_file_updates_when_general(mock_llm):
     # Setup: Arquivo tem setor [general] - precisa de reclassificação
     mock_path = MagicMock(spec=Path)
@@ -73,7 +73,7 @@ def test_process_file_updates_when_general(mock_llm):
     assert "- infra" in written_content
     assert "- pkm" in written_content
 
-@patch("scripts.sector_classifier.call_llm_with_fallback")
+@patch("scripts.knowledge.sector_classifier.call_llm_with_fallback")
 def test_process_file_skips_io_if_same(mock_llm):
     # Setup: Arquivo tem setor [] (vazio) - entra na classificação
     mock_path = MagicMock(spec=Path)
@@ -104,7 +104,7 @@ def test_process_file_skips_io_if_same(mock_llm):
     # CONCLUSÃO: A otimização de IO é uma camada de defesa extra. 
     # Para testá-la, vou remover temporariamente o early return no teste (via mock de get_frontmatter_block)
     
-    with patch("scripts.sector_classifier.get_frontmatter_block") as mock_gfb:
+    with patch("scripts.knowledge.sector_classifier.get_frontmatter_block") as mock_gfb:
         # Simula que o arquivo tem [infra], mas o gfb diz que "deve processar" (ex: sectors=[])
         # para que o script prossiga até o LLM
         mock_gfb.return_value = ({"sectors": ["infra"]}, "---\nsectors: [infra]\n---\n", "# Title\nContent")

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import sqlite_vec
 
-from scripts.recovery import (
+from scripts.utils.recovery import (
     backup_database,
     prune_backup_set,
     rebuild_indexes,

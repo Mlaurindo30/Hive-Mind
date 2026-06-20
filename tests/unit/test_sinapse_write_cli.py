@@ -8,7 +8,7 @@ from pathlib import Path
 class TestSinapseWriteCLI:
     """Testes para scripts/sinapse-write.py"""
 
-    SCRIPT = Path(__file__).parent.parent.parent / "scripts" / "sinapse-write.py"
+    SCRIPT = Path(__file__).parent.parent.parent / "scripts" / "services" / "sinapse-write.py"
 
     def test_health_command(self):
         result = subprocess.run(

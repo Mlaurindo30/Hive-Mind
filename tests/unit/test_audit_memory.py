@@ -102,10 +102,10 @@ class TestSyncConflictDetection:
             registered_calls.append(neuron_id)
             return "fake-amb-id"
 
-        with patch("scripts.audit_memory.get_connection", return_value=mem_conn), \
-             patch("scripts.audit_memory.SINAPSE_HOME", str(tmp_path)), \
-             patch("scripts.audit_memory.register_ambiguity", side_effect=fake_register_ambiguity):
-            from scripts import audit_memory
+        with patch("scripts.health.audit_memory.get_connection", return_value=mem_conn), \
+             patch("scripts.health.audit_memory.SINAPSE_HOME", str(tmp_path)), \
+             patch("scripts.health.audit_memory.register_ambiguity", side_effect=fake_register_ambiguity):
+            from scripts.health import audit_memory
             # Reset the module-level constant so it uses our tmp_path
             audit_memory.SINAPSE_HOME = str(tmp_path)
             audit_memory.run_audit(fix=True)
@@ -132,9 +132,9 @@ class TestSyncConflictDetection:
         def fake_register_ambiguity(neuron_id, version_a, version_b):
             registered_calls.append(neuron_id)
 
-        with patch("scripts.audit_memory.get_connection", return_value=mem_conn), \
-             patch("scripts.audit_memory.register_ambiguity", side_effect=fake_register_ambiguity):
-            from scripts import audit_memory
+        with patch("scripts.health.audit_memory.get_connection", return_value=mem_conn), \
+             patch("scripts.health.audit_memory.register_ambiguity", side_effect=fake_register_ambiguity):
+            from scripts.health import audit_memory
             audit_memory.SINAPSE_HOME = str(tmp_path)
             audit_memory.run_audit(fix=True)
 
@@ -159,9 +159,9 @@ class TestSyncConflictDetection:
         def fake_register_ambiguity(neuron_id, version_a, version_b):
             return "fake-id"
 
-        with patch("scripts.audit_memory.get_connection", return_value=mem_conn), \
-             patch("scripts.audit_memory.register_ambiguity", side_effect=fake_register_ambiguity):
-            from scripts import audit_memory
+        with patch("scripts.health.audit_memory.get_connection", return_value=mem_conn), \
+             patch("scripts.health.audit_memory.register_ambiguity", side_effect=fake_register_ambiguity):
+            from scripts.health import audit_memory
             audit_memory.SINAPSE_HOME = str(tmp_path)
             audit_memory.run_audit(fix=True)
 
@@ -196,9 +196,9 @@ class TestSyncConflictDetection:
             register_calls.append({"neuron_id": neuron_id, "a": version_a, "b": version_b})
             return "fake-amb-id"
 
-        with patch("scripts.audit_memory.get_connection", return_value=mem_conn), \
-             patch("scripts.audit_memory.register_ambiguity", side_effect=fake_register):
-            from scripts import audit_memory
+        with patch("scripts.health.audit_memory.get_connection", return_value=mem_conn), \
+             patch("scripts.health.audit_memory.register_ambiguity", side_effect=fake_register):
+            from scripts.health import audit_memory
             audit_memory.SINAPSE_HOME = str(tmp_path)
             audit_memory.run_audit(fix=True)
 
@@ -220,9 +220,9 @@ class TestSyncConflictDetection:
         )
         mem_conn.commit()
 
-        with patch("scripts.audit_memory.get_connection", return_value=mem_conn), \
-             patch("scripts.audit_memory.register_ambiguity") as register:
-            from scripts import audit_memory
+        with patch("scripts.health.audit_memory.get_connection", return_value=mem_conn), \
+             patch("scripts.health.audit_memory.register_ambiguity") as register:
+            from scripts.health import audit_memory
             audit_memory.SINAPSE_HOME = str(tmp_path)
             audit_memory.run_audit(fix=False)
 

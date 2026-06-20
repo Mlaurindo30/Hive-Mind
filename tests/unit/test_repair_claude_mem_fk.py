@@ -1,6 +1,12 @@
 import sqlite3
+from pathlib import Path
 
-from scripts.repair_claude_mem_fk import backup_database, repair
+from scripts.setup.repair_claude_mem_fk import DEFAULT_DB, ROOT, backup_database, repair
+
+
+def test_default_db_e_project_local():
+    assert DEFAULT_DB == ROOT / "claude-mem" / "data" / "claude-mem.db"
+    assert Path.home() / ".claude-mem" not in DEFAULT_DB.parents
 
 
 def test_repair_creates_session_without_deleting_children(tmp_path):

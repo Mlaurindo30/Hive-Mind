@@ -12,7 +12,7 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS.parent))
 
-from scripts import claude_mem_bridge as br
+from scripts.services import claude_mem_bridge as br
 
 _HM_DDL = """
 CREATE TABLE observations (

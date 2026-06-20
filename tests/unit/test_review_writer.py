@@ -9,7 +9,7 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS.parent))
 
-from scripts import review_writer as rw
+from scripts.knowledge import review_writer as rw
 
 NOW = datetime(2026, 6, 19, 8, 0, 0)
 

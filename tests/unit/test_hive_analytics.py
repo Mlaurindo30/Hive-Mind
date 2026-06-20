@@ -32,7 +32,7 @@ def _create_test_db(tmp_path: Path) -> Path:
 
 class TestHiveAnalytics:
     def test_quarantine_rate_returns_correct_counts(self, tmp_path):
-        from scripts.hive_analytics import run
+        from scripts.analytics.hive_analytics import run
         db = _create_test_db(tmp_path)
         result = run("quarantine_rate", db_path=db)
         # pandas DataFrame ou lista de tuplas
@@ -48,7 +48,7 @@ class TestHiveAnalytics:
             assert row[3] == 1  # quarentena
 
     def test_top_topics_returns_neuron_types(self, tmp_path):
-        from scripts.hive_analytics import run
+        from scripts.analytics.hive_analytics import run
         db = _create_test_db(tmp_path)
         result = run("top_topics", db_path=db)
         try:
@@ -61,7 +61,7 @@ class TestHiveAnalytics:
         assert "decision" in types
 
     def test_growth_returns_daily_counts(self, tmp_path):
-        from scripts.hive_analytics import run
+        from scripts.analytics.hive_analytics import run
         db = _create_test_db(tmp_path)
         result = run("growth", db_path=db)
         try:
@@ -71,25 +71,25 @@ class TestHiveAnalytics:
             assert len(result) >= 1
 
     def test_raises_on_missing_db(self, tmp_path):
-        from scripts.hive_analytics import run
+        from scripts.analytics.hive_analytics import run
         with pytest.raises(FileNotFoundError):
             run("quarantine_rate", db_path=tmp_path / "nao_existe.db")
 
     def test_raises_on_unknown_query(self, tmp_path):
-        from scripts.hive_analytics import run
+        from scripts.analytics.hive_analytics import run
         db = _create_test_db(tmp_path)
         with pytest.raises(ValueError, match="Query desconhecida"):
             run("query_que_nao_existe", db_path=db)
 
     def test_intent_by_goal_skips_when_column_missing(self, tmp_path):
-        from scripts.hive_analytics import run
+        from scripts.analytics.hive_analytics import run
         db = _create_test_db(tmp_path)
         with pytest.raises(RuntimeError, match="goal_id"):
             run("intent_by_goal", db_path=db)
 
     def test_empty_db_quarantine_rate_no_crash(self, tmp_path):
         """DB com zero observações não deve travar — retorna NULL/0."""
-        from scripts.hive_analytics import run
+        from scripts.analytics.hive_analytics import run
         db = tmp_path / "empty.db"
         conn = sqlite3.connect(str(db))
         conn.executescript("""

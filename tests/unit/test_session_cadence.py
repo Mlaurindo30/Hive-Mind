@@ -22,10 +22,10 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 SCRIPTS = {
-    "placeholder": SCRIPTS_DIR / "session_placeholder.py",
-    "update": SCRIPTS_DIR / "session_update.py",
-    "consolidator": SCRIPTS_DIR / "session_consolidator.py",
-    "daily": SCRIPTS_DIR / "daily_writer.py",
+    "placeholder": SCRIPTS_DIR / "dream" / "session_placeholder.py",
+    "update": SCRIPTS_DIR / "dream" / "session_update.py",
+    "consolidator": SCRIPTS_DIR / "dream" / "session_consolidator.py",
+    "daily": SCRIPTS_DIR / "dream" / "daily_writer.py",
 }
 
 

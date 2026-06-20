@@ -13,7 +13,7 @@ import yaml
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS.parent))
 
-from scripts import conflict_detector as cd
+from scripts.knowledge import conflict_detector as cd
 from core.schemas.conflict_models import ConflictJudgement
 
 NOW = datetime(2026, 6, 18, 12, 0, 0)

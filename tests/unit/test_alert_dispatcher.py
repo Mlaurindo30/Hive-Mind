@@ -13,7 +13,7 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS.parent))
 
-from scripts import alert_dispatcher as ad
+from scripts.health import alert_dispatcher as ad
 
 NOW = datetime(2026, 6, 20, 9, 15, 30)
 TODAY = NOW.date()

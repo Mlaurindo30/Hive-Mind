@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 import importlib.util
 
-_mcp_path = Path(__file__).parent.parent.parent / "scripts" / "sinapse-mcp.py"
+_mcp_path = Path(__file__).parent.parent.parent / "scripts" / "services" / "sinapse-mcp.py"
 spec = importlib.util.spec_from_file_location("sinapse_mcp", _mcp_path)
 mcp = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mcp)

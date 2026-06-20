@@ -526,7 +526,7 @@ class TestLLMFallbackClassification:
         # Isola estágios fora do escopo deste teste (documentos e visual)
         monkeypatch.setattr(dream_module, "run_visual_dream_stage", lambda: None)
         monkeypatch.setattr(
-            "scripts.document_ingest.run_ingestion", lambda: None, raising=False
+            "scripts.knowledge.document_ingest.run_ingestion", lambda: None, raising=False
         )
 
         # pipeline sempre falha
