@@ -2,7 +2,7 @@ import sqlite3
 
 import sqlite_vec
 
-from scripts import setup_umc
+from scripts.setup import setup_umc
 
 
 def test_verify_setup_does_not_delete_operational_vectors(monkeypatch, tmp_path):

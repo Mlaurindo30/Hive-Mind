@@ -8,7 +8,7 @@ import yaml
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS.parent))
 
-from scripts import project_synthesizer as ps
+from scripts.knowledge import project_synthesizer as ps
 
 
 def _write(path: Path, *, ntype: str, last_updated: str) -> None:

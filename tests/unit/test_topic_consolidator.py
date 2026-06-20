@@ -14,7 +14,7 @@ sys.path.insert(0, str(SCRIPTS))
 
 def _load():
     spec = importlib.util.spec_from_file_location(
-        "topic_consolidator", SCRIPTS / "topic_consolidator.py")
+        "topic_consolidator", SCRIPTS / "knowledge" / "topic_consolidator.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod

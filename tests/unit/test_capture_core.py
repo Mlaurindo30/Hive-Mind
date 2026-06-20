@@ -13,9 +13,14 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-spec = importlib.util.spec_from_file_location("capture_core", SCRIPTS / "capture_core.py")
+spec = importlib.util.spec_from_file_location("capture_core", SCRIPTS / "capture" / "capture_core.py")
 core = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(core)
+
+
+def test_data_dir_default_e_project_local():
+    expected = SCRIPTS.parent / "claude-mem" / "data"
+    assert core.DATA_DIR == expected
 
 
 @pytest.fixture

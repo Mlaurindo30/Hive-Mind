@@ -125,7 +125,7 @@ echo ""
 
 # Os componentes editáveis precisam existir antes do uv sync. O manifesto fixa
 # commits exatos e preserva checkouts locais já modificados.
-"$BOOTSTRAP_PYTHON" "$PROJECT_ROOT/scripts/components.py" bootstrap
+"$BOOTSTRAP_PYTHON" "$PROJECT_ROOT/scripts/setup/components.py" bootstrap
 
 # =============================================================================
 # 2. AMBIENTE PYTHON LOCAL
@@ -138,7 +138,7 @@ NMEM="$PROJECT_ROOT/.venv/bin/nmem"
 export PATH="$PROJECT_ROOT/.venv/bin:$PROJECT_ROOT/integrations/rtk/target/release:$PATH"
 "$PYTHON" -c "import fastapi, yaml, pydantic, graphify, neural_memory, sqlite_vec"
 mkdir -p "$PROJECT_ROOT/integrations/neural-memory/data"
-"$PYTHON" "$PROJECT_ROOT/scripts/setup_umc.py" >/dev/null
+"$PYTHON" "$PROJECT_ROOT/scripts/setup/setup_umc.py" >/dev/null
 echo -e "  ${GREEN}✓${NC} Python $("$PYTHON" -c 'import sys; print(sys.version.split()[0])') em $PROJECT_ROOT/.venv"
 
 echo ""
@@ -174,7 +174,7 @@ else
     echo -e "  ${RED}✗${NC} Falha ao gerar graph.json"
     exit 1
 fi
-"$PYTHON" "$PROJECT_ROOT/scripts/build_hnsw.py"
+"$PYTHON" "$PROJECT_ROOT/scripts/graph/build_hnsw.py"
 
 echo ""
 
@@ -321,7 +321,7 @@ else
         if [ "$ide" = "copilot-cli" ]; then
             # Tailer é a fonte oficial de captura do Copilot (IDE/CLI); não
             # forçamos wrapper para evitar drift com binários reais do usuário.
-            if [ -L "$HOME/.local/bin/copilot" ] && [ "$(readlink -f "$HOME/.local/bin/copilot")" = "$PROJECT_ROOT/scripts/copilot-wrapper.sh" ]; then
+            if [ -L "$HOME/.local/bin/copilot" ] && [ "$(readlink -f "$HOME/.local/bin/copilot")" = "$PROJECT_ROOT/scripts/capture/copilot-wrapper.sh" ]; then
                 rm -f "$HOME/.local/bin/copilot"
                 echo -e "  ${GREEN}✓${NC} wrapper legado do copilot removido (tailer oficial)"
             fi
@@ -373,7 +373,7 @@ GEMTRUST
     fi
 
     if [ -d "$HOME/.codex" ]; then
-        "$PYTHON" "$PROJECT_ROOT/scripts/install_codex_claude_mem_hooks.py" >/dev/null
+        "$PYTHON" "$PROJECT_ROOT/scripts/setup/install_codex_claude_mem_hooks.py" >/dev/null
         echo -e "  ${GREEN}✓${NC} Codex hooks project-local registrados"
     fi
 fi
@@ -465,7 +465,7 @@ if command -v hermes &>/dev/null; then
 {
     "mcpServers": {
         "graphify": {
-            "command": "PROJECT_ROOT_PLACEHOLDER/scripts/serve-graph.sh",
+            "command": "PROJECT_ROOT_PLACEHOLDER/scripts/graph/serve-graph.sh",
             "cwd": "PROJECT_ROOT_PLACEHOLDER",
             "transport": "stdio",
             "enabled": true,
@@ -482,7 +482,7 @@ MCPEOF
 {
     "mcpServers": {
         "claude-mem": {
-            "command": "PROJECT_ROOT_PLACEHOLDER/scripts/start-claude-mem.sh",
+            "command": "PROJECT_ROOT_PLACEHOLDER/scripts/services/start-claude-mem.sh",
             "transport": "stdio",
             "enabled": true,
             "description": "Sinapse Agent — Event Tracking (claude-mem)"
@@ -504,7 +504,7 @@ echo ""
 # =============================================================================
 echo -e "${BOLD}[9/12] Configurando cron de sync...${NC}"
 
-CRON_JOB="0 */6 * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && ./scripts/build-graph.sh >> logs/sync.log 2>&1"
+CRON_JOB="0 */6 * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && ./scripts/graph/build-graph.sh >> logs/sync.log 2>&1"
 
 if command -v crontab &>/dev/null; then
     # Remove variantes legadas/duplicadas e instala uma única entrada canônica.
@@ -512,7 +512,7 @@ if command -v crontab &>/dev/null; then
     crontab -l 2>/dev/null \
         | grep -vF "# Hive-Mind — sync vault → graph a cada 6h" \
         | grep -vF "# sinapse_agent — sync vault → graph a cada 6h" \
-        | grep -vF "./scripts/build-graph.sh" \
+        | grep -vF "./scripts/graph/build-graph.sh" \
         > "$CRON_TMP" || true
     {
         cat "$CRON_TMP"
@@ -522,7 +522,7 @@ if command -v crontab &>/dev/null; then
     rm -f "$CRON_TMP"
     echo -e "  ${GREEN}✓${NC} Cron configurado sem duplicatas (a cada 6h)"
 else
-    echo -e "  ${YELLOW}⊘${NC}  crontab não disponível. Use ./scripts/build-graph.sh manualmente."
+    echo -e "  ${YELLOW}⊘${NC}  crontab não disponível. Use ./scripts/graph/build-graph.sh manualmente."
 fi
 
 echo ""
@@ -606,7 +606,7 @@ if [ -n "$PROVIDER" ] && [ -n "$MODEL" ]; then
     "$PYTHON" -c "import sys; sys.path.append('$PROJECT_ROOT'); from core.auth import save_env; save_env('HIVE_DREAMER_PROVIDER', '$PROVIDER'); save_env('HIVE_DREAMER_MODEL', '$MODEL')"
     echo -e "  ${GREEN}✓${NC} Provedor e modelo salvos (papel Dreamer)."
     echo -e "  Os papéis Graphify, Vision e Síntese herdam este modelo por padrão;"
-    echo -e "  ajuste por papel (e fallbacks) com: python3 scripts/setup-brain.py"
+    echo -e "  ajuste por papel (e fallbacks) com: python3 scripts/setup/setup-brain.py"
 else
     echo -e "  Nenhum provedor/modelo de IA fornecido via argumentos."
     echo -e "  A configuração poderá ser realizada ao final da instalação ou posteriormente."
@@ -618,14 +618,14 @@ echo ""
 echo -e "${BOLD}[12/12] Configurando agentes externos (MCP + CLI)...${NC}"
 
 # Garantir permissões de execução em todos os scripts e hooks
-chmod +x "$PROJECT_ROOT/scripts/"*.sh 2>/dev/null || true
-chmod +x "$PROJECT_ROOT/scripts/"*.py 2>/dev/null || true
+chmod +x $(find "$PROJECT_ROOT/scripts" -name "*.sh") 2>/dev/null || true
+chmod +x $(find "$PROJECT_ROOT/scripts" -name "*.py") 2>/dev/null || true
 chmod +x "$PROJECT_ROOT/cerebro/.claude/scripts/"*.py 2>/dev/null || true
 
 # Registro MCP delegado ao script standalone (idempotente, merge seguro).
-# Pode ser re-executado a qualquer momento: ./scripts/register-mcp.sh
-if ! PROJECT_ROOT="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/register-mcp.sh"; then
-    echo -e "  ${YELLOW}⊘${NC} Nenhum agente externo detectado. Use scripts/sinapse-write.py via CLI."
+# Pode ser re-executado a qualquer momento: ./scripts/setup/register-mcp.sh
+if ! PROJECT_ROOT="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/setup/register-mcp.sh"; then
+    echo -e "  ${YELLOW}⊘${NC} Nenhum agente externo detectado. Use scripts/services/sinapse-write.py via CLI."
 fi
 
 # Template AGENTS.md no vault (Codex)
@@ -636,18 +636,18 @@ fi
 echo ""
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}Verificando integridade...${NC}"
-"$PYTHON" "$PROJECT_ROOT/scripts/install_services.py" install
+"$PYTHON" "$PROJECT_ROOT/scripts/setup/install_services.py" install
 
 # Ponte de modelo: se o papel `claude_mem` foi configurado no setup-brain,
 # aplica esse provider/modelo no claude-mem (via /api/settings + seed). Sai
 # limpo se não houver papel configurado (usa o default do claude-mem). #modelo
-"$PYTHON" "$PROJECT_ROOT/scripts/sync-claude-mem-provider.py" 2>&1 | sed 's/^/  /' || true
+"$PYTHON" "$PROJECT_ROOT/scripts/setup/sync-claude-mem-provider.py" 2>&1 | sed 's/^/  /' || true
 
-if "$PYTHON" "$PROJECT_ROOT/scripts/sinapse-write.py" health >/dev/null 2>&1; then
+if "$PYTHON" "$PROJECT_ROOT/scripts/services/sinapse-write.py" health >/dev/null 2>&1; then
     echo -e "  ${GREEN}✓${NC} Health check: backends operacionais"
 else
     echo -e "  ${YELLOW}⊘${NC}  Health check: alguns backends offline"
-    echo -e "  Execute: python3 scripts/sinapse-write.py health"
+    echo -e "  Execute: python3 scripts/services/sinapse-write.py health"
 fi
 echo ""
 
@@ -687,7 +687,7 @@ echo -e "         ollama pull bge-m3               # Embeddings de alta qualidad
 echo -e "         ollama pull nomic-embed-text     # Embeddings leve"
 echo ""
 echo -e "  ${BOLD}Disaster Recovery:${NC}"
-echo -e "         ${BOLD}./scripts/recover.sh${NC} — Verifica/Rebuilda graph.json, reinicia worker, health check"
+echo -e "         ${BOLD}./scripts/utils/recover.sh${NC} — Verifica/Rebuilda graph.json, reinicia worker, health check"
 echo ""
 echo -e "  ${BOLD}API Keys (opcional):${NC}"
 echo -e "         Copie .env.example para .env e configure GOOGLE_API_KEY."

@@ -86,7 +86,7 @@ class TestDocumentIngestMetadataRegression:
     """Regressão do bug C1: em run_ingestion(), `doc_metadata` era usado no
     INSERT em document_memories antes de ser definido."""
 
-    SCRIPT = PROJECT_ROOT / "scripts" / "document_ingest.py"
+    SCRIPT = PROJECT_ROOT / "scripts" / "knowledge" / "document_ingest.py"
 
     def test_doc_metadata_defined_before_use(self):
         source = self.SCRIPT.read_text(encoding="utf-8")

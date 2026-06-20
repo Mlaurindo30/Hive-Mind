@@ -8,7 +8,7 @@ scripts_path = Path(__file__).resolve().parent.parent.parent / "scripts"
 sys.path.insert(0, str(scripts_path))
 
 import importlib.util
-spec = importlib.util.spec_from_file_location("sinapse_zettelkasten", str(scripts_path / "sinapse-zettelkasten.py"))
+spec = importlib.util.spec_from_file_location("sinapse_zettelkasten", str(scripts_path / "knowledge" / "sinapse-zettelkasten.py"))
 zk = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(zk)
 

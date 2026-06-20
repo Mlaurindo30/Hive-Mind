@@ -13,7 +13,7 @@ import yaml
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS.parent))
 
-from scripts import decision_promoter as dp
+from scripts.knowledge import decision_promoter as dp
 
 NOW = datetime(2026, 6, 18, 12, 0, 0)
 

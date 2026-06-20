@@ -8,7 +8,7 @@ sys.path.insert(0, str(SCRIPTS))
 
 from core import paths as cp  # noqa: E402
 
-spec = importlib.util.spec_from_file_location("generate_mocs", SCRIPTS / "generate_mocs.py")
+spec = importlib.util.spec_from_file_location("generate_mocs", SCRIPTS / "knowledge" / "generate_mocs.py")
 gm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gm)
 

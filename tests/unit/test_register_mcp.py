@@ -39,7 +39,7 @@ def test_register_mcp_configures_three_project_local_codex_servers(tmp_path):
         "PROJECT_ROOT": str(ROOT),
     }
     result = subprocess.run(
-        ["/usr/bin/bash", str(ROOT / "scripts" / "register-mcp.sh")],
+        ["/usr/bin/bash", str(ROOT / "scripts" / "setup" / "register-mcp.sh")],
         cwd=ROOT,
         env=env,
         text=True,
@@ -55,18 +55,21 @@ def test_register_mcp_configures_three_project_local_codex_servers(tmp_path):
         "neural-memory-local",
     }
     assert servers["sinapse-memory"]["command"] == str(ROOT / ".venv/bin/python")
-    assert servers["claude-mem-local"]["args"] == [
-        "-y",
-        "claude-mem@13.6",
-        "mcp-server",
-    ]
+    assert servers["claude-mem-local"]["command"] == str(
+        ROOT / "scripts/services/start-claude-mem-mcp.sh"
+    )
+    assert servers["claude-mem-local"]["args"] == []
     assert servers["neural-memory-local"]["command"] == str(
-        ROOT / "scripts/neural-memory-local.sh"
+        ROOT / "scripts/services/neural-memory-local.sh"
     )
 
     commands = log.read_text().splitlines()
     assert any(line.startswith("mcp add sinapse-memory -- ") for line in commands)
-    assert any(line.startswith("mcp add claude-mem-local -- ") for line in commands)
+    assert any(
+        line.startswith("mcp add claude-mem-local -- ")
+        and "scripts/services/start-claude-mem-mcp.sh" in line
+        for line in commands
+    )
     assert any(line.startswith("mcp add neural-memory-local -- ") for line in commands)
     assert "Codex CLI" in result.stdout
 
@@ -93,7 +96,7 @@ def test_register_mcp_only_vscode_uses_servers_root_and_stdio(tmp_path):
     subprocess.run(
         [
             "/usr/bin/bash",
-            str(ROOT / "scripts" / "register-mcp.sh"),
+            str(ROOT / "scripts" / "setup" / "register-mcp.sh"),
             "--only",
             "vscode",
         ],
@@ -149,7 +152,7 @@ def test_register_mcp_preserves_existing_entries_on_merge(tmp_path):
     subprocess.run(
         [
             "/usr/bin/bash",
-            str(ROOT / "scripts" / "register-mcp.sh"),
+            str(ROOT / "scripts" / "setup" / "register-mcp.sh"),
             "--only",
             "claude",
         ],

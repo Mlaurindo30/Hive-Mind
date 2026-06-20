@@ -119,8 +119,8 @@ class TestIngestDocx:
 
         mock_conn, real_conn = _make_in_memory_conn()
 
-        with patch("scripts.document_ingest.get_connection", return_value=mock_conn):
-            from scripts.document_ingest import ingest_single_file
+        with patch("scripts.knowledge.document_ingest.get_connection", return_value=mock_conn):
+            from scripts.knowledge.document_ingest import ingest_single_file
             result = ingest_single_file(docx_path)
 
         assert result is True
@@ -144,8 +144,8 @@ class TestIngestDocx:
         expected_hash = hashlib.sha256(docx_path.read_bytes()).hexdigest()
 
         mock_conn, real_conn = _make_in_memory_conn()
-        with patch("scripts.document_ingest.get_connection", return_value=mock_conn):
-            from scripts.document_ingest import ingest_single_file
+        with patch("scripts.knowledge.document_ingest.get_connection", return_value=mock_conn):
+            from scripts.knowledge.document_ingest import ingest_single_file
             ingest_single_file(docx_path)
 
         row = real_conn.execute(
@@ -166,8 +166,8 @@ class TestIngestPdf:
 
         mock_conn, real_conn = _make_in_memory_conn()
 
-        with patch("scripts.document_ingest.get_connection", return_value=mock_conn):
-            from scripts.document_ingest import ingest_single_file
+        with patch("scripts.knowledge.document_ingest.get_connection", return_value=mock_conn):
+            from scripts.knowledge.document_ingest import ingest_single_file
             result = ingest_single_file(pdf_path)
 
         assert result is True
@@ -186,8 +186,8 @@ class TestIngestPdf:
 
         mock_conn, real_conn = _make_in_memory_conn()
 
-        with patch("scripts.document_ingest.get_connection", return_value=mock_conn):
-            from scripts.document_ingest import ingest_single_file
+        with patch("scripts.knowledge.document_ingest.get_connection", return_value=mock_conn):
+            from scripts.knowledge.document_ingest import ingest_single_file
             ingest_single_file(pdf_path)
 
         count = real_conn.execute(
@@ -201,7 +201,7 @@ class TestIngestEdgeCases:
 
     def test_ingest_nonexistent_returns_false(self):
         """should return False without raising an exception when the file does not exist"""
-        from scripts.document_ingest import ingest_single_file
+        from scripts.knowledge.document_ingest import ingest_single_file
 
         result = ingest_single_file(Path("/nonexistent/path/file.docx"))
         assert result is False
@@ -211,7 +211,7 @@ class TestIngestEdgeCases:
         txt_path = tmp_path / "notes.txt"
         txt_path.write_text("Some text")
 
-        from scripts.document_ingest import ingest_single_file
+        from scripts.knowledge.document_ingest import ingest_single_file
         result = ingest_single_file(txt_path)
         assert result is False
 
@@ -219,7 +219,7 @@ class TestIngestEdgeCases:
     def test_ingest_idempotent(self, tmp_path):
         """should produce only one document_memories record when the same file is ingested twice"""
         from docx import Document as DocxDocument
-        from scripts.document_ingest import ingest_single_file
+        from scripts.knowledge.document_ingest import ingest_single_file
 
         docx_path = tmp_path / "idempotent.docx"
         doc = DocxDocument()
@@ -229,7 +229,7 @@ class TestIngestEdgeCases:
         mock_conn, real_conn = _make_in_memory_conn()
 
         # Both calls use the same mock — close() is suppressed so the DB stays open
-        with patch("scripts.document_ingest.get_connection", return_value=mock_conn):
+        with patch("scripts.knowledge.document_ingest.get_connection", return_value=mock_conn):
             ingest_single_file(docx_path)
             ingest_single_file(docx_path)
 
@@ -243,7 +243,7 @@ class TestIngestEdgeCases:
     def test_ingest_idempotent_observation(self, tmp_path):
         """should not duplicate observations when the same file is ingested twice"""
         from docx import Document as DocxDocument
-        from scripts.document_ingest import ingest_single_file
+        from scripts.knowledge.document_ingest import ingest_single_file
 
         docx_path = tmp_path / "idempotent_obs.docx"
         doc = DocxDocument()
@@ -252,7 +252,7 @@ class TestIngestEdgeCases:
 
         mock_conn, real_conn = _make_in_memory_conn()
 
-        with patch("scripts.document_ingest.get_connection", return_value=mock_conn):
+        with patch("scripts.knowledge.document_ingest.get_connection", return_value=mock_conn):
             ingest_single_file(docx_path)
             ingest_single_file(docx_path)
 

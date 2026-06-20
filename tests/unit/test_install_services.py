@@ -20,7 +20,7 @@ SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 
 def _load():
     spec = importlib.util.spec_from_file_location(
-        "install_services", SCRIPTS / "install_services.py")
+        "install_services", SCRIPTS / "setup" / "install_services.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -97,7 +97,7 @@ def test_claude_mem_units_usam_banco_global():
 
 def test_claude_mem_launcher_usa_wrapper_foreground_para_systemd():
     """A unit Type=simple precisa de processo foreground, não worker daemonizado."""
-    launcher = (SCRIPTS / "claude-mem-local.sh").read_text()
+    launcher = (SCRIPTS / "services" / "claude-mem-local.sh").read_text()
     assert "worker-wrapper.cjs" in launcher
     assert 'exec "$BUN" "$GLOBAL_PLUGIN/scripts/worker-wrapper.cjs"' in launcher
 
@@ -120,7 +120,7 @@ def test_drift_e_log_only_sem_apply():
 
 def test_dream_definido_mas_nao_auto_habilitado():
     """dream existe (reprodutibilidade) porém fica fora do enabled (gated por M9)."""
-    src = (SCRIPTS / "install_services.py").read_text()
+    src = (SCRIPTS / "setup" / "install_services.py").read_text()
     m = re.search(r"enabled = \[(.*?)\]", src, re.S)
     assert m, "lista enabled não encontrada"
     enabled_block = m.group(1)

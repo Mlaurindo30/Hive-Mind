@@ -18,7 +18,7 @@ import pytest
 # ---------------------------------------------------------------------------
 _API_KEY = "test-api-key-sprint-d1"
 
-_api_path = Path(__file__).resolve().parent.parent.parent / "scripts" / "sinapse-api.py"
+_api_path = Path(__file__).resolve().parent.parent.parent / "scripts" / "services" / "sinapse-api.py"
 
 
 def _inject_stubs():

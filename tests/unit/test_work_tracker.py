@@ -8,7 +8,7 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS.parent))
 
-from scripts import work_tracker as wt
+from scripts.knowledge import work_tracker as wt
 
 NOW = datetime(2026, 6, 18, 12, 0, 0)
 

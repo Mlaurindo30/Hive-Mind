@@ -2,7 +2,7 @@ import json
 import os
 import time
 
-from scripts.backup_audit import apply_prune, parse_args, run_audit
+from scripts.health.backup_audit import apply_prune, parse_args, run_audit
 
 
 def test_run_audit_detects_non_empty_secret_and_stale_candidates(tmp_path, monkeypatch):

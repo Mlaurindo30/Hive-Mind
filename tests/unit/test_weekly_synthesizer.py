@@ -13,7 +13,7 @@ sys.path.append(SINAPSE_HOME)
 
 from core import paths as cp
 from core.schemas.weekly_models import WeeklySummaryModel, ProjectStatus
-from scripts.weekly_synthesizer import collect_daily_logs, get_week_range, generate_markdown
+from scripts.dream.weekly_synthesizer import collect_daily_logs, get_week_range, generate_markdown
 
 # Minimal SQLite schema
 _MINIMAL_SCHEMA = """
@@ -87,9 +87,9 @@ class TestWeeklySynthesizer:
         assert "Big progress" in md
         assert "Priority 1" in md
 
-    @patch("scripts.weekly_synthesizer.get_connection")
+    @patch("scripts.dream.weekly_synthesizer.get_connection")
     def test_query_week_data(self, mock_get_conn):
-        from scripts.weekly_synthesizer import query_week_data
+        from scripts.dream.weekly_synthesizer import query_week_data
         
         db_conn = _make_in_memory_db()
         db_conn.execute("INSERT INTO neurons (id, label, type, created_at) VALUES ('1', 'Fact 1', 'fact', '2026-06-16T10:00:00')")

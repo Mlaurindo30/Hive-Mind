@@ -16,7 +16,7 @@ import yaml
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS.parent))
 
-from scripts import health_dashboard as hd
+from scripts.health import health_dashboard as hd
 
 NOW = datetime(2026, 6, 18, 12, 0, 0)
 

@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT))
 
-from scripts import dream_cycle as dc
+from scripts.dream import dream_cycle as dc
 
 
 @pytest.fixture()

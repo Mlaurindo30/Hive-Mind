@@ -11,7 +11,7 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS.parent))
 
-from scripts import pattern_distiller as pd
+from scripts.knowledge import pattern_distiller as pd
 from core.schemas.pattern_models import Pattern, PatternOutput
 
 NOW = datetime(2026, 6, 18, 12, 0, 0)

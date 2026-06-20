@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from scripts.alias_miner import get_frontmatter_block, extract_neuron_info
+from scripts.knowledge.alias_miner import get_frontmatter_block, extract_neuron_info
 
 def test_get_frontmatter_block_success():
     content = "---\ntype: fact\naliases: []\n---\n# Title\nContent"

@@ -14,7 +14,7 @@ import yaml
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 sys.path.insert(0, str(SCRIPTS.parent))
 
-from scripts import drift_detector as dd
+from scripts.knowledge import drift_detector as dd
 
 NOW = datetime(2026, 6, 18, 12, 0, 0)
 
