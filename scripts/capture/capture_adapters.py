@@ -20,6 +20,7 @@ from pathlib import Path
 
 from parsers import (
     antigravity as _antigravity,
+    codex as _codex,
     copilot as _copilot,
     hermes as _hermes,
     kilo as _kilo,
@@ -33,6 +34,22 @@ HOME = Path.home()
 
 ADAPTERS = {
     # ── append-only ──────────────────────────────────────────────────────────
+    # Codex CLI e extensão VS Code do OpenAI Codex gravam cada sessão em
+    # ~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl (append-only). Sessões
+    # encerradas vão para ~/.codex/archived_sessions/. O capturador via hooks
+    # (~/.codex/hooks.json) envia em tempo real; este adapter é o fallback
+    # por arquivo, idêntico em estrutura ao antigravity/kimi.
+    "codex": {
+        "owner": "realtime", "mode": "tail", "parser": _codex.parse,
+        "watch": [
+            str(HOME / ".codex/sessions/*/*/*"),
+            str(HOME / ".codex/archived_sessions"),
+        ],
+        "sources": [
+            str(HOME / ".codex/sessions/*/*/*/rollout-*.jsonl"),
+            str(HOME / ".codex/archived_sessions/rollout-*.jsonl"),
+        ],
+    },
     "copilot": {
         "owner": "realtime", "mode": "tail", "parser": _copilot.parse,
         "watch": [str(HOME / ".config/Code/User/workspaceStorage/*/GitHub.copilot-chat/transcripts")],
