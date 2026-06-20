@@ -9,13 +9,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 AUDIT_SCHEDULE="${BACKUP_AUDIT_CRON_SCHEDULE:-20 2 * * *}"
 PRUNE_SCHEDULE="${BACKUP_PRUNE_CRON_SCHEDULE:-35 2 * * 0}"
 
-AUDIT_CMD="$PROJECT_ROOT/cron/backup-audit-daily.sh"
-PRUNE_CMD="$PROJECT_ROOT/cron/backup-prune-weekly.sh"
+AUDIT_CMD="$PROJECT_ROOT/scripts/maintenance/backup-audit-daily.sh"
+PRUNE_CMD="$PROJECT_ROOT/scripts/maintenance/backup-prune-weekly.sh"
 
 TAG_AUDIT="# hive-mind-backup-audit"
 TAG_PRUNE="# hive-mind-backup-prune"

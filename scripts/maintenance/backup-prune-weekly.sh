@@ -10,7 +10,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 LOG_DIR="$PROJECT_ROOT/logs/backup-prune"
 
 mkdir -p "$LOG_DIR"
@@ -30,7 +30,7 @@ LEGACY_MAX_AGE_DAYS="${BACKUP_AUDIT_LEGACY_MAX_AGE_DAYS:-30}"
 APPLY="${BACKUP_PRUNE_APPLY:-1}"
 
 CMD=(
-    "$PYTHON_BIN" scripts/backup_audit.py
+    "$PYTHON_BIN" scripts/health/backup_audit.py
     --root .
     --keep-umc "$KEEP_UMC"
     --keep-component-lock "$KEEP_COMPONENT_LOCK"

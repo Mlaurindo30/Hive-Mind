@@ -9,7 +9,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 LOG_DIR="$PROJECT_ROOT/logs/backup-audit"
 
 mkdir -p "$LOG_DIR"
@@ -28,7 +28,7 @@ KEEP_LEGACY_PER_FAMILY="${BACKUP_AUDIT_KEEP_LEGACY_PER_FAMILY:-1}"
 LEGACY_MAX_AGE_DAYS="${BACKUP_AUDIT_LEGACY_MAX_AGE_DAYS:-30}"
 
 cd "$PROJECT_ROOT"
-"$PYTHON_BIN" scripts/backup_audit.py \
+"$PYTHON_BIN" scripts/health/backup_audit.py \
     --root . \
     --keep-umc "$KEEP_UMC" \
     --keep-component-lock "$KEEP_COMPONENT_LOCK" \
