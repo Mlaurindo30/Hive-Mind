@@ -67,7 +67,7 @@ def _dir_has_recent_source(directory: str, cutoff_mtime: float, max_files: int =
             continue
     return False
 
-def ingest_platform(plat: str, states: dict, max_age: float = LIVE_MAX_AGE_S) -> int:
+def ingest_platform(plat: str, store: "core.SeenStore", max_age: float = LIVE_MAX_AGE_S) -> int:
     """Re-parseia as fontes da plataforma (parser dedicado) e ingere. Só parseia
     arquivos modificados nos últimos `max_age` s (pula fontes ociosas).
 
@@ -79,7 +79,6 @@ def ingest_platform(plat: str, states: dict, max_age: float = LIVE_MAX_AGE_S) ->
     core.SESSION_CUTOFF_MS = int((now - WINDOW_S) * 1000)
     adp = ADAPTERS[plat]
     parser = adp["parser"]
-    st = states[plat]
     cutoff_mtime = now - max_age
     sent = 0
     for pattern in adp["sources"]:
@@ -89,10 +88,7 @@ def ingest_platform(plat: str, states: dict, max_age: float = LIVE_MAX_AGE_S) ->
                 continue
             try:
                 for sess in parser(p):
-                    n = core.ingest(plat, sess, st)
-                    if n:
-                        core.save_state(plat, st)
-                        sent += n
+                    sent += core.ingest(plat, sess, store)
             except Exception as exc:
                 print(f"  ⚠ {plat}: {exc}", flush=True)
     return sent
@@ -108,7 +104,7 @@ def main() -> int:
         return 1
     wd_plat: dict[int, str] = {}
     watched: set[str] = set()
-    states = {plat: core.load_state(plat) for plat in ADAPTERS}
+    store = core.SeenStore()
 
     def refresh() -> set[str]:
         added_platforms: set[str] = set()
@@ -142,7 +138,7 @@ def main() -> int:
 
     refresh()
     for plat in ADAPTERS:                 # catch-up histórico no startup
-        n = ingest_platform(plat, states, max_age=WINDOW_S)
+        n = ingest_platform(plat, store, max_age=WINDOW_S)
         if n:
             print(f"  🔄 {plat} catch-up: {n} turn(s)", flush=True)
     last_refresh = time.time()
@@ -157,7 +153,7 @@ def main() -> int:
     pending: dict[str, float] = {}
 
     def _do_ingest(plat: str) -> None:
-        n = ingest_platform(plat, states)
+        n = ingest_platform(plat, store)
         last_ingest[plat] = time.time()
         if n:
             print(f"  ⚡ {plat} → {n} turn(s) novo(s)", flush=True)

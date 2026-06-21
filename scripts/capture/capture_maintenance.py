@@ -61,44 +61,17 @@ def compact_db() -> None:
 
 
 def gc_state() -> None:
-    """Remove registros de dedup de sessões inativas há > RETENTION_DAYS.
+    """Remove hashes de dedup de sessões inativas há > RETENTION_DAYS do SQLite.
     Mantém intacto tudo que ainda está dentro da janela de reparse."""
-    cutoff = time.time() - RETENTION_DAYS * 86400
-    total_removed = 0
-    for f in glob.glob(str(STATE_DIR / "*.json")):
-        if f.endswith(".tmp"):
-            continue
-        try:
-            data = json.loads(Path(f).read_text())
-        except Exception:
-            continue
-        if not isinstance(data, dict):
-            continue
-        before = len(data)
-        kept = {}
-        now = time.time()
-        for k, v in data.items():
-            if not isinstance(v, dict):
-                continue
-            ts = v.get("ts")
-            if not isinstance(ts, (int, float)):
-                # Sem `ts` = registro que ainda não foi tocado pelo código novo.
-                # NÃO é seguro assumir morto (pode ser sessão viva) → mantém e
-                # backfill ts=now, pra envelhecer a partir de agora.
-                v["ts"] = int(now)
-                kept[k] = v
-            elif ts >= cutoff:
-                kept[k] = v
-            # else: tem ts e está velho → morto de verdade → descarta
-        removed = before - len(kept)
-        if removed:
-            p = Path(f)
-            tmp = p.with_suffix(".json.tmp")
-            tmp.write_text(json.dumps(kept, indent=2))
-            tmp.replace(p)
-            total_removed += removed
-            print(f"  ✓ {p.name}: -{removed} dedup morto ({len(kept)} ativos)")
-    print(f"  GC state: {total_removed} registros de dedup removidos "
+    import sys
+    sys.path.insert(0, str(ROOT / "scripts" / "capture"))
+    import capture_core as _core
+
+    cutoff_ts = int(time.time() - RETENTION_DAYS * 86400)
+    store = _core.SeenStore()
+    removed = store.prune(cutoff_ts)
+    store.close()
+    print(f"  GC state: {removed} registros de dedup removidos "
           f"(0 memória perdida)")
 
 
