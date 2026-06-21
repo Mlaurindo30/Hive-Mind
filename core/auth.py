@@ -14,6 +14,19 @@ from urllib.parse import urlparse, parse_qs
 # Path do .env local do projeto Hive-Mind
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENV_FILE = PROJECT_ROOT / ".env"
+GEMINI_CLI_OAUTH_FILES = (
+    Path.home() / ".gemini" / "oauth_creds.json",
+    Path.home() / ".cache" / "google-vscode-extension" / "auth" / "credentials.json",
+    Path.home() / ".cache" / "google-vscode-extension" / "auth" / "application_default_credentials.json",
+)
+
+
+def gemini_cli_oauth_file() -> Optional[Path]:
+    """Retorna o arquivo de credencial OAuth real usado por Gemini/Antigravity."""
+    for path in GEMINI_CLI_OAUTH_FILES:
+        if path.is_file():
+            return path
+    return None
 
 def _env(key: str, default: str = "") -> str:
     """Lê uma variável do ambiente, com fallback para o .env do projeto."""
@@ -52,7 +65,7 @@ PROVIDERS_CONFIG = {
             "scopes": "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile"
         }
     },
-    # Reaproveitam o login OAuth do Gemini/Antigravity CLI (~/.gemini/oauth_creds.json).
+    # Reaproveitam o login OAuth do Gemini/Antigravity CLI / Google VS Code extension.
     # Mesma credencial, ENDPOINTS/POOLS DE QUOTA SEPARADOS → um é fallback do outro.
     # Tratados direto em core.llm_client (não passam por get_credentials).
     "antigravity": {
@@ -252,6 +265,7 @@ def _sync_to_claude_mem(key: str, value: str):
     if key in ["HIVE_DREAMER_PROVIDER", "HIVE_CLAUDE_MEM_PROVIDER"]:
         _PMAP = {
             "google": "gemini", "gemini": "gemini", "gemini-cli": "gemini",
+            "antigravity": "gemini",
             "anthropic": "claude", "claude": "claude",
             "openrouter": "openrouter",
         }
@@ -478,6 +492,12 @@ def get_credentials(provider_name: str, prefer_oauth: bool = True) -> Optional[D
     cfg = PROVIDERS_CONFIG.get(provider_name)
     if not cfg: return None
     env = load_env()
+
+    if "gemini_cli_oauth" in cfg["auth_type"]:
+        oauth_file = gemini_cli_oauth_file()
+        if oauth_file:
+            return {"key": str(oauth_file), "url": cfg["base_url"], "type": "gemini_cli_oauth"}
+        return None
     
     if prefer_oauth and "oauth" in cfg["auth_type"]:
         token = env.get(f"{provider_name.upper()}_ACCESS_TOKEN")
@@ -518,6 +538,16 @@ def discover_models_realtime(only_provider: str = None):
     all_discovered = []
     for name, cfg in PROVIDERS_CONFIG.items():
         if only_provider and name != only_provider:
+            continue
+        if "gemini_cli_oauth" in cfg["auth_type"]:
+            if gemini_cli_oauth_file():
+                for m_id in cfg.get("models_hint", []):
+                    all_discovered.append({
+                        "id": m_id,
+                        "provider": name,
+                        "display": f"[{name}] {m_id}",
+                        "source": "gemini_cli_oauth_models_hint",
+                    })
             continue
         # Google: Tenta API Key primeiro porque o OAuth de redirecionamento bloqueia listagem
         creds_to_try = [get_credentials(name, prefer_oauth=False), get_credentials(name, prefer_oauth=True)] if name == "google" else [get_credentials(name)]

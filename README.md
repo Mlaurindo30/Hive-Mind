@@ -40,7 +40,8 @@ Se estiver rodando em modo headless/CI (sem terminal interativo):
 
 Após a instalação, reinicie este agente. No Codex serão registrados:
 sinapse-memory, claude-mem-local e neural-memory-local. O primeiro expõe as
-10 tools unificadas do Hive-Mind.
+11 tools unificadas do Hive-Mind; o claude-mem usa o runtime temporal global
+oficial em `~/.claude-mem`.
 ```
 
 ### Prompt de Registro do MCP (projeto já instalado)
@@ -50,7 +51,7 @@ Configure o Hive-Mind como servidor MCP PARA VOCÊ MESMO — o agente que está
 lendo este prompt. Registre apenas a SUA configuração, não a dos outros.
 
   cd ~/hive-mind
-  ./scripts/register-mcp.sh --only <seu-agente>
+  ./scripts/setup/register-mcp.sh --only <seu-agente>
 
 Substitua <seu-agente> pela sua identidade. Chaves válidas:
   claude codex gemini qwen kimi kiro kilo roo vscode cursor opencode openclaw
@@ -58,15 +59,15 @@ Substitua <seu-agente> pela sua identidade. Chaves válidas:
 Exemplos: Claude Code → `--only claude` · Codex CLI → `--only codex`
           Gemini CLI → `--only gemini` · Cursor → `--only cursor`
 
-Faz merge seguro dos três MCPs project-local na SUA config e nunca remove
-servidores alheios. Em dúvida sobre a chave: ./scripts/register-mcp.sh --list
+Faz merge seguro dos três MCPs gerenciados pelo projeto na SUA config e nunca
+remove servidores alheios. Em dúvida sobre a chave: ./scripts/setup/register-mcp.sh --list
 
 Para verificar o seu status sem modificar nada:
-  ./scripts/register-mcp.sh --only <seu-agente> --check
+  ./scripts/setup/register-mcp.sh --only <seu-agente> --check
 
 (Avançado / administrador) Registrar TODOS os agentes detectados de uma vez —
 normalmente só o instalador faz isso:
-  ./scripts/register-mcp.sh
+  ./scripts/setup/register-mcp.sh
 
 Após registrar, reinicie-se e confirme com: "use a tool sinapse_health"
 
@@ -185,21 +186,21 @@ Tools disponíveis:
 | Conexão/Schema | `core/database.py` | Python | Conexões com sqlite-vec, WAL, busy_timeout |
 | Autenticação LLM | `core/auth.py` | Python | 10 provedores (API key + OAuth), refresh, descoberta de modelos |
 | Schemas Pydantic | `core/schemas/` | Python | Saída estruturada: Distiller, Validator, Router, Synthesis, Vision |
-| Hive-Dreamer | `scripts/dream_cycle.py` | Python | Consolidação: observações → fatos validados → Atlas |
-| Brain Selector | `scripts/setup-brain.sh` | Python | UI terminal: configura provedor/modelo/auth de TODOS os papéis (Dreamer/Graphify/Vision/Síntese) + fallback |
-| Watcher | `scripts/start-watcher.sh` | Python/watchdog | Sync em tempo real Obsidian → SQLite (~2s) |
-| Auditor P2P | `scripts/audit_memory.py` | Python | Integridade vault ↔ SQLite |
-| Diff Semântico | `scripts/semantic_diff.py` | Python | Classifica conflitos P2P (vetorial + LLM) |
-| Ingestão de Docs | `scripts/document_ingest.py` | Python | PDF/DOCX → fila de observações |
-| Captura Visual | `scripts/visual_capture.py` | Python/mss | Screenshots → `visual_memories` |
-| Portal Visual | `scripts/generate_portal.py` | Python | Gera `portal.canvas` (Obsidian Canvas) |
-| REST API | `scripts/sinapse-api.py` | FastAPI | Acesso remoto autenticado ao UMC (porta 37702) |
-| MCP Server | `scripts/sinapse-mcp.py` | Python | 10 tools via stdio JSON-RPC |
-| CLI | `scripts/sinapse-write.py` | Python | Subcomandos: decision, learning, query, health, session-end |
+| Hive-Dreamer | `scripts/dream/dream_cycle.py` | Python | Consolidação: observações → fatos validados → Atlas |
+| Brain Selector | `scripts/setup/setup-brain.sh` | Python | UI terminal: configura provedor/modelo/auth de TODOS os papéis + fallback |
+| Watcher | `scripts/services/start-watcher.sh` | Python/watchdog | Sync em tempo real Obsidian → SQLite (~2s) |
+| Auditor P2P | `scripts/health/audit_memory.py` | Python | Integridade vault ↔ SQLite |
+| Diff Semântico | `scripts/dream/semantic_diff.py` | Python | Classifica conflitos P2P (vetorial + LLM) |
+| Ingestão de Docs | `scripts/knowledge/document_ingest.py` | Python | PDF/DOCX → fila de observações |
+| Captura Visual | `scripts/capture/visual_capture.py` | Python/mss | Screenshots → `visual_memories` |
+| Portal Visual | `scripts/knowledge/generate_portal.py` | Python | Gera `portal.canvas` (Obsidian Canvas) |
+| REST API | `scripts/services/sinapse-api.py` | FastAPI | Acesso remoto autenticado ao UMC (porta 37702) |
+| MCP Server | `scripts/services/sinapse-mcp.py` | Python | 11 tools via stdio JSON-RPC |
+| CLI | `scripts/services/sinapse-write.py` | Python | Subcomandos: decision, learning, query, health, session-end |
 | Graphify | `graphify/` | Python | Indexador estrutural do vault |
-| claude-mem | `claude-mem/` | TypeScript/Bun | Tracking de eventos de agentes (porta 37700) |
+| claude-mem | `~/.claude-mem` + plugin upstream | TypeScript/Bun | Tracking global multi-projeto de eventos (porta 37700) |
 | RTK | `rtk/` | Rust | Otimização de comandos shell |
-| NeuralMemory | `neural-memory/` | Python | Recall associativo (spreading activation) |
+| NeuralMemory | `integrations/neural-memory/` | Python | Recall associativo (spreading activation) |
 | Plugin Hermes | `plugins/hermes/sinapse-memory.py` | Python | Leitura/escrita automática via hooks |
 | Vault | `cerebro/` | Markdown | Fonte única de verdade (Obsidian) |
 
@@ -258,8 +259,8 @@ Consolidação offline: o que o agente vive durante o dia (observações brutas)
 - **`core/memory/`** — pacote de 13 módulos resultante do refactor do monólito `sinapse-memory.py`.
 
 ```bash
-./scripts/setup-brain.sh   # configurar LLM por papel (+ fallback opcional)
-python3 scripts/dream_cycle.py  # disparar consolidação
+./scripts/setup/setup-brain.sh        # configurar LLM por papel (+ fallback opcional)
+python3 scripts/dream/dream_cycle.py  # disparar consolidação
 ```
 
 ---
@@ -316,14 +317,14 @@ O `install.sh` executa 12 etapas:
   [2/12] Ambiente Python reproduzível (.venv + uv.lock)
   [3/12] Graphify local e índices FTS/sqlite-vec/HNSW
   [4/12] Skills nos agentes detectados
-  [5/12] Claude-Mem local pelo bun.lock
+  [5/12] Claude-Mem global via npx/marketplace
   [6/12] NeuralMemory local
   [7/12] RTK fixado e compilado
   [8/12] MCP do Hermes
   [9/12] Cron único de sincronização
   [10/12] Plugin sinapse-memory do Hermes
   [11/12] Configuração de inteligência
-  [12/12] Três MCPs project-local nos agentes externos e serviços
+  [12/12] Três MCPs gerenciados nos agentes externos e serviços
 ```
 
 ---
@@ -348,20 +349,20 @@ cp .env.example .env
 | `GOOGLE_OAUTH_CLIENT_ID/SECRET` | Para OAuth Google | Credenciais OAuth (nunca hardcoded) |
 | `<PROVIDER>_API_KEY` | Por provedor | `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `NVIDIA_API_KEY`... |
 
-> `.env` está no `.gitignore` e nunca deve ser commitado. Use `./scripts/setup-brain.sh` para gerenciar credenciais interativamente.
+> `.env` está no `.gitignore` e nunca deve ser commitado. Use `./scripts/setup/setup-brain.sh` para gerenciar credenciais interativamente.
 
 ---
 
 ## Operação
 
 ```bash
-./scripts/start-watcher.sh                 # Sync em tempo real (Obsidian → SQLite)
-python3 scripts/dream_cycle.py             # Ciclo de consolidação
-python3 scripts/audit_memory.py --fix      # Auditoria vault ↔ SQLite
-python3 scripts/generate_portal.py         # Portal visual (Obsidian Canvas)
-./scripts/build-graph.sh                   # Rebuild manual do grafo
-./scripts/recover.sh                       # Disaster recovery
-python3 scripts/validate_hive_mind.py      # Validação geral do sistema
+./scripts/services/start-watcher.sh             # Sync em tempo real (Obsidian → SQLite)
+python3 scripts/dream/dream_cycle.py            # Ciclo de consolidação
+python3 scripts/health/audit_memory.py --fix    # Auditoria vault ↔ SQLite
+python3 scripts/knowledge/generate_portal.py    # Portal visual (Obsidian Canvas)
+./scripts/graph/build-graph.sh                  # Rebuild manual do grafo
+./scripts/utils/recover.sh                      # Disaster recovery
+python3 scripts/health/validate_hive_mind.py    # Validação geral do sistema
 ```
 
 **Obsidian:**
@@ -376,9 +377,9 @@ flatpak run md.obsidian.Obsidian --vault ~/Documentos/Projects/Hive-Mind/cerebro
 | Método | Agentes | Mecanismo |
 |--------|---------|-----------|
 | **Plugin nativo** | Hermes/Thoth | hooks `pre_gateway_dispatch`, `post_tool_call`, `on_session_end` |
-| **MCP server** | Claude Code, Codex CLI, Cursor, Gemini CLI, Kilo Code, OpenClaw, Copilot, ZooCode, Aider | `sinapse-mcp.py` via stdio JSON-RPC |
-| **CLI standalone** | Qualquer agente com shell | `sinapse-write.py <subcomando>` |
-| **REST API** | Agentes remotos / VPS | `sinapse-api.py` Bearer auth, porta 37702 |
+| **MCP server** | Claude Code, Codex CLI, Cursor, Gemini CLI, Kilo Code, OpenClaw, Copilot, ZooCode, Aider | `scripts/services/sinapse-mcp.py` via stdio JSON-RPC |
+| **CLI standalone** | Qualquer agente com shell | `scripts/services/sinapse-write.py <subcomando>` |
+| **REST API** | Agentes remotos / VPS | `scripts/services/sinapse-api.py` Bearer auth, porta 37702 |
 
 ### Tools MCP
 
@@ -414,7 +415,7 @@ FastAPI para acesso remoto ao UMC (VPS), com Bearer auth obrigatório, comparaç
 
 ```bash
 export HIVE_MIND_API_KEY="<token>"
-python3 scripts/sinapse-api.py    # porta 37702
+python3 scripts/services/sinapse-api.py    # porta 37702
 ```
 
 | Endpoint | Método | Rate | Descrição |
@@ -498,15 +499,15 @@ Setup completo: [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md)
 
 | Problema | Solução |
 |----------|---------|
-| Dream Cycle não roda | `./scripts/setup-brain.sh` → verificar provedor/modelo/saldo |
-| Watcher não sincroniza | `./scripts/start-watcher.sh`; checar `watcher.log` |
+| Dream Cycle não roda | `./scripts/setup/setup-brain.sh` → verificar provedor/modelo/saldo |
+| Watcher não sincroniza | `./scripts/services/start-watcher.sh`; checar `watcher.log` |
 | API não inicia | Definir `HIVE_MIND_API_KEY` no ambiente |
-| MCP não conecta | Verificar config do agente (ex: `~/.claude/.mcp.json`) e path do `sinapse-mcp.py` |
+| MCP não conecta | Verificar config do agente (ex: `~/.claude/.mcp.json`) e path do `scripts/services/sinapse-mcp.py` |
 | Observações sumiram da fila | `SELECT * FROM observations WHERE archived=2` (quarentena) |
-| Vault ↔ SQLite divergentes | `python3 scripts/audit_memory.py --fix` |
+| Vault ↔ SQLite divergentes | `python3 scripts/health/audit_memory.py --fix` |
 | claude-mem worker parou | `systemctl --user restart sinapse-claude-mem.service` |
-| Grafo desatualizado | `./scripts/build-graph.sh` |
-| Recovery geral | `./scripts/recover.sh` |
+| Grafo desatualizado | `./scripts/graph/build-graph.sh` |
+| Recovery geral | `./scripts/utils/recover.sh` |
 
 ---
 

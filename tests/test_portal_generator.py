@@ -32,7 +32,7 @@ class TestPortalGenerator(unittest.TestCase):
     def test_spiral_coords(self):
         # We'll import after the file is created in Task 2
         try:
-            from scripts.generate_portal import get_spiral_coords
+            from scripts.knowledge.generate_portal import get_spiral_coords
             x, y = get_spiral_coords(0)
             self.assertEqual((x, y), (0, 0))
             x1, y1 = get_spiral_coords(1)

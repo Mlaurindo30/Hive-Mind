@@ -55,6 +55,7 @@
     - Tabela de `ambiguities` para rastreio de divergências P2P.
     - Motor `semantic_diff.py` (Híbrido Vetorial + LLM) para classificação de conflitos.
     - **Síntese Dialética Autônoma:** Resolução de conflitos via LLM sem intervenção manual.
+    - **Alias Miner:** Automação de geração de slugs (aliases) kebab-case para neurônios via LLM.
 
 ---
 

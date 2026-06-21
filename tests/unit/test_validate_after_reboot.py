@@ -1,18 +1,13 @@
 from __future__ import annotations
 
-import importlib.util
 import sys
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "scripts"))
-SPEC = importlib.util.spec_from_file_location(
-    "validate_after_reboot", ROOT / "scripts" / "health" / "validate_after_reboot.py"
-)
-MODULE = importlib.util.module_from_spec(SPEC)
-assert SPEC.loader is not None
-SPEC.loader.exec_module(MODULE)
+sys.path.insert(0, str(ROOT))
+
+from scripts.health import validate_after_reboot as MODULE
 
 
 def test_listening_ports_extracts_loopback(monkeypatch):

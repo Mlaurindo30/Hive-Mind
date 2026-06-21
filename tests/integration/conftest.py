@@ -17,7 +17,7 @@ def ensure_backends():
     """Garante que backends reais estão operacionais.
 
     Delegates entirely to ``sinapse_memory.health_check()`` — the same check
-    that ``scripts/sinapse-write.py health`` runs — so the fixture stays in
+    that ``scripts/services/sinapse-write.py health`` runs — so the fixture stays in
     sync with the actual plugin logic.  If any backend reports unhealthy the
     tests are skipped with a diagnostic message rather than giving a false
     pass or a cryptic failure.

@@ -30,6 +30,8 @@ def _set_dreamer(env, prov=None, mod=None, fb_prov=None, fb_mod=None):
         "HIVE_DREAMER_MODEL": mod,
         "HIVE_DREAMER_FALLBACK_PROVIDER": fb_prov,
         "HIVE_DREAMER_FALLBACK_MODEL": fb_mod,
+        "HIVE_DREAMER_FALLBACK2_PROVIDER": None,
+        "HIVE_DREAMER_FALLBACK2_MODEL": None,
     }.items():
         if val is None:
             env.delenv(key, raising=False)

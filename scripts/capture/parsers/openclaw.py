@@ -9,6 +9,8 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import capture_core as core
+
 
 def parse(db_path: Path):
     out = []
@@ -21,7 +23,9 @@ def parse(db_path: Path):
         rows = con.execute(
             "SELECT task_id, task, status, progress_summary, terminal_summary, "
             "created_at, last_event_at, runtime, task_kind "
-            "FROM task_runs ORDER BY created_at ASC"
+            "FROM task_runs WHERE COALESCE(last_event_at, created_at) >= ? "
+            "ORDER BY created_at ASC",
+            (core.SESSION_CUTOFF_MS,),
         ).fetchall()
     except Exception:
         con.close()

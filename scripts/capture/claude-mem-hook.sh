@@ -14,10 +14,10 @@ mkdir -p "$CLAUDE_MEM_DATA_DIR" "$FASTEMBED_CACHE_PATH"
 
 GLOBAL_PLUGIN=""
 for candidate in \
-    "$HOME/.codex/plugins/cache/claude-mem-local/claude-mem/"* \
-    "$HOME/.codex/plugins/cache/thedotmack/claude-mem/"* \
     "$HOME/.claude/plugins/marketplaces/thedotmack/plugin" \
-    "$HOME/.claude/plugins/cache/thedotmack/claude-mem/"*"/plugin"; do
+    "$HOME/.claude/plugins/cache/thedotmack/claude-mem/"*"/plugin" \
+    "$HOME/.codex/plugins/cache/claude-mem-local/claude-mem/"* \
+    "$HOME/.codex/plugins/cache/thedotmack/claude-mem/"*; do
     candidate="${candidate%/}"
     if [ -f "$candidate/plugin/scripts/worker-service.cjs" ]; then
         GLOBAL_PLUGIN="$candidate/plugin"

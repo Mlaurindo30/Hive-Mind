@@ -106,13 +106,13 @@ O `audit_memory.py` compara o hash do arquivo físico com `neurons.hash`. Diverg
 
 ```bash
 # Verificar estado (read-only, sem modificações)
-python3 scripts/audit_memory.py
+python3 scripts/health/audit_memory.py
 
 # Corrigir — reindexar arquivos com hash divergente
-python3 scripts/audit_memory.py --fix
+python3 scripts/health/audit_memory.py --fix
 
 # Verbose (mostra todos os arquivos verificados)
-python3 scripts/audit_memory.py --fix --verbose
+python3 scripts/health/audit_memory.py --fix --verbose
 ```
 
 ### 5.3 Output esperado
@@ -261,7 +261,7 @@ source_observation_ids:
 Para rastrear um fato suspeito:
 ```bash
 # Verificar proveniência de um neuron
-python3 scripts/audit_memory.py --trace "nome-do-arquivo.md"
+python3 scripts/health/audit_memory.py --trace "nome-do-arquivo.md"
 ```
 
 ---
@@ -270,7 +270,7 @@ python3 scripts/audit_memory.py --trace "nome-do-arquivo.md"
 
 ```cron
 # Auditoria e reindexação de arquivos recebidos via P2P (1x por hora)
-0 * * * * cd $SINAPSE_HOME && python3 scripts/audit_memory.py --fix >> logs/audit.log 2>&1
+0 * * * * cd $SINAPSE_HOME && python3 scripts/health/audit_memory.py --fix >> logs/audit.log 2>&1
 
 # Backup do UMC antes da janela de auditoria (diário às 2:58am)
 58 2 * * * cp $SINAPSE_HOME/hive_mind.db $SINAPSE_HOME/backups/hive_mind_$(date +\%F).db

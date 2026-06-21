@@ -2,7 +2,7 @@
     "mcpServers": {
         "sinapse-memory": {
             "command": "python3",
-            "args": ["PROJECT_ROOT_PLACEHOLDER/scripts/sinapse-mcp.py"],
+            "args": ["PROJECT_ROOT_PLACEHOLDER/scripts/services/sinapse-mcp.py"],
             "cwd": "PROJECT_ROOT_PLACEHOLDER",
             "transport": "stdio",
             "enabled": true,

@@ -155,11 +155,11 @@ class TestSynthesisOffline:
         mock_conn.close = MagicMock()  # suppress the actual close
 
         with (
-            patch("scripts.dream_cycle.get_connection", return_value=mock_conn),
-            patch("scripts.semantic_diff.run_semantic_diff", return_value=diff_result),
-            patch("scripts.dream_cycle.call_llm_with_fallback", return_value=synthesis_result),
+            patch("scripts.dream.dream_cycle.get_connection", return_value=mock_conn),
+            patch("scripts.dream.semantic_diff.run_semantic_diff", return_value=diff_result),
+            patch("scripts.dream.dream_cycle.call_llm_with_fallback", return_value=synthesis_result),
         ):
-            from scripts.dream_cycle import run_synthesis_cycle
+            from scripts.dream.dream_cycle import run_synthesis_cycle
             run_synthesis_cycle()
 
         # Ambiguity must be marked 'synthesized'
@@ -215,11 +215,11 @@ class TestSynthesisOffline:
         mock_conn.close = MagicMock()
 
         with (
-            patch("scripts.dream_cycle.get_connection", return_value=mock_conn),
-            patch("scripts.semantic_diff.run_semantic_diff", return_value=diff_result),
-            patch("scripts.dream_cycle.call_llm_with_fallback", return_value=unresolved),
+            patch("scripts.dream.dream_cycle.get_connection", return_value=mock_conn),
+            patch("scripts.dream.semantic_diff.run_semantic_diff", return_value=diff_result),
+            patch("scripts.dream.dream_cycle.call_llm_with_fallback", return_value=unresolved),
         ):
-            from scripts.dream_cycle import run_synthesis_cycle
+            from scripts.dream.dream_cycle import run_synthesis_cycle
             run_synthesis_cycle()
 
         neuron_row = db_conn.execute(
@@ -284,7 +284,7 @@ def test_synthesis_integration():
     print(f"Test data setup complete. Running synthesis cycle...")
 
     # 2. Run Synthesis Cycle
-    from scripts.dream_cycle import run_synthesis_cycle
+    from scripts.dream.dream_cycle import run_synthesis_cycle
     run_synthesis_cycle()
 
     # 3. Verify Results

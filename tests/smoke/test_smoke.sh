@@ -52,8 +52,8 @@ GLOBAL_CMEM_DB="$HOME/.claude-mem/claude-mem.db"
 PIDS=$(ss -ltnp 2>/dev/null | sed -n 's/.*127\.0\.0\.1:37700.*pid=\([0-9][0-9]*\).*/\1/p' | sort -u)
 if [ -n "$PIDS" ]; then
     OPENED=$(for pid in $PIDS; do for fd in /proc/$pid/fd/*; do readlink "$fd"; done; done 2>/dev/null || true)
-    echo "$OPENED" | grep -F "$GLOBAL_CMEM_DB" >/dev/null 2>&1 && echo "  ✓ worker opens global ~/.claude-mem/claude-mem.db" && ((++PASS)) || { echo "  ✗ worker not using global db ($GLOBAL_CMEM_DB)"; ((++FAIL)); }
-    echo "$OPENED" | grep -F "$ROOT/claude-mem/data/claude-mem.db" >/dev/null 2>&1 && { echo "  ✗ worker leaked to project-local claude-mem.db"; ((++FAIL)); } || { echo "  ✓ worker not using project-local db"; ((++PASS)); }
+    echo "$OPENED" | grep -F "$GLOBAL_CMEM_DB" >/dev/null 2>&1 && echo "  ✓ worker opens official global ~/.claude-mem/claude-mem.db" && ((++PASS)) || { echo "  ✗ worker not using official global db ($GLOBAL_CMEM_DB)"; ((++FAIL)); }
+    echo "$OPENED" | grep -F "$ROOT/claude-mem/data/claude-mem.db" >/dev/null 2>&1 && { echo "  ✗ worker leaked to deprecated project-local claude-mem.db"; ((++FAIL)); } || { echo "  ✓ worker avoids deprecated project-local claude-mem.db"; ((++PASS)); }
 else
     echo "  ✗ could not resolve worker PID on 37700"
     ((++FAIL))

@@ -71,8 +71,9 @@ if [ -n "$ONLY" ]; then
     esac
 fi
 
-# Merge seguro: adiciona/atualiza os três servidores project-local do
+# Merge seguro: adiciona/atualiza os três servidores gerenciados pelo
 # Hive-Mind, preservando quaisquer outros MCP servers registrados pelo usuário.
+# O servidor claude-mem usa o runtime temporal global em ~/.claude-mem.
 # Uso: merge_mcp_server <arquivo> [chave_raiz]
 #   chave_raiz padrão: mcpServers — VS Code (.vscode/mcp.json) usa "servers"
 merge_mcp_server() {
@@ -121,7 +122,7 @@ with open(path, "w") as f:
 PYEOF
 }
 
-# Verifica se um arquivo já tem os três registros project-local.
+# Verifica se um arquivo já tem os três registros gerenciados pelo Hive-Mind.
 has_registration() {
     local FILE="$1"
     local ROOT_KEY="${2:-mcpServers}"
@@ -159,7 +160,7 @@ register_codex() {
             "$PROJECT_ROOT/scripts/services/neural-memory-local.sh"
         # Mantém o JSON compatível com clientes Codex anteriores.
         merge_mcp_server "$HOME/.codex/mcp.json"
-        echo -e "  ${GREEN}✓${NC} Codex CLI → 3 servidores project-local"
+        echo -e "  ${GREEN}✓${NC} Codex CLI → 3 servidores gerenciados"
     fi
     ((++AGENTS_FOUND))
 }

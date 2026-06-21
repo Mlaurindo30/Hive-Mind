@@ -11,6 +11,8 @@ import sys
 import json
 import requests
 import webbrowser
+import re
+import shutil
 from pathlib import Path
 from typing import Dict, Any, List
 
@@ -18,11 +20,21 @@ from typing import Dict, Any, List
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
-from core.auth import PROVIDERS_CONFIG, save_env, load_env, discover_models_realtime, get_oauth_credentials, poll_oauth_token
+from core.auth import (
+    PROVIDERS_CONFIG,
+    discover_models_realtime,
+    gemini_cli_oauth_file,
+    get_oauth_credentials,
+    load_env,
+    poll_oauth_token,
+    save_env,
+)
 
 # Cores ANSI para uma interface profissional
 GREEN = "\033[0;32m"; YELLOW = "\033[1;33m"; BLUE = "\033[1;34m"; RED = "\033[0;31m"
 BOLD = "\033[1m"; NC = "\033[0m"
+DIM = "\033[2m"
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 # Papéis configuráveis (id, rótulo). O Dreamer é a base de herança dos demais:
 # configurar o Dreamer (primário + fb1 + fb2) já propaga p/ TODOS os papéis abaixo.
@@ -47,8 +59,58 @@ ROLES = [
 
 def clear(): os.system('clear' if os.name == 'posix' else 'cls')
 
+
+def term_width() -> int:
+    return max(92, min(140, shutil.get_terminal_size((110, 24)).columns))
+
+
+def plain(text: str) -> str:
+    return ANSI_RE.sub("", str(text))
+
+
+def fit(text: str, width: int) -> str:
+    text = str(text)
+    raw = plain(text)
+    if len(raw) <= width:
+        return text + (" " * (width - len(raw)))
+    clipped = raw[: max(1, width - 1)] + "…"
+    return clipped
+
+
+def line(char: str = "─") -> str:
+    return char * term_width()
+
+
+def header(title: str, subtitle: str | None = None) -> None:
+    w = term_width()
+    print(f"{BOLD}{BLUE}{'=' * w}{NC}")
+    print(f"{BOLD}{BLUE}{title}{NC}")
+    if subtitle:
+        print(f"{DIM}{subtitle}{NC}")
+    print(f"{BOLD}{BLUE}{'=' * w}{NC}")
+
 def role_var(role: str, suffix: str) -> str:
     return f"HIVE_{role.upper()}_{suffix}"
+
+
+def role_config_parts(role: str, env: Dict[str, str]) -> tuple[str, str, str]:
+    p = env.get(role_var(role, "PROVIDER"))
+    m = env.get(role_var(role, "MODEL"))
+    if p and m:
+        primary = f"{GREEN}{m}{NC} {DIM}({p}){NC}"
+    elif role == "dreamer":
+        primary = f"{YELLOW}não configurado{NC}"
+    else:
+        primary = f"{BLUE}herda Dreamer{NC}"
+
+    fb_p = env.get(role_var(role, "FALLBACK_PROVIDER"))
+    fb_m = env.get(role_var(role, "FALLBACK_MODEL"))
+    fb1 = f"{fb_m} {DIM}({fb_p}){NC}" if fb_p and fb_m else f"{DIM}- {NC}"
+
+    fb2_p = env.get(role_var(role, "FALLBACK2_PROVIDER"))
+    fb2_m = env.get(role_var(role, "FALLBACK2_MODEL"))
+    fb2 = f"{fb2_m} {DIM}({fb2_p}){NC}" if fb2_p and fb2_m else f"{DIM}- {NC}"
+    return primary, fb1, fb2
 
 def describe_role(role: str, env: Dict[str, str]) -> str:
     """Valor atual do papel: modelo próprio, 'herda do Dreamer' ou 'Nenhum'."""
@@ -79,8 +141,7 @@ def is_provider_configured(p_name: str, env: Dict[str, str]) -> bool:
     cfg = PROVIDERS_CONFIG[p_name]
     # antigravity / gemini-cli: configurado = existe o login OAuth do CLI no disco.
     if "gemini_cli_oauth" in cfg["auth_type"]:
-        from pathlib import Path
-        return (Path.home() / ".gemini" / "oauth_creds.json").is_file()
+        return gemini_cli_oauth_file() is not None
     if "oauth" in cfg["auth_type"]:
         if f"{p_name.upper()}_ACCESS_TOKEN" in env: return True
     if cfg['env_var'] in env or "local" in cfg['auth_type']:
@@ -90,16 +151,19 @@ def is_provider_configured(p_name: str, env: Dict[str, str]) -> bool:
 def main_menu():
     while True:
         clear()
-        print(f"{BOLD}{BLUE}╔══════════════════════════════════════════════════════╗{NC}")
-        print(f"{BOLD}{BLUE}║          🧠 HIVE-MIND: SELETOR DE INTELIGÊNCIA       ║{NC}")
-        print(f"{BOLD}{BLUE}╚══════════════════════════════════════════════════════╝{NC}")
+        header("HIVE-MIND: SELETOR DE INTELIGENCIA", "Configure provider/model por papel. Fallbacks sao opcionais e explicitos.")
 
         env = load_env()
-        print(f"\n{BOLD}Qual papel deseja configurar?{NC}")
+        print(f"\n{BOLD}Papeis configurados{NC}")
+        print(line())
+        print(f"{BOLD}{fit('#', 4)} {fit('Papel', 30)} {fit('Primario', 34)} {fit('Fallback 1', 28)} {fit('Fallback 2', 28)}{NC}")
+        print(line("-"))
         for i, (rid, label) in enumerate(ROLES):
-            print(f"  {i+1}) {label:34} {describe_role(rid, env)}")
+            primary, fb1, fb2 = role_config_parts(rid, env)
+            print(f"{fit(str(i+1), 4)} {fit(label, 30)} {fit(primary, 34)} {fit(fb1, 28)} {fit(fb2, 28)}")
 
-        print(f"\n  0) Sair")
+        print(line("-"))
+        print(f"{fit('0', 4)} Sair")
 
         choice = input(f"\nSelecione um papel (ou 0): ").strip()
         if choice == "0": break
@@ -112,21 +176,41 @@ def main_menu():
 
 def provider_menu(role: str, level: int = 0):
     clear()
-    print(f"{BOLD}{BLUE}--- Configurando {_LEVEL_LABEL[level]} {role.upper()} ---{NC}")
+    header(f"CONFIGURANDO {role.upper()}", f"Alvo: {_LEVEL_LABEL[level]}")
 
     env = load_env()
     active_provider = env.get("HIVE_DREAMER_PROVIDER", "Nenhum")
     active_model = env.get("HIVE_DREAMER_MODEL", "Nenhum")
-    print(f"\n{BOLD}Cérebro do Dreamer (base de herança):{NC} {GREEN}{active_model}{NC} ({active_provider})")
-    print("-" * 50)
+    if role != "dreamer" or level > 0:
+        print(f"\n{BOLD}Base herdada do Dreamer:{NC} {GREEN}{active_model}{NC} {DIM}({active_provider}){NC}")
+        print(line("-"))
 
     print(f"\n{BOLD}Provedores Disponíveis:{NC}")
     providers = list(PROVIDERS_CONFIG.keys())
+    print(f"{BOLD}{fit('#', 4)} {fit('Provider', 16)} {fit('Auth', 18)} {fit('Status', 24)} {fit('Observacao', 36)}{NC}")
+    print(line("-"))
     for i, p in enumerate(providers):
-        status = f"{GREEN}[CONFIGURADO]{NC}" if is_provider_configured(p, env) else f"{YELLOW}[PENDENTE]{NC}"
-        print(f"  {i+1:2}) {p:15} {status}")
+        cfg = PROVIDERS_CONFIG[p]
+        if "gemini_cli_oauth" in cfg["auth_type"]:
+            auth = "CLI OAuth"
+            status = f"{GREEN}configurado{NC}" if is_provider_configured(p, env) else f"{YELLOW}pendente{NC}"
+            note = "login externo"
+        elif "local" in cfg["auth_type"]:
+            auth = "local"
+            status = f"{GREEN}disponivel{NC}"
+            note = cfg.get("base_url", "")
+        elif "api_key" in cfg["auth_type"] and "oauth" in cfg["auth_type"]:
+            auth = "api key / OAuth"
+            status = f"{GREEN}configurado{NC}" if is_provider_configured(p, env) else f"{YELLOW}pendente{NC}"
+            note = "menu gerencia credencial"
+        else:
+            auth = "api key"
+            status = f"{GREEN}configurado{NC}" if is_provider_configured(p, env) else f"{YELLOW}pendente{NC}"
+            note = ""
+        print(f"{fit(str(i+1), 4)} {fit(p, 16)} {fit(auth, 18)} {fit(status, 24)} {fit(note, 36)}")
 
-    print(f"\n  0) Voltar")
+    print(line("-"))
+    print(f"{fit('0', 4)} Voltar")
 
     choice = input(f"\nSelecione um Provedor (ou 0): ").strip()
     if choice == "0": return
@@ -148,6 +232,11 @@ def _mask_secret(value: str) -> str:
 def describe_provider_credential(p_name: str, env: Dict[str, str]) -> str:
     """Descreve a credencial ativa do provedor (método + valor mascarado)."""
     cfg = PROVIDERS_CONFIG[p_name]
+    if "gemini_cli_oauth" in cfg["auth_type"]:
+        oauth_file = gemini_cli_oauth_file()
+        if oauth_file:
+            return f"CLI OAuth ({oauth_file})"
+        return f"{YELLOW}CLI OAuth pendente — execute o CLI correspondente uma vez{NC}"
     token = env.get(f"{p_name.upper()}_ACCESS_TOKEN")
     key = env.get(cfg["env_var"]) or env.get(cfg.get("alt_env_var", ""))
     parts = []
@@ -297,14 +386,24 @@ def manage_provider(p_name: str, role: str, level: int = 0):
 
 def show_model_selection(p_name: str, role: str, level: int = 0):
     clear()
-    print(f"{BOLD}{BLUE}🔍 Escaneando modelos em {p_name.upper()}...{NC}")
+    header(f"MODELOS: {p_name.upper()}", f"Alvo: {_LEVEL_LABEL[level]} {role.upper()}")
 
     all_models = discover_models_realtime(only_provider=p_name)
     p_models = [m for m in all_models if m['provider'] == p_name]
 
     if not p_models:
         print(f"\n{RED}✗ Nenhum modelo encontrado.{NC}")
-        print(f"Dica: Se você acabou de logar, tente 'Re-autenticar' no menu do provedor.")
+        cfg = PROVIDERS_CONFIG[p_name]
+        if "gemini_cli_oauth" in cfg["auth_type"]:
+            print("Este provedor usa login do CLI externo.")
+            print("Execute `gemini` ou `agy` uma vez para autenticar e volte para este menu.")
+            hints = cfg.get("models_hint", [])
+            if hints:
+                print("\nModelos esperados quando o CLI OAuth estiver disponível:")
+                for m in hints:
+                    print(f"  - {m}")
+        else:
+            print(f"Dica: Se você acabou de logar, tente 'Re-autenticar' no menu do provedor.")
         print("-" * 30)
         print(f"1) Tentar novamente")
         print(f"2) Re-configurar / Re-logar")
@@ -321,9 +420,14 @@ def show_model_selection(p_name: str, role: str, level: int = 0):
         return
 
     print(f"\n{BOLD}Modelos detectados em {p_name}:{NC}")
+    source = p_models[0].get("source") if p_models else None
+    if source == "gemini_cli_oauth_models_hint":
+        print(f"{DIM}Origem: catálogo do provider liberado pelo login CLI OAuth local.{NC}")
+    print(line("-"))
     for i, m in enumerate(p_models):
-        print(f"  {i+1:2}) {m['id']}")
-    print(f"\n  0) Voltar")
+        print(f"{fit(str(i+1), 4)} {m['id']}")
+    print(line("-"))
+    print(f"{fit('0', 4)} Voltar")
 
     m_choice = input(f"\nEscolha o modelo: ")
     if m_choice == "0": return

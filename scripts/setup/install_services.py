@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Install idempotent user services pointing only at project-local runtimes."""
+"""Install idempotent user services for the Hive-Mind local runtime.
+
+Most services run from this checkout and its .venv.  The claude-mem temporal
+runtime is intentionally global and multi-project, with data under
+~/.claude-mem, so all services that read/write claude-mem must point there.
+"""
 
 from __future__ import annotations
 
@@ -571,7 +576,7 @@ def validate_runtime() -> None:
     )
     missing = [str(path) for path in required if not path.exists()]
     if missing:
-        raise SystemExit("missing project-local runtime files:\n" + "\n".join(missing))
+        raise SystemExit("missing Hive-Mind runtime files:\n" + "\n".join(missing))
 
 
 def api_enabled() -> bool:

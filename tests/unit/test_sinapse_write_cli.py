@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 class TestSinapseWriteCLI:
-    """Testes para scripts/sinapse-write.py"""
+    """Testes para scripts/services/sinapse-write.py"""
 
     SCRIPT = Path(__file__).parent.parent.parent / "scripts" / "services" / "sinapse-write.py"
 

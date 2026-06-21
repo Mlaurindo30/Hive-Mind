@@ -49,7 +49,7 @@ claude_mem:
 # =============================================================================
 neural_memory:
   package: neural-memory                # pipx install neural-memory
-  install_method: source                  # uv pip install -e neural-memory/
+  install_method: source                  # uv pip install -e integrations/neural-memory/
   src_dir: integrations/neural-memory/    # source local
   recall_timeout: 5                     # segundos
 
@@ -64,7 +64,7 @@ rtk:
 # SINAPSE MCP (servidor universal de leitura + escrita)
 # =============================================================================
 sinapse_mcp:
-  command: "python3 scripts/sinapse-mcp.py"
+  command: "python3 scripts/services/sinapse-mcp.py"
   transport: stdio
   enabled: true
   config_template: mcp/sinapse-memory.json
@@ -77,6 +77,9 @@ sinapse_mcp:
     - sinapse_temporal_search # busca direta no claude-mem (FTS5 + Chroma)
     - sinapse_temporal_save   # salva observação no claude-mem ou fallback vault
     - sinapse_zettelkasten_split # particiona notas monolíticas em notas atômicas Zettelkasten
+    - sinapse_capture_screen  # captura tela e salva memória visual
+    - sinapse_plan_goal       # decompõe objetivo em passos atômicos
+    - search_memories         # busca HNSW/FTS sobre o vault
 
 # =============================================================================
 # AGENTES SUPORTADOS
@@ -121,12 +124,12 @@ mcp_servers:
     transport: stdio
     enabled: true
   claude_mem:
-    command: "node claude-mem/mcp-server.js"
+    command: "scripts/services/start-claude-mem-mcp.sh"
     transport: stdio
     port: 37700
     enabled: true
   sinapse_memory:
-    command: "python3 scripts/sinapse-mcp.py"
+    command: "python3 scripts/services/sinapse-mcp.py"
     transport: stdio
     enabled: true
 
@@ -186,4 +189,3 @@ hybrid_search:
 cron:
   sync_schedule: "0 */6 * * *"            # a cada 6 horas
   rebuild_schedule: "0 2 * * 0"           # domingo 2am rebuild completo
-

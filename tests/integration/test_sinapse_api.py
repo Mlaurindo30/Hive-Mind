@@ -1,4 +1,4 @@
-"""Integração: REST API (scripts/sinapse-api.py) — contrato ATUAL.
+"""Integração: REST API (scripts/services/sinapse-api.py) — contrato ATUAL.
 
 Valida os endpoints reais da API de nuvem com FastAPI TestClient:
   - GET  /api/v1/health           (público)
@@ -34,8 +34,8 @@ pytest.importorskip("cryptography")
 
 from fastapi.testclient import TestClient
 
-# Carrega scripts/sinapse-api.py dinamicamente para obter a instância da app.
-_api_script = Path(__file__).resolve().parents[2] / "scripts" / "sinapse-api.py"
+# Carrega scripts/services/sinapse-api.py dinamicamente para obter a instância da app.
+_api_script = Path(__file__).resolve().parents[2] / "scripts" / "services" / "sinapse-api.py"
 spec = importlib.util.spec_from_file_location("sinapse_api", _api_script)
 api_mod = importlib.util.module_from_spec(spec)
 try:

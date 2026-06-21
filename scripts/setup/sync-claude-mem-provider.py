@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 sync-claude-mem-provider.py — Ponte: escolha do papel `claude_mem` (setup-brain)
-→ configuração real do claude-mem project-local.
+→ configuração real do claude-mem global.
 
 O setup-brain.py grava no .env do projeto:
     HIVE_CLAUDE_MEM_PROVIDER / HIVE_CLAUDE_MEM_MODEL  (+ a credencial do provider)
@@ -37,9 +37,9 @@ sys.path.append(str(PROJECT_ROOT))
 from core.auth import PROVIDERS_CONFIG, load_env  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-CMEM_DATA_DIR = ROOT / "claude-mem" / "data"
-CMEM_SETTINGS = Path(os.environ.get("CLAUDE_MEM_DATA_DIR", str(CMEM_DATA_DIR))) / "settings.json"
-GLOBAL_CMEM_SETTINGS = Path.home() / ".claude-mem" / "settings.json"
+GLOBAL_CMEM_DATA_DIR = Path.home() / ".claude-mem"
+GLOBAL_CMEM_SETTINGS = GLOBAL_CMEM_DATA_DIR / "settings.json"
+CMEM_SETTINGS = Path(os.environ.get("CLAUDE_MEM_DATA_DIR", str(GLOBAL_CMEM_DATA_DIR))) / "settings.json"
 
 # provider do Hive (core/auth) → slot nativo do claude-mem
 GEMINI_PROVIDERS = {"google", "gemini"}
@@ -57,9 +57,9 @@ def _key_for(provider: str, env: dict) -> str:
     )
 
 
-def local_runtime_updates() -> dict[str, str]:
-    """Campos que nunca podem apontar para ~/.claude-mem no runtime do Hive-Mind."""
-    data_dir = ROOT / "claude-mem" / "data"
+def runtime_updates() -> dict[str, str]:
+    """Campos oficiais do runtime temporal global do claude-mem."""
+    data_dir = GLOBAL_CMEM_DATA_DIR
     return {
         "CLAUDE_MEM_DATA_DIR": str(data_dir),
         "CLAUDE_MEM_WORKER_HOST": "127.0.0.1",
@@ -70,8 +70,9 @@ def local_runtime_updates() -> dict[str, str]:
     }
 
 
-# Chaves de path local que NÃO devem sobrescrever o seed global (worker systemd usa ~/.claude-mem).
-_GLOBAL_SEED_EXCLUDE = {"CLAUDE_MEM_DATA_DIR", "FASTEMBED_CACHE_PATH", "CLAUDE_MEM_TRANSCRIPTS_CONFIG_PATH"}
+def local_runtime_updates() -> dict[str, str]:
+    """Compatibilidade: o runtime oficial agora é global."""
+    return runtime_updates()
 
 
 # claude-mem valida CLAUDE_MEM_GEMINI_MODEL contra esta whitelist no save (UI e API).
@@ -92,14 +93,14 @@ def build_updates(provider: str, model: str, env: dict) -> dict:
             print(f"  ⚠ '{model}' não é um modelo gemini aceito pelo claude-mem "
                   f"({', '.join(sorted(GEMINI_ALLOWED))}); usando {gmodel}.")
         return {
-            **local_runtime_updates(),
+            **runtime_updates(),
             "CLAUDE_MEM_PROVIDER": "gemini",
             "CLAUDE_MEM_GEMINI_MODEL": gmodel,
             "CLAUDE_MEM_GEMINI_API_KEY": key,
         }
     if provider in CLAUDE_PROVIDERS:
         return {
-            **local_runtime_updates(),
+            **runtime_updates(),
             "CLAUDE_MEM_PROVIDER": "claude",
             "CLAUDE_MEM_MODEL": model,
             "CLAUDE_MEM_CLAUDE_AUTH_METHOD": "api-key" if key and key != "local" else "subscription",
@@ -107,7 +108,7 @@ def build_updates(provider: str, model: str, env: dict) -> dict:
         }
     # qualquer outro = slot OpenAI-compatible (base_url do provider)
     return {
-        **local_runtime_updates(),
+        **runtime_updates(),
         "CLAUDE_MEM_PROVIDER": "openrouter",
         "CLAUDE_MEM_OPENROUTER_BASE_URL": cfg.get("base_url", ""),
         "CLAUDE_MEM_OPENROUTER_API_KEY": key,
@@ -174,12 +175,11 @@ def apply(updates: dict) -> None:
     except Exception:
         pass  # a API (viewer_settings) é a fonte de verdade; arquivo é só seed
     # Atualiza o seed global (~/.claude-mem) para restarts do worker systemd.
-    # Exclui paths project-local que não fazem sentido no contexto do worker global.
     try:
-        if GLOBAL_CMEM_SETTINGS.exists():
-            gcfg = json.loads(GLOBAL_CMEM_SETTINGS.read_text())
-            gcfg.update({k: v for k, v in updates.items() if k not in _GLOBAL_SEED_EXCLUDE})
-            GLOBAL_CMEM_SETTINGS.write_text(json.dumps(gcfg, indent=2) + "\n")
+        GLOBAL_CMEM_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
+        gcfg = json.loads(GLOBAL_CMEM_SETTINGS.read_text()) if GLOBAL_CMEM_SETTINGS.exists() else {}
+        gcfg.update(updates)
+        GLOBAL_CMEM_SETTINGS.write_text(json.dumps(gcfg, indent=2) + "\n")
     except Exception:
         pass
 
@@ -230,7 +230,7 @@ def main() -> int:
         return 0
 
     apply(updates)
-    print("✓ aplicado via /api/settings (live) + seeds (projeto + global ~/.claude-mem)")
+    print("✓ aplicado via /api/settings (live) + seed global ~/.claude-mem")
     if "CLAUDE_MEM_OPENROUTER_BASE_URL" in updates:
         restart_worker()
         print("✓ worker reiniciado (base_url do slot OpenAI-compat aplicado)")

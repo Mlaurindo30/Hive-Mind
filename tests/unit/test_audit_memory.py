@@ -1,10 +1,11 @@
 """
-Unit tests for scripts/audit_memory.py
+Unit tests for scripts/health/audit_memory.py
 
 Strategy:
 - Control SINAPSE_HOME via monkeypatch so run_audit() scans a tmp_path-based
   atlas directory instead of the real cerebro/atlas.
-- Patch `scripts.audit_memory.get_connection` and `scripts.audit_memory.register_ambiguity`
+- Patch `scripts.health.audit_memory.get_connection` and
+  `scripts.health.audit_memory.register_ambiguity`
   to avoid touching the real hive_mind.db.
 - Use real file creation in tmp_path to exercise the actual detection logic.
 """
