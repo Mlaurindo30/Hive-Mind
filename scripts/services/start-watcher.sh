@@ -13,8 +13,9 @@ export SINAPSE_HOME="$PROJECT_ROOT"
 echo "[hive-mind] Iniciando Real-time Watcher..."
 echo "[hive-mind] Monitorando: $VAULT_DIR"
 
-# Executa o watch em background
-# Debounce conservador: rebuild estrutural pode levar dezenas de segundos.
-DEBOUNCE="${GRAPHIFY_WATCH_DEBOUNCE:-30.0}"
-echo "[hive-mind] Debounce estrutural: ${DEBOUNCE}s"
+# Debounce: tempo de espera após a última edição antes de disparar o rebuild.
+# 10s é o equilíbrio entre edições rápidas consecutivas (sem rebuilds sobrepostos)
+# e feedback razoável durante o uso. Para rebuilds pesados use GRAPHIFY_WATCH_DEBOUNCE=30.
+DEBOUNCE="${GRAPHIFY_WATCH_DEBOUNCE:-10.0}"
+echo "[hive-mind] Debounce: ${DEBOUNCE}s (ajuste via GRAPHIFY_WATCH_DEBOUNCE)"
 exec "$VENV_PYTHON" -m graphify watch "$VAULT_DIR" --debounce "$DEBOUNCE"
