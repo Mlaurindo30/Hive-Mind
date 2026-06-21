@@ -36,6 +36,14 @@ def capture_posts(monkeypatch):
     return calls
 
 
+@pytest.fixture
+def store(tmp_path):
+    """SeenStore isolado em diretório temporário para cada teste."""
+    s = core.SeenStore(db_path=tmp_path / "test-state.db")
+    yield s
+    s.close()
+
+
 def _counts(calls):
     inits = [c for c in calls if c[0] == "/api/sessions/init"]
     obs = [c for c in calls if c[0] == "/api/sessions/observations"]
@@ -64,54 +72,50 @@ def test_content_hash_estavel():
     assert core.content_hash("s", "p", "oi") != core.content_hash("s", "p", "tchau")
 
 
-def test_primeiro_prompt_nao_duplica(capture_posts):
+def test_primeiro_prompt_nao_duplica(capture_posts, store):
     """Causa A: o prompt inicial NÃO pode ser emitido 2× (init de sessão + 1º turn)."""
-    state = {}
-    core.ingest("teste", _session(), state)
+    core.ingest("teste", _session(), store)
     inits, obs = _counts(capture_posts)
     # 2 prompts distintos (inicial + segunda pergunta), nunca 3
     assert inits == 2, f"esperado 2 inits, veio {inits} (1º prompt duplicado?)"
     assert obs == 2
 
 
-def test_reingest_idempotente(capture_posts):
+def test_reingest_idempotente(capture_posts, store):
     """Reparsear a mesma sessão N vezes → só a 1ª emite; as demais 0."""
-    state = {}
-    sent1 = core.ingest("teste", _session(), state)
+    sent1 = core.ingest("teste", _session(), store)
     n_after_first = len(capture_posts)
-    sent2 = core.ingest("teste", _session(), state)
-    sent3 = core.ingest("teste", _session(), state)
+    sent2 = core.ingest("teste", _session(), store)
+    sent3 = core.ingest("teste", _session(), store)
     assert sent1 == 2
     assert sent2 == 0 and sent3 == 0, "reingest emitiu conteúdo já visto"
     assert len(capture_posts) == n_after_first, "nenhum POST novo no reingest"
 
 
-def test_turno_novo_emite_so_o_novo(capture_posts):
+def test_turno_novo_emite_so_o_novo(capture_posts, store):
     """Fonte cresce (1 turn novo) → só o turn novo emite, não a sessão toda."""
-    state = {}
-    core.ingest("teste", _session(), state)
+    core.ingest("teste", _session(), store)
     base = len(capture_posts)
     grown = _session()
     grown["turns"].append({"tool_name": "Message",
                            "tool_input": {"prompt": "terceira"},
                            "tool_response": "resposta 3"})
-    sent = core.ingest("teste", grown, state)
+    sent = core.ingest("teste", grown, store)
     assert sent == 1, "deveria emitir só a observação nova"
     # +1 init (prompt 'terceira') +1 observation +1 summarize
     novos = len(capture_posts) - base
     assert novos == 3, f"esperado 3 POSTs (init+obs+summary), veio {novos}"
 
 
-def test_prompt_novo_sem_turno_emite_init(capture_posts):
+def test_prompt_novo_sem_turno_emite_init(capture_posts, store):
     """Sessão Codex viva pode receber novo role=user antes de qualquer tool call."""
-    state = {}
-    core.ingest("teste", {"sid": "ses", "prompt": "primeiro", "prompts": ["primeiro"]}, state)
+    core.ingest("teste", {"sid": "ses", "prompt": "primeiro", "prompts": ["primeiro"]}, store)
     base = len(capture_posts)
 
     sent = core.ingest(
         "teste",
         {"sid": "ses", "prompt": "primeiro", "prompts": ["primeiro", "segundo"]},
-        state,
+        store,
     )
 
     assert sent == 0
@@ -119,3 +123,60 @@ def test_prompt_novo_sem_turno_emite_init(capture_posts):
     assert len(novos) == 1
     assert novos[0][0] == "/api/sessions/init"
     assert novos[0][1]["prompt"] == "segundo"
+
+
+def test_dois_processos_nao_duplicam(capture_posts, tmp_path):
+    """Dois SeenStore no mesmo DB (concorrência) → sem duplicatas."""
+    db = tmp_path / "shared.db"
+    store_a = core.SeenStore(db_path=db)
+    store_b = core.SeenStore(db_path=db)
+
+    sent_a = core.ingest("teste", _session(), store_a)
+    sent_b = core.ingest("teste", _session(), store_b)  # mesmo conteúdo, store diferente
+
+    assert sent_a == 2
+    assert sent_b == 0, "store_b duplicou conteúdo já emitido por store_a"
+
+    store_a.close()
+    store_b.close()
+
+
+def test_seen_store_sobrevive_restart(capture_posts, tmp_path):
+    """SeenStore carregado do mesmo arquivo não re-emite hashes anteriores."""
+    db = tmp_path / "persist.db"
+
+    store1 = core.SeenStore(db_path=db)
+    core.ingest("teste", _session(), store1)
+    n_first = len(capture_posts)
+    store1.close()
+
+    # Simula reinício: novo SeenStore abrindo o mesmo DB
+    store2 = core.SeenStore(db_path=db)
+    core.ingest("teste", _session(), store2)
+    store2.close()
+
+    assert len(capture_posts) == n_first, "reinício re-emitiu conteúdo já visto"
+
+
+def test_seen_store_prune(tmp_path):
+    """prune() remove hashes antigos sem afetar os recentes."""
+    import time
+    db = tmp_path / "prune.db"
+    store = core.SeenStore(db_path=db)
+
+    old_ts = int(time.time()) - 100
+    store._con.execute(
+        "INSERT OR IGNORE INTO seen_hashes(platform,sid,hash,ts) VALUES(?,?,?,?)",
+        ("p", "s", "oldhash", old_ts),
+    )
+    store._con.execute(
+        "INSERT OR IGNORE INTO seen_hashes(platform,sid,hash,ts) VALUES(?,?,?,?)",
+        ("p", "s", "newhash", int(time.time())),
+    )
+    store._con.commit()
+
+    removed = store.prune(int(time.time()) - 50)
+    assert removed >= 1
+    assert not store.contains("p", "s", "oldhash")
+    assert store.contains("p", "s", "newhash")
+    store.close()

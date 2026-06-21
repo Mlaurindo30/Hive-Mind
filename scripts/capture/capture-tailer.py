@@ -88,6 +88,7 @@ def main() -> int:
     # DONO ÚNICO: --all processa só owner=="timer". Realtime é do daemon.
     platforms = list(adapters_by_owner("timer")) if args.all else [args.platform]
     total = 0
+    store = core.SeenStore()
 
     for plat in platforms:
         adp = ADAPTERS[plat]
@@ -102,7 +103,6 @@ def main() -> int:
                        if Path(p).is_file() and core._src_mtime(Path(p)) >= cutoff]
         if not sources:
             continue
-        st = core.load_state(plat)        # estado ISOLADO desta plataforma
         for s in sources:
             if not s.is_file():
                 continue
@@ -112,8 +112,7 @@ def main() -> int:
                 print(f"  ⚠ {plat}:{s.name}: parse falhou ({exc})")
                 continue
             for sess in sessions:
-                total += core.ingest(plat, sess, st)
-        core.save_state(plat, st)         # salva só o arquivo desta plataforma
+                total += core.ingest(plat, sess, store)
     print(f"total: {total}")
     return 0
 

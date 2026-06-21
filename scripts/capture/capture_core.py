@@ -6,7 +6,7 @@ Contém SÓ o que é genérico e não pertence a nenhuma ferramenta específica:
   • conexão com o worker do claude-mem (_post / worker_alive)
   • idempotência por CONTENT-HASH (content_hash / _norm)
   • motor de ingestão (ingest) — emite init/observation/summarize sem duplicar
-  • estado ISOLADO por plataforma (load_state/save_state → capture-state/<tool>.json)
+  • SeenStore — estado persistido em SQLite com WAL (substitui JSON por plataforma)
   • utilitários de mtime (WAL-aware) e coerção de texto
 
 NÃO contém lógica de parsing de NENHUMA ferramenta — cada uma tem seu próprio
@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import re
+import sqlite3
 import time
 import urllib.request
 from pathlib import Path
@@ -27,23 +28,16 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 BASE = f"http://{os.environ.get('CLAUDE_MEM_WORKER_HOST','127.0.0.1')}:{os.environ.get('CLAUDE_MEM_WORKER_PORT','37700')}"
 DATA_DIR = Path(os.environ.get("CLAUDE_MEM_DATA_DIR", str(ROOT / "claude-mem" / "data")))
 PROJECT = os.environ.get("CAPTURE_BRIDGE_PROJECT", "Hive-Mind")
-# Máx. de observações por sessão por execução. 0 = SEM limite (comportamento do
-# realtime antigo). A idempotência por content-hash + a janela de recência já
-# evitam flood, então o default é ilimitado; defina >0 só se quiser teto.
 OBS_CAP = int(os.environ.get("CAPTURE_TAILER_OBS_CAP", "0"))
-# Corte de recência por-sessão (epoch ms) p/ DBs SQLite multi-sessão. Os callers
-# (tailer/daemon) ajustam isto; os parsers SQLite leem core.SESSION_CUTOFF_MS.
 SESSION_CUTOFF_MS = 0
 
-# Estado ISOLADO por plataforma (1 arquivo por ferramenta). STATE = legado global
-# (só p/ migração one-shot).
+# Mantidos para referência na migração one-shot (não usar para estado novo).
 STATE = DATA_DIR / "tailer-state.json"
 STATE_DIR = DATA_DIR / "capture-state"
 
 
-# ── util de texto (genérico, não-tool-específico) ──────────────────────────────
+# ── util de texto ──────────────────────────────────────────────────────────────
 def text_content(c) -> str:
-    """Coerção de conteúdo (str | lista de blocos {text} | outro) → str."""
     if isinstance(c, str):
         return c
     if isinstance(c, list):
@@ -52,12 +46,10 @@ def text_content(c) -> str:
     return str(c or "")
 
 
-# Compatibilidade para parsers/estados antigos que ainda importem o nome legado.
-_text = text_content
+_text = text_content  # alias legado
 
 
 def _norm(s: str) -> str:
-    """Normaliza texto p/ identidade estável de conteúdo (whitespace + caixa)."""
     return re.sub(r"\s+", " ", (s or "").strip()).lower()
 
 
@@ -70,9 +62,6 @@ def content_hash(*parts: str) -> str:
 
 
 def project_from_cwd(directory: str | None) -> str | None:
-    """Deriva o nome do projeto a partir do diretório de trabalho da sessão
-    (basename), como o claude-mem nativo faz. Ex.: /home/michel/Projects/Thoth →
-    'Thoth'. Retorna None se não houver diretório utilizável (→ fallback no ingest)."""
     if not directory:
         return None
     name = os.path.basename(str(directory).rstrip("/"))
@@ -81,9 +70,6 @@ def project_from_cwd(directory: str | None) -> str | None:
 
 # ── mtime WAL-aware ────────────────────────────────────────────────────────────
 def _src_mtime(p: Path) -> float:
-    """mtime efetivo de uma fonte. SQLite em modo WAL grava no sidecar -wal (o .db
-    só muda no checkpoint), então o mtime do .db fica horas atrasado. Considera o
-    maior mtime entre o arquivo e os sidecars -wal/-shm."""
     mt = 0.0
     for cand in (p, Path(str(p) + "-wal"), Path(str(p) + "-shm")):
         try:
@@ -121,10 +107,222 @@ def worker_alive() -> bool:
         return False
 
 
-# ── estado isolado por plataforma ──────────────────────────────────────────────
+# ── SeenStore: estado persistido em SQLite ─────────────────────────────────────
+class SeenStore:
+    """Armazena hashes de conteúdo já emitidos em SQLite com WAL.
+
+    Substitui os arquivos capture-state/<platform>.json. Cada add() comita
+    imediatamente — se o processo cair entre um emit e o próximo, no máximo
+    um hash é re-emitido. Dois processos simultâneos nunca duplicam graças ao
+    INSERT OR IGNORE com PRIMARY KEY (platform, sid, hash).
+    """
+
+    _DB_NAME = "capture-state.db"
+    _SENTINEL = "capture-state/.migrated-to-sqlite"
+
+    def __init__(self, db_path: Path | None = None) -> None:
+        self._path = db_path or (DATA_DIR / self._DB_NAME)
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._con = sqlite3.connect(str(self._path), timeout=30, check_same_thread=False)
+        self._con.execute("PRAGMA journal_mode=WAL")
+        self._con.execute("PRAGMA synchronous=NORMAL")
+        self._con.execute("PRAGMA busy_timeout=10000")
+        self._con.executescript("""
+            CREATE TABLE IF NOT EXISTS session_meta (
+                platform TEXT NOT NULL,
+                sid      TEXT NOT NULL,
+                inited   INTEGER NOT NULL DEFAULT 0,
+                ts       INTEGER NOT NULL,
+                PRIMARY KEY (platform, sid)
+            );
+            CREATE TABLE IF NOT EXISTS seen_hashes (
+                platform TEXT NOT NULL,
+                sid      TEXT NOT NULL,
+                hash     TEXT NOT NULL,
+                ts       INTEGER NOT NULL,
+                PRIMARY KEY (platform, sid, hash)
+            );
+            CREATE INDEX IF NOT EXISTS seen_hashes_ts ON seen_hashes(ts);
+        """)
+        self._con.commit()
+        self._migrate_from_json()
+
+    def _migrate_from_json(self) -> None:
+        sentinel = DATA_DIR / self._SENTINEL
+        if sentinel.exists():
+            return
+        json_files = list(STATE_DIR.glob("*.json")) if STATE_DIR.exists() else []
+        if not json_files:
+            sentinel.parent.mkdir(parents=True, exist_ok=True)
+            sentinel.write_text(time.strftime("%Y-%m-%dT%H:%M:%S"))
+            return
+        now = int(time.time())
+        migrated = 0
+        for f in json_files:
+            if f.suffix == ".tmp":
+                continue
+            platform = f.stem
+            try:
+                data = json.loads(f.read_text())
+            except Exception:
+                continue
+            if not isinstance(data, dict):
+                continue
+            for skey, rec in data.items():
+                if not isinstance(rec, dict):
+                    continue
+                # skey pode ser "platform:sid" ou "rt:platform:sid" (formato legado)
+                parts = skey.split(":")
+                sid = parts[-1] if len(parts) >= 2 else skey
+                ts = int(rec.get("ts") or now)
+                inited = 1 if rec.get("inited") else 0
+                self._con.execute(
+                    "INSERT OR IGNORE INTO session_meta(platform,sid,inited,ts) VALUES(?,?,?,?)",
+                    (platform, sid, inited, ts),
+                )
+                for h in (rec.get("seen") or []):
+                    self._con.execute(
+                        "INSERT OR IGNORE INTO seen_hashes(platform,sid,hash,ts) VALUES(?,?,?,?)",
+                        (platform, sid, h, ts),
+                    )
+                    migrated += 1
+        self._con.commit()
+        sentinel.parent.mkdir(parents=True, exist_ok=True)
+        sentinel.write_text(time.strftime("%Y-%m-%dT%H:%M:%S"))
+        if migrated:
+            print(f"  ✓ migração JSON→SQLite: {migrated} hashes importados")
+
+    def contains(self, platform: str, sid: str, h: str) -> bool:
+        return self._con.execute(
+            "SELECT 1 FROM seen_hashes WHERE platform=? AND sid=? AND hash=? LIMIT 1",
+            (platform, sid, h),
+        ).fetchone() is not None
+
+    def add(self, platform: str, sid: str, h: str) -> None:
+        self._con.execute(
+            "INSERT OR IGNORE INTO seen_hashes(platform,sid,hash,ts) VALUES(?,?,?,?)",
+            (platform, sid, h, int(time.time())),
+        )
+        self._con.commit()
+
+    def is_inited(self, platform: str, sid: str) -> bool:
+        row = self._con.execute(
+            "SELECT inited FROM session_meta WHERE platform=? AND sid=? LIMIT 1",
+            (platform, sid),
+        ).fetchone()
+        return bool(row and row[0])
+
+    def mark_inited(self, platform: str, sid: str) -> None:
+        self._con.execute(
+            "INSERT INTO session_meta(platform,sid,inited,ts) VALUES(?,?,1,?) "
+            "ON CONFLICT(platform,sid) DO UPDATE SET inited=1, ts=excluded.ts",
+            (platform, sid, int(time.time())),
+        )
+        self._con.commit()
+
+    def touch(self, platform: str, sid: str) -> None:
+        self._con.execute(
+            "INSERT INTO session_meta(platform,sid,inited,ts) VALUES(?,?,0,?) "
+            "ON CONFLICT(platform,sid) DO UPDATE SET ts=excluded.ts",
+            (platform, sid, int(time.time())),
+        )
+        self._con.commit()
+
+    def prune(self, cutoff_ts: int) -> int:
+        c1 = self._con.execute(
+            "DELETE FROM seen_hashes WHERE ts < ?", (cutoff_ts,)
+        ).rowcount
+        c2 = self._con.execute(
+            "DELETE FROM session_meta WHERE ts < ?", (cutoff_ts,)
+        ).rowcount
+        self._con.commit()
+        return c1 + c2
+
+    def close(self) -> None:
+        self._con.close()
+
+
+# ── motor de ingestão (idempotente por content-hash) ───────────────────────────
+def ingest(platform: str, sess: dict, store: SeenStore) -> int:
+    """Emite prompt/observação/sumário ao worker, deduplicando por content-hash.
+    `sess` = {sid, prompt, turns:[{tool_name, tool_input:{prompt?}, tool_response}], last}.
+    `store` = SeenStore compartilhado. Re-chamar com a mesma sessão N vezes
+    (reparse / reescrita / 2 processos) → só conteúdo NOVO emite."""
+    sid = sess.get("sid")
+    prompt = sess.get("prompt")
+    prompts = sess.get("prompts") or []
+    turns, last_text = sess.get("turns") or [], sess.get("last")
+    if not sid or (not prompt and not turns):
+        return 0
+
+    store.touch(platform, sid)
+
+    proj = sess.get("project") or PROJECT
+    cwd = sess.get("cwd") or str(Path.cwd())
+
+    def emit_prompt(text: str) -> bool:
+        norm = _norm(text)
+        if not norm:
+            return False
+        h = content_hash(sid, "p", norm)
+        if store.contains(platform, sid, h):
+            return False
+        _post("/api/sessions/init", {
+            "contentSessionId": sid, "project": proj, "platformSource": platform,
+            "prompt": text, "customTitle": f"[{platform}] {text[:60]}",
+        })
+        store.add(platform, sid, h)
+        return True
+
+    if not store.is_inited(platform, sid):
+        _post("/api/sessions/init", {
+            "contentSessionId": sid, "project": proj, "platformSource": platform,
+            "prompt": prompt or "(sessão)", "customTitle": f"[{platform}] {(prompt or '')[:60]}",
+        })
+        store.mark_inited(platform, sid)
+        if prompt:
+            store.add(platform, sid, content_hash(sid, "p", _norm(prompt)))
+
+    for item in prompts:
+        emit_prompt(str(item))
+
+    sent = 0
+    for t in turns:
+        if OBS_CAP and sent >= OBS_CAP:
+            print(f"  ⏳ {platform}:{sid[:12]}: cap {OBS_CAP} atingido; resto depois")
+            break
+        if isinstance(t.get("tool_input"), dict):
+            tp = str(t["tool_input"].get("prompt") or "").strip()
+            if tp:
+                emit_prompt(tp)
+        tn = (t.get("tool_name") or "Tool").strip() or "Tool"
+        resp = str(t.get("tool_response") or "")
+        ho = content_hash(sid, "o", tn, _norm(resp))
+        if store.contains(platform, sid, ho):
+            continue
+        obs_res = _post("/api/sessions/observations", {
+            "contentSessionId": sid, "tool_name": tn,
+            "tool_input": t.get("tool_input") or {}, "tool_response": {"result": resp},
+            "platformSource": platform, "cwd": cwd,
+            "tool_use_id": f"{platform}:{sid}:{ho[:20]}",
+        })
+        if obs_res.get("error") or obs_res.get("stored") is False:
+            continue
+        store.add(platform, sid, ho)
+        sent += 1
+
+    if sent:
+        _post("/api/sessions/summarize", {
+            "contentSessionId": sid, "platformSource": platform,
+            "last_assistant_message": last_text or prompt or "sessão concluída",
+        })
+        print(f"  ✓ {platform}:{sid[:12]} → {sent} nova(s)")
+    return sent
+
+
+# ── stubs de compatibilidade (não usar em código novo) ─────────────────────────
 def _migrate_legacy_state() -> None:
-    """Migra o tailer-state.json global (legado) para capture-state/<plataforma>.json
-    uma única vez. Não destrói o legado."""
+    """Migração legada JSON→JSON por plataforma. Mantido para compatibilidade."""
     if not STATE.exists() or (STATE_DIR / ".migrated").exists():
         return
     try:
@@ -143,7 +341,7 @@ def _migrate_legacy_state() -> None:
 
 
 def load_state(platform: str) -> dict:
-    """Estado isolado da plataforma. Cada ferramenta tem o seu arquivo."""
+    """Legado. Novo código deve usar SeenStore()."""
     _migrate_legacy_state()
     p = STATE_DIR / f"{platform}.json"
     try:
@@ -153,92 +351,9 @@ def load_state(platform: str) -> dict:
 
 
 def save_state(platform: str, s: dict) -> None:
-    """Escrita ATÔMICA (tmp + rename) do arquivo por-plataforma."""
+    """Legado. Novo código deve usar SeenStore()."""
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     p = STATE_DIR / f"{platform}.json"
     tmp = p.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(s, indent=2))
     tmp.replace(p)
-
-
-# ── motor de ingestão (idempotente por content-hash) ───────────────────────────
-def ingest(platform: str, sess: dict, state: dict) -> int:
-    """Emite prompt/observação/sumário ao worker, deduplicando por content-hash.
-    `sess` = {sid, prompt, turns:[{tool_name, tool_input:{prompt?}, tool_response}], last}.
-    `state` = estado ISOLADO da plataforma. Re-chamar com a mesma sessão N vezes
-    (reparse / reescrita / 2 processos) → só conteúdo NOVO emite. `seen` (set de
-    hashes) é o único estado por sessão."""
-    sid = sess.get("sid")
-    prompt = sess.get("prompt")
-    prompts = sess.get("prompts") or []
-    turns, last_text = sess.get("turns") or [], sess.get("last")
-    if not sid or (not prompt and not turns):
-        return 0
-    skey = f"{platform}:{sid}"
-    rec = state.setdefault(skey, {"inited": False, "seen": []})
-    rec["ts"] = int(time.time())   # marca atividade p/ o GC de manutenção (não é memória)
-    seen = set(rec.get("seen") or [])
-    # Projeto REAL da sessão (derivado do cwd pelo parser); fallback p/ o default.
-    proj = sess.get("project") or PROJECT
-    cwd = sess.get("cwd") or str(Path.cwd())
-
-    def emit_prompt(text: str) -> bool:
-        norm = _norm(text)
-        if not norm:
-            return False
-        h = content_hash(sid, "p", norm)
-        if h in seen:
-            return False
-        _post("/api/sessions/init", {
-            "contentSessionId": sid, "project": proj, "platformSource": platform,
-            "prompt": text, "customTitle": f"[{platform}] {text[:60]}",
-        })
-        seen.add(h)
-        return True
-
-    if not rec["inited"]:
-        _post("/api/sessions/init", {
-            "contentSessionId": sid, "project": proj, "platformSource": platform,
-            "prompt": prompt or "(sessão)", "customTitle": f"[{platform}] {(prompt or '')[:60]}",
-        })
-        rec["inited"] = True
-        if prompt:
-            seen.add(content_hash(sid, "p", _norm(prompt)))
-
-    for item in prompts:
-        emit_prompt(str(item))
-
-    sent = 0
-    for t in turns:
-        if OBS_CAP and sent >= OBS_CAP:   # OBS_CAP=0 → sem limite
-            print(f"  ⏳ {platform}:{sid[:12]}: cap {OBS_CAP} atingido; resto depois")
-            break
-        if isinstance(t.get("tool_input"), dict):
-            tp = str(t["tool_input"].get("prompt") or "").strip()
-            if tp:
-                emit_prompt(tp)
-        tn = (t.get("tool_name") or "Tool").strip() or "Tool"
-        resp = str(t.get("tool_response") or "")
-        ho = content_hash(sid, "o", tn, _norm(resp))
-        if ho in seen:
-            continue
-        obs_res = _post("/api/sessions/observations", {
-            "contentSessionId": sid, "tool_name": tn,
-            "tool_input": t.get("tool_input") or {}, "tool_response": {"result": resp},
-            "platformSource": platform, "cwd": cwd,
-            "tool_use_id": f"{platform}:{sid}:{ho[:20]}",
-        })
-        if obs_res.get("error") or obs_res.get("stored") is False:
-            continue
-        seen.add(ho)
-        sent += 1
-
-    rec["seen"] = list(seen)
-
-    if sent:
-        _post("/api/sessions/summarize", {
-            "contentSessionId": sid, "platformSource": platform,
-            "last_assistant_message": last_text or prompt or "sessão concluída",
-        })
-        print(f"  ✓ {platform}:{sid[:12]} → {sent} nova(s)")
-    return sent
