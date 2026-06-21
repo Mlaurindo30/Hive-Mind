@@ -11,7 +11,7 @@
 | Fase | Nome | Esforço | Impacto | Pré-requisito |
 |------|------|---------|---------|---------------|
 | [P0](#fase-p0--embeddings-100-local-ollama-bge-m3--concluído) | Embeddings 100% Local | ✅ DONE | Alto | — |
-| [P1](#fase-p1--screenpipe-substitui-deep-portal) | Screenpipe → Deep Portal | Dias | Alto | Screenpipe rodando |
+| [P1](#fase-p1--screenpipe-substitui-deep-portal--concluído) | Screenpipe → Deep Portal | ✅ DONE | Alto | Screenpipe instalado* |
 | [P2](#fase-p2--graphiti--falkordb-semântica-temporal) | Graphiti + FalkorDB | Semanas | Alto | FalkorDB Docker |
 | [P3](#fase-p3--langfuse-self-hosted--observabilidade) | Langfuse Observabilidade | Dias | Alto | Docker |
 | [P4](#fase-p4--lightrag-no-dream-cycle) | LightRAG no Dream Cycle | Dias | Alto | Phase P0 |
@@ -151,7 +151,45 @@ Quando `sqlite-lembed` resolver o Python 3.12+ bug (`misuse of sqlite3_result_su
 
 ---
 
-## Fase P1 — Screenpipe Substitui Deep Portal
+## Fase P1 — Screenpipe Substitui Deep Portal ✅ CONCLUÍDO
+
+**Objetivo:** deprecar `mss + LLM Vision` e consumir Screenpipe via REST API local.
+**Status:** IMPLEMENTADO | **Commit:** `9597ef5` | **Data:** 2026-06-21
+**Ativação:** instalar Screenpipe em screenpipe.dev — código já está integrado.
+
+### O que foi implementado
+
+| Arquivo | Mudança |
+|---|---|
+| `scripts/capture/parsers/screenpipe.py` (novo) | Cliente REST completo: `screenpipe_alive()`, `fetch_recent_ocr()`, `fetch_recent_audio()`, `capture_screenshot()` |
+| `scripts/capture/capture_adapters.py` | `_parse_screenpipe()` adapter + entrada `"screenpipe"` em ADAPTERS |
+| `scripts/services/sinapse-mcp.py` | `_capture_screen()` tenta Screenpipe REST primeiro, fallback para `visual_capture.py` |
+| `tests/unit/test_screenpipe_parser.py` | 10 testes offline + 3 live (skip automático quando Screenpipe não está rodando) |
+
+### Para ativar
+
+```bash
+# Instalar Screenpipe (binário Rust, ~50MB)
+curl -sSL https://get.screenpi.pe | sh
+# ou: cargo install screenpipe
+
+# Iniciar
+screenpipe &
+
+# Verificar
+curl http://localhost:3030/health  # → {"status": "ok", ...}
+
+# Os 3 testes live vão passar automaticamente
+pytest tests/unit/test_screenpipe_parser.py -v
+```
+
+Variáveis de ambiente:
+- `SCREENPIPE_BASE` (default: `http://localhost:3030`)
+- `SCREENPIPE_TIMEOUT` (default: `5` segundos)
+
+---
+
+## Fase P1 — Screenpipe (plano original — substituído pela implementação acima)
 
 **Objetivo:** deprecar `mss + LLM Vision` e consumir Screenpipe via REST API local.
 **Esforço:** 1-2 dias | **Risco:** Baixo (additive, fallback mantido) | **Pré-req:** Screenpipe instalado
