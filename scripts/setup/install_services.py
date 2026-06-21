@@ -596,6 +596,53 @@ WantedBy=timers.target
     }
 
 
+def _install_screenpipe() -> None:
+    """Install Screenpipe CLI via npm if not already present.
+
+    Screenpipe is optional — the capture adapter activates only when
+    screenpipe_alive() == True (safe no-op when not running).
+
+    Linux note: requires libopenblas.so.0 at runtime:
+      sudo apt-get install libopenblas0
+    or export LD_LIBRARY_PATH pointing to a directory with the lib.
+    Set SCREENPIPE_API_KEY env var for authenticated instances.
+    """
+    import glob
+
+    # Already installed and on PATH
+    if shutil.which("screenpipe"):
+        print("[screenpipe] already installed:", shutil.which("screenpipe"))
+        return
+
+    npm = shutil.which("npm")
+    if npm is None:
+        print("[screenpipe] npm not found — skipping. Install Node.js ≥18 and re-run.")
+        return
+
+    print("[screenpipe] installing @screenpipe/cli-linux-x64 via npm...")
+    result = subprocess.run(
+        [npm, "install", "-g", "@screenpipe/cli-linux-x64"],
+        capture_output=True, text=True, check=False,
+    )
+    if result.returncode != 0:
+        print(f"[screenpipe] npm install failed: {result.stderr.strip()}")
+        print("[screenpipe] manual: npm install -g @screenpipe/cli-linux-x64")
+        return
+
+    # nvm installs to a non-PATH location; look for the binary
+    candidates = sorted(glob.glob(
+        str(Path.home() / ".nvm/versions/node/*/lib/node_modules/@screenpipe/cli-linux-x64/bin/screenpipe")
+    ))
+    sp_bin = shutil.which("screenpipe") or (candidates[-1] if candidates else None)
+    if sp_bin:
+        print(f"[screenpipe] installed: {sp_bin}")
+    else:
+        print("[screenpipe] installed (binary path not resolved — check nvm setup)")
+    print("[screenpipe] to start:  screenpipe record --port 3030 --disable-audio")
+    print("[screenpipe] requires:  libopenblas.so.0 (sudo apt install libopenblas0)")
+    print("[screenpipe] requires:  SCREENPIPE_API_KEY env var for auth")
+
+
 def validate_runtime() -> None:
     required = (
         ROOT / ".venv" / "bin" / "python",
@@ -658,6 +705,7 @@ def _configure_claude_mem_settings() -> None:
 def install(start: bool, with_tests: bool = False) -> int:
     validate_runtime()
     _configure_claude_mem_settings()
+    _install_screenpipe()
     if shutil.which("systemctl") is None:
         print("[services] systemctl unavailable; unit installation skipped")
         return 0
