@@ -14,5 +14,7 @@ echo "[hive-mind] Iniciando Real-time Watcher..."
 echo "[hive-mind] Monitorando: $VAULT_DIR"
 
 # Executa o watch em background
-# --debounce 2.0 para reações mais rápidas que o padrão de 3.0
-exec "$VENV_PYTHON" -m graphify watch "$VAULT_DIR" --debounce 2.0
+# Debounce conservador: rebuild estrutural pode levar dezenas de segundos.
+DEBOUNCE="${GRAPHIFY_WATCH_DEBOUNCE:-30.0}"
+echo "[hive-mind] Debounce estrutural: ${DEBOUNCE}s"
+exec "$VENV_PYTHON" -m graphify watch "$VAULT_DIR" --debounce "$DEBOUNCE"

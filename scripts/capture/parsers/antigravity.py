@@ -51,4 +51,4 @@ def parse(path: Path):
                 last_text = content
     if not sid:
         return []
-    return [{"sid": sid, "prompt": prompt, "turns": turns, "last": last_text}]
+    return [{"sid": sid, "prompt": prompt, "prompts": [prompt] if prompt else [], "turns": turns, "last": last_text}]

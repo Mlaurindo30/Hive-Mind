@@ -82,6 +82,7 @@ WorkingDirectory={path}
 Environment=SINAPSE_HOME={path}
 Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 Environment=PYTHONUNBUFFERED=1
+Environment=GRAPHIFY_WATCH_DEBOUNCE=30.0
 ExecStart={path}/scripts/services/start-watcher.sh
 Restart=on-failure
 RestartSec=10
@@ -628,7 +629,7 @@ def _configure_claude_mem_settings() -> None:
         print("[services] claude-mem settings patched: CLAUDE_MEM_EXCLUDED_PROJECTS updated")
 
 
-def install(start: bool) -> int:
+def install(start: bool, with_tests: bool = False) -> int:
     validate_runtime()
     _configure_claude_mem_settings()
     if shutil.which("systemctl") is None:
@@ -680,6 +681,17 @@ def install(start: bool) -> int:
         if not api_enabled():
             systemctl("stop", "sinapse-api.service", check=False)
     print("[services] installed: " + ", ".join(enabled))
+    if with_tests:
+        import subprocess as _sp
+        validator = ROOT / "scripts" / "health" / "validate_capture_sources.py"
+        result = _sp.run(
+            [sys.executable, str(validator)],
+            check=False,
+        )
+        if result.returncode != 0:
+            print("[services] --with-tests: capture source validation FAILED")
+            return 1
+        print("[services] --with-tests: capture source validation OK")
     return 0
 
 
@@ -716,11 +728,13 @@ def main() -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     install_cmd = sub.add_parser("install")
     install_cmd.add_argument("--no-start", action="store_true")
+    install_cmd.add_argument("--with-tests", action="store_true",
+                             help="run validate_capture_sources after install")
     sub.add_parser("check")
     sub.add_parser("arm-post-reboot")
     args = parser.parse_args()
     if args.command == "install":
-        return install(start=not args.no_start)
+        return install(start=not args.no_start, with_tests=args.with_tests)
     if args.command == "arm-post-reboot":
         return arm_post_reboot()
     return check()

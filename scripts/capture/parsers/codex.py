@@ -27,6 +27,8 @@ _META_RE = re.compile(
 # Prefixos de mensagens de sistema do Codex que não devem virar prompt (integralmente)
 _SKIP_PREFIXES = (
     "<permissions instructions>",
+    "<environment_context>",
+    "<turn_aborted>",
     "# AGENTS.md instructions",
     "# Task Group:",
 )
@@ -59,6 +61,7 @@ def parse(path: Path):
 
     sid = cwd = project = None
     first_prompt = last_text = None
+    prompts: list[str] = []
     turns: list[dict] = []
     # call_id → {name, args}
     pending: dict[str, dict] = {}
@@ -88,13 +91,15 @@ def parse(path: Path):
             if role in ("user", "assistant"):
                 text = _content_text(pl.get("content", []))
                 if text and not text.startswith(_SKIP_PREFIXES):
-                    if role == "user" and first_prompt is None:
+                    if role == "user":
                         # VS Code injeta "# Context from my IDE setup:" antes do pedido real
                         if text.startswith("# Context from my IDE"):
                             m = _VSCODE_REQUEST_RE.search(text)
                             text = m.group(1).strip() if m else ""
                         if text:
-                            first_prompt = text[:1000]
+                            prompts.append(text[:4000])
+                            if first_prompt is None:
+                                first_prompt = text[:1000]
                     elif role == "assistant":
                         last_text = text[:500]
 
@@ -126,6 +131,7 @@ def parse(path: Path):
     return [{
         "sid": sid,
         "prompt": first_prompt or "(codex session)",
+        "prompts": prompts,
         "turns": turns,
         "last": last_text,
         "project": project,
