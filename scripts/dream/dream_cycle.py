@@ -365,6 +365,12 @@ def run_synthesis_cycle(deadline: Optional[float] = None):
                 # 5. Marcar ambiguidade como sintetizada
                 conn.execute("UPDATE ambiguities SET status = 'synthesized' WHERE id = ?", (amb['id'],))
                 conn.commit()
+                # P2: push synthesized neuron to Graphiti temporal graph (best-effort)
+                try:
+                    from core.graphiti_client import push_neuron
+                    push_neuron(neuron_id, synthesis.final_content, source="dream")
+                except ImportError:
+                    pass
                 print(f"  [v] Síntese concluída: {synthesis.logic_applied}")
             else:
                 print(f"  [!] Conflito não resolvido pela LLM: {synthesis.logic_applied}")

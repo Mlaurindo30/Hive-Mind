@@ -643,6 +643,33 @@ def _install_screenpipe() -> None:
     print("[screenpipe] requires:  SCREENPIPE_API_KEY env var for auth")
 
 
+def _start_falkordb() -> None:
+    """Start FalkorDB via Docker Compose (idempotent).
+
+    Uses docker-compose.falkordb.yml at the project root.
+    Skips silently when Docker is unavailable.
+    """
+    docker = shutil.which("docker")
+    if docker is None:
+        print("[falkordb] docker not found — skipping. Install Docker and re-run.")
+        return
+
+    compose_file = ROOT / "docker-compose.falkordb.yml"
+    if not compose_file.exists():
+        print(f"[falkordb] {compose_file} not found — skipping.")
+        return
+
+    result = subprocess.run(
+        [docker, "compose", "-f", str(compose_file), "up", "-d", "--quiet-pull"],
+        capture_output=True, text=True, check=False,
+    )
+    if result.returncode != 0:
+        print(f"[falkordb] docker compose up failed: {result.stderr.strip()}")
+        return
+
+    print("[falkordb] FalkorDB container started (sinapse-falkordb on port 6379)")
+
+
 def validate_runtime() -> None:
     required = (
         ROOT / ".venv" / "bin" / "python",
@@ -706,6 +733,7 @@ def install(start: bool, with_tests: bool = False) -> int:
     validate_runtime()
     _configure_claude_mem_settings()
     _install_screenpipe()
+    _start_falkordb()
     if shutil.which("systemctl") is None:
         print("[services] systemctl unavailable; unit installation skipped")
         return 0
