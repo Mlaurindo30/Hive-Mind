@@ -63,12 +63,18 @@ ADAPTERS = {
     # ── reescrito / array / sqlite ───────────────────────────────────────────
     "antigravity": {
         "owner": "realtime", "mode": "reparse", "parser": _antigravity.parse,
-        "watch": [str(HOME / ".gemini/antigravity-cli/brain/*/.system_generated/logs")],
+        "watch": [
+            str(HOME / ".gemini/antigravity-cli/brain"),                             # sentinela: detecta novos UUIDs
+            str(HOME / ".gemini/antigravity-cli/brain/*/.system_generated/logs"),    # filtrado por mtime em refresh()
+        ],
         "sources": [str(HOME / ".gemini/antigravity-cli/brain/*/.system_generated/logs/transcript_full.jsonl")],
     },
     "kimi": {
         "owner": "realtime", "mode": "reparse", "parser": _kimi.parse,
-        "watch": [str(HOME / ".kimi/sessions/*/*")],
+        "watch": [
+            str(HOME / ".kimi/sessions"),    # sentinela: detecta novas sessões
+            str(HOME / ".kimi/sessions/*/*"), # filtrado por mtime em refresh()
+        ],
         "sources": [str(HOME / ".kimi/sessions/*/*/context.jsonl")],
     },
     "kilo": {
