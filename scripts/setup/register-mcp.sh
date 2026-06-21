@@ -29,7 +29,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-VALID_AGENTS="claude codex gemini qwen kimi kiro kilo roo vscode cursor opencode openclaw"
+VALID_AGENTS="claude codex gemini qwen kimi kiro kilo roo vscode cursor opencode openclaw swarmclaw"
 
 CHECK_ONLY=false
 ONLY=""          # vazio = todos os detectados
@@ -195,6 +195,105 @@ do_cursor()   { register "Cursor" "$HOME/.cursor/mcp.json"; }
 do_opencode() { register "OpenCode" "$HOME/.opencode/mcp.json"; }
 do_openclaw() { register "OpenClaw" "$HOME/.openclaw/openclaw.json"; }
 
+# SwarmClaw armazena MCPs em SQLite (~/.swarmclaw/data/swarmclaw.db, tabela mcp_servers).
+# Se o servidor estiver rodando (porta 3456) usa a API REST; caso contrário faz upsert direto.
+do_swarmclaw() {
+    local SCLAW_DB="$HOME/.swarmclaw/data/swarmclaw.db"
+
+    if $CHECK_ONLY; then
+        local result
+        result=$("$PYTHON" - << PYEOF
+import json, sqlite3, sys
+try:
+    conn = sqlite3.connect('$SCLAW_DB')
+    rows = conn.execute('SELECT data FROM mcp_servers').fetchall()
+    names = {json.loads(r[0]).get('name') for r in rows}
+    expected = {'sinapse-memory', 'claude-mem-local', 'neural-memory-local'}
+    missing = expected - names
+    conn.close()
+    print('MISSING:' + ','.join(sorted(missing)) if missing else 'OK')
+except Exception as e:
+    print('ERROR:' + str(e))
+PYEOF
+)
+        if [ "$result" = "OK" ]; then
+            echo -e "  ${GREEN}✓${NC} SwarmClaw — 3 servidores registrados ($SCLAW_DB)"
+        else
+            echo -e "  ${YELLOW}⊘${NC} SwarmClaw — detectado mas SEM registro completo ($result)"
+        fi
+        ((++AGENTS_FOUND))
+        return
+    fi
+
+    MCP_PROJECT_ROOT="$PROJECT_ROOT" SCLAW_DB="$SCLAW_DB" "$PYTHON" - << 'PYEOF'
+import json, os, sqlite3, time, uuid
+
+project_root = os.environ['MCP_PROJECT_ROOT']
+db_path      = os.environ['SCLAW_DB']
+
+ENTRIES = [
+    {
+        'name': 'sinapse-memory',
+        'transport': 'stdio',
+        'command': f'{project_root}/.venv/bin/python',
+        'args': [f'{project_root}/scripts/services/sinapse-mcp.py'],
+        'cwd': project_root,
+        'env': {},
+    },
+    {
+        'name': 'claude-mem-local',
+        'transport': 'stdio',
+        'command': f'{project_root}/scripts/services/start-claude-mem-mcp.sh',
+        'args': [],
+        'cwd': project_root,
+        'env': {},
+    },
+    {
+        'name': 'neural-memory-local',
+        'transport': 'stdio',
+        'command': f'{project_root}/scripts/services/neural-memory-local.sh',
+        'args': [],
+        'cwd': project_root,
+        'env': {},
+    },
+]
+
+conn = sqlite3.connect(db_path)
+rows = conn.execute('SELECT id, data FROM mcp_servers').fetchall()
+existing = {}
+for row_id, row_data in rows:
+    try:
+        obj = json.loads(row_data)
+        existing[obj.get('name')] = row_id
+    except Exception:
+        pass
+now = int(time.time() * 1000)
+for entry in ENTRIES:
+    name = entry['name']
+    sid = existing.get(name, uuid.uuid4().hex[:16])
+    data = {
+        'id': sid,
+        'name': name,
+        'transport': 'stdio',
+        'command': entry['command'],
+        'args': entry['args'],
+        'cwd': entry['cwd'],
+        'env': entry['env'],
+        'createdAt': now,
+        'updatedAt': now,
+    }
+    conn.execute(
+        'INSERT OR REPLACE INTO mcp_servers (id, data) VALUES (?, ?)',
+        (sid, json.dumps(data)),
+    )
+conn.commit()
+conn.close()
+PYEOF
+
+    echo -e "  ${GREEN}✓${NC} SwarmClaw → $SCLAW_DB"
+    ((++AGENTS_FOUND))
+}
+
 AGENTS_FOUND=0
 
 echo "Hive-Mind — registro MCP (PROJECT_ROOT: $PROJECT_ROOT)"
@@ -231,6 +330,7 @@ fi
 [ -d "$HOME/.cursor/" ] && do_cursor
 command -v opencode &>/dev/null && do_opencode
 command -v openclaw &>/dev/null && do_openclaw
+{ command -v swarmclaw &>/dev/null || [ -d "$HOME/.swarmclaw" ]; } && do_swarmclaw
 
 echo ""
 if [ "$AGENTS_FOUND" -eq 0 ]; then

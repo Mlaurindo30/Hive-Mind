@@ -76,6 +76,12 @@ echo "[S0.6] Plugin:"
 echo "[S0.7] Systemd:"
 systemctl --user is-active sinapse-claude-mem.service >/dev/null 2>&1 && echo "  ✓ service active" && ((++PASS)) || { echo "  ⊘ service not active (optional)"; ((++PASS)); }
 
+# S0.8 — Capture sources parseáveis nos agentes realmente instalados
+echo "[S0.8] Capture Sources:"
+"$PYTHON" scripts/health/validate_capture_sources.py >/tmp/sinapse-capture-sources-smoke.log 2>&1 \
+    && echo "  ✓ installed capture sources parse correctly" && ((++PASS)) \
+    || { echo "  ✗ capture source validation failed"; sed -n '1,120p' /tmp/sinapse-capture-sources-smoke.log; ((++FAIL)); }
+
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ] && echo "SMOKE: PASS" || { echo "SMOKE: FAIL"; exit 1; }

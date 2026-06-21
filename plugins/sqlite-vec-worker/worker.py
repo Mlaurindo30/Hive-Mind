@@ -132,6 +132,15 @@ def _observation_content(narrative: str | None, text: str | None, facts: str | N
     return content.strip()
 
 
+def _upsert_vec_observation(conn: sqlite3.Connection, row_id: int, vec: list[float]) -> None:
+    """Canonical sqlite-vec write path for vec_observations."""
+    conn.execute("DELETE FROM vec_observations WHERE rowid = ?", (row_id,))
+    conn.execute(
+        "INSERT INTO vec_observations(rowid, embedding) VALUES (?, ?)",
+        (row_id, json.dumps(vec)),
+    )
+
+
 def sync_vectors(conn: sqlite3.Connection, *, limit: int | None = None) -> int:
     """Make vec_observations match the current observations table.
 
@@ -163,13 +172,10 @@ def sync_vectors(conn: sqlite3.Connection, *, limit: int | None = None) -> int:
 
         vec = embed(content)
         try:
-            conn.execute(
-                "INSERT OR REPLACE INTO vec_observations(rowid, embedding) VALUES (?, ?)",
-                (row_id, json.dumps(vec)),
-            )
+            _upsert_vec_observation(conn, row_id, vec)
             count += 1
-        except Exception:
-            pass
+        except Exception as exc:
+            print(f"[vec-worker] WARNING: vector upsert failed for observation {row_id}: {exc}", flush=True)
 
         if count % 100 == 0:
             print(f"[vec-worker]  ... synced {count} embeddings", flush=True)

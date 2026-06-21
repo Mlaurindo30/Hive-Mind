@@ -169,7 +169,9 @@ def ingest(platform: str, sess: dict, state: dict) -> int:
     (reparse / reescrita / 2 processos) → só conteúdo NOVO emite. `seen` (set de
     hashes) é o único estado por sessão."""
     sid = sess.get("sid")
-    prompt, turns, last_text = sess.get("prompt"), sess.get("turns") or [], sess.get("last")
+    prompt = sess.get("prompt")
+    prompts = sess.get("prompts") or []
+    turns, last_text = sess.get("turns") or [], sess.get("last")
     if not sid or (not prompt and not turns):
         return 0
     skey = f"{platform}:{sid}"
@@ -202,6 +204,9 @@ def ingest(platform: str, sess: dict, state: dict) -> int:
         rec["inited"] = True
         if prompt:
             seen.add(content_hash(sid, "p", _norm(prompt)))
+
+    for item in prompts:
+        emit_prompt(str(item))
 
     sent = 0
     for t in turns:

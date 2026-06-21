@@ -12,4 +12,10 @@ export FASTEMBED_CACHE_PATH="${FASTEMBED_CACHE_PATH:-$CLAUDE_MEM_DATA_DIR/models
 
 mkdir -p "$CLAUDE_MEM_DATA_DIR" "$FASTEMBED_CACHE_PATH"
 
-exec "$ROOT/scripts/claude-mem-local.sh" mcp-server "$@"
+PYTHON="$ROOT/.venv/bin/python"
+if [ ! -x "$PYTHON" ]; then
+    PYTHON="$(command -v python3)"
+fi
+
+exec "$PYTHON" "$ROOT/scripts/services/mcp-lifecycle.py" -- \
+    "$ROOT/scripts/claude-mem-local.sh" mcp-server "$@"

@@ -8,6 +8,20 @@ from core.database import get_embedder, serialize_f32
 from core.hnsw_index import upsert_vectors
 
 
+def upsert_search_vec(conn, neuron_id: str, embedding_blob) -> None:
+    """Canonical sqlite-vec write path.
+
+    Some sqlite-vec builds do not behave reliably with INSERT OR REPLACE on
+    virtual tables that declare a PRIMARY KEY. Delete then insert is explicit
+    and avoids UNIQUE constraint failures during reindex.
+    """
+    conn.execute("DELETE FROM search_vec WHERE neuron_id = ?", (neuron_id,))
+    conn.execute(
+        "INSERT INTO search_vec(neuron_id, embedding) VALUES (?, ?)",
+        (neuron_id, embedding_blob),
+    )
+
+
 def index_neuron_ids(conn, neuron_ids: Iterable[str], *, commit: bool = True) -> int:
     ids = list(dict.fromkeys(str(item) for item in neuron_ids))
     if not ids:
@@ -35,10 +49,7 @@ def index_neuron_ids(conn, neuron_ids: Iterable[str], *, commit: bool = True) ->
 
     by_id = {}
     for row, vector in zip(rows, vectors):
-        conn.execute(
-            "INSERT OR REPLACE INTO search_vec(neuron_id, embedding) VALUES (?, ?)",
-            (row["id"], serialize_f32(vector)),
-        )
+        upsert_search_vec(conn, row["id"], serialize_f32(vector))
         by_id[row["id"]] = vector
 
     indexed = upsert_vectors(conn, by_id, commit=False)

@@ -15,6 +15,7 @@ import re
 import shutil
 from pathlib import Path
 from typing import Dict, Any, List
+from pydantic import BaseModel
 
 # Configura paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -24,6 +25,8 @@ from core.auth import (
     PROVIDERS_CONFIG,
     discover_models_realtime,
     gemini_cli_oauth_file,
+    get_credentials,
+    get_role_config,
     get_oauth_credentials,
     load_env,
     poll_oauth_token,
@@ -112,6 +115,46 @@ def role_config_parts(role: str, env: Dict[str, str]) -> tuple[str, str, str]:
     fb2 = f"{fb2_m} {DIM}({fb2_p}){NC}" if fb2_p and fb2_m else f"{DIM}- {NC}"
     return primary, fb1, fb2
 
+
+def provider_auth_label(p_name: str) -> str:
+    cfg = PROVIDERS_CONFIG[p_name]
+    if "gemini_cli_oauth" in cfg["auth_type"]:
+        return "CLI OAuth"
+    if "local" in cfg["auth_type"]:
+        return "local"
+    if "api_key" in cfg["auth_type"] and "oauth" in cfg["auth_type"]:
+        return "api key/OAuth"
+    return "api key"
+
+
+def provider_source_label(p_name: str, env: Dict[str, str]) -> str:
+    cfg = PROVIDERS_CONFIG[p_name]
+    if "gemini_cli_oauth" in cfg["auth_type"]:
+        oauth_file = gemini_cli_oauth_file()
+        return f"CLI externo: {oauth_file}" if oauth_file else "CLI externo: login pendente"
+    if "local" in cfg["auth_type"]:
+        return cfg.get("base_url", "local")
+    token = env.get(f"{p_name.upper()}_ACCESS_TOKEN")
+    key = env.get(cfg["env_var"]) or env.get(cfg.get("alt_env_var", ""))
+    if token:
+        return f"OAuth no .env ({_mask_secret(token)})"
+    if key:
+        return f"{cfg['env_var']} no .env ({_mask_secret(key)})"
+    return "credencial ausente"
+
+
+def model_source_label(model: Dict[str, Any], p_name: str) -> str:
+    source = model.get("source")
+    if source == "gemini_cli_oauth_models_hint":
+        return "catalogo local liberado por OAuth"
+    cfg = PROVIDERS_CONFIG[p_name]
+    if "local" in cfg["auth_type"]:
+        return "API local listada"
+    if source:
+        return source
+    return "API remota listada"
+
+
 def describe_role(role: str, env: Dict[str, str]) -> str:
     """Valor atual do papel: modelo próprio, 'herda do Dreamer' ou 'Nenhum'."""
     p = env.get(role_var(role, "PROVIDER"))
@@ -151,7 +194,7 @@ def is_provider_configured(p_name: str, env: Dict[str, str]) -> bool:
 def main_menu():
     while True:
         clear()
-        header("HIVE-MIND: SELETOR DE INTELIGENCIA", "Configure provider/model por papel. Fallbacks sao opcionais e explicitos.")
+        header("HIVE-MIND: SELETOR DE INTELIGENCIA", "Dashboard compacto: papel, primario e fallbacks efetivos.")
 
         env = load_env()
         print(f"\n{BOLD}Papeis configurados{NC}")
@@ -163,10 +206,18 @@ def main_menu():
             print(f"{fit(str(i+1), 4)} {fit(label, 30)} {fit(primary, 34)} {fit(fb1, 28)} {fit(fb2, 28)}")
 
         print(line("-"))
+        print(f"{fit('S', 4)} Saude dos providers")
+        print(f"{fit('R', 4)} Resumo efetivo por papel")
         print(f"{fit('0', 4)} Sair")
 
-        choice = input(f"\nSelecione um papel (ou 0): ").strip()
+        choice = input(f"\nSelecione um papel, S, R ou 0: ").strip()
         if choice == "0": break
+        if choice.lower() == "s":
+            providers_health_screen()
+            continue
+        if choice.lower() == "r":
+            effective_summary_screen()
+            continue
 
         try:
             role = ROLES[int(choice)-1][0]
@@ -210,10 +261,14 @@ def provider_menu(role: str, level: int = 0):
         print(f"{fit(str(i+1), 4)} {fit(p, 16)} {fit(auth, 18)} {fit(status, 24)} {fit(note, 36)}")
 
     print(line("-"))
+    print(f"{fit('S', 4)} Saude dos providers")
     print(f"{fit('0', 4)} Voltar")
 
     choice = input(f"\nSelecione um Provedor (ou 0): ").strip()
     if choice == "0": return
+    if choice.lower() == "s":
+        providers_health_screen()
+        return
 
     try:
         p_name = providers[int(choice)-1]
@@ -247,6 +302,140 @@ def describe_provider_credential(p_name: str, env: Dict[str, str]) -> str:
     if "local" in cfg["auth_type"] and not parts:
         parts.append("local (sem credencial)")
     return " + ".join(parts) if parts else f"{YELLOW}não configurado{NC}"
+
+
+class _SetupBrainPing(BaseModel):
+    ok: bool
+
+
+def validate_provider_real(p_name: str, model: str | None = None) -> Dict[str, str]:
+    """Executa validacao real e curta do provider.
+
+    Nao simula sucesso: usa endpoint real de modelos ou, no caso Gemini CLI /
+    Antigravity, faz uma geracao minima via o mesmo cliente usado em runtime.
+    """
+    cfg = PROVIDERS_CONFIG[p_name]
+    started = __import__("time").time()
+
+    def done(status: str, detail: str, source: str = "") -> Dict[str, str]:
+        elapsed_ms = int((__import__("time").time() - started) * 1000)
+        return {"status": status, "detail": detail, "source": source, "elapsed": f"{elapsed_ms}ms"}
+
+    try:
+        if "gemini_cli_oauth" in cfg["auth_type"]:
+            from core.gemini_cli_client import call_gemini_cli_structured
+
+            test_model = model or (cfg.get("models_hint") or ["gemini-2.5-flash"])[0]
+            out = call_gemini_cli_structured(
+                "Responda apenas JSON valido: {\"ok\": true}",
+                "Validacao operacional minima do Hive-Mind.",
+                _SetupBrainPing,
+                model=test_model,
+                provider=p_name,
+            )
+            return done("OK" if out.ok else "ERRO", f"geracao real em {test_model}", provider_source_label(p_name, load_env()))
+
+        creds = get_credentials(p_name)
+        if not creds:
+            return done("PENDENTE", "credencial ausente", provider_source_label(p_name, load_env()))
+
+        if p_name == "google":
+            url = f"{creds['url']}/models"
+            headers = {}
+            if creds["type"] == "oauth":
+                headers["Authorization"] = f"Bearer {creds['key']}"
+            else:
+                url += f"?key={creds['key']}"
+            resp = requests.get(url, headers=headers, timeout=10)
+        else:
+            url = f"{creds['url']}/models"
+            headers = {"Authorization": f"Bearer {creds['key']}"} if creds["type"] == "api_key" else {}
+            resp = requests.get(url, headers=headers, timeout=10)
+
+        if resp.ok:
+            return done("OK", f"GET /models -> HTTP {resp.status_code}", provider_source_label(p_name, load_env()))
+        if resp.status_code in (401, 403):
+            return done(str(resp.status_code), "auth/licenca negada", resp.text[:160])
+        if resp.status_code == 429:
+            return done("429", "quota/rate limit", resp.text[:160])
+        return done(str(resp.status_code), resp.text[:180])
+    except requests.Timeout:
+        return done("TIMEOUT", "timeout na chamada real")
+    except Exception as exc:
+        msg = str(exc)
+        if "429" in msg or "Resource has been exhausted" in msg:
+            return done("429", msg[:180])
+        if any(code in msg for code in ("401", "403", "authentication failed", "SUBSCRIPTION_REQUIRED")):
+            return done("AUTH", msg[:180])
+        return done("ERRO", msg[:180])
+
+
+def providers_health_screen(selected: str | None = None):
+    clear()
+    header("SAUDE DOS PROVIDERS", "Auth, status, origem da credencial e validacao real sob demanda.")
+    env = load_env()
+    providers = list(PROVIDERS_CONFIG.keys())
+    if selected and selected in providers:
+        providers = [selected]
+
+    print(f"\n{BOLD}{fit('#', 4)} {fit('Provider', 16)} {fit('Auth', 14)} {fit('Status', 14)} {fit('Origem da credencial', 58)}{NC}")
+    print(line("-"))
+    for i, p in enumerate(providers):
+        status = f"{GREEN}configurado{NC}" if is_provider_configured(p, env) else f"{YELLOW}pendente{NC}"
+        print(f"{fit(str(i+1), 4)} {fit(p, 16)} {fit(provider_auth_label(p), 14)} {fit(status, 14)} {fit(provider_source_label(p, env), 58)}")
+    print(line("-"))
+    print(f"{fit('A', 4)} Validar todos agora")
+    print(f"{fit('0', 4)} Voltar")
+
+    choice = input("\nValidar provider numero, A ou 0: ").strip()
+    if choice == "0":
+        return
+    targets: list[str] = []
+    if choice.lower() == "a":
+        targets = providers
+    else:
+        try:
+            targets = [providers[int(choice) - 1]]
+        except (ValueError, IndexError):
+            return
+
+    print(f"\n{BOLD}Validacao real{NC}")
+    print(line("-"))
+    print(f"{BOLD}{fit('Provider', 16)} {fit('Resultado', 12)} {fit('Tempo', 10)} {fit('Detalhe', 78)}{NC}")
+    print(line("-"))
+    for p in targets:
+        result = validate_provider_real(p)
+        color = GREEN if result["status"] == "OK" else (YELLOW if result["status"] in ("PENDENTE", "429", "TIMEOUT") else RED)
+        detail = result["detail"] if not result.get("source") else f"{result['detail']} | {result['source']}"
+        print(f"{fit(p, 16)} {fit(color + result['status'] + NC, 12)} {fit(result['elapsed'], 10)} {fit(detail, 78)}")
+    input("\nEnter para voltar...")
+
+
+def effective_summary_screen():
+    clear()
+    header("RESUMO EFETIVO", "Cadeia resolvida por papel, incluindo heranca do Dreamer e fallbacks.")
+    env = load_env()
+    for key, value in env.items():
+        os.environ.setdefault(key, value)
+    print(f"\n{BOLD}{fit('Papel', 30)} {fit('Primario efetivo', 36)} {fit('Fallback 1', 30)} {fit('Fallback 2', 30)}{NC}")
+    print(line("-"))
+    for rid, label in ROLES:
+        cfg = get_role_config(rid) or {}
+        own = bool(env.get(role_var(rid, "PROVIDER")) and env.get(role_var(rid, "MODEL")))
+        inherited = rid != "dreamer" and not own and cfg
+        p = cfg.get("provider")
+        m = cfg.get("model")
+        fb_p = cfg.get("fallback_provider")
+        fb_m = cfg.get("fallback_model")
+        fb2_p = cfg.get("fallback2_provider")
+        fb2_m = cfg.get("fallback2_model")
+        primary = f"{m} ({p})" if p and m else "nao configurado"
+        if inherited:
+            primary += " [herda Dreamer]"
+        fb1 = f"{fb_m} ({fb_p})" if fb_p and fb_m else "-"
+        fb2 = f"{fb2_m} ({fb2_p})" if fb2_p and fb2_m else "-"
+        print(f"{fit(label, 30)} {fit(primary, 36)} {fit(fb1, 30)} {fit(fb2, 30)}")
+    input("\nEnter para voltar...")
 
 def _oauth_login(p_name: str) -> bool:
     """Executa o fluxo OAuth interativo. Retorna True em sucesso.
@@ -316,6 +505,8 @@ def configured_provider_menu(p_name: str, role: str, level: int = 0):
         print(f"\n  1) Usar / escolher modelo")
         opts = {"1": "models"}
         n = 2
+        print(f"  {n}) Validar agora (chamada real minima)")
+        opts[str(n)] = "validate"; n += 1
         if "api_key" in cfg["auth_type"]:
             print(f"  {n}) Trocar a API key")
             opts[str(n)] = "api_key"; n += 1
@@ -333,6 +524,14 @@ def configured_provider_menu(p_name: str, role: str, level: int = 0):
         if action == "models":
             show_model_selection(p_name, role, level)
             return
+        elif action == "validate":
+            result = validate_provider_real(p_name)
+            color = GREEN if result["status"] == "OK" else (YELLOW if result["status"] in ("PENDENTE", "429", "TIMEOUT") else RED)
+            print(f"\nResultado: {color}{result['status']}{NC} ({result['elapsed']})")
+            print(f"Detalhe: {result['detail']}")
+            if result.get("source"):
+                print(f"Origem: {result['source']}")
+            input("\nEnter para continuar...")
         elif action == "api_key":
             _api_key_entry(p_name)
             input("\nEnter para continuar...")
@@ -424,8 +623,10 @@ def show_model_selection(p_name: str, role: str, level: int = 0):
     if source == "gemini_cli_oauth_models_hint":
         print(f"{DIM}Origem: catálogo do provider liberado pelo login CLI OAuth local.{NC}")
     print(line("-"))
+    print(f"{BOLD}{fit('#', 4)} {fit('Modelo', 44)} {fit('Fonte', 42)}{NC}")
+    print(line("-"))
     for i, m in enumerate(p_models):
-        print(f"{fit(str(i+1), 4)} {m['id']}")
+        print(f"{fit(str(i+1), 4)} {fit(m['id'], 44)} {fit(model_source_label(m, p_name), 42)}")
     print(line("-"))
     print(f"{fit('0', 4)} Voltar")
 

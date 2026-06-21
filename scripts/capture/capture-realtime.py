@@ -35,6 +35,38 @@ IN_MODIFY = 0x2; IN_CLOSE_WRITE = 0x8; IN_MOVED_TO = 0x80; IN_CREATE = 0x100
 MASK = IN_MODIFY | IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE
 _HDR = struct.calcsize("iIII")
 
+
+def _dir_has_recent_source(directory: str, cutoff_mtime: float, max_files: int = 128) -> bool:
+    """True if a watched directory contains a recently modified source file.
+
+    Append-only tools (Codex) and rewritten transcript tools (Antigravity/Kimi)
+    keep writing files inside session directories whose own mtime does not
+    change after creation. Filtering only by directory mtime makes live sessions
+    disappear after a service restart. This bounded scan keeps the CPU guard but
+    keys recency off the actual source file.
+    """
+    checked = 0
+    stack = [Path(directory)]
+    while stack and checked < max_files:
+        current = stack.pop()
+        try:
+            with os.scandir(current) as entries:
+                for entry in entries:
+                    if checked >= max_files:
+                        break
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            stack.append(Path(entry.path))
+                            continue
+                        checked += 1
+                        if core._src_mtime(Path(entry.path)) >= cutoff_mtime:
+                            return True
+                    except OSError:
+                        continue
+        except OSError:
+            continue
+    return False
+
 def ingest_platform(plat: str, states: dict, max_age: float = LIVE_MAX_AGE_S) -> int:
     """Re-parseia as fontes da plataforma (parser dedicado) e ingere. Só parseia
     arquivos modificados nos últimos `max_age` s (pula fontes ociosas).
@@ -90,7 +122,8 @@ def main() -> int:
                     # sentinelas (padrão sem wildcard) são sempre assistidas para detectar sessões novas.
                     if is_glob:
                         try:
-                            if os.path.getmtime(d) < now - WINDOW_S:
+                            cutoff = now - WINDOW_S
+                            if os.path.getmtime(d) < cutoff and not _dir_has_recent_source(d, cutoff):
                                 continue
                         except OSError:
                             continue

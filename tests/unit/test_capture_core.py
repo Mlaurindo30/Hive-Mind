@@ -100,3 +100,22 @@ def test_turno_novo_emite_so_o_novo(capture_posts):
     # +1 init (prompt 'terceira') +1 observation +1 summarize
     novos = len(capture_posts) - base
     assert novos == 3, f"esperado 3 POSTs (init+obs+summary), veio {novos}"
+
+
+def test_prompt_novo_sem_turno_emite_init(capture_posts):
+    """Sessão Codex viva pode receber novo role=user antes de qualquer tool call."""
+    state = {}
+    core.ingest("teste", {"sid": "ses", "prompt": "primeiro", "prompts": ["primeiro"]}, state)
+    base = len(capture_posts)
+
+    sent = core.ingest(
+        "teste",
+        {"sid": "ses", "prompt": "primeiro", "prompts": ["primeiro", "segundo"]},
+        state,
+    )
+
+    assert sent == 0
+    novos = capture_posts[base:]
+    assert len(novos) == 1
+    assert novos[0][0] == "/api/sessions/init"
+    assert novos[0][1]["prompt"] == "segundo"
