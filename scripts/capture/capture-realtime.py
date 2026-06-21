@@ -89,11 +89,12 @@ def ingest_platform(plat: str, states: dict, max_age: float = LIVE_MAX_AGE_S) ->
                 continue
             try:
                 for sess in parser(p):
-                    sent += core.ingest(plat, sess, st)
+                    n = core.ingest(plat, sess, st)
+                    if n:
+                        core.save_state(plat, st)
+                        sent += n
             except Exception as exc:
                 print(f"  ⚠ {plat}: {exc}", flush=True)
-    if sent:
-        core.save_state(plat, st)
     return sent
 
 
