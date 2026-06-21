@@ -18,6 +18,7 @@
 | [P5](#fase-p5--cr-sqlite--sync-multi-dispositivo) | CR-SQLite Multi-Device | Dias | Alto | nenhum |
 | [P6](#fase-p6--a-mem-link-evolution-no-grafo) | A-MEM Link Evolution | Dias | Médio | Phase P2 |
 | [P7](#fase-p7--mcp-streamable-http-spec-2025-03-26) | MCP Streamable HTTP | Semanas | Médio | Nenhum |
+| [P8](#fase-p8--multi-plataforma--instalador-npm-universal) | Multi-plataforma + npm | Semanas | Alto | Nenhum |
 
 ---
 
@@ -154,38 +155,59 @@ Quando `sqlite-lembed` resolver o Python 3.12+ bug (`misuse of sqlite3_result_su
 ## Fase P1 — Screenpipe Substitui Deep Portal ✅ CONCLUÍDO
 
 **Objetivo:** deprecar `mss + LLM Vision` e consumir Screenpipe via REST API local.
-**Status:** IMPLEMENTADO | **Commit:** `9597ef5` | **Data:** 2026-06-21
-**Ativação:** instalar Screenpipe em screenpipe.dev — código já está integrado.
+**Status:** IMPLEMENTADO | **Commits:** `9597ef5`, `2a4cdc8` | **Data:** 2026-06-21
+**Testes:** 13/13 passando (10 offline + 3 live) | **Suite:** 447/447, 0 skipped
 
 ### O que foi implementado
 
 | Arquivo | Mudança |
 |---|---|
-| `scripts/capture/parsers/screenpipe.py` (novo) | Cliente REST completo: `screenpipe_alive()`, `fetch_recent_ocr()`, `fetch_recent_audio()`, `capture_screenshot()` |
+| `scripts/capture/parsers/screenpipe.py` (novo) | Cliente REST completo: `screenpipe_alive()`, `fetch_recent_ocr()`, `fetch_recent_audio()`, `capture_screenshot()` + suporte `SCREENPIPE_API_KEY` |
 | `scripts/capture/capture_adapters.py` | `_parse_screenpipe()` adapter + entrada `"screenpipe"` em ADAPTERS |
 | `scripts/services/sinapse-mcp.py` | `_capture_screen()` tenta Screenpipe REST primeiro, fallback para `visual_capture.py` |
+| `scripts/setup/install_services.py` | `_install_screenpipe()` — instala binário via npm durante `./install.sh` |
 | `tests/unit/test_screenpipe_parser.py` | 10 testes offline + 3 live (skip automático quando Screenpipe não está rodando) |
 
-### Para ativar
+### Instalação (integrada em `./install.sh`)
+
+O `install.sh` chama `install_services.py install` que agora executa `_install_screenpipe()` automaticamente. Em uma instalação limpa:
 
 ```bash
-# Instalar Screenpipe (binário Rust, ~50MB)
-curl -sSL https://get.screenpi.pe | sh
-# ou: cargo install screenpipe
-
-# Iniciar
-screenpipe &
-
-# Verificar
-curl http://localhost:3030/health  # → {"status": "ok", ...}
-
-# Os 3 testes live vão passar automaticamente
-pytest tests/unit/test_screenpipe_parser.py -v
+./install.sh               # instala Screenpipe junto com tudo mais
 ```
 
-Variáveis de ambiente:
-- `SCREENPIPE_BASE` (default: `http://localhost:3030`)
-- `SCREENPIPE_TIMEOUT` (default: `5` segundos)
+**Manualmente (se necessário):**
+```bash
+# Linux x64
+npm install -g @screenpipe/cli-linux-x64
+
+# Dependência de sistema (Ubuntu/Debian):
+sudo apt-get install libopenblas0
+
+# Iniciar daemon
+screenpipe record --port 3030 --disable-audio &
+
+# Verificar
+curl http://localhost:3030/health  # → {"status": "healthy", ...}
+
+# Os 3 testes live passam automaticamente
+SCREENPIPE_API_KEY=<token> pytest tests/unit/test_screenpipe_parser.py -v
+```
+
+### Notas de implementação
+
+- **Health check:** aceita `status == "ok"` (versões antigas) **e** `"healthy"` (v0.4+)
+- **Auth:** `SCREENPIPE_API_KEY` é opcional — endpoint `/health` é público; `/search` requer token em instâncias com `--api-auth`
+- **Wayland/X11:** captura de tela requer compositor com `ZwlrScreencopy`. Audio e UI events funcionam sem ele.
+- **Linux note:** `libopenblas.so.0` é dep runtime do binário Rust; pode ser resolvida com `sudo apt install libopenblas0` ou via `LD_LIBRARY_PATH`
+
+### Variáveis de ambiente
+
+| Variável | Default | Descrição |
+|----------|---------|-----------|
+| `SCREENPIPE_BASE` | `http://localhost:3030` | URL base da API REST |
+| `SCREENPIPE_TIMEOUT` | `5` | Timeout em segundos |
+| `SCREENPIPE_API_KEY` | `""` | Bearer token (obrigatório se `--api-auth` ativo) |
 
 ---
 
@@ -1225,6 +1247,163 @@ WantedBy=default.target
 
 ---
 
+## Fase P8 — Multi-plataforma + Instalador npm Universal
+
+**Objetivo:** transformar o Hive-Mind em um projeto instalável via `npx @sinapse/cli install` — como projetos grandes (Vercel CLI, Supabase CLI, etc.) — funcionando em Linux, macOS e Windows sem depender de bash ou systemd.
+**Esforço:** 2-3 semanas | **Risco:** Médio | **Pré-req:** P0, P1 (para incluir Screenpipe no pacote)
+
+### Motivação
+
+O `install.sh` atual é bash + systemd — Linux-only. Para Windows seria necessário um `install.ps1`. A abordagem npm resolve as três plataformas de uma vez: Node.js está disponível em todas, e é o padrão de distribuição de CLIs modernas (Vercel, Prisma, Claude Code, etc.).
+
+### Arquitetura alvo
+
+```
+npx @sinapse/cli install
+    ↓
+packages/sinapse-cli/        ← pacote npm raiz
+  bin/sinapse                ← entrada CLI (Node.js)
+  src/
+    install.js               ← orquestra todas as etapas
+    detect-platform.js       ← Linux / macOS / Windows
+    steps/
+      python-env.js          ← cria .venv com uv
+      screenpipe.js          ← @screenpipe/cli-{platform}-{arch}
+      ollama.js              ← verifica/instala Ollama
+      services.js            ← systemd (Linux) | launchd (macOS) | NSSM/schtasks (Windows)
+      mcp.js                 ← register-mcp.sh → register-mcp.js
+```
+
+### Task P8.1 — Criar `packages/sinapse-cli/package.json`
+
+```json
+{
+  "name": "@sinapse/cli",
+  "version": "1.0.0",
+  "description": "Hive-Mind — instalador universal (Linux, macOS, Windows)",
+  "bin": {
+    "sinapse": "./bin/sinapse.js"
+  },
+  "scripts": {
+    "install-sinapse": "node bin/sinapse.js install"
+  },
+  "optionalDependencies": {
+    "@screenpipe/cli-linux-x64":   "^0.4.0",
+    "@screenpipe/cli-darwin-arm64":"^0.4.0",
+    "@screenpipe/cli-darwin-x64":  "^0.4.0",
+    "@screenpipe/cli-win32-x64":   "^0.4.0"
+  },
+  "engines": { "node": ">=18" }
+}
+```
+
+`optionalDependencies` faz o npm baixar apenas o binário da plataforma atual — mesmo mecanismo do esbuild, Prisma, etc.
+
+### Task P8.2 — Detecção de plataforma (`src/detect-platform.js`)
+
+```js
+// Retorna: { os: 'linux'|'darwin'|'win32', arch: 'x64'|'arm64', serviceManager: 'systemd'|'launchd'|'nssm' }
+export function detectPlatform() {
+  const os   = process.platform;           // 'linux' | 'darwin' | 'win32'
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
+  const serviceManager =
+    os === 'linux'  ? 'systemd' :
+    os === 'darwin' ? 'launchd' : 'nssm';
+  return { os, arch, serviceManager };
+}
+```
+
+### Task P8.3 — Screenpipe platform-aware (`src/steps/screenpipe.js`)
+
+```js
+import { detectPlatform } from '../detect-platform.js';
+
+export async function installScreenpipe() {
+  const { os, arch } = detectPlatform();
+  const pkg = `@screenpipe/cli-${os}-${arch}`;   // ex: @screenpipe/cli-linux-x64
+  // optionalDependencies já baixou o binário no npm install
+  // só precisamos expor o PATH
+  const binPath = resolve(import.meta.dirname, `../../node_modules/${pkg}/bin`);
+  if (existsSync(binPath)) {
+    console.log(`[screenpipe] binário disponível: ${binPath}`);
+    return binPath;
+  }
+  console.warn(`[screenpipe] pacote ${pkg} não encontrado — instalação opcional`);
+  return null;
+}
+```
+
+### Task P8.4 — Gerenciadores de serviço por plataforma
+
+| Plataforma | Mecanismo | Arquivo gerado |
+|------------|-----------|----------------|
+| Linux | `systemd --user` | `~/.config/systemd/user/sinapse-*.service` |
+| macOS | `launchd` | `~/Library/LaunchAgents/com.sinapse.*.plist` |
+| Windows | `NSSM` ou `schtasks` | Serviço Windows via NSSM ou tarefa agendada |
+
+```js
+// src/steps/services.js
+export async function installServices(platform) {
+  if (platform.serviceManager === 'systemd')  return installSystemd();
+  if (platform.serviceManager === 'launchd')  return installLaunchd();
+  if (platform.serviceManager === 'nssm')     return installNSSM();
+}
+```
+
+`installSystemd()` chama o `install_services.py` existente — sem reescrita.
+`installLaunchd()` gera `.plist` equivalentes aos `.service` arquivos.
+`installNSSM()` usa `nssm install <name> python <script>` para cada serviço.
+
+### Task P8.5 — Entrada principal (`bin/sinapse.js`)
+
+```js
+#!/usr/bin/env node
+import { detectPlatform } from '../src/detect-platform.js';
+import { installScreenpipe } from '../src/steps/screenpipe.js';
+import { installServices }   from '../src/steps/services.js';
+import { installPythonEnv }  from '../src/steps/python-env.js';
+
+const [, , command] = process.argv;
+
+if (command === 'install') {
+  const platform = detectPlatform();
+  console.log(`[sinapse] plataforma: ${platform.os}/${platform.arch} (${platform.serviceManager})`);
+  await installPythonEnv();       // uv sync
+  await installScreenpipe();      // @screenpipe/cli-{platform}
+  await installServices(platform);// systemd | launchd | nssm
+  console.log('[sinapse] instalação concluída');
+}
+```
+
+### Task P8.6 — Publicação e uso
+
+```bash
+# Publicar
+npm publish --access public   # → @sinapse/cli no npm registry
+
+# Instalar em qualquer OS:
+npx @sinapse/cli install
+
+# Ou instalar globalmente:
+npm install -g @sinapse/cli
+sinapse install
+```
+
+### Compatibilidade com `install.sh` atual
+
+O `install.sh` **não é removido** — continua funcionando para usuários Linux avançados. O `@sinapse/cli` é a nova camada universal por cima. As etapas Python (uv, venv, migrate scripts) continuam sendo delegadas ao Python/shell existente; o npm CLI só orquestra e resolve dependências binárias cross-platform.
+
+### Dependências de sistema por plataforma
+
+| Dep | Linux | macOS | Windows |
+|-----|-------|-------|---------|
+| libopenblas | `sudo apt install libopenblas0` | Bundled | `vcredist` / conda |
+| Ollama | `.sh` installer | `.dmg` | `.exe` installer |
+| FFmpeg | `sudo apt install ffmpeg` | `brew install ffmpeg` | `winget install ffmpeg` |
+| Node.js ≥18 | Pré-requisito | Pré-requisito | Pré-requisito |
+
+---
+
 ## Resumo: Mapa de Arquivos por Fase
 
 | Fase | Arquivo | Ação |
@@ -1255,6 +1434,12 @@ WantedBy=default.target
 | P6 | `scripts/dream/dream_cycle.py` | `+_evolve_links()` pós síntese |
 | P7 | `scripts/services/sinapse-mcp-http.py` | **NOVO** — HTTP server |
 | P7 | `scripts/setup/install_services.py` | `+sinapse-mcp-http.service` |
+| P8 | `packages/sinapse-cli/package.json` | **NOVO** — pacote npm `@sinapse/cli` |
+| P8 | `packages/sinapse-cli/bin/sinapse.js` | **NOVO** — entrypoint CLI cross-platform |
+| P8 | `packages/sinapse-cli/src/detect-platform.js` | **NOVO** — detecção Linux/macOS/Windows |
+| P8 | `packages/sinapse-cli/src/steps/screenpipe.js` | **NOVO** — `@screenpipe/cli-{os}-{arch}` |
+| P8 | `packages/sinapse-cli/src/steps/services.js` | **NOVO** — systemd / launchd / NSSM |
+| P8 | `scripts/setup/install_services.py` | `_install_screenpipe()` platform-aware |
 
 ---
 
@@ -1299,3 +1484,12 @@ WantedBy=default.target
 - [ ] Integrar em `get_connection()`
 - [ ] Criar `sinapse-sync.py`
 - [ ] Testar sync entre duas instâncias locais (dois diretórios)
+
+### Sprint 6 — P8 (Multi-plataforma + npm)
+- [ ] Criar `packages/sinapse-cli/` com `package.json` e `bin/sinapse`
+- [ ] Implementar detecção de plataforma em `install_services.py`
+- [ ] Criar `install.ps1` para Windows (PowerShell)
+- [ ] Criar `install.sh` agnóstico (Linux + macOS)
+- [ ] Publicar `@sinapse/cli` no npm registry
+- [ ] Testar instalação limpa em Linux, macOS e Windows
+- [ ] Documentar `npx @sinapse/cli install`
