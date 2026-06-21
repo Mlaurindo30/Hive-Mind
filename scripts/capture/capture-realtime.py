@@ -79,17 +79,31 @@ def main() -> int:
 
     def refresh() -> set[str]:
         added_platforms: set[str] = set()
+        now = time.time()
         for plat, adp in ADAPTERS.items():
             for pattern in adp.get("watch", []):
+                is_glob = "*" in pattern   # sentinelas (sem *) nunca são filtradas por mtime
                 for d in glob.glob(pattern):
                     if d in watched or not os.path.isdir(d):
                         continue
+                    # Dirs expandidos por glob só recebem watch se estiverem na janela ativa;
+                    # sentinelas (padrão sem wildcard) são sempre assistidas para detectar sessões novas.
+                    if is_glob:
+                        try:
+                            if os.path.getmtime(d) < now - WINDOW_S:
+                                continue
+                        except OSError:
+                            continue
                     wd = _libc.inotify_add_watch(fd, d.encode(), MASK)
                     if wd >= 0:
                         wd_plat[wd] = plat
                         watched.add(d)
                         added_platforms.add(plat)
                         print(f"  👁 {plat} [{adp['mode']}]: {d}", flush=True)
+                    else:
+                        import ctypes
+                        err = ctypes.get_errno()
+                        print(f"  ⚠ {plat} inotify_add_watch FALHOU para {d}: wd={wd} errno={err}", flush=True)
         return added_platforms
 
     refresh()
@@ -125,12 +139,24 @@ def main() -> int:
                 buf = b""
             i = 0
             touched: set[str] = set()
+            ignored_wds: set[int] = set()
             while i + _HDR <= len(buf):
                 wd, mask, cookie, nlen = struct.unpack_from("iIII", buf, i)
                 i += _HDR + nlen
                 plat = wd_plat.get(wd)
                 if plat:
                     touched.add(plat)
+                if mask & 0x8000:  # IN_IGNORED: watch removido pelo kernel
+                    ignored_wds.add(wd)
+            for wd in ignored_wds:
+                plat = wd_plat.pop(wd, None)
+                # remove o caminho correspondente de watched para que refresh() readicione
+                if plat:
+                    for pattern in ADAPTERS[plat].get("watch", []):
+                        for d in glob.glob(pattern):
+                            if d in watched:
+                                watched.remove(d)
+                                print(f"  ♻ {plat} watch removido, será reavistado: {d}", flush=True)
             for plat in touched:
                 if now - last_ingest.get(plat, 0.0) >= MIN_INTERVAL:
                     _do_ingest(plat)          # 1º evento: imediato (realtime)
