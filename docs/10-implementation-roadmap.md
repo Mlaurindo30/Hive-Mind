@@ -12,7 +12,7 @@
 |------|------|---------|---------|---------------|
 | [P0](#fase-p0--embeddings-100-local-ollama-bge-m3--concluído) | Embeddings 100% Local | ✅ DONE | Alto | — |
 | [P1](#fase-p1--screenpipe-substitui-deep-portal--concluído) | Screenpipe → Deep Portal | ✅ DONE | Alto | Screenpipe instalado* |
-| [P2](#fase-p2--graphiti--falkordb-semântica-temporal) | Graphiti + FalkorDB | Semanas | Alto | FalkorDB Docker |
+| [P2](#fase-p2--graphiti--falkordb-semântica-temporal--concluído) | Graphiti + FalkorDB | ✅ DONE | Alto | FalkorDB Docker |
 | [P3](#fase-p3--langfuse-self-hosted--observabilidade) | Langfuse Observabilidade | Dias | Alto | Docker |
 | [P4](#fase-p4--lightrag-no-dream-cycle) | LightRAG no Dream Cycle | Dias | Alto | Phase P0 |
 | [P5](#fase-p5--cr-sqlite--sync-multi-dispositivo) | CR-SQLite Multi-Device | Dias | Alto | nenhum |
@@ -421,18 +421,42 @@ print(f'{len(sessions)} sessões OCR recentes')
 
 ---
 
-## Fase P2 — Graphiti + FalkorDB: Semântica Temporal
+## Fase P2 — Graphiti + FalkorDB: Semântica Temporal ✅ CONCLUÍDO
 
 **Objetivo:** adicionar janelas de validade de fatos ao grafo neurônios/sinapses.
-**Esforço:** 1-2 semanas | **Risco:** Médio | **Pré-req:** FalkorDB Docker
+**Status:** IMPLEMENTADO | **Commit:** `5d90f51` | **Data:** 2026-06-21
+**Testes:** 9/9 passando (6 offline + 3 live com FalkorDB rodando)
 
-> **Nota:** `integrations/neural-memory/` já tem `graphiti_adapter.py` parcialmente implementado. Esta fase conecta aquele adapter ao Dream Cycle e ao MCP server.
+### Arquivos implementados
 
-### Task P2.1 — FalkorDB local
+| Arquivo | Papel |
+|---------|-------|
+| `docker-compose.falkordb.yml` | Container FalkorDB (porta 6379, volume persistente) |
+| `core/graphiti_client.py` | Wrapper Graphiti/FalkorDB + Ollama; lazy singleton; `push_neuron()`, `search_graph()`, `graphiti_available()` |
+| `scripts/dream/dream_cycle.py` | Hook `push_neuron()` after `conn.commit()` na síntese (best-effort, swallows errors) |
+| `scripts/services/sinapse-mcp.py` | Tool `sinapse_temporal_graph_search` exposta via MCP |
+| `scripts/setup/install_services.py` | `_start_falkordb()` chamado em `install()` via `docker compose up -d` |
+| `pyproject.toml` / `requirements.txt` / `uv.lock` | `graphiti-core>=0.29.0`, `falkordb>=1.1.2` |
+| `tests/unit/test_p2_graphiti.py` | 9 testes |
+
+### Configuração (env vars)
+
+| Variável | Padrão | Descrição |
+|----------|--------|-----------|
+| `FALKORDB_HOST` | `localhost` | Host do FalkorDB |
+| `FALKORDB_PORT` | `6379` | Porta Redis-protocol |
+| `FALKORDB_USER` | `` | Auth user (vazio = sem auth) |
+| `FALKORDB_PASSWORD` | `` | Auth password |
+| `FALKORDB_DB` | `sinapse` | Database/grafo no FalkorDB |
+| `GRAPHITI_LLM_BASE` | `http://localhost:11434/v1` | Base URL Ollama (OpenAI-compat) |
+| `GRAPHITI_LLM_MODEL` | `qwen2.5-coder:3b` | Modelo para extração de entidades |
+| `GRAPHITI_EMBED_MODEL` | `bge-m3:latest` | Modelo de embedding |
+
+### Iniciar FalkorDB
 
 ```bash
-# FalkorDB (open-source, local, compatível Bolt protocol)
-docker run -p 6379:6379 -p 7474:7474 -it --rm falkordb/falkordb:latest
+# Iniciar (idempotente, via install_services.py ou manualmente):
+docker compose -f docker-compose.falkordb.yml up -d
 
 # Testar conexão:
 python3 -c "import falkordb; db = falkordb.FalkorDB(); print('FalkorDB OK')"
@@ -1469,13 +1493,13 @@ O `install.sh` **não é removido** — continua funcionando para usuários Linu
 - [ ] Adicionar tool `sinapse_rag_query` no MCP
 - [ ] Testar com corpus existente
 
-### Sprint 4 — P2 (Graphiti)
-- [ ] Docker FalkorDB
-- [ ] `pip install graphiti-core falkordb`
-- [ ] Criar `core/graphiti_client.py`
-- [ ] Conectar Dream Cycle
-- [ ] Adicionar tool `sinapse_temporal_graph_search`
-- [ ] Testar busca temporal
+### Sprint 4 — P2 (Graphiti) ✅ CONCLUÍDO (2026-06-21, commit `5d90f51`)
+- [x] Docker FalkorDB (`docker-compose.falkordb.yml`)
+- [x] `uv add graphiti-core falkordb` → pyproject.toml + uv.lock
+- [x] Criar `core/graphiti_client.py` (Ollama LLM + embedder + cross_encoder)
+- [x] Conectar Dream Cycle (`push_neuron()` hook após `conn.commit()`)
+- [x] Adicionar tool `sinapse_temporal_graph_search` no MCP
+- [x] 9/9 testes passando (live com FalkorDB + Ollama)
 
 ### Sprint 5 — P5 (CR-SQLite)
 - [ ] Backup de `hive_mind.db` antes de qualquer mudança
