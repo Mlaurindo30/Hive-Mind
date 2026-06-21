@@ -22,27 +22,65 @@ SINAPSE_HOME = os.environ.get("SINAPSE_HOME", str(Path(__file__).resolve().paren
 DB_PATH = os.path.join(SINAPSE_HOME, "hive_mind.db")
 SCHEMA_PATH = os.path.join(SINAPSE_HOME, "core", "umc_schema.sql")
 
+# Backend de embedding: "fastembed" (padrão, 49ms) ou "ollama" (nomic-embed, 1.5s)
+EMBED_BACKEND = os.environ.get("EMBED_BACKEND", "fastembed")
+OLLAMA_BASE = os.environ.get("OLLAMA_BASE", "http://localhost:11434")
+OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text:latest")
+
+
+class OllamaEmbedder:
+    """Wraps Ollama /api/embeddings to match the fastembed embed() interface."""
+
+    def __init__(self, base_url: str, model: str) -> None:
+        import urllib.request as _ur
+        self._url = base_url.rstrip("/") + "/api/embeddings"
+        self._model = model
+        self._ur = _ur
+
+    def embed(self, texts):
+        """Yields embedding vectors; accepts str or list[str]."""
+        if isinstance(texts, str):
+            texts = [texts]
+        for text in texts:
+            payload = json.dumps({"model": self._model, "prompt": str(text)[:5000]}).encode()
+            req = self._ur.Request(
+                self._url, data=payload, method="POST",
+                headers={"Content-Type": "application/json"},
+            )
+            with self._ur.urlopen(req, timeout=30) as r:
+                data = json.loads(r.read())
+            yield data["embedding"]
+
+
 _embedder = None
 
+
 def get_embedder():
-    """Retorna o modelo de embedding (lazy load)."""
+    """Retorna o backend de embedding ativo (lazy load)."""
     global _embedder
-    if _embedder is None and TextEmbedding:
-        cache_dir = Path(SINAPSE_HOME) / "claude-mem" / "data" / "models"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        _embedder = TextEmbedding(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
-            cache_dir=str(cache_dir),
-        )
+    if _embedder is None:
+        if EMBED_BACKEND == "ollama":
+            _embedder = OllamaEmbedder(OLLAMA_BASE, OLLAMA_EMBED_MODEL)
+        elif TextEmbedding is not None:
+            cache_dir = Path(SINAPSE_HOME) / "claude-mem" / "data" / "models"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            _embedder = TextEmbedding(
+                model_name="sentence-transformers/all-MiniLM-L6-v2",
+                cache_dir=str(cache_dir),
+            )
     return _embedder
 
 
-def embed_text(text):
-    """Gera o vetor canônico 384d usado por sqlite-vec e HNSW."""
+def embed_text(text: str) -> list:
+    """Gera o vetor de embedding via backend ativo (fastembed ou ollama)."""
     embedder = get_embedder()
     if embedder is None:
-        raise RuntimeError("fastembed não está disponível no ambiente do projeto")
-    return list(embedder.embed([text[:5000]]))[0].tolist()
+        raise RuntimeError(
+            "Nenhum backend de embedding disponível. "
+            "Instale fastembed ou configure EMBED_BACKEND=ollama."
+        )
+    vec = list(embedder.embed([text[:5000]]))[0]
+    return list(vec)  # funciona tanto com numpy arrays (fastembed) quanto lists (ollama)
 
 def serialize_f32(vector):
     """Serializa uma lista de floats para o formato f32 do sqlite-vec."""
@@ -401,21 +439,19 @@ def query_hybrid(query_text, limit=10):
 
     # 2. Busca Vetorial (Semantica) — lista ordenada de IDs
     vec_ids = []
-    embedder = get_embedder()
-    if embedder:
-        try:
-            query_vec = list(embedder.embed(query_text))[0].tolist()
-            serialized = serialize_f32(query_vec)
-            vec_rows = conn.execute("""
-                SELECT neuron_id, distance as score
-                FROM search_vec
-                WHERE embedding MATCH ?
-                    AND k = ?
-                ORDER BY distance
-            """, (serialized, limit * 2)).fetchall()
-            vec_ids = [row['neuron_id'] for row in vec_rows]
-        except Exception as e:
-            print(f"[umc] Erro na busca vetorial: {e}")
+    try:
+        query_vec = embed_text(query_text)
+        serialized = serialize_f32(query_vec)
+        vec_rows = conn.execute("""
+            SELECT neuron_id, distance as score
+            FROM search_vec
+            WHERE embedding MATCH ?
+                AND k = ?
+            ORDER BY distance
+        """, (serialized, limit * 2)).fetchall()
+        vec_ids = [row['neuron_id'] for row in vec_rows]
+    except Exception as e:
+        print(f"[umc] Erro na busca vetorial: {e}")
 
     # 3. Combinar com RRF — produz ranking global unico
     ranked_lists = [lst for lst in [fts_ids, vec_ids] if lst]

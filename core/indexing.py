@@ -41,7 +41,10 @@ def index_neuron_ids(conn, neuron_ids: Iterable[str], *, commit: bool = True) ->
 
     embedder = get_embedder()
     if embedder is None:
-        raise RuntimeError("fastembed is unavailable")
+        raise RuntimeError(
+            "Nenhum backend de embedding disponível. "
+            "Instale fastembed ou configure EMBED_BACKEND=ollama."
+        )
     texts = [row["text"][:5000] for row in rows]
     vectors = [list(vector) for vector in embedder.embed(texts)]
     if len(vectors) != len(rows):

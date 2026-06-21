@@ -38,26 +38,58 @@ MODEL_CACHE_DIR = Path(
         str(Path(CLAUDE_MEM_DB).resolve().parent / "models"),
     )
 ).resolve()
-DIMENSIONS = 384  # all-MiniLM-L6-v2
+# Configurable via env: "fastembed" (default, 49ms) or "ollama" (nomic-embed, 1.5s)
+EMBED_BACKEND = os.environ.get("EMBED_BACKEND", "fastembed")
+OLLAMA_BASE = os.environ.get("OLLAMA_BASE", "http://localhost:11434")
+OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text:latest")
+DIMENSIONS = int(os.environ.get("VEC_EMBED_DIM", "384"))
 TOP_K = 10
+
 
 # ---------------------------------------------------------------------------
 # Embedding model (lazy load)
 # ---------------------------------------------------------------------------
 
-_embedder: TextEmbedding | None = None
+class _OllamaEmbedder:
+    """Ollama /api/embeddings — compatible with fastembed's embed() interface."""
+
+    def __init__(self, base_url: str, model: str) -> None:
+        self._url = base_url.rstrip("/") + "/api/embeddings"
+        self._model = model
+
+    def embed(self, texts):
+        if isinstance(texts, str):
+            texts = [texts]
+        for text in texts:
+            import urllib.request
+            payload = json.dumps({"model": self._model, "prompt": str(text)[:5000]}).encode()
+            req = urllib.request.Request(
+                self._url, data=payload, method="POST",
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=30) as r:
+                data = json.loads(r.read())
+            yield data["embedding"]
 
 
-def get_embedder() -> TextEmbedding:
+_embedder = None
+
+
+def get_embedder():
     global _embedder
-    if _embedder is None:
-        MODEL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        print(
-            "[vec-worker] Loading embedding model "
-            f"(all-MiniLM-L6-v2) from {MODEL_CACHE_DIR}...",
-            flush=True,
-        )
-        _embedder = TextEmbedding(
+    if _embedder is not None:
+        return _embedder
+    if EMBED_BACKEND == "ollama":
+        print(f"[vec-worker] Using Ollama backend ({OLLAMA_EMBED_MODEL})", flush=True)
+        _embedder = _OllamaEmbedder(OLLAMA_BASE, OLLAMA_EMBED_MODEL)
+        return _embedder
+    MODEL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    print(
+        "[vec-worker] Loading embedding model "
+        f"(all-MiniLM-L6-v2) from {MODEL_CACHE_DIR}...",
+        flush=True,
+    )
+    _embedder = TextEmbedding(
             model_name="sentence-transformers/all-MiniLM-L6-v2",
             cache_dir=str(MODEL_CACHE_DIR),
         )
@@ -65,7 +97,8 @@ def get_embedder() -> TextEmbedding:
 
 
 def embed(text: str) -> list[float]:
-    return list(get_embedder().embed(text))[0].tolist()
+    vec = list(get_embedder().embed(text))[0]
+    return list(vec)  # handles both numpy arrays (fastembed) and Python lists (ollama)
 
 
 # ---------------------------------------------------------------------------
