@@ -28,6 +28,7 @@ from parsers import (
     mimo as _mimo,
     openclaw as _openclaw,
     roo as _roo,
+    swarmclaw as _swarmclaw,
 )
 
 HOME = Path.home()
@@ -56,9 +57,9 @@ ADAPTERS = {
         "sources": [str(HOME / ".config/Code/User/workspaceStorage/*/GitHub.copilot-chat/transcripts/*.jsonl")],
     },
     "hermes": {
-        "owner": "realtime", "mode": "tail", "parser": _hermes.parse,
-        "watch": [str(HOME / ".hermes/sessions")],
-        "sources": [str(HOME / ".hermes/sessions/*.jsonl")],
+        "owner": "realtime", "mode": "reparse", "parser": _hermes.parse,
+        "watch": [str(HOME / ".hermes")],
+        "sources": [str(HOME / ".hermes/state.db")],
     },
     # ── reescrito / array / sqlite ───────────────────────────────────────────
     "antigravity": {
@@ -101,6 +102,14 @@ ADAPTERS = {
         "owner": "realtime", "mode": "reparse", "parser": _openclaw.parse,
         "watch": [str(HOME / ".openclaw/tasks")],
         "sources": [str(HOME / ".openclaw/tasks/runs.sqlite")],
+    },
+    # SwarmClaw armazena sessões e runs em SQLite. O CWD dos agents é
+    # .swarmclaw/workspace/ → project deriva como 'workspace'; o parser
+    # IGNORA o CWD e hardcoda project='swarmclaw' para identificação correta.
+    "swarmclaw": {
+        "owner": "realtime", "mode": "reparse", "parser": _swarmclaw.parse,
+        "watch": [str(HOME / ".swarmclaw/data")],
+        "sources": [str(HOME / ".swarmclaw/data/swarmclaw.db")],
     },
     # gemini-cli NÃO está aqui: o claude-mem já o captura NATIVAMENTE (conexão
     # direta, envio imediato) — capturá-lo aqui de novo só duplicaria.

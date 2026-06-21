@@ -9,6 +9,7 @@ runtime is intentionally global and multi-project, with data under
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -597,8 +598,39 @@ def systemctl(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     )
 
 
+def _configure_claude_mem_settings() -> None:
+    """Seed required defaults into ~/.claude-mem/settings.json.
+
+    Idempotent: only writes keys that are missing or empty.
+    """
+    settings_path = Path.home() / ".claude-mem" / "settings.json"
+    if not settings_path.exists():
+        return
+    try:
+        cfg = json.loads(settings_path.read_text())
+    except Exception:
+        return
+
+    changed = False
+
+    # Ensure SwarmClaw sessions (CWD = ~/.swarmclaw/**) are excluded from the
+    # claude-mem plugin so they don't appear as project="workspace".
+    excluded = cfg.get("CLAUDE_MEM_EXCLUDED_PROJECTS", "")
+    swarmclaw_pattern = "**/.swarmclaw/**"
+    if swarmclaw_pattern not in excluded:
+        parts = [p for p in excluded.split(",") if p.strip()]
+        parts.append(swarmclaw_pattern)
+        cfg["CLAUDE_MEM_EXCLUDED_PROJECTS"] = ",".join(parts)
+        changed = True
+
+    if changed:
+        settings_path.write_text(json.dumps(cfg, indent=2) + "\n")
+        print("[services] claude-mem settings patched: CLAUDE_MEM_EXCLUDED_PROJECTS updated")
+
+
 def install(start: bool) -> int:
     validate_runtime()
+    _configure_claude_mem_settings()
     if shutil.which("systemctl") is None:
         print("[services] systemctl unavailable; unit installation skipped")
         return 0
