@@ -169,7 +169,7 @@ def migrate():
         if sqlite_vec:
             try:
                 cursor.execute("ALTER TABLE search_vec RENAME TO search_vec_old;")
-                cursor.execute("CREATE VIRTUAL TABLE search_vec USING vec0(neuron_id TEXT PRIMARY KEY, embedding FLOAT[384]);")
+                cursor.execute("CREATE VIRTUAL TABLE search_vec USING vec0(neuron_id TEXT PRIMARY KEY, embedding FLOAT[1024]);")
                 cursor.execute("SELECT * FROM search_vec_old;")
                 for row in cursor.fetchall():
                     new_id = neuron_map.get(row['neuron_id'], row['neuron_id'])

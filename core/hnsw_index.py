@@ -22,7 +22,7 @@ except ImportError:
 # Index lives next to hive_mind.db
 _INDEX_PATH: Optional[Path] = None
 _INDEX = None  # hnswlib.Index or None
-_DIM: int = int(os.environ.get("HNSW_DIM", "384"))
+_DIM: int = int(os.environ.get("HNSW_DIM", "1024"))
 
 # Internal map: hnswlib integer label <-> neuron_id string
 _id_to_label: dict[str, int] = {}

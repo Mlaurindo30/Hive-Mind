@@ -22,10 +22,10 @@ SINAPSE_HOME = os.environ.get("SINAPSE_HOME", str(Path(__file__).resolve().paren
 DB_PATH = os.path.join(SINAPSE_HOME, "hive_mind.db")
 SCHEMA_PATH = os.path.join(SINAPSE_HOME, "core", "umc_schema.sql")
 
-# Backend de embedding: "fastembed" (padrão, 49ms) ou "ollama" (nomic-embed, 1.5s)
-EMBED_BACKEND = os.environ.get("EMBED_BACKEND", "fastembed")
+# Backend de embedding: "ollama" (padrão, bge-m3 1024d) ou "fastembed" (legado, MiniLM 384d)
+EMBED_BACKEND = os.environ.get("EMBED_BACKEND", "ollama")
 OLLAMA_BASE = os.environ.get("OLLAMA_BASE", "http://localhost:11434")
-OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text:latest")
+OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "bge-m3:latest")
 
 
 class OllamaEmbedder:
