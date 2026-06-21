@@ -148,8 +148,15 @@ class SeenStore:
         self._migrate_from_json()
 
     def _migrate_from_json(self) -> None:
-        sentinel = DATA_DIR / self._SENTINEL
+        # Sentinel lives next to the DB, not in DATA_DIR — prevents test runs
+        # (which pass a custom db_path) from writing the sentinel into the
+        # production data directory and accidentally skipping the real migration.
+        sentinel = self._path.parent / ".migrated-to-sqlite"
         if sentinel.exists():
+            return
+        # Custom db_path means test / one-shot usage: start empty, no migration.
+        if self._path != (DATA_DIR / self._DB_NAME):
+            sentinel.write_text(time.strftime("%Y-%m-%dT%H:%M:%S"))
             return
         json_files = list(STATE_DIR.glob("*.json")) if STATE_DIR.exists() else []
         if not json_files:
@@ -187,7 +194,6 @@ class SeenStore:
                     )
                     migrated += 1
         self._con.commit()
-        sentinel.parent.mkdir(parents=True, exist_ok=True)
         sentinel.write_text(time.strftime("%Y-%m-%dT%H:%M:%S"))
         if migrated:
             print(f"  ✓ migração JSON→SQLite: {migrated} hashes importados")
