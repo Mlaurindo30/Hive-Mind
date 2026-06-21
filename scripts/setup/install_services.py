@@ -541,6 +541,32 @@ Unit=sinapse-work.service
 [Install]
 WantedBy=timers.target
 """,
+        # ===== Backup diário dos bancos SQLite críticos =====
+        "sinapse-backup.service": f"""[Unit]
+Description=Sinapse — Backup diário dos bancos SQLite (hot-backup)
+After=network.target
+{common_unit}
+
+[Service]
+Type=oneshot
+UMask=0077
+WorkingDirectory={path}
+Environment=SINAPSE_HOME={path}
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart={path}/.venv/bin/python {path}/scripts/health/backup_databases.py
+""",
+        "sinapse-backup.timer": """[Unit]
+Description=Dispara backup dos bancos SQLite diariamente às 02:00
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+Unit=sinapse-backup.service
+
+[Install]
+WantedBy=timers.target
+""",
         # drift roda log-only (SEM --apply): apenas reporta candidatos a cold/stale.
         "sinapse-drift.service": f"""[Unit]
 Description=Memória Viva - Drift Detector (log-only, SEM --apply)
@@ -663,6 +689,7 @@ def install(start: bool, with_tests: bool = False) -> int:
         "sinapse-conflicts.timer",
         "sinapse-work.timer",
         "sinapse-review.timer",   # revisão diária 08:07 (não depende de sessão)
+        "sinapse-backup.timer",   # backup SQLite diário 02:00 (off-peak)
     ]
     if api_enabled():
         enabled.append("sinapse-api.service")

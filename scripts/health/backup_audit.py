@@ -13,6 +13,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+HOME = Path.home()
 
 
 @dataclass(frozen=True)
@@ -183,6 +184,24 @@ def _retention_rules(root: Path, args: argparse.Namespace) -> list[RetentionRule
             pattern="claude-mem.before-fk-repair.*.db",
             keep_last=args.keep_fk_repair,
         ),
+        RetentionRule(
+            name="claude_mem_daily",
+            folder=HOME / ".claude-mem" / "backups",
+            pattern="claude-mem.20*.db",
+            keep_last=7,
+        ),
+        RetentionRule(
+            name="swarmclaw_daily",
+            folder=HOME / ".swarmclaw" / "backups",
+            pattern="swarmclaw.20*.db",
+            keep_last=7,
+        ),
+        RetentionRule(
+            name="hive_mind_daily",
+            folder=root / "backups",
+            pattern="hive_mind.20*-*-*.db",
+            keep_last=7,
+        ),
     ]
 
 
@@ -191,6 +210,8 @@ def run_audit(root: Path, args: argparse.Namespace) -> dict:
         root / "backups",
         root / "config" / "component-lock-backups",
         root / "cerebro" / "thinking" / "session-logs",
+        HOME / ".claude-mem" / "backups",
+        HOME / ".swarmclaw" / "backups",
     ]
     directory_stats = {
         _repo_rel(path, root): _dir_stats(path)
