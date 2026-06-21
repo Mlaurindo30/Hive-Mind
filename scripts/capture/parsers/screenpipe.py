@@ -4,13 +4,14 @@ Screenpipe é um daemon Rust que captura tela continuamente, processa com OCR
 (Tesseract/Apple Vision) e transcreve áudio com Whisper, tudo local.
 
 API:
-  GET /health                       → {"status": "ok", ...}
+  GET /health                       → {"status": "healthy"|"ok", ...}
   GET /search?content_type=ocr&...  → OCR frames
   GET /search?content_type=audio&.. → transcrições Whisper
   POST /screenshot                  → captura on-demand (retorna path)
 
 Configuração:
-  SCREENPIPE_BASE (env, default: http://localhost:3030)
+  SCREENPIPE_BASE    (env, default: http://localhost:3030)
+  SCREENPIPE_API_KEY (env, optional — Bearer token for auth-enabled instances)
 """
 from __future__ import annotations
 
@@ -21,6 +22,9 @@ from datetime import datetime, timedelta, timezone
 
 SCREENPIPE_BASE = os.environ.get("SCREENPIPE_BASE", "http://localhost:3030")
 _TIMEOUT = int(os.environ.get("SCREENPIPE_TIMEOUT", "5"))
+_API_KEY = os.environ.get("SCREENPIPE_API_KEY", "")
+
+_HEALTHY = {"ok", "healthy"}
 
 
 def _api(path: str, params: dict | None = None) -> dict:
@@ -30,7 +34,11 @@ def _api(path: str, params: dict | None = None) -> dict:
         qs = "&".join(f"{k}={urllib.request.quote(str(v))}" for k, v in params.items())
         url = f"{url}?{qs}"
     try:
-        with urllib.request.urlopen(url, timeout=_TIMEOUT) as r:
+        headers = {}
+        if _API_KEY:
+            headers["Authorization"] = f"Bearer {_API_KEY}"
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as r:
             return json.loads(r.read().decode())
     except Exception:
         return {}
@@ -38,7 +46,7 @@ def _api(path: str, params: dict | None = None) -> dict:
 
 def screenpipe_alive() -> bool:
     """Retorna True se Screenpipe estiver rodando e saudável."""
-    return _api("/health").get("status") == "ok"
+    return _api("/health").get("status") in _HEALTHY
 
 
 def fetch_recent_ocr(since_minutes: int = 60, limit: int = 50) -> list[dict]:
@@ -104,11 +112,14 @@ def capture_screenshot(description: str = "") -> dict:
     Retorna {"path": str, "source": "screenpipe"} ou {"error": str}.
     """
     payload = json.dumps({"description": description}).encode()
+    headers = {"Content-Type": "application/json"}
+    if _API_KEY:
+        headers["Authorization"] = f"Bearer {_API_KEY}"
     req = urllib.request.Request(
         f"{SCREENPIPE_BASE}/screenshot",
         data=payload,
         method="POST",
-        headers={"Content-Type": "application/json"},
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(req, timeout=_TIMEOUT) as r:
