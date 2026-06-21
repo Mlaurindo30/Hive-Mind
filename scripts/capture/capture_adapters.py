@@ -31,6 +31,20 @@ from parsers import (
     swarmclaw as _swarmclaw,
 )
 
+
+def _parse_screenpipe(_source=None) -> list[dict]:
+    """Adapter Screenpipe — lê OCR e áudio via REST (sem arquivo local).
+
+    Retorna lista vazia se Screenpipe não estiver rodando (safe no-op).
+    """
+    try:
+        from parsers.screenpipe import screenpipe_alive, fetch_recent_ocr, fetch_recent_audio
+        if not screenpipe_alive():
+            return []
+        return fetch_recent_ocr(since_minutes=60) + fetch_recent_audio(since_minutes=60)
+    except Exception:
+        return []
+
 HOME = Path.home()
 
 ADAPTERS = {
@@ -113,6 +127,18 @@ ADAPTERS = {
     },
     # gemini-cli NÃO está aqui: o claude-mem já o captura NATIVAMENTE (conexão
     # direta, envio imediato) — capturá-lo aqui de novo só duplicaria.
+
+    # Screenpipe: daemon Rust que captura tela+áudio continuamente (OCR + Whisper).
+    # owner=timer: tailer periódico consulta REST /search a cada ciclo.
+    # sources=[] / watch=[]: sem arquivo local — fonte é a API REST.
+    # Ativa automaticamente quando screenpipe_alive() == True.
+    "screenpipe": {
+        "owner": "timer",
+        "mode": "reparse",
+        "parser": _parse_screenpipe,
+        "sources": [],
+        "watch": [],
+    },
 }
 
 

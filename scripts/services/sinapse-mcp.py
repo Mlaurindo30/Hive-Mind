@@ -251,40 +251,36 @@ def _session_end(summary):
 
 
 def _capture_screen(description=""):
-    """Captura a tela chamando o script visual_capture.py via subprocesso."""
-    import subprocess
+    """Captura tela via Screenpipe REST (primário) ou visual_capture.py (fallback)."""
     import os
-    
+    import subprocess
+
+    # Tenta Screenpipe primeiro (zero overhead se não estiver rodando)
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+        from scripts.capture.parsers.screenpipe import screenpipe_alive, capture_screenshot
+        if screenpipe_alive():
+            result = capture_screenshot(description)
+            if result.get("path"):
+                return {"success": True, **result}
+    except Exception:
+        pass
+
+    # Fallback: visual_capture.py via subprocess
     scripts_dir = os.path.dirname(__file__)
     capture_script = os.path.join(scripts_dir, "visual_capture.py")
-    
     cmd = [sys.executable, capture_script]
     if description:
         cmd.append(description)
-        
     try:
-        # Executa o script e captura a saída
-        # capture_output=True redireciona stdout e stderr
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        # O script visual_capture.py imprime o path absoluto no stdout
         path = result.stdout.strip()
-        return {
-            "success": True,
-            "path": path,
-            "description": description
-        }
+        return {"success": True, "path": path, "description": description, "source": "visual_capture"}
     except subprocess.CalledProcessError as e:
-        return {
-            "success": False,
-            "error": e.stderr.strip() or str(e),
-            "description": description
-        }
+        return {"success": False, "error": e.stderr.strip() or str(e), "description": description}
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "description": description
-        }
+        return {"success": False, "error": str(e), "description": description}
 
 
 def _zettelkasten_split(source_file, output_dir="cerebro/atoms"):
