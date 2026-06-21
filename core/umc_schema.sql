@@ -89,7 +89,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
 -- Note: vec0 tables are created dynamically or defined here if supported by the loader
 CREATE VIRTUAL TABLE IF NOT EXISTS search_vec USING vec0(
     neuron_id TEXT PRIMARY KEY,
-    embedding FLOAT[384] -- all-MiniLM-L6-v2 size
+    embedding FLOAT[1024] -- bge-m3:latest (Ollama) size
 );
 
 -- Triggers for FTS sync

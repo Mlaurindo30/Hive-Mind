@@ -1,8 +1,10 @@
 """
 SQLite-Vec Worker — substituto leve para Chroma no claude-mem.
 
-Usa sqlite-vec (extensão nativa SQLite) + fastembed (all-MiniLM-L6-v2)
+Usa sqlite-vec (extensão nativa SQLite) + Ollama bge-m3:latest (1024d)
 para busca semântica sem dependência de Chroma/uvx/Python MCP.
+
+Backend configurável via EMBED_BACKEND=ollama|fastembed (default: ollama).
 
 API compatível com /api/context/semantic do claude-mem:
   POST /api/context/semantic
@@ -19,8 +21,15 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse
 
-import numpy as np
-from fastembed import TextEmbedding
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
+try:
+    from fastembed import TextEmbedding
+except ImportError:
+    TextEmbedding = None
 
 # ---------------------------------------------------------------------------
 # Config
@@ -38,11 +47,11 @@ MODEL_CACHE_DIR = Path(
         str(Path(CLAUDE_MEM_DB).resolve().parent / "models"),
     )
 ).resolve()
-# Configurable via env: "fastembed" (default, 49ms) or "ollama" (nomic-embed, 1.5s)
-EMBED_BACKEND = os.environ.get("EMBED_BACKEND", "fastembed")
+# Configurable via env: "ollama" (default, bge-m3 1024d) or "fastembed" (legado, 384d)
+EMBED_BACKEND = os.environ.get("EMBED_BACKEND", "ollama")
 OLLAMA_BASE = os.environ.get("OLLAMA_BASE", "http://localhost:11434")
-OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "nomic-embed-text:latest")
-DIMENSIONS = int(os.environ.get("VEC_EMBED_DIM", "384"))
+OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "bge-m3:latest")
+DIMENSIONS = int(os.environ.get("VEC_EMBED_DIM", "1024"))
 TOP_K = 10
 
 

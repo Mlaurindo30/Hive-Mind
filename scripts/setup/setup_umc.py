@@ -59,11 +59,11 @@ def verify_setup():
         print(f"sqlite-vec versão: {version}")
         
         # Teste isolado: nunca toca na tabela search_vec operacional.
-        test_vector = [0.1] * 384
+        test_vector = [0.1] * 1024
         serialized = serialize_f32(test_vector)
         conn.execute(
             "CREATE VIRTUAL TABLE temp.vec_setup_probe USING vec0("
-            "id TEXT PRIMARY KEY, embedding FLOAT[384])"
+            "id TEXT PRIMARY KEY, embedding FLOAT[1024])"
         )
         conn.execute(
             "insert into temp.vec_setup_probe(id, embedding) values (?, ?)",

@@ -80,7 +80,7 @@ class TestNoHnswlib:
         mod._INDEX_PATH = tmp_path / "hnsw_neurons.idx"
         mod._INDEX = None
 
-        result = mod.search([0.0] * 384, k=5)
+        result = mod.search([0.0] * 1024, k=5)
 
         assert result == []
 
@@ -119,7 +119,7 @@ class TestWithMockedIndex:
 
         conn = _make_neurons_db(tmp_path, [{"id": "n1", "content": "test"}])
 
-        result = mod.add_neuron("n1", [0.1] * 384, conn=conn)
+        result = mod.add_neuron("n1", [0.1] * 1024, conn=conn)
 
         assert result is True
         row = conn.execute("SELECT indexed_at FROM neurons WHERE id='n1'").fetchone()
@@ -145,7 +145,7 @@ class TestWithMockedIndex:
             ],
         )
 
-        embed_fn = MagicMock(return_value=[0.1] * 384)
+        embed_fn = MagicMock(return_value=[0.1] * 1024)
 
         # Patch _save_index to avoid touching disk
         with patch.object(mod, "_save_index"):
@@ -172,7 +172,7 @@ class TestWithMockedIndex:
             ],
         )
 
-        embed_fn = MagicMock(return_value=[0.1] * 384)
+        embed_fn = MagicMock(return_value=[0.1] * 1024)
 
         # Patch the hnswlib.Index constructor inside the module so no real index is built
         mock_index = MagicMock()
@@ -193,14 +193,14 @@ class TestWithMockedIndex:
             pytest.skip("hnswlib not installed")
 
         conn = _make_neurons_db(tmp_path, [{"id": "persisted", "content": "alpha"}])
-        assert mod.rebuild_from_db(conn, lambda _: [0.1] * 384) == 1
+        assert mod.rebuild_from_db(conn, lambda _: [0.1] * 1024) == 1
 
         mod._INDEX = None
         mod._id_to_label = {}
         mod._label_to_id = {}
         mod._next_label = 0
         assert mod.load_or_create()
-        assert mod.search([0.1] * 384, k=1)[0]["neuron_id"] == "persisted"
+        assert mod.search([0.1] * 1024, k=1)[0]["neuron_id"] == "persisted"
 
     def test_upsert_vectors_persists_indexed_at(self):
         import core.hnsw_index as mod
@@ -208,7 +208,7 @@ class TestWithMockedIndex:
         if mod._hnswlib is None:
             pytest.skip("hnswlib not installed")
         conn = _make_neurons_db(Path("."), [{"id": "n1", "content": "alpha"}])
-        assert mod.upsert_vectors(conn, {"n1": [0.2] * 384}) == 1
+        assert mod.upsert_vectors(conn, {"n1": [0.2] * 1024}) == 1
         assert conn.execute(
             "SELECT indexed_at FROM neurons WHERE id='n1'"
         ).fetchone()["indexed_at"]
@@ -224,7 +224,7 @@ class TestWithMockedIndex:
         )
         count = mod.rebuild_from_vectors(
             conn,
-            {"second": [0.0] * 383 + [1.0], "first": [1.0] + [0.0] * 383},
+            {"second": [0.0] * 1023 + [1.0], "first": [1.0] + [0.0] * 1023},
         )
         assert count == 2
-        assert mod.search([1.0] + [0.0] * 383, k=1)[0]["neuron_id"] == "first"
+        assert mod.search([1.0] + [0.0] * 1023, k=1)[0]["neuron_id"] == "first"
