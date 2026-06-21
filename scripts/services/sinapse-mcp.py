@@ -180,6 +180,25 @@ TOOLS = [
         }
     },
     {
+        "name": "sinapse_temporal_graph_search",
+        "description": "Search the Graphiti temporal knowledge graph (FalkorDB) for facts and relationships extracted from synthesized neurons. Returns edges with temporal validity windows (valid_at / invalid_at). Requires FalkorDB running on localhost:6379.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Natural-language query to search the temporal graph"
+                },
+                "num_results": {
+                    "type": "integer",
+                    "description": "Max results to return (default 10)",
+                    "default": 10
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
         "name": "search_memories",
         "description": (
             "Busca neurônios do vault por similaridade semântica (HNSW cosine) "
@@ -230,6 +249,10 @@ HANDLERS = {
     "sinapse_zettelkasten_split": lambda args: _zettelkasten_split(args.get("source_file", ""), args.get("output_dir", "cerebro/atoms")),
     "sinapse_capture_screen": lambda args: _capture_screen(args.get("description", "")),
     "sinapse_plan_goal": lambda args: _plan_goal(args.get("goal", ""), args.get("context")),
+    "sinapse_temporal_graph_search": lambda args: _temporal_graph_search(
+        args.get("query", ""),
+        num_results=int(args.get("num_results", 10)),
+    ),
     "search_memories": lambda args: _search_memories(
         args.get("query", ""),
         top_k=int(args.get("top_k", 10)),
@@ -355,6 +378,20 @@ def _plan_goal(goal: str, context=None):
     steps = planner.decompose_goal(goal, context)
     goal_id = planner.save_goal(goal, steps)
     return {"goal_id": goal_id, "steps": steps}
+
+
+def _temporal_graph_search(query: str, num_results: int = 10):
+    """Search Graphiti temporal graph via FalkorDB."""
+    try:
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+        from core.graphiti_client import search_graph, graphiti_available
+        if not graphiti_available():
+            return {"source": "graphiti", "available": False, "results": [], "query": query}
+        results = search_graph(query, num_results=num_results)
+        return {"source": "graphiti", "available": True, "results": results, "query": query}
+    except Exception as e:
+        return {"source": "graphiti", "available": False, "error": str(e), "results": [], "query": query}
 
 
 def _search_memories(query: str, top_k: int = 10, project=None, mode: str = "semantic"):

@@ -33,6 +33,7 @@ class TestSinapseMCP:
             "sinapse_session_end",
             "sinapse_temporal_search",
             "sinapse_temporal_save",
+            "sinapse_temporal_graph_search",
             "sinapse_zettelkasten_split",
             "sinapse_capture_screen",
             "sinapse_plan_goal",
