@@ -23,7 +23,7 @@ import pytest
 
 def _reload_dream_cycle(env: dict):
     """
-    Carrega scripts/dream_cycle.py com o ambiente *env* isolado.
+    Carrega scripts/dream/dream_cycle.py com o ambiente *env* isolado.
 
     Retorna o módulo carregado com as variáveis de módulo corretas.
     O truque de usar importlib.util + exec_module garante que variáveis
@@ -31,7 +31,7 @@ def _reload_dream_cycle(env: dict):
     e não de importações anteriores que ficaram cacheadas.
     """
     from pathlib import Path
-    module_path = Path(__file__).resolve().parents[2] / "scripts" / "dream_cycle.py"
+    module_path = Path(__file__).resolve().parents[2] / "scripts" / "dream" / "dream_cycle.py"
 
     # Isola o ambiente
     orig_env = os.environ.copy()
@@ -71,13 +71,13 @@ def _reload_dream_cycle(env: dict):
 
 def _import_get_role_config():
     """
-    Importa get_role_config de scripts/dream_cycle.py via importlib direto.
+    Importa get_role_config de scripts/dream/dream_cycle.py via importlib direto.
     Retorna a função ou None se ainda não implementada.
     """
     from pathlib import Path
     import importlib.util
 
-    module_path = Path(__file__).resolve().parents[2] / "scripts" / "dream_cycle.py"
+    module_path = Path(__file__).resolve().parents[2] / "scripts" / "dream" / "dream_cycle.py"
     spec = importlib.util.spec_from_file_location("_dc_for_role_config", module_path)
     mod = importlib.util.module_from_spec(spec)
     return mod, module_path
@@ -90,14 +90,14 @@ def _import_get_role_config():
 @pytest.fixture()
 def get_role_config_fn():
     """
-    Retorna a função get_role_config importada de scripts/dream_cycle.py,
+    Retorna a função get_role_config importada de scripts/dream/dream_cycle.py,
     ou pula o teste se a função ainda não existir (feature não implementada).
     """
     from pathlib import Path
     import importlib.util
     import unittest.mock as mock
 
-    module_path = Path(__file__).resolve().parents[2] / "scripts" / "dream_cycle.py"
+    module_path = Path(__file__).resolve().parents[2] / "scripts" / "dream" / "dream_cycle.py"
     spec = importlib.util.spec_from_file_location("_dc_role_cfg", module_path)
     mod = importlib.util.module_from_spec(spec)
 

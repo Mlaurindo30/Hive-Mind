@@ -1,7 +1,7 @@
 """
 core/gemini_cli_client.py — Provider 'gemini-cli' via Code Assist (cloudcode-pa).
 
-Reaproveita o OAuth do Gemini CLI (`~/.gemini/oauth_creds.json`) para falar com o
+Reaproveita o OAuth do Gemini CLI / Google VS Code extension para falar com o
 endpoint **Code Assist** (`cloudcode-pa.googleapis.com/v1internal`), que tem a quota
 do tier "Gemini Code Assist" (Unlimited) — MUITO maior que a do AI Studio (API key).
 
@@ -27,11 +27,13 @@ from typing import Any, Optional
 import requests
 
 GEMINI_DIR = Path(os.environ.get("GEMINI_CLI_DIR", str(Path.home() / ".gemini")))
-CREDS_PATH = GEMINI_DIR / "oauth_creds.json"
+LEGACY_CREDS_PATH = GEMINI_DIR / "oauth_creds.json"
+GOOGLE_VSCODE_CREDS_PATH = Path.home() / ".cache/google-vscode-extension/auth/credentials.json"
+GOOGLE_VSCODE_ADC_PATH = Path.home() / ".cache/google-vscode-extension/auth/application_default_credentials.json"
 API_VERSION = "v1internal"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 
-# Dois endpoints Code Assist, MESMA OAuth (~/.gemini/oauth_creds.json), porém POOLS DE
+# Dois endpoints Code Assist, MESMA OAuth, porém POOLS DE
 # QUOTA SEPARADOS — por isso vale ter os dois (um vira fallback do outro):
 #   antigravity → daily-cloudcode-pa (tier Antigravity, acesso a gemini-3-*)
 #   gemini-cli  → cloudcode-pa       (Code Assist estável)
@@ -102,6 +104,15 @@ def _discover_client_creds() -> tuple:
     cid = os.environ.get("GEMINI_CLI_CLIENT_ID")
     csecret = os.environ.get("GEMINI_CLI_CLIENT_SECRET")
     if not (cid and csecret):
+        adc_path = GOOGLE_VSCODE_ADC_PATH
+        if adc_path.is_file():
+            try:
+                adc = json.loads(adc_path.read_text())
+                cid = cid or adc.get("client_id")
+                csecret = csecret or adc.get("client_secret")
+            except OSError:
+                pass
+    if not (cid and csecret):
         bundle = _bundle_dir()
         if not bundle:
             raise GeminiCliError(
@@ -139,16 +150,64 @@ def _discover_client_creds() -> tuple:
 
 
 def _load_creds() -> dict:
-    if not CREDS_PATH.is_file():
+    source = None
+    raw = None
+    for path in (LEGACY_CREDS_PATH, GOOGLE_VSCODE_CREDS_PATH, GOOGLE_VSCODE_ADC_PATH):
+        if path.is_file():
+            source = path
+            raw = json.loads(path.read_text())
+            break
+    if raw is None or source is None:
         raise GeminiCliError(
-            f"OAuth do gemini-cli ausente em {CREDS_PATH} — rode `gemini` e faça login.")
-    return json.loads(CREDS_PATH.read_text())
+            "OAuth do gemini-cli/antigravity ausente — rode `gemini` ou `agy` e faça login.")
+    return _normalize_creds(raw, source)
+
+
+def _normalize_creds(raw: dict, source: Path) -> dict:
+    """Normaliza formatos diferentes para access_token/refresh_token/expiry_date."""
+    creds = dict(raw)
+    creds["_source_path"] = str(source)
+    if "accessToken" in creds:
+        creds["access_token"] = creds.get("accessToken")
+    if "refreshToken" in creds:
+        creds["refresh_token"] = creds.get("refreshToken")
+    if "accessTokenExpirySecond" in creds:
+        try:
+            expiry = int(float(creds["accessTokenExpirySecond"]))
+            # A extensão Google VS Code usa esse campo como milissegundos,
+            # apesar do nome "Second"; alguns formatos antigos usam segundos.
+            creds["expiry_date"] = expiry if expiry > 10_000_000_000 else expiry * 1000
+        except (TypeError, ValueError):
+            pass
+    if "expiry" in creds and "expiry_date" not in creds:
+        try:
+            creds["expiry_date"] = int(float(creds["expiry"]) * 1000)
+        except (TypeError, ValueError):
+            pass
+    return creds
 
 
 def _save_creds(creds: dict) -> None:
-    CREDS_PATH.write_text(json.dumps(creds))
+    source = Path(creds.get("_source_path") or LEGACY_CREDS_PATH)
+    payload = dict(creds)
+    payload.pop("_source_path", None)
+    if source == GOOGLE_VSCODE_CREDS_PATH:
+        payload["accessToken"] = payload.get("access_token", payload.get("accessToken"))
+        payload["refreshToken"] = payload.get("refresh_token", payload.get("refreshToken"))
+        if payload.get("expiry_date"):
+            payload["accessTokenExpirySecond"] = int(payload["expiry_date"] / 1000)
+        for key in ("access_token", "refresh_token", "expiry_date"):
+            payload.pop(key, None)
+    elif source == GOOGLE_VSCODE_ADC_PATH:
+        source = LEGACY_CREDS_PATH
+        payload = {
+            "access_token": payload.get("access_token"),
+            "refresh_token": payload.get("refresh_token"),
+            "expiry_date": payload.get("expiry_date"),
+        }
+    source.write_text(json.dumps(payload))
     try:
-        CREDS_PATH.chmod(0o600)
+        source.chmod(0o600)
     except OSError:
         pass
 

@@ -11,7 +11,7 @@ import json
 import uuid as _uuid
 from pathlib import Path
 
-from capture_core import _text
+from capture_core import text_content
 
 
 def parse(path: Path):
@@ -27,11 +27,11 @@ def parse(path: Path):
             continue
         role = d.get("role")
         if role == "user":
-            txt = _text(d.get("content"))
+            txt = text_content(d.get("content"))
             prompt = prompt or txt
             pending_user = txt
         elif role == "assistant":
-            txt = _text(d.get("content"))
+            txt = text_content(d.get("content"))
             last_text = txt or last_text
             turns.append({
                 "tool_name": "Message",

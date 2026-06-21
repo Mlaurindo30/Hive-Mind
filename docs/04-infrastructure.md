@@ -94,10 +94,10 @@ Exemplos de valores: provider `google`, `openai`, `anthropic`, `ollama`, `deepse
 
 | Serviço | Porta | Protocolo | Acesso | Processo |
 |---------|-------|-----------|--------|---------|
-| REST API (FastAPI) | 37702 | HTTP REST | localhost (VPS: Bearer token) | `sinapse-api.py` |
-| claude-mem Worker | 37700 | HTTP REST | localhost only | `bun run serve` |
+| REST API (FastAPI) | 37702 | HTTP REST | localhost (VPS: Bearer token) | `scripts/services/sinapse-api.py` |
+| claude-mem Worker | 37700 | HTTP REST | localhost only | upstream worker com dados em `~/.claude-mem` |
 | Ollama | 11434 | HTTP REST | localhost | `ollama serve` |
-| MCP Server (sinapse-mcp) | stdio | JSON-RPC | processo do agente | `sinapse-mcp.py` |
+| MCP Server (sinapse-mcp) | stdio | JSON-RPC | processo do agente | `scripts/services/sinapse-mcp.py` |
 | Syncthing UI | 8384 | HTTP | localhost | `syncthing` |
 
 Nenhuma porta é exposta externamente por padrão. Para deploy em VPS, a REST API (:37702) é exposta atrás de nginx/Caddy com TLS.
@@ -110,7 +110,7 @@ Nenhuma porta é exposta externamente por padrão. Para deploy em VPS, a REST AP
 
 ```bash
 # Iniciar watcher em background
-./scripts/start-watcher.sh &
+./scripts/services/start-watcher.sh &
 
 # Verificar se está rodando
 pgrep -f "start-watcher" && echo "OK"
@@ -127,9 +127,9 @@ O Watcher usa `watchdog` para monitorar `cerebro/`. Ao detectar mudança em `.md
 ### 4.2 claude-mem (Tracking Temporal)
 
 ```bash
-# Na pasta claude-mem/
-bun run serve     # start em :37700
-bun run build     # compila TypeScript
+# O runtime oficial é global e multi-projeto.
+systemctl --user restart sinapse-claude-mem.service
+sqlite3 ~/.claude-mem/claude-mem.db 'PRAGMA quick_check;'
 ```
 
 ### 4.3 Syncthing P2P
@@ -145,7 +145,7 @@ syncthing &       # inicia daemon
 
 ```cron
 # Auditoria P2P de integridade + reindexação de arquivos recebidos (a cada hora)
-0 * * * * cd $SINAPSE_HOME && python3 scripts/audit_memory.py --fix >> logs/audit.log 2>&1
+0 * * * * cd $SINAPSE_HOME && python3 scripts/health/audit_memory.py --fix >> logs/audit.log 2>&1
 
 # Backup do UMC (diário às 3am)
 0 3 * * * cp $SINAPSE_HOME/hive_mind.db $SINAPSE_HOME/backups/hive_mind_$(date +\%F).db
@@ -187,28 +187,27 @@ O cron de rebuild a cada 6h da v1.x foi **removido** — o Watcher cobre a atual
   │   ├── redactor.py                PII redaction regex, 8 categorias (68 linhas) — HM-12
   │   └── schemas/                   Modelos Pydantic do Dream Cycle
   ├── scripts/
-  │   ├── dream_cycle.py             Pipeline de consolidação offline
-  │   ├── sinapse-mcp.py             MCP server (10 tools, stdio)
-  │   ├── sinapse-api.py             REST API FastAPI (:37702)
-  │   ├── sinapse-write.py           CLI standalone
-  │   ├── sinapse-hook.py            Hook universal (Claude Code / Codex)
-  │   ├── audit_memory.py            Auditoria P2P (hash check + reindex)
-  │   ├── semantic_diff.py           Classificação de conflitos (vetorial + LLM)
-  │   ├── document_ingest.py         Ingestão PDF/DOCX → observations
-  │   ├── visual_capture.py          Screenshots → visual_memories
-  │   ├── generate_portal.py         Gerador de portal.canvas (Obsidian)
-  │   ├── planner.py                 Decomposição de objetivos — LLM + goals table (128 linhas) — HM-12
-  │   ├── setup-brain.py           UI de configuração do Hive-Dreamer
-  │   ├── setup-brain.sh           Wrapper shell do setup-brain.py
-  │   ├── start-watcher.sh           Inicia Watcher em background
-  │   └── recover.sh                 Disaster recovery (rebuild do UMC)
+  │   ├── dream/dream_cycle.py       Pipeline de consolidação offline
+  │   ├── services/sinapse-mcp.py    MCP server (11 tools, stdio)
+  │   ├── services/sinapse-api.py    REST API FastAPI (:37702)
+  │   ├── services/sinapse-write.py  CLI standalone
+  │   ├── health/audit_memory.py     Auditoria P2P (hash check + reindex)
+  │   ├── dream/semantic_diff.py     Classificação de conflitos (vetorial + LLM)
+  │   ├── knowledge/document_ingest.py Ingestão PDF/DOCX → observations
+  │   ├── capture/visual_capture.py  Screenshots → visual_memories
+  │   ├── knowledge/generate_portal.py Gerador de portal.canvas (Obsidian)
+  │   ├── analytics/planner.py       Decomposição de objetivos — LLM + goals table
+  │   ├── setup/setup-brain.py       UI de configuração do Hive-Dreamer
+  │   ├── setup/setup-brain.sh       Wrapper shell do setup-brain.py
+  │   ├── services/start-watcher.sh  Inicia Watcher em background
+  │   └── utils/recover.sh           Disaster recovery (rebuild do UMC)
   ├── plugins/
   │   └── hermes/
   │       └── sinapse-memory.py      Plugin nativo para Hermes Agent
   ├── graphify/                      Indexador estrutural (subprojeto)
-  ├── claude-mem/                    Tracking temporal TypeScript/Bun
+  ├── ~/.claude-mem                  Tracking temporal global TypeScript/Bun
   ├── rtk/                           Shell optimizer Rust
-  ├── neural-memory/                 Spreading activation recall
+  ├── integrations/neural-memory/    Spreading activation recall
   ├── tests/                         191 testes (smoke/unit/integration/e2e)
   ├── mcp/                           Templates de config MCP por agente
   ├── docs/                          Esta documentação
@@ -256,7 +255,7 @@ O cron de rebuild a cada 6h da v1.x foi **removido** — o Watcher cobre a atual
 |-------------------|----------|----------|
 | `.env` | API keys, tokens, OAuth secrets | `.gitignore`, chmod 600 |
 | `hive_mind.db` | Toda a memória (inclui vault table) | `.gitignore` |
-| `claude-mem/data/` | Observações com timestamps | `.gitignore` |
+| `~/.claude-mem/` | Observações globais com timestamps | permissões locais + backup controlado |
 | `backups/` | Backups do UMC | `.gitignore` |
 
 ---

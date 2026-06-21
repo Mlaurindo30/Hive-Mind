@@ -15,10 +15,10 @@ def _load():
     return mod
 
 
-def test_local_runtime_updates_forcam_project_local():
+def test_runtime_updates_usam_claude_mem_global():
     mod = _load()
-    updates = mod.local_runtime_updates()
-    data_dir = mod.ROOT / "claude-mem" / "data"
+    updates = mod.runtime_updates()
+    data_dir = Path.home() / ".claude-mem"
 
     assert updates["CLAUDE_MEM_DATA_DIR"] == str(data_dir)
     assert updates["FASTEMBED_CACHE_PATH"] == str(data_dir / "models")
@@ -26,4 +26,4 @@ def test_local_runtime_updates_forcam_project_local():
     assert updates["CLAUDE_MEM_TRANSCRIPTS_CONFIG_PATH"] == str(
         data_dir / "transcript-watch.json"
     )
-    assert ".claude-mem" not in "\n".join(updates.values())
+    assert str(mod.ROOT / "claude-mem" / "data") not in "\n".join(updates.values())

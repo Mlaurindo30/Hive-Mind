@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install Codex hooks that force claude-mem to use Hive-Mind local data."""
+"""Install Codex hooks that route through the official global claude-mem runtime."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def hook(command: str, timeout: int, status_message: str | None = None) -> dict:
 
 def build_hooks() -> dict:
     return {
-        "description": "Hive-Mind project-local claude-mem Codex hook integration",
+        "description": "Hive-Mind claude-mem Codex hook integration using global temporal data",
         "hooks": {
             "SessionStart": [
                 {

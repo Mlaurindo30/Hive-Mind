@@ -42,7 +42,7 @@ STATE_DIR = DATA_DIR / "capture-state"
 
 
 # ── util de texto (genérico, não-tool-específico) ──────────────────────────────
-def _text(c) -> str:
+def text_content(c) -> str:
     """Coerção de conteúdo (str | lista de blocos {text} | outro) → str."""
     if isinstance(c, str):
         return c
@@ -50,6 +50,10 @@ def _text(c) -> str:
         t = " ".join(b.get("text", "") for b in c if isinstance(b, dict) and b.get("text"))
         return t or json.dumps(c, ensure_ascii=False)[:2000]
     return str(c or "")
+
+
+# Compatibilidade para parsers/estados antigos que ainda importem o nome legado.
+_text = text_content
 
 
 def _norm(s: str) -> str:

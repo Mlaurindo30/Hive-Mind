@@ -10,7 +10,7 @@
 #   2. Sincroniza o ambiente Python local e reproduzível (.venv + uv.lock)
 #   3. Instala Graphify (graphifyy[all]) e indexa o vault cerebro/ (Gemini→Ollama→AST)
 #   4. Registra skills nos agentes detectados (Hermes, Claude, Codex, etc.)
-#   5. Instala claude-mem via npx nativo, com dados project-local em claude-mem/data
+#   5. Instala claude-mem via npx nativo, com dados globais em ~/.claude-mem
 #   6. Instala NeuralMemory (nmem) — busca associativa com spreading activation
 #   7. Compila RTK do source (Rust) e instala plugin no Hermes
 #   8. Configura MCP servers (graphify + claude-mem) para Hermes
@@ -96,7 +96,7 @@ else
     exit 1
 fi
 
-# Bun é copiado para .tools/bin (runtime project-local, scripts auxiliares).
+# Bun é copiado para .tools/bin (runtime gerenciado pelo projeto, scripts auxiliares).
 if command -v bun &>/dev/null; then
     echo -e "  ${GREEN}✓${NC} Bun $(bun --version 2>/dev/null)"
     mkdir -p "$TOOLS_DIR"
@@ -107,7 +107,7 @@ if command -v bun &>/dev/null; then
     fi
     BUN_BIN="$TOOLS_DIR/bun"
 else
-    echo -e "${RED}Erro:${NC} Bun é obrigatório para o runtime project-local do claude-mem."
+    echo -e "${RED}Erro:${NC} Bun é obrigatório para o runtime gerenciado do claude-mem."
     exit 1
 fi
 
@@ -268,18 +268,17 @@ fi
 echo ""
 
 # =============================================================================
-# 5. INSTALAÇÃO DO CLAUDE-MEM (npx nativo, dados project-local)
+# 5. INSTALAÇÃO DO CLAUDE-MEM (npx nativo, dados globais)
 # =============================================================================
-echo -e "${BOLD}[5/12] Instalando claude-mem (npx nativo, dados locais)...${NC}"
+echo -e "${BOLD}[5/12] Instalando claude-mem (npx nativo, dados globais)...${NC}"
 
 # O claude-mem usa a instalação nativa (npx/marketplace) para manter hooks e
-# worker compatíveis com upstream, mas o runtime do Hive-Mind força os dados para
-# $PROJECT_ROOT/claude-mem/data via CLAUDE_MEM_DATA_DIR. Não migramos nem copiamos
-# banco/modelos para ~/.claude-mem.
+# worker compatíveis com upstream. O runtime temporal oficial é global e
+# multi-projeto, com dados em ~/.claude-mem.
 
 CLAUDE_MEM_VERSION="13.6"
 CLAUDE_MEM_NPX="npx -y claude-mem@${CLAUDE_MEM_VERSION}"
-CLAUDE_MEM_DATA_DIR="$PROJECT_ROOT/claude-mem/data"
+CLAUDE_MEM_DATA_DIR="$HOME/.claude-mem"
 CLAUDE_MEM_DB="$CLAUDE_MEM_DATA_DIR/claude-mem.db"
 CLAUDE_MEM_MODELS="$CLAUDE_MEM_DATA_DIR/models"
 mkdir -p "$CLAUDE_MEM_DATA_DIR" "$CLAUDE_MEM_MODELS"
@@ -329,7 +328,7 @@ else
         fi
     done
 
-    # Sincroniza a chave do Gemini com o settings.json local do claude-mem.
+    # Sincroniza a chave do Gemini com o settings.json global do claude-mem.
     if [ "$MEM_PROVIDER" = "gemini" ]; then
         G_KEY="${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}"
         if [ -n "$G_KEY" ]; then
@@ -351,7 +350,7 @@ else
 	data['CLAUDE_MEM_GEMINI_API_KEY'] = key
 	data['CLAUDE_MEM_PROVIDER'] = 'gemini'
 	with open(path, 'w') as f: json.dump(data, f, indent=2)
-	" 2>/dev/null && echo -e "  ${GREEN}✓${NC} Chave Gemini sincronizada com claude-mem local"
+	" 2>/dev/null && echo -e "  ${GREEN}✓${NC} Chave Gemini sincronizada com claude-mem global"
         fi
     fi
     # Gemini moderno (>=0.4x) só executa hooks "confiados". O instalador nativo
@@ -374,18 +373,18 @@ GEMTRUST
 
     if [ -d "$HOME/.codex" ]; then
         "$PYTHON" "$PROJECT_ROOT/scripts/setup/install_codex_claude_mem_hooks.py" >/dev/null
-        echo -e "  ${GREEN}✓${NC} Codex hooks project-local registrados"
+        echo -e "  ${GREEN}✓${NC} Codex hooks registrados para claude-mem global"
     fi
 fi
 
 if [ -f "$CLAUDE_MEM_DB" ]; then
     OBS_COUNT="$(sqlite3 "$CLAUDE_MEM_DB" "SELECT COUNT(*) FROM observations;" 2>/dev/null || echo "?")"
-    echo -e "  ${GREEN}✓${NC} Banco claude-mem local preservado ($OBS_COUNT observações)"
+    echo -e "  ${GREEN}✓${NC} Banco claude-mem global preservado ($OBS_COUNT observações)"
 else
-    echo -e "  ${YELLOW}⊘${NC}  Banco claude-mem local ainda não existe; será criado no primeiro start."
+    echo -e "  ${YELLOW}⊘${NC}  Banco claude-mem global ainda não existe; será criado no primeiro start."
 fi
 
-echo -e "  ${GREEN}✓${NC} claude-mem configurado para dados locais ($CLAUDE_MEM_DATA_DIR, worker :37700)"
+echo -e "  ${GREEN}✓${NC} claude-mem configurado para dados globais ($CLAUDE_MEM_DATA_DIR, worker :37700)"
 echo ""
 
 # =============================================================================

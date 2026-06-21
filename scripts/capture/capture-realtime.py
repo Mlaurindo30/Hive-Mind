@@ -77,7 +77,8 @@ def main() -> int:
     watched: set[str] = set()
     states = {plat: core.load_state(plat) for plat in ADAPTERS}
 
-    def refresh():
+    def refresh() -> set[str]:
+        added_platforms: set[str] = set()
         for plat, adp in ADAPTERS.items():
             for pattern in adp.get("watch", []):
                 for d in glob.glob(pattern):
@@ -87,7 +88,9 @@ def main() -> int:
                     if wd >= 0:
                         wd_plat[wd] = plat
                         watched.add(d)
+                        added_platforms.add(plat)
                         print(f"  👁 {plat} [{adp['mode']}]: {d}", flush=True)
+        return added_platforms
 
     refresh()
     for plat in ADAPTERS:                 # catch-up histórico no startup
@@ -139,7 +142,8 @@ def main() -> int:
                 _do_ingest(plat)
                 pending.pop(plat, None)
         if time.time() - last_refresh > 15:
-            refresh()
+            for plat in refresh():
+                _do_ingest(plat)
             last_refresh = time.time()
 
 

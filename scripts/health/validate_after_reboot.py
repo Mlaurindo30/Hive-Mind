@@ -12,6 +12,10 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+if __package__ in (None, ""):
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
 from scripts.utils.recovery import verify_database
 
 

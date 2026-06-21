@@ -5,10 +5,29 @@ cerebro/.obsidian/workspace.json
 cerebro/.obsidian/workspace-mobile.json
 cerebro/.trash/
 cerebro.backup*
+# Vault: conteúdo runtime (sessões, inbox, trabalho ativo, decisões, projetos)
+cerebro/cerebelo/sessoes/
+cerebro/cerebro/
+cerebro/cortex/frontal/decisoes/
+cerebro/cortex/frontal/projetos/
+cerebro/cortex/frontal/trabalho/
+cerebro/cortex/insula/
+cerebro/cortex/parietal/inbox/
+# Vault: neurônios individuais (gerados pelo Dream Cycle)
+cerebro/cortex/temporal/**/neuronio-*.md
+# Vault: projetos externos ao Hive-Mind (memória de outros repositórios)
+cerebro/cortex/temporal/ComfyUI/
+cerebro/cortex/temporal/OpenAlice/
+cerebro/cortex/temporal/Thoth/
+cerebro/cortex/temporal/agent-langgraph/
+cerebro/cortex/temporal/e2e-chatbot-app-next/
+cerebro/cortex/temporal/michel/
+cerebro/cortex/temporal/open-design/
+cerebro/cortex/temporal/openclaw-crestodian-planner-NyDaMs/
 
-# ── Graphify output ────────────────────────────────────────────────
-cerebro/graphify-out/cache/
-cerebro/graphify-out/converted/
+# ── Graphify output (artefatos runtime — regenerados, não commitar) ──
+cerebro/graphify-out/
+graphify-out/
 
 # ── Dependências ───────────────────────────────────────────────────
 node_modules/
@@ -25,6 +44,8 @@ Thumbs.db
 *~
 .idea/
 .vscode/
+# Config local de máquina (systemd user units — instalar via script)
+.config/
 
 # ── Logs ───────────────────────────────────────────────────────────
 *.log
@@ -83,7 +104,6 @@ hnsw_neurons.map.json
 # ── Outputs de sessão (gerados em runtime, não fazem parte do código) ─
 council_responses.txt
 *.bak
-graphify-out/cache/
 
 # ── Arquivos temporários e de testes do workspace ────────────────────
 contrarian_prompt.md

@@ -24,7 +24,7 @@ import pytest
 # ---------------------------------------------------------------------------
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DREAM_CYCLE_PATH = PROJECT_ROOT / "scripts" / "dream_cycle.py"
+DREAM_CYCLE_PATH = PROJECT_ROOT / "scripts" / "dream" / "dream_cycle.py"
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ def _archived_status(conn: sqlite3.Connection) -> dict:
 @pytest.fixture()
 def dream_module():
     """
-    Carrega scripts/dream_cycle.py com dependências externas substituídas:
+    Carrega scripts/dream/dream_cycle.py com dependências externas substituídas:
     - yaml.safe_load → retorna config mínima
     - open() → não lê arquivos reais
     - core.database → mockado (banco em memória gerenciado por cada teste)

@@ -370,7 +370,7 @@ Apenas exceções Python e timeouts contam como falha — resultados vazios (nã
 |----------|-----------|---------|
 | Escrita de decisões/aprendizados | Imediata | PostToolUse / Stop hook |
 | Indexação no UMC (Watcher) | ~2 segundos | watchdog FileModifiedEvent |
-| Dream Cycle | Manual ou cron | `python3 scripts/dream_cycle.py` |
+| Dream Cycle | Manual ou cron | `python3 scripts/dream/dream_cycle.py` |
 | Auditoria P2P | 1x por hora | Cron `audit_memory.py --fix` |
 | Backup UMC | Diário 3am | Cron `cp hive_mind.db backups/` |
 

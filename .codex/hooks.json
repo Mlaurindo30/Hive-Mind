@@ -1,5 +1,5 @@
 {
-  "description": "Hive-Mind project-local claude-mem Codex hook integration",
+  "description": "Hive-Mind claude-mem Codex hook integration using global temporal data",
   "hooks": {
     "SessionStart": [
       {
@@ -7,17 +7,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/capture/claude-mem-hook.sh version-check",
+            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/claude-mem-hook.sh version-check",
             "timeout": 5
           },
           {
             "type": "command",
-            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/capture/claude-mem-hook.sh ensure-worker",
+            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/claude-mem-hook.sh ensure-worker",
             "timeout": 60
           },
           {
             "type": "command",
-            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/capture/claude-mem-hook.sh hook codex context",
+            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/claude-mem-hook.sh hook codex context",
             "timeout": 60,
             "statusMessage": "Loading claude-mem context"
           }
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/capture/claude-mem-hook.sh hook codex session-init",
+            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/claude-mem-hook.sh hook codex session-init",
             "timeout": 60
           }
         ]
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/capture/claude-mem-hook.sh hook codex file-context",
+            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/claude-mem-hook.sh hook codex file-context",
             "timeout": 30
           }
         ]
@@ -53,7 +53,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/capture/claude-mem-hook.sh hook codex observation",
+            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/claude-mem-hook.sh hook codex observation",
             "timeout": 120
           }
         ]
@@ -64,7 +64,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/capture/claude-mem-hook.sh hook codex summarize",
+            "command": "/home/michel/Documentos/Projects/Hive-Mind/scripts/claude-mem-hook.sh hook codex summarize",
             "timeout": 60
           }
         ]

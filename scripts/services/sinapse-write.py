@@ -2,11 +2,11 @@
 """
 Sinapse Agent — CLI standalone de escrita para agentes sem plugin Python.
 Uso:
-  python3 scripts/sinapse-write.py decision --title "Título" --content "Conteúdo"
-  python3 scripts/sinapse-write.py learning --title "Título" --content "Conteúdo"
-  python3 scripts/sinapse-write.py query "texto da busca"
-  python3 scripts/sinapse-write.py health
-  python3 scripts/sinapse-write.py session-end --summary "Resumo da sessão"
+  python3 scripts/services/sinapse-write.py decision --title "Título" --content "Conteúdo"
+  python3 scripts/services/sinapse-write.py learning --title "Título" --content "Conteúdo"
+  python3 scripts/services/sinapse-write.py query "texto da busca"
+  python3 scripts/services/sinapse-write.py health
+  python3 scripts/services/sinapse-write.py session-end --summary "Resumo da sessão"
 """
 
 import argparse

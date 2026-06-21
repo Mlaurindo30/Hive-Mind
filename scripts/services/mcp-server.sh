@@ -15,7 +15,7 @@ PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 GRAPH_JSON="$PROJECT_ROOT/cerebro/graphify-out/graph.json"
 
 if [ ! -f "$GRAPH_JSON" ]; then
-    echo "[sinapse] graph.json não encontrado. Execute ./scripts/build-graph.sh primeiro."
+    echo "[sinapse] graph.json não encontrado. Execute ./scripts/graph/build-graph.sh primeiro."
     exit 1
 fi
 

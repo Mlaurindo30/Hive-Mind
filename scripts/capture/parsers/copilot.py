@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from capture_core import _text, project_from_cwd
+from capture_core import project_from_cwd, text_content
 
 
 def _workspace_cwd(path: Path) -> str | None:
@@ -61,7 +61,7 @@ def _parse_transcript(path: Path):
             sid = data.get("sessionId") or sid
         elif ev == "user.message":
             flush(current_turn_id); current_turn_id = None
-            txt = _text(data.get("content"))
+            txt = text_content(data.get("content"))
             if txt:
                 prompt = prompt or txt
                 pending_user = txt
@@ -70,7 +70,7 @@ def _parse_transcript(path: Path):
         elif ev == "assistant.turn_end":
             flush(data.get("turnId") or current_turn_id); current_turn_id = None
         elif ev == "assistant.message":
-            txt = _text(data.get("content")) or _text(data.get("reasoningText"))
+            txt = text_content(data.get("content")) or text_content(data.get("reasoningText"))
             if not txt:
                 continue
             names = [str(r.get("name") or "").strip()

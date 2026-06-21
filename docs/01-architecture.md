@@ -106,9 +106,9 @@
 | `cerebro/` | Conteúdo canônico | Tudo (vault Obsidian puro funciona sem o sistema) |
 | `core/` | Schema UMC, conexões, auth, schemas Pydantic | Agentes específicos |
 | `graphify/` | Indexação estrutural → neurons/synapses | claude-mem, RTK |
-| `claude-mem/` | Captura de eventos → observations | Graphify, RTK |
+| `~/.claude-mem` | Captura temporal global de eventos → observations | Graphify, RTK |
 | `rtk/` | Reescrita de comandos shell | Tudo (hook isolado) |
-| `neural-memory/` | Recall associativo (spreading activation) | Camadas restantes |
+| `integrations/neural-memory/` | Recall associativo (spreading activation) | Camadas restantes |
 | `scripts/` | Pipeline, servidores, operação | — |
 | `plugins/hermes/` | Ponte bidirecional Hermes ↔ UMC ↔ vault | — |
 | `sinapse.yaml` | Configuração central (paths, portas, agentes) | — |
@@ -277,7 +277,7 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
 
 ## 6. O Ciclo de Sonho (Hive-Dreamer)
 
-`scripts/dream_cycle.py` — consolidação offline com saída Pydantic validada.
+`scripts/dream/dream_cycle.py` — consolidação offline com saída Pydantic validada.
 
 ```
   ┌────────────────────────────────────────────────────────────────┐
@@ -419,7 +419,7 @@ O estágio multimodal roda **dentro** do Dream Cycle — imagens e documentos en
 
 ## 9. Camada de Acesso
 
-### 9.1 MCP Server (`scripts/sinapse-mcp.py`)
+### 9.1 MCP Server (`scripts/services/sinapse-mcp.py`)
 
 stdio JSON-RPC, compatível com qualquer cliente MCP.
 
@@ -435,6 +435,7 @@ stdio JSON-RPC, compatível com qualquer cliente MCP.
 | `sinapse_zettelkasten_split` | `(file_path)` | Nota monolítica → notas atômicas Zettelkasten |
 | `sinapse_capture_screen` | `(description?)` | Screenshot → `visual_memories` |
 | `sinapse_plan_goal` | `(goal, context?)` | Decompõe objetivo em passos atômicos e salva no Intent Memory |
+| `search_memories` | `(query, top_k?, project?, mode?)` | Busca HNSW/FTS sobre o vault |
 
 **Configs MCP por agente** (templates em `mcp/`):
 Claude Code: `~/.claude/.mcp.json` · Codex: `~/.codex/mcp.json` · Cursor: `.cursor/mcp.json` · Gemini: `~/.gemini/settings.json`
@@ -450,11 +451,11 @@ def register(ctx):
 
 Único componente que conhece todas as camadas. Circuit breaker embutido (3 falhas → cooldown 30s). `health_check()` retorna status de todos os backends.
 
-### 9.3 CLI standalone (`scripts/sinapse-write.py`)
+### 9.3 CLI standalone (`scripts/services/sinapse-write.py`)
 
 `decision` · `learning` · `query` · `health` · `session-end` — para agentes sem MCP.
 
-### 9.4 REST API (`scripts/sinapse-api.py`)
+### 9.4 REST API (`scripts/services/sinapse-api.py`)
 
 FastAPI, porta `HIVE_MIND_API_PORT` (default **37702**). Fail-closed sem `HIVE_MIND_API_KEY`.
 
@@ -584,6 +585,7 @@ Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiL
 | `cron/sync-diario.sh` | `0 2 * * 0` | Rebuild completo `--force` (logs rotacionados, últimos 30) |
 | `dream_cycle.py` | noturno (recomendado) | Consolidação de memória |
 | `audit_memory.py` | pós-sync P2P | Reconciliação vault ↔ SQLite |
+| `alias_miner.py` | ciclo de memória | Mineração de aliases (slugs) para neurônios |
 
 ---
 
@@ -611,7 +613,7 @@ Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiL
        "mcpServers": {
          "sinapse-memory": {
            "command": "python3",
-           "args": ["<SINAPSE_HOME>/scripts/sinapse-mcp.py"]
+          "args": ["<SINAPSE_HOME>/scripts/services/sinapse-mcp.py"]
          }
        }
      }
@@ -645,7 +647,7 @@ Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiL
 ## 15. Disaster Recovery
 
 ```bash
-./scripts/recover.sh
+./scripts/utils/recover.sh
 ```
 
 1. Verifica/reconstrói índice do grafo

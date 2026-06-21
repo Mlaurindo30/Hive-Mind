@@ -11,7 +11,7 @@ spec.loader.exec_module(mcp)
 
 
 class TestSinapseMCP:
-    """Testes para scripts/sinapse-mcp.py (MCP server)"""
+    """Testes para scripts/services/sinapse-mcp.py (MCP server)"""
 
     def test_initialize_response(self):
         req = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}

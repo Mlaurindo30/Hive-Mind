@@ -438,7 +438,7 @@ Componentes envolvidos:
 
 | Componente | Arquivo | Responsabilidade |
 |------------|---------|-----------------|
-| Export endpoint | `sinapse-api.py` | `POST /api/v1/neurons/export`, autenticado |
+| Export endpoint | `scripts/services/sinapse-api.py` | `POST /api/v1/neurons/export`, autenticado |
 | Visibility filter | `neurons.visibility` | `private` (default) / `shared` / `public` |
 | Redactor | `core/redactor.py` | Remove PII irreversivelmente antes do export |
 | Signing | `core/signing.py` | Ed25519 keypair, assina/verifica JSON canonico |
@@ -451,12 +451,12 @@ Componentes envolvidos:
 |------------|---------|------|-----------|
 | UMC core | `hive_mind.py` | base | SQLite + FTS5 + sqlite-vec |
 | Graphify watcher | `graphify/` | base | Indexacao em tempo real |
-| Dream Cycle | `scripts/dream_cycle.py` | base | Consolidacao offline |
-| sinapse-api | `sinapse-api.py` | base | REST :37702 |
-| sinapse-mcp | `sinapse-mcp.py` | base | MCP stdio (9+ tools) |
-| sinapse-hook | `sinapse-hook.py` | base | Hooks universais |
+| Dream Cycle | `scripts/dream/dream_cycle.py` | base | Consolidacao offline |
+| sinapse-api | `scripts/services/sinapse-api.py` | base | REST :37702 |
+| sinapse-mcp | `scripts/services/sinapse-mcp.py` | base | MCP stdio (11 tools) |
+| sinapse-hook | `cerebro/.claude/scripts/sinapse-hook.py` | base | Hooks universais |
 | HNSW Index | `core/hnsw_index.py` | HM-11 | Indice incremental fastembed 384d |
-| Planner | `scripts/planner.py` | HM-11 | Decompositor de objetivos via LLM |
+| Planner | `scripts/analytics/planner.py` | HM-11 | Decompositor de objetivos via LLM |
 | Signing | `core/signing.py` | HM-12 | Ed25519 assinatura/verificacao |
 | Redactor | `core/redactor.py` | HM-12 | Remocao irreversivel de PII |
 
