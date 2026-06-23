@@ -57,7 +57,7 @@
                        ▼                         │             ▼
   ┌────────────────────────────────┐             │  ┌──────────────────────┐
   │  sinapse-mcp.py (MCP Server)  │             │  │ sinapse-memory.py    │
-  │  10 tools · stdio JSON-RPC     │             │  │ Plugin Hermes         │
+  │  12 tools · stdio JSON-RPC     │             │  │ Plugin Hermes         │
   │                               │             │  │ pre_gateway_dispatch │
   │  sinapse-write.py (CLI)        │             │  │ post_tool_call       │
   │  sinapse-api.py (REST :37702)  │             │  │ on_session_end       │
@@ -435,10 +435,18 @@ stdio JSON-RPC, compatível com qualquer cliente MCP.
 | `sinapse_zettelkasten_split` | `(file_path)` | Nota monolítica → notas atômicas Zettelkasten |
 | `sinapse_capture_screen` | `(description?)` | Screenshot → `visual_memories` |
 | `sinapse_plan_goal` | `(goal, context?)` | Decompõe objetivo em passos atômicos e salva no Intent Memory |
+| `sinapse_temporal_graph_search` | `(query, num_results?)` | Grafo temporal Graphiti/FalkorDB — arestas com `valid_at`/`invalid_at` (P2) |
 | `search_memories` | `(query, top_k?, project?, mode?)` | Busca HNSW/FTS sobre o vault |
 
-**Configs MCP por agente** (templates em `mcp/`):
-Claude Code: `~/.claude/.mcp.json` · Codex: `~/.codex/mcp.json` · Cursor: `.cursor/mcp.json` · Gemini: `~/.gemini/settings.json`
+Total: **12 tools**. Registro/instructions automáticos via `register-mcp.sh`.
+
+**Fonte única de instruções operacionais:** `config/sinapse-agent-prompt.md`.
+- Carregado por `scripts/services/sinapse-mcp.py:_load_instructions()` (L38–53) e exposto como `instructions` no `initialize` do MCP.
+- Injetado em `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` / `.github/copilot-instructions.md` / `.cursor/rules/hive-mind.md` via `register-mcp.sh:inject_instructions()` (L325–351), entre marcadores `<!-- BEGIN HIVE-MIND SINAPSE -->` / `<!-- END HIVE-MIND SINAPSE -->`.
+- Corrigir o prompt é a única ação necessária para propagar a política operacional para todas as instalações limpas futuras.
+
+**Configs MCP por agente** (registro via `scripts/setup/register-mcp.sh`):
+Claude Code: `<projeto>/.mcp.json` (escopo project, `claude mcp add -s project` — **não** `~/.claude/.mcp.json`) · Codex: `~/.codex/config.toml` + `~/.codex/mcp.json` · Cursor: `~/.cursor/mcp.json` · Gemini: `~/.gemini/settings.json`
 
 ### 9.2 Plugin Hermes (`plugins/hermes/sinapse-memory.py`)
 

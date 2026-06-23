@@ -6,7 +6,7 @@
             "cwd": "PROJECT_ROOT_PLACEHOLDER",
             "transport": "stdio",
             "enabled": true,
-            "description": "Sinapse Agent — Universal Memory Layer. Tools: sinapse_query, sinapse_save_decision, sinapse_save_learning, sinapse_health, sinapse_session_end."
+            "description": "Sinapse Agent — Universal Memory Layer (Hive-Mind). 12 tools: sinapse_query, sinapse_save_decision, sinapse_save_learning, sinapse_health, sinapse_session_end, sinapse_temporal_search, sinapse_temporal_save, sinapse_temporal_graph_search, sinapse_zettelkasten_split, sinapse_capture_screen, sinapse_plan_goal, search_memories. Política operacional completa em config/sinapse-agent-prompt.md (carregada automaticamente como 'instructions' no initialize do MCP)."
         }
     }
 }
