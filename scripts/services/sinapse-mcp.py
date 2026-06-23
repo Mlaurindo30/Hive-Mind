@@ -34,6 +34,24 @@ if "sinapse_memory" not in sys.modules:
 else:
     import sinapse_memory as sm
 
+
+def _load_instructions() -> str:
+    """Carrega a política de uso do agente (fonte única em config/).
+    O mesmo arquivo é injetado nos prompts dos agentes pelo register-mcp.sh."""
+    try:
+        p = Path(__file__).resolve().parents[2] / "config" / "sinapse-agent-prompt.md"
+        return p.read_text(encoding="utf-8").strip()
+    except Exception:
+        return (
+            "Hive-Mind (sinapse-memory): antes de responder sobre o projeto, "
+            "consulte com sinapse_query/search_memories; salve decisões e "
+            "aprendizados com sinapse_save_decision/sinapse_save_learning; chame "
+            "sinapse_session_end ao fim. Use SOMENTE as tools sinapse_*."
+        )
+
+
+SINAPSE_INSTRUCTIONS = _load_instructions()
+
 TOOLS = [
     {
         "name": "sinapse_query",
@@ -150,15 +168,20 @@ TOOLS = [
     },
     {
         "name": "sinapse_capture_screen",
-        "description": "Capture the user's screen and save it to the vault (cerebro/inbox/visual/). Returns the absolute path of the image and the provided description. Useful for visual context and UI review.",
+        "description": "Capture exactly one screenshot on explicit agent/user request and save it to the vault (cerebro/inbox/visual/). Use only when visual context is necessary. Never use in loops or for monitoring. On multi-monitor setups, pass monitor explicitly.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "description": {
                     "type": "string",
-                    "description": "Optional description/reason for the capture. Will be used in the filename."
+                    "description": "Required reason/context for the capture. Will be used in the filename."
+                },
+                "monitor": {
+                    "type": "integer",
+                    "description": "Physical monitor index to capture (1-based). Required when more than one monitor is connected."
                 }
-            }
+            },
+            "required": ["description"]
         }
     },
     {
@@ -235,7 +258,7 @@ TOOLS = [
 ]
 
 HANDLERS = {
-    "sinapse_query": lambda args: sm._backend_umc(args.get("query", "")) or {"source": "umc", "observations": [], "query": args.get("query")},
+    "sinapse_query": lambda args: _sinapse_query_with_diagnostics(args.get("query", "")),
     "sinapse_save_decision": lambda args: {
         "saved": sm._save_decision(args.get("title", ""), args.get("content", "")) is not None
     },
@@ -247,7 +270,10 @@ HANDLERS = {
     "sinapse_temporal_search": lambda args: _temporal_search(args.get("query", "")),
     "sinapse_temporal_save": lambda args: _temporal_save(args.get("content", ""), args.get("kind", "change")),
     "sinapse_zettelkasten_split": lambda args: _zettelkasten_split(args.get("source_file", ""), args.get("output_dir", "cerebro/atoms")),
-    "sinapse_capture_screen": lambda args: _capture_screen(args.get("description", "")),
+    "sinapse_capture_screen": lambda args: _capture_screen(
+        args.get("description", ""),
+        args.get("monitor"),
+    ),
     "sinapse_plan_goal": lambda args: _plan_goal(args.get("goal", ""), args.get("context")),
     "sinapse_temporal_graph_search": lambda args: _temporal_graph_search(
         args.get("query", ""),
@@ -273,7 +299,37 @@ def _session_end(summary):
     return {"updated": True}
 
 
-def _capture_screen(description=""):
+def _sinapse_query_with_diagnostics(query: str) -> dict:
+    """
+    Envolve sm._backend_umc propagando a exception quando o backend falha.
+
+    O backend em core/memory/backends/umc.py engole a exception via log_fn
+    e devolve None — para debug de produção, o chamador MCP precisa saber
+    o motivo da falha (core.database ausente, sqlite-vec indisponível, etc.).
+    O `or` original em HANDLERS['sinapse_query'] silenciava essa perda.
+    """
+    try:
+        result = sm._backend_umc(query)
+    except Exception as e:
+        return {
+            "source": "umc",
+            "observations": [],
+            "query": query,
+            "error": str(e),
+            "error_type": type(e).__name__,
+        }
+    if result is None:
+        return {
+            "source": "umc",
+            "observations": [],
+            "query": query,
+            "error": "_backend_umc returned None (backend indisponível ou query falhou)",
+            "error_type": "BackendUnavailable",
+        }
+    return result
+
+
+def _capture_screen(description="", monitor=None):
     """Captura tela via Screenpipe REST (primário) ou visual_capture.py (fallback)."""
     import os
     import subprocess
@@ -284,7 +340,7 @@ def _capture_screen(description=""):
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
         from scripts.capture.parsers.screenpipe import screenpipe_alive, capture_screenshot
         if screenpipe_alive():
-            result = capture_screenshot(description)
+            result = capture_screenshot(description, monitor=monitor)
             if result.get("path"):
                 return {"success": True, **result}
     except Exception:
@@ -294,6 +350,8 @@ def _capture_screen(description=""):
     scripts_dir = os.path.dirname(__file__)
     capture_script = os.path.join(scripts_dir, "visual_capture.py")
     cmd = [sys.executable, capture_script]
+    if monitor is not None:
+        cmd.extend(["--monitor", str(monitor)])
     if description:
         cmd.append(description)
     try:
@@ -417,7 +475,8 @@ def handle_request(req: dict) -> dict | None:
             "result": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "sinapse-memory", "version": "1.0.0"}
+                "serverInfo": {"name": "sinapse-memory", "version": "1.0.0"},
+                "instructions": SINAPSE_INSTRUCTIONS,
             }
         }
     elif method == "tools/list":

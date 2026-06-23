@@ -404,13 +404,28 @@ def run_visual_dream_stage():
 
     conn = get_connection()
     processed_count = 0
-    
+    skipped_placeholder = 0
+
     for img_path in images:
         # Verifica se já está no banco
         exists = conn.execute("SELECT 1 FROM visual_memories WHERE image_path = ?", (str(img_path),)).fetchone()
         if exists:
             continue
-            
+
+        # F9 GATING: pula placeholders de teste (< 1 KB) e arquivos vazios.
+        # O LLM Vision gasta ~35s por imagem mesmo quando ela é placeholder
+        # (timeout + retry + parsing), o que estoura o budget do ciclo
+        # (visual_dream_ms=544s = 66% do total). O ciclo de 23/06 terminou
+        # com BUDGET_EXHAUSTED por causa disso. Corrigido em 2026-06-23.
+        try:
+            if img_path.stat().st_size < 1024:
+                print(f"  [Vision] Pulando {img_path.name} (placeholder < 1KB)")
+                skipped_placeholder += 1
+                continue
+        except OSError as e:
+            print(f"  [Vision] Erro ao inspecionar {img_path.name}: {e}. Pulando.")
+            continue
+
         print(f"  [Vision] Processando: {img_path.name}...")
         
         try:
@@ -475,7 +490,8 @@ source_image: {img_path.name}
             print(f"  [Error] Falha ao processar {img_path.name}: {e}")
 
     conn.close()
-    print(f"=== Estágio Visual Concluído ({processed_count} imagens processadas) ===")
+    suffix = f" ({skipped_placeholder} placeholders pulados)" if skipped_placeholder else ""
+    print(f"=== Estágio Visual Concluído ({processed_count} imagens processadas{suffix}) ===")
 
 # ---------------------------------------------------------------------------
 # Fluxo Principal (Main Loop)
@@ -495,6 +511,7 @@ def _route_and_persist_project(conn, now, proj, distilled, proj_obs_ids, mark_ob
         return 0
 
     persisted = 0
+    first_nid: str | None = None
     fact_map = {f.id: f for f in distilled.facts}
     for r in routed.routed_facts:
         fact = fact_map.get(r.fact_id)
@@ -502,7 +519,11 @@ def _route_and_persist_project(conn, now, proj, distilled, proj_obs_ids, mark_ob
             continue
 
         safe_topic = re.sub(r'[^a-z0-9_]', '', r.topic.lower().replace(" ", "_")) or "general"
-        nid = fact.id.replace("fact-", "neuronio-", 1) if fact.id.startswith("fact-") else fact.id
+        # F6 PREVENTION: nome semântico = slug do label + 8 chars do hash para unicidade.
+        # Garante legibilidade no grafo Obsidian sem sacrificar determinismo.
+        _label_slug = re.sub(r'[^a-z0-9]+', '-', fact.label.lower())[:40].strip('-')
+        _hash_short = fact.id.replace("fact-", "")[:8] if fact.id.startswith("fact-") else fact.id[:8]
+        nid = f"neuronio-{_label_slug}-{_hash_short}" if _label_slug else f"neuronio-{_hash_short}"
         note_file = cp.TEMPORAL / proj / safe_topic / f"{nid}.md"
         note_file.parent.mkdir(parents=True, exist_ok=True)
         aliases_val = json.dumps([fact.alias] if fact.alias else [])
@@ -524,10 +545,10 @@ source: hive-dreamer
 > {fact.source_quotes[0] if fact.source_quotes else 'N/A'}
 
 ## Sinapses
-- projeto:: [[_{proj}]]
-- tópico:: [[_{safe_topic}]]
-
-#consolidated #{safe_topic}
+- projeto:: [[{proj}]]
+- tópico:: [[{safe_topic}]]
+- lobo:: [[cortex-temporal]]
+- córtex:: [[cortex]]
 """
 
         source_rel = str(note_file.relative_to(SINAPSE_HOME))
@@ -552,6 +573,18 @@ source: hive-dreamer
 
         print(f"  [+] Neurônio {r.action}: {proj}/{safe_topic}/{nid}.md")
         persisted += 1
+        if first_nid is None:
+            first_nid = nid
+
+    # Liga as observações ao primeiro neurônio criado no lote (FK §13.2).
+    # Não sobrescreve ligações já existentes de ciclos anteriores.
+    if first_nid:
+        for oid in proj_obs_ids:
+            conn.execute(
+                "UPDATE observations SET neuron_id = ? WHERE id = ? AND neuron_id IS NULL",
+                (first_nid, oid),
+            )
+        conn.commit()
 
     # Obs do projeto consolidadas só após persistência bem-sucedida.
     mark_obs(1, proj_obs_ids)
@@ -713,7 +746,11 @@ def _run_dream_cycle_inner() -> Dict[str, int]:
 
     # --- CAMADA DE NAVEGAÇÃO (MOCs) — §7.6 ---
     try:
-        from generate_mocs import build_mocs
+        # O módulo generate_mocs está em scripts/knowledge/, mas o sys.path
+        # do systemd unit contém só o project root (não scripts/knowledge/).
+        # Import via path completo para evitar "No module named 'generate_mocs'".
+        # Corrigido em 2026-06-23.
+        from scripts.knowledge.generate_mocs import build_mocs
         moc_t0 = time.perf_counter()
         build_mocs(verbose=True)
         mark_stage("mocs_ms", moc_t0)

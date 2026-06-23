@@ -3,14 +3,14 @@
 # register-mcp.sh — Registra o Hive-Mind MCP nos agentes de IA
 #
 # Uso:
-#   ./scripts/register-mcp.sh --only <agente>   # registra SÓ o agente indicado
-#   ./scripts/register-mcp.sh                    # (avançado) registra TODOS detectados
-#   ./scripts/register-mcp.sh --check            # só mostra status, sem modificar
-#   ./scripts/register-mcp.sh --list             # lista as chaves de agente válidas
+#   ./scripts/setup/register-mcp.sh --only <agente>   # registra SÓ o agente indicado
+#   ./scripts/setup/register-mcp.sh --only <agente> --check
+#   ./scripts/setup/register-mcp.sh --list             # lista as chaves válidas
+#   ./scripts/setup/register-mcp.sh                    # avançado: registra TODOS detectados
 #
 # Filosofia: cada agente deve registrar a SI MESMO com --only <agente>.
-# O modo sem argumento (registra todos) é um atalho de administrador, usado
-# também pelo install.sh (etapa 12) numa instalação do zero.
+# O modo sem argumento (registra todos) é um atalho de administrador. O
+# install.sh não chama esse modo; numa instalação normal use --only.
 #
 # Idempotente. Faz MERGE no JSON/TOML de cada agente — nunca remove MCP
 # servers de terceiros já registrados.
@@ -23,6 +23,7 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${PROJECT_ROOT:-$(dirname "$(dirname "$SCRIPT_DIR")")}"
 PYTHON="$PROJECT_ROOT/.venv/bin/python"
+[ -x "$PYTHON" ] || PYTHON="$(command -v python3 || command -v python)"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -34,9 +35,16 @@ VALID_AGENTS="claude codex gemini qwen kimi kiro kilo roo vscode cursor opencode
 CHECK_ONLY=false
 ONLY=""          # vazio = todos os detectados
 
+# Política de uso do agente (fonte única). É devolvida pelo sinapse-mcp.py como
+# `instructions` no initialize E injetada nos arquivos de prompt aqui (híbrido).
+PROMPT_SRC="$PROJECT_ROOT/config/sinapse-agent-prompt.md"
+INJECT_PROMPT=true
+[ -n "${HIVE_SKIP_PROMPT:-}" ] && INJECT_PROMPT=false
+
 while [ $# -gt 0 ]; do
     case "$1" in
         --check) CHECK_ONLY=true ;;
+        --no-instructions) INJECT_PROMPT=false ;;
         --only|--self|--agent)
             shift
             ONLY="${1:-}"
@@ -71,9 +79,10 @@ if [ -n "$ONLY" ]; then
     esac
 fi
 
-# Merge seguro: adiciona/atualiza os três servidores gerenciados pelo
+# Merge seguro: adiciona/atualiza o servidor sinapse-memory gerenciado pelo
 # Hive-Mind, preservando quaisquer outros MCP servers registrados pelo usuário.
-# O servidor claude-mem usa o runtime temporal global em ~/.claude-mem.
+# sinapse-memory federa NeuralMemory, claude-mem, Graphify, FalkorDB e UMC;
+# os backends crus não são mais expostos como MCP separado ao agente.
 # Uso: merge_mcp_server <arquivo> [chave_raiz]
 #   chave_raiz padrão: mcpServers — VS Code (.vscode/mcp.json) usa "servers"
 merge_mcp_server() {
@@ -85,21 +94,16 @@ import json, os
 path = os.environ["MCP_TARGET_FILE"]
 root_key = os.environ["MCP_ROOT_KEY"]
 project_root = os.environ["MCP_PROJECT_ROOT"]
+# Apenas o orquestrador sinapse-memory é exposto ao agente. Ele federa
+# por dentro NeuralMemory (.neuralmemory/), claude-mem (worker :37700),
+# Graphify, FalkorDB/Graphiti, UMC SQL e filesystem. claude-mem segue
+# capturando via hooks (.claude/settings.json), não precisa de MCP próprio.
 entries = {
     "sinapse-memory": {
         "command": f"{project_root}/.venv/bin/python",
         "args": [f"{project_root}/scripts/services/sinapse-mcp.py"],
         "cwd": project_root,
-    },
-    "claude-mem-local": {
-        "command": f"{project_root}/scripts/services/start-claude-mem-mcp.sh",
-        "args": [],
-        "cwd": project_root,
-    },
-    "neural-memory-local": {
-        "command": f"{project_root}/scripts/services/neural-memory-local.sh",
-        "args": [],
-        "cwd": project_root,
+        "env": {"PYTHONPATH": project_root},
     },
 }
 cfg = {}
@@ -112,6 +116,10 @@ if os.path.exists(path):
 if not isinstance(cfg, dict):
     cfg = {}
 servers = cfg.setdefault(root_key, {})
+# Colapsa o modelo legado (3 backends crus) para só sinapse-memory: remove os
+# nomes que NÓS gerenciávamos antes, preservando MCP servers de terceiros.
+for legacy in ("claude-mem-local", "neural-memory-local"):
+    servers.pop(legacy, None)
 for name, entry in entries.items():
     if root_key == "servers":
         entry["type"] = "stdio"
@@ -130,7 +138,7 @@ has_registration() {
 import json, sys
 try:
     cfg = json.load(open('$FILE'))
-    expected = {'sinapse-memory', 'claude-mem-local', 'neural-memory-local'}
+    expected = {'sinapse-memory'}
     sys.exit(0 if expected <= set(cfg.get('$ROOT_KEY', {})) else 1)
 except Exception:
     sys.exit(1)
@@ -139,28 +147,22 @@ except Exception:
 
 register_codex() {
     if $CHECK_ONLY; then
-        local missing=0
-        for server in sinapse-memory claude-mem-local neural-memory-local; do
-            codex mcp get "$server" >/dev/null 2>&1 || missing=1
-        done
-        if [ "$missing" -eq 0 ]; then
-            echo -e "  ${GREEN}✓${NC} Codex CLI — 3 servidores registrados (~/.codex/config.toml)"
+        if codex mcp get sinapse-memory >/dev/null 2>&1; then
+            echo -e "  ${GREEN}✓${NC} Codex CLI — sinapse-memory registrado (~/.codex/config.toml)"
         else
-            echo -e "  ${YELLOW}⊘${NC} Codex CLI — registro incompleto (~/.codex/config.toml)"
+            echo -e "  ${YELLOW}⊘${NC} Codex CLI — SEM registro (~/.codex/config.toml)"
         fi
     else
+        # Remove servidores legados (modelo antigo de 3 backends crus) e os
+        # re-registra apenas como o orquestrador sinapse-memory.
         for server in sinapse-memory claude-mem-local neural-memory-local; do
             codex mcp remove "$server" >/dev/null 2>&1 || true
         done
-        codex mcp add sinapse-memory -- \
+        codex mcp add sinapse-memory --env PYTHONPATH="$PROJECT_ROOT" -- \
             "$PROJECT_ROOT/.venv/bin/python" "$PROJECT_ROOT/scripts/services/sinapse-mcp.py"
-        codex mcp add claude-mem-local -- \
-            "$PROJECT_ROOT/scripts/services/start-claude-mem-mcp.sh"
-        codex mcp add neural-memory-local -- \
-            "$PROJECT_ROOT/scripts/services/neural-memory-local.sh"
         # Mantém o JSON compatível com clientes Codex anteriores.
         merge_mcp_server "$HOME/.codex/mcp.json"
-        echo -e "  ${GREEN}✓${NC} Codex CLI → 3 servidores gerenciados"
+        echo -e "  ${GREEN}✓${NC} Codex CLI → sinapse-memory"
     fi
     ((++AGENTS_FOUND))
 }
@@ -182,7 +184,32 @@ register() {
 }
 
 # -- Registradores por agente (cada um sabe o caminho de config do seu agente) --
-do_claude()   { register "Claude Code" "$HOME/.claude/.mcp.json"; }
+# Claude Code NÃO lê ~/.claude/.mcp.json. As fontes válidas são o .mcp.json
+# do projeto (escopo project) e ~/.claude.json (escopo user/local). Usamos o
+# CLI oficial `claude mcp add -s project`, que grava em <PROJECT_ROOT>/.mcp.json.
+# Fallback (sem CLI): escreve o .mcp.json do projeto via merge_mcp_server.
+do_claude() {
+    if ! command -v claude >/dev/null 2>&1; then
+        register "Claude Code (project .mcp.json)" "$PROJECT_ROOT/.mcp.json"
+        return
+    fi
+    if $CHECK_ONLY; then
+        if ( cd "$PROJECT_ROOT" && claude mcp get sinapse-memory ) >/dev/null 2>&1; then
+            echo -e "  ${GREEN}✓${NC} Claude Code — sinapse-memory registrado (escopo project)"
+        else
+            echo -e "  ${YELLOW}⊘${NC} Claude Code — SEM registro (rode sem --check)"
+        fi
+    else
+        ( cd "$PROJECT_ROOT" && {
+            claude mcp remove sinapse-memory -s project >/dev/null 2>&1 || true
+            claude mcp add sinapse-memory -s project \
+                -e PYTHONPATH="$PROJECT_ROOT" \
+                -- "$PROJECT_ROOT/.venv/bin/python" "$PROJECT_ROOT/scripts/services/sinapse-mcp.py"
+        } )
+        echo -e "  ${GREEN}✓${NC} Claude Code → sinapse-memory (.mcp.json do projeto)"
+    fi
+    ((++AGENTS_FOUND))
+}
 do_codex()    { register_codex; }
 do_gemini()   { register "Gemini CLI" "$HOME/.gemini/settings.json"; }
 do_qwen()     { register "Qwen Code" "$HOME/.qwen/settings.json"; }
@@ -208,7 +235,7 @@ try:
     conn = sqlite3.connect('$SCLAW_DB')
     rows = conn.execute('SELECT data FROM mcp_servers').fetchall()
     names = {json.loads(r[0]).get('name') for r in rows}
-    expected = {'sinapse-memory', 'claude-mem-local', 'neural-memory-local'}
+    expected = {'sinapse-memory'}
     missing = expected - names
     conn.close()
     print('MISSING:' + ','.join(sorted(missing)) if missing else 'OK')
@@ -238,23 +265,7 @@ ENTRIES = [
         'command': f'{project_root}/.venv/bin/python',
         'args': [f'{project_root}/scripts/services/sinapse-mcp.py'],
         'cwd': project_root,
-        'env': {},
-    },
-    {
-        'name': 'claude-mem-local',
-        'transport': 'stdio',
-        'command': f'{project_root}/scripts/services/start-claude-mem-mcp.sh',
-        'args': [],
-        'cwd': project_root,
-        'env': {},
-    },
-    {
-        'name': 'neural-memory-local',
-        'transport': 'stdio',
-        'command': f'{project_root}/scripts/services/neural-memory-local.sh',
-        'args': [],
-        'cwd': project_root,
-        'env': {},
+        'env': {'PYTHONPATH': project_root},
     },
 ]
 
@@ -286,12 +297,68 @@ for entry in ENTRIES:
         'INSERT OR REPLACE INTO mcp_servers (id, data) VALUES (?, ?)',
         (sid, json.dumps(data)),
     )
+# Remove o modelo legado (backends crus) que NÓS gerenciávamos.
+for legacy in ('claude-mem-local', 'neural-memory-local'):
+    lid = existing.get(legacy)
+    if lid is not None:
+        conn.execute('DELETE FROM mcp_servers WHERE id = ?', (lid,))
 conn.commit()
 conn.close()
 PYEOF
 
     echo -e "  ${GREEN}✓${NC} SwarmClaw → $SCLAW_DB"
     ((++AGENTS_FOUND))
+}
+
+# Arquivo de instruções (prompt) por agente — project-scoped, segue o repo.
+prompt_target_for() {
+    case "$1" in
+        claude)   echo "$PROJECT_ROOT/CLAUDE.md" ;;
+        gemini)   echo "$PROJECT_ROOT/GEMINI.md" ;;
+        vscode)   echo "$PROJECT_ROOT/.github/copilot-instructions.md" ;;
+        cursor)   echo "$PROJECT_ROOT/.cursor/rules/hive-mind.md" ;;
+        codex|qwen|kimi|kiro|kilo|roo|opencode|openclaw) echo "$PROJECT_ROOT/AGENTS.md" ;;
+        *)        echo "" ;;   # swarmclaw etc.: sem arquivo de prompt
+    esac
+}
+
+# Upsert idempotente do bloco de instruções entre marcadores. Atualiza o bloco
+# se já existir; nunca duplica; preserva o resto do arquivo do usuário.
+inject_instructions() {
+    local target="$1"
+    if [ ! -f "$PROMPT_SRC" ]; then
+        echo -e "    ${YELLOW}⊘${NC} prompt fonte ausente: $PROMPT_SRC"
+        return 0
+    fi
+    mkdir -p "$(dirname "$target")"
+    PROMPT_SRC="$PROMPT_SRC" TARGET="$target" "$PYTHON" - << 'PYEOF'
+import os, re, pathlib
+src = pathlib.Path(os.environ["PROMPT_SRC"]).read_text(encoding="utf-8").strip()
+target = pathlib.Path(os.environ["TARGET"])
+BEGIN = "<!-- BEGIN HIVE-MIND SINAPSE (auto-managed by register-mcp.sh — do not edit) -->"
+END = "<!-- END HIVE-MIND SINAPSE -->"
+block = f"{BEGIN}\n{src}\n{END}\n"
+existing = target.read_text(encoding="utf-8") if target.exists() else ""
+pat = re.compile(re.escape(BEGIN) + r".*?" + re.escape(END) + r"\n?", re.S)
+if pat.search(existing):
+    new = pat.sub(block, existing)
+else:
+    prefix = existing.rstrip("\n")
+    new = (prefix + "\n\n" if prefix else "") + block
+target.write_text(new, encoding="utf-8")
+PYEOF
+    echo -e "    ${GREEN}↳${NC} prompt injetado em ${target#$PROJECT_ROOT/}"
+}
+
+# Registra o MCP do agente e injeta a política no prompt dele (a menos que
+# --check ou --no-instructions). Fonte única: $PROMPT_SRC.
+run_agent() {
+    local key="$1"
+    "do_$key"
+    if ! $CHECK_ONLY && $INJECT_PROMPT; then
+        local tgt; tgt="$(prompt_target_for "$key")"
+        [ -n "$tgt" ] && inject_instructions "$tgt"
+    fi
 }
 
 AGENTS_FOUND=0
@@ -302,7 +369,7 @@ echo ""
 # --- Modo single-agent: registra SÓ o agente pedido, sem exigir detecção -----
 if [ -n "$ONLY" ]; then
     echo "Modo single-agent: $ONLY"
-    "do_$ONLY"
+    run_agent "$ONLY"
     echo ""
     if $CHECK_ONLY; then
         echo "Verificação concluída para: $ONLY"
@@ -314,29 +381,29 @@ if [ -n "$ONLY" ]; then
 fi
 
 # --- Modo "todos" (admin / install.sh): detecta e registra cada um ------------
-command -v claude  &>/dev/null && do_claude
-command -v codex   &>/dev/null && do_codex
-command -v gemini  &>/dev/null && do_gemini
-{ command -v qwen &>/dev/null || [ -d "$HOME/.qwen" ]; } && do_qwen
-{ command -v kimi &>/dev/null || [ -d "$HOME/.kimi" ]; } && do_kimi
-{ command -v kiro &>/dev/null || [ -d "$HOME/.kiro" ]; } && do_kiro
+command -v claude  &>/dev/null && run_agent claude
+command -v codex   &>/dev/null && run_agent codex
+command -v gemini  &>/dev/null && run_agent gemini
+{ command -v qwen &>/dev/null || [ -d "$HOME/.qwen" ]; } && run_agent qwen
+{ command -v kimi &>/dev/null || [ -d "$HOME/.kimi" ]; } && run_agent kimi
+{ command -v kiro &>/dev/null || [ -d "$HOME/.kiro" ]; } && run_agent kiro
 if [ -d "$HOME/.config/Code/User/globalStorage/kilocode.kilo-code" ] || [ -d "$HOME/.kilocode" ]; then
-    do_kilo
+    run_agent kilo
 elif [ -f "$HOME/.kilo/config.json" ]; then
     register "Kilo (legado)" "$HOME/.kilo/config.json"
 fi
-[ -d "$HOME/.config/Code/User/globalStorage/rooveterinaryinc.roo-cline" ] && do_roo
-{ command -v code &>/dev/null || [ -d "$HOME/.config/Code/User/globalStorage/github.copilot-chat" ]; } && do_vscode
-[ -d "$HOME/.cursor/" ] && do_cursor
-command -v opencode &>/dev/null && do_opencode
-command -v openclaw &>/dev/null && do_openclaw
-{ command -v swarmclaw &>/dev/null || [ -d "$HOME/.swarmclaw" ]; } && do_swarmclaw
+[ -d "$HOME/.config/Code/User/globalStorage/rooveterinaryinc.roo-cline" ] && run_agent roo
+{ command -v code &>/dev/null || [ -d "$HOME/.config/Code/User/globalStorage/github.copilot-chat" ]; } && run_agent vscode
+[ -d "$HOME/.cursor/" ] && run_agent cursor
+command -v opencode &>/dev/null && run_agent opencode
+command -v openclaw &>/dev/null && run_agent openclaw
+{ command -v swarmclaw &>/dev/null || [ -d "$HOME/.swarmclaw" ]; } && run_agent swarmclaw
 
 echo ""
 if [ "$AGENTS_FOUND" -eq 0 ]; then
     echo -e "${YELLOW}⊘${NC} Nenhum agente detectado nesta máquina."
     echo "  Instale um agente (Claude Code, Codex, Gemini CLI, ...) e rode novamente,"
-    echo "  ou registre um específico: ./scripts/register-mcp.sh --only <agente>"
+    echo "  ou registre um específico: ./scripts/setup/register-mcp.sh --only <agente>"
     exit 1
 fi
 

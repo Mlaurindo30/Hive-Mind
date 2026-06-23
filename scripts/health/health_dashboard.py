@@ -93,15 +93,71 @@ def _neuronio_pct(temporal_root: Path, predicate) -> Optional[float]:
 
 
 def m4_orphan_pct(temporal_root: Path) -> Optional[float]:
-    return _neuronio_pct(temporal_root, lambda t: "related:" not in t)
+    """% de neurônios sem wikilink de saída.
+
+    Critério real de "órfão" no vault: o neurônio não tem seção
+    `## Sinapses` E não tem nenhum `[[wikilink]]` no corpo. O medidor
+    antigo procurava apenas a string `related:` no frontmatter, que
+    não é o padrão emitido pelo `_route_and_persist_project`
+    (dream_cycle.py) — o padrão é a seção `## Sinapses` com
+    `[[wikilinks]]`. Corrigido em 2026-06-23.
+    """
+    wikilink_re = re.compile(r"\[\[[^\]]+\]\]")
+    def is_orphan(content: str) -> bool:
+        return "## Sinapses" not in content and not wikilink_re.search(content)
+    return _neuronio_pct(temporal_root, is_orphan)
 
 
 def m6_aliases_coverage_pct(temporal_root: Path) -> Optional[float]:
-    return _neuronio_pct(temporal_root, lambda t: "aliases:" in t)
+    """% de neurônios com aliases REAIS (lista não-vazia).
+
+    O medidor antigo verificava apenas a presença da chave
+    `aliases:` no frontmatter, mas o dream_cycle.py sempre emite
+    `aliases: []` (lista vazia) quando o fato não tem alias. O
+    critério correto é aliases: [item, ...] com pelo menos 1 item.
+    Corrigido em 2026-06-23.
+    """
+    aliases_re = re.compile(r"aliases:\s*\[\s*([^\]]*?)\s*\]")
+    def has_real_aliases(content: str) -> bool:
+        m = aliases_re.search(content)
+        return bool(m and m.group(1).strip())
+    return _neuronio_pct(temporal_root, has_real_aliases)
 
 
 def m7_weekly_12w(weekly_root: Path) -> int:
     return len(list(weekly_root.rglob("*.md"))) if weekly_root.exists() else 0
+
+
+def m7_weekly_threshold_breached(now: datetime, current_count: int,
+                                 *, birth_date: Optional[datetime] = None,
+                                 tolerance_weeks: int = 1) -> bool:
+    """True se o nº de weeklies for menor que o esperado para o tempo
+    de existência do vault.
+
+    O threshold absoluto de "8 em 12 semanas" só faz sentido se o
+    vault tiver 12+ semanas de história. Vaults jovens (< 8 semanas)
+    devem ser avaliados proporcionalmente: aceita-se `weeks_existed -
+    tolerance_weeks` weekly files como saudável.
+    """
+    if current_count is None:
+        return False
+    if birth_date is None:
+        # Fallback: usa o mtime do diretório `weekly_root` se existir,
+        # senão o primeiro weekly encontrado.
+        weekly_root = Path(cp.WEEKLY_ROOT)
+        if weekly_root.exists():
+            try:
+                files = sorted(weekly_root.rglob("*.md"))
+                if files:
+                    birth_date = datetime.fromtimestamp(files[0].stat().st_mtime)
+            except OSError:
+                pass
+    if birth_date is None:
+        # Sem referência: comportamento legado (alerta em <8).
+        return current_count < 8
+    weeks_existed = max(1, (now - birth_date).days // 7)
+    expected = max(1, weeks_existed - tolerance_weeks)
+    return current_count < expected
 
 
 def m8_decision_staleness_pct(temporal_root: Path, *, days: int = 180,
@@ -194,15 +250,15 @@ def compute_metrics(conn, *, temporal_root: Path = cp.TEMPORAL,
     }
 
 
-def evaluate_alerts(m: dict) -> list[str]:
+def evaluate_alerts(m: dict, *, now: Optional[datetime] = None) -> list[str]:
     """Aplica os thresholds §9.3 onde a métrica é computável (None/n/a = ignora)."""
     alerts = []
     if m["M2_daily_logs_7d"] < 5:
         alerts.append(f"M2: só {m['M2_daily_logs_7d']}/7 daily logs (< 5).")
     if isinstance(m["M4_orphan_pct"], (int, float)) and m["M4_orphan_pct"] > 15:
         alerts.append(f"M4: órfãos em {m['M4_orphan_pct']}% (> 15%).")
-    if m["M7_weekly_12w"] < 8:
-        alerts.append(f"M7: {m['M7_weekly_12w']} weeklies nas últimas 12 semanas (< 8).")
+    if m7_weekly_threshold_breached(now, m["M7_weekly_12w"]):
+        alerts.append(f"M7: {m['M7_weekly_12w']} weekly(s) (abaixo do esperado p/ idade do vault).")
     if isinstance(m["M8_decision_staleness_pct"], (int, float)) and m["M8_decision_staleness_pct"] > 30:
         alerts.append(f"M8: decisões stale em {m['M8_decision_staleness_pct']}% (> 30%).")
     m9 = m["M9_dream_survival"]
@@ -401,11 +457,12 @@ def main() -> int:
 
     conn = get_connection()
     ensure_migrations(conn)
+    now = datetime.now()
     try:
-        m = compute_metrics(conn)
+        m = compute_metrics(conn, now=now)
     finally:
         conn.close()
-    alerts = evaluate_alerts(m)
+    alerts = evaluate_alerts(m, now=now)
     if args.dry_run:
         print(render_snapshot(m, alerts, now=datetime.now()))
     else:
