@@ -1,6 +1,6 @@
 # Arquitetura — Hive-Mind v2.0.0
 
-> Referência canônica de arquitetura. Atualizado em 2026-06-13.
+> Referência canônica de arquitetura. Atualizado em 2026-06-24.
 > Para uso rápido: [`../README.md`](../README.md) · Para guia de agentes: [`../AGENTS.md`](../AGENTS.md)
 
 ---
@@ -321,17 +321,30 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
   └──────────────────────┬─────────────────────────────────────────┘
                          │
   ┌──────────────────────▼─────────────────────────────────────────┐
-  │           ESTÁGIO 3 — SÍNTESE DIALÉTICA (Fase 9)               │
-  │                                                                │
-  │  SELECT ambiguities WHERE status='pending'                     │
-  │       │                                                        │
-  │  semantic_diff (vetorial + LLM)                                │
-  │       ├── complemento → merge → conteúdo unificado            │
-  │       ├── contradição → choose → versão com evidência         │
-  │       └── irreconciliável → branch → preserva ambas           │
-  │                                                                │
-  │  status='synthesized' | 'branched'                             │
-  └────────────────────────────────────────────────────────────────┘
+   │  ESTÁGIO 3 — SÍNTESE DIALÉTICA (Fase 9)               │
+   │                                                                │
+   │  SELECT ambiguities WHERE status='pending'                     │
+   │       │                                                        │
+   │  semantic_diff (vetorial + LLM)                                │
+   │       ├── complemento → merge → conteúdo unificado            │
+   │       ├── contradição → choose → versão com evidência         │
+   │       └── irreconciliável → branch → preserva ambas           │
+   │                                                                │
+   │  status='synthesized' | 'branched'                             │
+   └──────────────────────┬─────────────────────────────────────────┘
+                          │
+   ┌──────────────────────▼─────────────────────────────────────────┐
+   │     ESTÁGIO 3.5 — PUSH PARA GRAFOS DE CONHECIMENTO (P2 + P4)  │
+   │                                                                │
+   │  Para cada neuron sintetizado:                                 │
+   │    1. push_neuron()   → Graphiti/FalkorDB (temporal)           │
+   │    2. index_memory()  → LightRAG (entidades + relações)        │
+   │                                                                │
+   │  Ambos best-effort: try/except, nunca abortam a síntese.       │
+   │  Graphiti: grafo temporal causal (queries "quem influenciou X")│
+   │  LightRAG: grafo de entidades + busca híbrida (queries multi-  │
+   │            hop que FTS5 + KNN não resolvem)                    │
+   └────────────────────────────────────────────────────────────────┘
 ```
 
 **Garantias:**
@@ -339,6 +352,7 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
 - OAuth expirado dispara refresh automático (timeout polling: 300s)
 - Determinismo de hash: cada fato persistido carrega SHA-256 do conteúdo
 - `call_llm_structured()` valida o JSON retornado pelo LLM com `model_validate_json()`
+- **Push para grafos** (Estágio 3.5) é best-effort: falha do Graphiti ou LightRAG não impede a síntese dialética de ser marcada como `synthesized`. Logs vão para `[LightRAG]` no stdout.
 
 ---
 
@@ -436,9 +450,10 @@ stdio JSON-RPC, compatível com qualquer cliente MCP.
 | `sinapse_capture_screen` | `(description?)` | Screenshot → `visual_memories` |
 | `sinapse_plan_goal` | `(goal, context?)` | Decompõe objetivo em passos atômicos e salva no Intent Memory |
 | `sinapse_temporal_graph_search` | `(query, num_results?)` | Grafo temporal Graphiti/FalkorDB — arestas com `valid_at`/`invalid_at` (P2) |
+| `sinapse_rag_query` | `(question, mode?)` | Consulta híbrida no grafo LightRAG (entidades + relações) — multi-hop, alimentado pelo Dream Cycle (P4) |
 | `search_memories` | `(query, top_k?, project?, mode?)` | Busca HNSW/FTS sobre o vault |
 
-Total: **12 tools**. Registro/instructions automáticos via `register-mcp.sh`.
+Total: **13 tools**. Registro/instructions automáticos via `register-mcp.sh`.
 
 **Fonte única de instruções operacionais:** `config/sinapse-agent-prompt.md`.
 - Carregado por `scripts/services/sinapse-mcp.py:_load_instructions()` (L38–53) e exposto como `instructions` no `initialize` do MCP.

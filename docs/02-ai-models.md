@@ -1,6 +1,7 @@
 # 02 — Modelos de IA e Provedores
 
 > **Hive-Mind v3.0.0** — Modelos, embeddings, provedores do Hive-Dreamer e cadeia de fallback.
+> Última revisão: 2026-06-24 · Embeddings 1024d bge-m3 (P0) · LightRAG granite3-dense:2b (P4)
 
 ---
 
@@ -123,22 +124,73 @@ HIVE_GRAPHIFY_* (ou herdado do Dreamer) definido?
               (sempre funciona, sem dependência externa)
 ```
 
-### 3.2 Embeddings (sqlite-vec, 384 dimensões)
+### 3.2 Embeddings (sqlite-vec, 1024 dimensões — Ollama bge-m3)
 
 | Modelo | Dimensões | Uso | Onde |
 |--------|-----------|-----|------|
-| `all-MiniLM-L6-v2` | 384 | Busca semântica KNN no UMC | sqlite-vec HNSW |
-| `all-MiniLM-L6-v2` | 384 | Busca semântica de observações | sqlite-vec HNSW |
+| `bge-m3:latest` | 1024 | Busca semântica KNN no UMC | sqlite-vec HNSW (env `HNSW_DIM=1024`) |
+| `bge-m3:latest` | 1024 | Busca semântica de observações | sqlite-vec HNSW |
+| `bge-m3:latest` | 1024 | Embeddings de memória para LightRAG | `core/lightrag_index.py` (P4) |
 
-O modelo é carregado via `fastembed` (ou `sentence-transformers`), roda localmente (~80MB), e não requer API key. Os vetores são persistidos na tabela virtual `search_vec` (vec0, 384d) dentro do `hive_mind.db`.
+O modelo é carregado via **Ollama local** (`OLLAMA_EMBED_MODEL=bge-m3:latest`, 1.2 GB), exposto por `OllamaEmbedder` em `core/database.py:get_embedder()`. Não requer API key. Os vetores são persistidos na tabela virtual `search_vec` (vec0, 1024d) dentro do `hive_mind.db`. Migração do antigo 384d para 1024d foi feita na P0 (commit `56f1e98`, 2026-06-21) via `scripts/setup/migrate_embed_dim.py`.
 
-A partir da HM-11, o módulo `core/hnsw_index.py` mantém um índice HNSW incremental (via `hnswlib`) sobre os mesmos vetores 384d gerados pelo `fastembed`. O índice é atualizado a cada ingestão sem reconstrução completa, reduzindo a latência de busca KNN para ~1ms em coleções grandes.
+O módulo `core/hnsw_index.py` mantém um índice HNSW incremental (via `hnswlib`) sobre os mesmos vetores 1024d. O índice é atualizado a cada ingestão sem reconstrução completa.
 
-**Por que all-MiniLM-L6-v2 em vez de BGE-M3?**
-- BGE-M3 (1024d) era usado na v1.x com ChromaDB separado
-- all-MiniLM-L6-v2 (384d) é suficiente para similaridade semântica de frases curtas
-- 384d ocupa 4x menos espaço em disco que 1024d
-- sqlite-vec HNSW tem performance excelente em 384d (busca em ~5ms para 10k vetores)
+**Por que bge-m3 (1024d) em vez de all-MiniLM-L6-v2 (384d)?**
+- bge-m3 é multilingual (PT/EN) com qualidade superior para frases técnicas
+- 1024d dá ganho real de recall em queries multi-hop (que LightRAG e FTS5 juntos usam)
+- Ollama local elimina dependência de API cloud para embeddings
+- Migração uma-vez (P0) absorveu o custo de re-indexação; o ganho composto (KNN melhor + LightRAG funcional) compensa o espaço 4x maior em disco
+
+---
+
+## 4. LightRAG — Extração de Entidades + Grafo de Conhecimento (P4)
+
+LightRAG (HKUDS/EMNLP 2025) é o **segundo extrator** ao lado do Graphify: enquanto o Graphify extrai entidades de **código** (AST + LLM), o LightRAG extrai entidades e relações de **memórias consolidadas** pelo Dream Cycle (texto livre, decisões, aprendizados).
+
+```
+  Dream Cycle (Estágio 3 — Síntese)
+       │
+       │ synthesis.final_content
+       ▼
+  core/lightrag_index.py:index_memory()
+       │
+       ├──> LightRAG working_dir: claude-mem/data/lightrag/
+       │    ├── graph.npz (NetworkX)         — entidades + arestas
+       │    ├── vdb_chunks.json              — embeddings de chunks (bge-m3)
+       │    ├── vdb_entities.json            — embeddings de entidades
+       │    └── vdb_relationships.json       — embeddings de relações
+       ▼
+  sinapse_rag_query(question, mode="hybrid")
+       │
+       ▼
+  MCP: retorna entidades + relações + chunks relevantes
+```
+
+**Modelo LLM do LightRAG (FIXO por design):**
+| Modelo | Provider | Justificativa |
+|--------|----------|---------------|
+| `granite3-dense:2b` | Ollama local | 1.5 GB · cabe em qualquer máquina · especializado em RAG/extração · JSON schema confiável (4/4 entities + 3/3 rels em teste live) |
+
+- Sem fallback: se o `granite3-dense:2b` falhar, o `index_memory` retorna `False` e o Dream Cycle segue.
+- Sem UI de troca no `setup-brain.sh`: o modelo é fixo em `core/lightrag_index.py:_LIGHTRAG_CHAT_MODEL`.
+- `.env` (`HIVE_LIGHTRAG_MODEL`) sobrescreve apenas para debug/dev, não para produção.
+- `install.sh` adiciona `ollama pull granite3-dense:2b` na nota pós-instalação.
+
+**Modo de query (`sinapse_rag_query`):**
+| Mode | Comportamento |
+|------|---------------|
+| `naive` | Busca vetorial simples (similar a KNN) |
+| `local` | Entidades mencionadas na query + seus vizinhos |
+| `global` | Traversal de arestas (relações entre entidades) |
+| `hybrid` (default) | Combina local + global — melhor para perguntas multi-hop |
+
+**Diferença prática vs FTS5 + KNN:**
+- FTS5: match de palavras-chave exatas (não entende sinônimos nem contexto)
+- KNN: similaridade semântica entre query e documento (não entende estrutura relacional)
+- LightRAG: entende **relações** — "quem criou X?", "que ferramentas Y usa?", "qual a relação entre A e B?"
+
+**Validação:** commit `fe68300` confirma que 4 entities + 3 relationships são extraídos corretamente de uma frase simples com o `granite3-dense:2b` (campos `entity_name`, `entity_type`, `entity_description`, `source_entity`, `target_entity`, `relationship_keywords`, `relationship_description` todos preenchidos, sem alucinação).
 
 ---
 
@@ -171,18 +223,19 @@ Os pesos das arestas (24 tipos de relações) foram definidos baseados em psicol
 | GPT-4 / Claude Opus | Overkill para extração de entidades; custo proibitivo para indexação diária |
 | BERT multilíngue | Mais pesado que Qwen 2.5 Coder 3B para o mesmo resultado em NER |
 | Fine-tuned próprios | Complexidade de manutenção incompatível com o princípio de soberania de modelos |
-| OpenAI Embeddings (text-embedding-3) | Dependência de API; all-MiniLM-L6-v2 local é suficiente |
-| ChromaDB + all-MiniLM-L6-v2 | Substituído por sqlite-vec embutido no UMC (elimina processo separado) |
+| OpenAI Embeddings (text-embedding-3) | Dependência de API; bge-m3 local via Ollama é suficiente |
+| ChromaDB + all-MiniLM-L6-v2 | Substituído por sqlite-vec + bge-m3 (1024d) embutidos no UMC (elimina processo separado) |
+| all-MiniLM-L6-v2 (384d) | Substituído por bge-m3 (1024d) na P0 (commit `56f1e98`, 2026-06-21) — multilingual e melhor recall |
 
 ---
 
 ## 6. Matriz de Capacidades por Cenário
 
-| Cenário | Graphify (extração) | Embeddings | Dream Cycle | Recall |
-|---------|--------------------|-----------|-----------|---------| 
-| Cloud (API keys) | Gemini 2.5 Flash | all-MiniLM (local) | Provider configurado | Spreading Activation |
-| Local (Ollama) | Qwen 2.5 Coder 3B | all-MiniLM (local) | Ollama configurado | Spreading Activation |
-| Offline (sem Ollama) | tree-sitter + regex | all-MiniLM (local) | Indisponível | Spreading Activation |
-| Mínimo (sem Python) | Indisponível | Indisponível | Indisponível | Indisponível |
+| Cenário | Graphify (código) | LightRAG (texto) | Embeddings | Dream Cycle | Recall |
+|---------|-------------------|------------------|-----------|-----------|--------|
+| Cloud (API keys) | Gemini 2.5 Flash | Granite 3 Dense 2b (local) | bge-m3 (local) | Provider configurado | Spreading Activation |
+| Local (Ollama) | Qwen 2.5 Coder 3B | Granite 3 Dense 2b (local) | bge-m3 (local) | Ollama configurado | Spreading Activation |
+| Offline (sem Ollama) | tree-sitter + regex | Indisponível (best-effort) | Indisponível | Indisponível | Spreading Activation |
+| Mínimo (sem Python) | Indisponível | Indisponível | Indisponível | Indisponível | Indisponível |
 
-O sistema degrada graciosamente: mesmo no cenário mínimo, o vault Obsidian permanece legível e as buscas FTS5 continuam funcionando.
+O sistema degrada graciosamente: mesmo no cenário mínimo, o vault Obsidian permanece legível e as buscas FTS5 continuam funcionando. LightRAG é o componente que mais cedo falha em ambientes mínimos — por isso o `index_memory` é best-effort (try/except) e a síntese dialética nunca é abortada por falha do grafo.
