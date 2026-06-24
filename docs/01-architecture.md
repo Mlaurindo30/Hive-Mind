@@ -1,7 +1,7 @@
 # Arquitetura — Hive-Mind v2.0.0
 
 > Referência canônica de arquitetura. Atualizado em 2026-06-24.
-> Para uso rápido: [`../README.md`](../README.md) · Para guia de agentes: [`../AGENTS.md`](../AGENTS.md)
+> Para uso rápido: [`../README.md`](../README.md)
 
 ---
 

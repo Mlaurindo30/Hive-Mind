@@ -38,7 +38,6 @@
 | Arquivo | Conteúdo |
 |---------|----------|
 | [`../README.md`](../README.md) | Visão geral pública: arquitetura, instalação, operação, API |
-| [`../AGENTS.md`](../AGENTS.md) | Guia para agentes de IA que trabalham no projeto |
 | [`../PROJECT_STATUS.md`](../PROJECT_STATUS.md) | Acompanhamento de fases (1–12) |
 | [`../IMPLEMENTATION.md`](../IMPLEMENTATION.md) | Log de entregas por data |
 | [`../sinapse.yaml`](../sinapse.yaml) | Configuração central comentada |
