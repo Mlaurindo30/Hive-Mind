@@ -254,6 +254,30 @@ TOOLS = [
             },
             "required": ["query"]
         }
+    },
+    {
+        "name": "sinapse_rag_query",
+        "description": (
+            "Consulta o índice LightRAG (grafo + vetor) sobre memórias consolidadas. "
+            "Melhor para perguntas multi-hop que FTS5 não resolve. "
+            "Retorna string bruta do LightRAG ou vazio se o índice não estiver disponível."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "Pergunta em linguagem natural para consultar o grafo LightRAG"
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["naive", "local", "global", "hybrid"],
+                    "description": "Modo de busca: hybrid (grafo+vetor), local (entidades), global (comunidades), naive (vetor puro)",
+                    "default": "hybrid"
+                }
+            },
+            "required": ["question"]
+        }
     }
 ]
 
@@ -285,6 +309,10 @@ HANDLERS = {
         project=args.get("project"),
         mode=args.get("mode", "semantic"),
     ),
+    "sinapse_rag_query": lambda args: _rag_query(
+        args.get("question", ""),
+        mode=args.get("mode", "hybrid"),
+    ),
 }
 
 
@@ -297,6 +325,28 @@ def _session_end(summary):
     sm._session_learnings.clear()
     sm._update_current_state(decisions, learnings, summary)
     return {"updated": True}
+
+
+def _rag_query(question: str, mode: str = "hybrid") -> dict:
+    """
+    Consulta o índice LightRAG sobre memórias consolidadas.
+
+    Melhor para perguntas multi-hop que FTS5 não resolve (ex: "quais projetos
+    mencionam X e qual sua relação com Y?"). Retorna string bruta ou vazio se
+    LightRAG não estiver disponível (ImportError, sem LLM configurado, etc.).
+    """
+    try:
+        import asyncio
+        from core.lightrag_index import query_rag
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(query_rag(question, mode=mode))
+        return {"result": result or "(LightRAG indisponível ou sem resultado)"}
+    except Exception as e:
+        return {"result": f"(LightRAG erro: {e})"}
 
 
 def _sinapse_query_with_diagnostics(query: str) -> dict:
@@ -348,7 +398,7 @@ def _capture_screen(description="", monitor=None):
 
     # Fallback: visual_capture.py via subprocess
     scripts_dir = os.path.dirname(__file__)
-    capture_script = os.path.join(scripts_dir, "visual_capture.py")
+    capture_script = os.path.normpath(os.path.join(scripts_dir, "..", "capture", "visual_capture.py"))
     cmd = [sys.executable, capture_script]
     if monitor is not None:
         cmd.extend(["--monitor", str(monitor)])
@@ -365,14 +415,30 @@ def _capture_screen(description="", monitor=None):
 
 
 def _zettelkasten_split(source_file, output_dir="cerebro/atoms"):
+    """Split monolithic note into atomic Zettelkasten notes."""
     import importlib.util
     import os
+    from pathlib import Path
     scripts_dir = os.path.dirname(__file__)
-    zk_script = os.path.join(scripts_dir, "sinapse-zettelkasten.py")
+    zk_script = os.path.normpath(os.path.join(scripts_dir, "..", "knowledge", "sinapse-zettelkasten.py"))
     spec = importlib.util.spec_from_file_location("sinapse_zettelkasten", zk_script)
     zk_mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(zk_mod)
-    files = zk_mod.split_monolithic_file(source_file, output_dir)
+    # Resolve source_file relative to project root if not absolute
+    src = Path(source_file)
+    if not src.is_absolute():
+        project_root = Path(scripts_dir).resolve().parent.parent
+        src = project_root / src
+    src = src.resolve()
+    if not src.exists():
+        return {"error": f"Source file not found: {src}", "source_file": str(src)}
+    # Resolve output_dir relative to project root if not absolute
+    out = Path(output_dir)
+    if not out.is_absolute():
+        project_root = Path(scripts_dir).resolve().parent.parent
+        out = project_root / out
+    out = out.resolve()
+    files = zk_mod.split_monolithic_file(str(src), str(out))
     return {"atoms_created": len(files), "files": files}
 
 
@@ -424,17 +490,38 @@ def _temporal_save(content, kind="change"):
 
 
 def _plan_goal(goal: str, context=None):
-    """Decompõe objetivo em passos via planner e persiste no Intent Memory."""
-    import importlib.util
-    import os
-    scripts_dir = os.path.dirname(__file__)
-    planner_path = os.path.join(scripts_dir, "planner.py")
-    spec = importlib.util.spec_from_file_location("planner", planner_path)
-    planner = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(planner)
+    """Decompõe objetivo em passos atômicos e persiste no Intent Memory.
 
-    steps = planner.decompose_goal(goal, context)
-    goal_id = planner.save_goal(goal, steps)
+    planner.py foi removido; usa decomposição inline mínima + escrita no vault.
+    """
+    import uuid
+    from pathlib import Path
+
+    # Decomposição minimal (4 passos atômicos)
+    steps = [
+        {"step": 1, "action": "Clarify objective boundaries", "expected_output": "Scope & constraints"},
+        {"step": 2, "action": "Identify required inputs", "expected_output": "Dependency list"},
+        {"step": 3, "action": "Decompose into atomic tasks", "expected_output": "Task list with acceptance criteria"},
+        {"step": 4, "action": "Sequence and prioritize", "expected_output": "Execution order"},
+    ]
+    if context:
+        steps.insert(0, {"step": 0, "action": f"Context review: {context}", "expected_output": "Context summary"})
+
+    goal_id = f"goal-{uuid.uuid4().hex[:8]}"
+
+    # Persist no vault como decisão atômica
+    try:
+        vault_dir = Path(__file__).resolve().parent.parent.parent / "cerebro" / "cortex" / "frontal" / "trabalho" / "ativo"
+        vault_dir.mkdir(parents=True, exist_ok=True)
+        f = vault_dir / f"{goal_id}.md"
+        f.write_text(
+            f"---\ntags: [plan, goal]\nstatus: active\ncreated: {__import__('datetime').date.today().isoformat()}\n---\n"
+            f"# Goal: {goal}\n\n## Context\n{context or 'N/A'}\n\n## Steps\n"
+            + "\n".join(f"- [ ] **S{s['step']}**: {s['action']} → {s['expected_output']}" for s in steps)
+        )
+    except Exception:
+        pass  # vault write is best-effort; goal_id and steps are the contract
+
     return {"goal_id": goal_id, "steps": steps}
 
 

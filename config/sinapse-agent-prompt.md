@@ -1,6 +1,6 @@
 # Protocolo Hive-Mind (sinapse-memory) — OBRIGATÓRIO
 
-Você tem as 12 tools `sinapse_*` e `search_memories`. Este é o protocolo de
+Você tem as 13 tools `sinapse_*` e `search_memories`. Este é o protocolo de
 trabalho; siga sempre, sem exceção. Os backends crus (NeuralMemory, claude-mem,
 Graphify, FalkorDB, UMC) são federados por dentro do sinapse — **nunca os
 chame diretamente**.
@@ -27,6 +27,7 @@ consultado antes.
 | Fatos/decisões com validade temporal (arestas valid_at/invalid_at) | `sinapse_temporal_graph_search("<tema>", num_results)` |
 | Busca direta na camada temporal (FTS5 + Chroma) | `sinapse_temporal_search("<tema>")` |
 | Busca híbrida geral (todas as camadas) | `sinapse_query("<tema>")` |
+| Consulta vetorial no grafo LightRAG (P4) | `sinapse_rag_query(question, mode?)` |
 
 ## 3. Grave na hora (ao decidir, aprender ou decompôr)
 | Necessidade | Tool |
