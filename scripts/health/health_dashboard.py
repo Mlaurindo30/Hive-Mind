@@ -152,7 +152,7 @@ def m7_weekly_threshold_breached(now: datetime, current_count: int,
                     birth_date = datetime.fromtimestamp(files[0].stat().st_mtime)
             except OSError:
                 pass
-    if birth_date is None:
+    if now is None or birth_date is None:
         # Sem referência: comportamento legado (alerta em <8).
         return current_count < 8
     weeks_existed = max(1, (now - birth_date).days // 7)
