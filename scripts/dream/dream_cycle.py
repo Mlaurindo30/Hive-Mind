@@ -12,6 +12,7 @@ import yaml
 import time
 import re
 import hashlib
+import asyncio
 import pydantic
 from datetime import datetime
 from pathlib import Path
@@ -371,6 +372,18 @@ def run_synthesis_cycle(deadline: Optional[float] = None):
                     push_neuron(neuron_id, synthesis.final_content, source="dream")
                 except ImportError:
                     pass
+                # P4: index synthesized neuron into LightRAG knowledge graph (best-effort).
+                # Alimenta o sinapse_rag_query via MCP. Falha nunca aborta a síntese.
+                try:
+                    from core.lightrag_index import index_memory
+                    asyncio.run(index_memory(
+                        synthesis.final_content,
+                        metadata={"neuron_id": neuron_id, "source": "dream_cycle"},
+                    ))
+                except ImportError:
+                    pass
+                except Exception as e:
+                    print(f"  [LightRAG] index ignorado (best-effort): {e}")
                 print(f"  [v] Síntese concluída: {synthesis.logic_applied}")
             else:
                 print(f"  [!] Conflito não resolvido pela LLM: {synthesis.logic_applied}")
