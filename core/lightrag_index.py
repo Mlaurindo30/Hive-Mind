@@ -41,7 +41,7 @@ def get_rag():
                 model_name="bge-m3:latest",
                 supports_asymmetric=True,
             )
-            def _embedding_func(
+            async def _embedding_func(
                 texts: list[str],
                 embedding_dim: int | None = None,
                 context: str = "document",
@@ -50,7 +50,8 @@ def get_rag():
                 """Wrapper Ollama local compatível com LightRAG EmbeddingFunc."""
                 if isinstance(texts, str):
                     texts = [texts]
-                vectors = [list(v) for v in _embedder.embed(texts)]
+                loop = asyncio.get_event_loop()
+                vectors = await loop.run_in_executor(None, lambda: list(_embedder.embed(texts)))
                 return np.array(vectors, dtype=np.float32)
 
             async def _llm_func(prompt, **kwargs):
