@@ -319,11 +319,11 @@ Filtros aceitos: `type`, `created_after`. Opções: `redact` (remoção de PII) 
 ```python
 def _query_vault_knowledge(query: str, timeout=8.0) -> Optional[str]:
 
-    # 4 backends em paralelo (ThreadPoolExecutor)
+    # 5 backends em paralelo (ThreadPoolExecutor)
     results = []
 
     # Backend 1: UMC SQL (FTS5 + KNN)
-    results += umc_search(query)        # FTS5 MATCH + vec KNN
+    results += umc_search(query)        # FTS5 MATCH + vec KNN (bge-m3 1024d)
 
     # Backend 2: claude-mem
     results += claude_mem_search(query) # HTTP :37700, timeout 3s
@@ -334,10 +334,15 @@ def _query_vault_knowledge(query: str, timeout=8.0) -> Optional[str]:
     # Backend 4: Filesystem
     results += fs_scan(query)           # scan cerebro/*.md, TTL 30s
 
+    # Backend 5: LightRAG (P4) — entidades + relações + multi-hop
+    results += lightrag_query(query)    # grafo de conhecimento, timeout 8s
+
     # Fusão e deduplicação
     deduped = dedup(results, key=lambda r: (r.source_file, r.title))
     return format(top_n=5, max_chars=3000, results=deduped)
 ```
+
+> **Nota:** O `sinapse_rag_query` (MCP, expor独立) usa o mesmo backend 5 (LightRAG) mas com modos `naive|local|global|hybrid` e retorna string bruta do grafo (entidades + relações + chunks), não os 4 outros backends.
 
 ### 7.2 Busca Vetorial (KNN)
 
@@ -350,7 +355,7 @@ ORDER BY distance
 LIMIT 5
 ```
 
-`query_vec` = `all-MiniLM-L6-v2.encode(query)` — vetor 384d gerado no momento da query.
+`query_vec` = `bge-m3.encode(query)` via Ollama local — vetor **1024d** gerado no momento da query. Tabela virtual `search_vec` (vec0, 1024d). Migração do antigo 384d → 1024d aconteceu na P0 (commit `56f1e98`, 2026-06-21).
 
 ### 7.3 Circuit Breaker
 
@@ -388,10 +393,12 @@ Apenas exceções Python e timeouts contam como falha — resultados vazios (nã
 | atlas/*.md (fatos consolidados) | cresce com uso |
 | Tamanho do hive_mind.db | 50-200MB |
 | Tamanho do hnsw_neurons.idx | ~5-20MB (depende de neurons) |
+| Tamanho de claude-mem/data/lightrag/ | ~5-50MB (grafo + vdb de entidades/rels) |
 | Tempo de reindexação por arquivo | ~1-3s |
-| Tempo de busca KNN (10k vetores) | ~5ms |
-| Tempo de busca HNSW | ~1-2ms |
+| Tempo de busca KNN (10k vetores, 1024d) | ~5-10ms |
+| Tempo de busca HNSW (1024d) | ~1-2ms |
 | Tempo de busca FTS5 | ~2ms |
+| Tempo de query LightRAG (hybrid, ~1k entidades) | ~100-300ms (LLM local) |
 
 ### Tabelas do Banco (hive_mind.db)
 

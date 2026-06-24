@@ -1,6 +1,7 @@
 # 04 — Infraestrutura e Configuração
 
 > **Hive-Mind v3.0.0** — Requisitos, serviços, portas, variáveis de ambiente e operações.
+> Última revisão: 2026-06-24 · LightRAG (P4) integrado como `claude-mem/data/lightrag/`
 
 ---
 
@@ -212,6 +213,11 @@ O cron de rebuild a cada 6h da v1.x foi **removido** — o Watcher cobre a atual
   ├── mcp/                           Templates de config MCP por agente
   ├── docs/                          Esta documentação
   ├── hive_mind.db                   Unified Memory Core (SQLite + sqlite-vec) — v3: causal_edges, goals, visibility
+  ├── claude-mem/data/lightrag/      Grafo de conhecimento LightRAG (P4) — entidades/relacionamentos/vdb
+  │   ├── graph.npz                  NetworkX pickle (entidades + arestas)
+  │   ├── vdb_chunks.json            Embeddings de chunks de texto (bge-m3 1024d)
+  │   ├── vdb_entities.json          Embeddings de entidades extraídas (bge-m3 1024d)
+  │   └── vdb_relationships.json     Embeddings de relações extraídas (bge-m3 1024d)
   ├── sinapse.yaml                   Configuração central
   ├── .env                           Segredos locais (gitignored)
   ├── .env.example                   Template de variáveis (commitado)
@@ -256,6 +262,7 @@ O cron de rebuild a cada 6h da v1.x foi **removido** — o Watcher cobre a atual
 | `.env` | API keys, tokens, OAuth secrets | `.gitignore`, chmod 600 |
 | `hive_mind.db` | Toda a memória (inclui vault table) | `.gitignore` |
 | `~/.claude-mem/` | Observações globais com timestamps | permissões locais + backup controlado |
+| `claude-mem/data/lightrag/` | Grafo de conhecimento + embeddings (P4) | `.gitignore` (regenerável via Dream Cycle) |
 | `backups/` | Backups do UMC | `.gitignore` |
 
 ---
@@ -275,6 +282,14 @@ O cron de rebuild a cada 6h da v1.x foi **removido** — o Watcher cobre a atual
   │       ▲              ▲              ▲         │
   │  Watcher (~2s)   claude-mem    sinapse-api    │
   │  :watchdog       :37700        :37702         │
+  │                                               │
+  │  ┌──────────────────────────────────────┐    │
+  │  │  claude-mem/data/lightrag/ (P4)      │    │
+  │  │   grafo + vdb entidades/rels/chunks  │    │
+  │  │   alimentado pelo Dream Cycle         │    │
+  │  └──────────────────────────────────────┘    │
+  │       ▲                                       │
+  │  Dream Cycle Estágio 3.5 (best-effort)        │
   │                                               │
   │  ┌──────────────┐   ┌──────────────────────┐ │
   │  │  Obsidian    │   │  Agentes de IA        │ │

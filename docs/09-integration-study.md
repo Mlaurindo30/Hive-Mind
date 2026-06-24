@@ -156,12 +156,16 @@
   ```
   Usar **FalkorDB** como backend (open source, in-memory graph DB) para manter filosofia local-first.
 
-### LightRAG
+### LightRAG ✅ Concluído P4 (2026-06-24)
 - **GitHub/URL**: [github.com/HKUDS/LightRAG](https://github.com/HKUDS/LightRAG) — EMNLP 2025
 - **O que faz**: Framework RAG com knowledge graph leve. Indexação 100x mais barata que GraphRAG (Microsoft). Extrai entidades e relações, constrói grafo plano, e usa dual-mode retrieval (grafo + vetor). Custo: ~$0.50 por 500 páginas, ~3min de indexação. 4 estratégias de chunking (mai/2026).
 - **Diferencial vs Hive-Mind**: O Dream Cycle usa LLM para destilação mas sem estrutura de grafo explícita para o resultado. LightRAG gera automaticamente entidades/relações do corpus consolidado com eficiência 100x vs GraphRAG.
-- **Potencial de integração**: Alta
-- **Como integrar**: Usar LightRAG como etapa de "Router" no Dream Cycle — após o Validator aprovar memórias, LightRAG indexa o corpus consolidado. `pip install lightrag-hku`.
+- **Status**: ✅ **Integrado e operacional** (commit `56f1e98` P4 inicial, `dee365b` fix de modelo para `granite3-dense:2b`, hoje também alimentado pelo Dream Cycle Estágio 3.5).
+- **Como foi integrado**:
+  - `core/lightrag_index.py` — wrapper do `lightrag-hku>=1.5.4` com Ollama bge-m3 (1024d embeddings) + `granite3-dense:2b` (LLM, fixo, 1.5GB).
+  - `scripts/dream/dream_cycle.py:372-381` — após síntese dialética, chama `index_memory()` best-effort (try/except, nunca aborta síntese).
+  - `scripts/services/sinapse-mcp.py:340` — expõe `sinapse_rag_query(question, mode)` com modos `naive|local|global|hybrid`.
+  - Storage: `claude-mem/data/lightrag/` (graph.npz + 3 vdb JSON).
 
 ### Microsoft GraphRAG
 - **GitHub/URL**: [github.com/microsoft/graphrag](https://github.com/microsoft/graphrag)
@@ -311,7 +315,7 @@
 | **Screenpipe (API)** | Captura Visual | Alto | Baixo | **P1** |
 | **OpenMemory MCP** | MCP Ecosystem | Alto | Baixo | **P1** |
 | **Langfuse (self-hosted)** | Observabilidade | Alto | Médio | **P2** |
-| **LightRAG** | Knowledge Graph | Alto | Médio | **P2** |
+| ~~**LightRAG**~~ ✅ | Knowledge Graph | Alto | Médio | **Concluído P4** (2026-06-24) |
 | **A-MEM (link evolution)** | Consolidação | Médio | Médio | **P2** |
 | **MegaMem (Streamable HTTP)** | MCP Ecosystem | Médio | Médio | **P2** |
 | **RAPTOR (multi-level)** | Consolidação | Médio | Alto | **P3** |

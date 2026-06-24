@@ -1,5 +1,5 @@
 # Roadmap de Implementação — Hive-Mind Integrações
-**Data:** 2026-06-21 | **Baseado em:** docs/09-integration-study.md
+**Data:** 2026-06-24 | **Baseado em:** docs/09-integration-study.md
 
 > Documento de engenharia. Cada task tem: arquivo exato, linha, o que muda, o que conecta.
 > Ordem por ROI decrescente. Nenhuma fase depende da próxima — podem rodar em paralelo.
@@ -1486,12 +1486,18 @@ O `install.sh` **não é removido** — continua funcionando para usuários Linu
 - [ ] Atualizar `_capture_screen()` no MCP server
 - [ ] Testar captura via `sinapse_capture_screen`
 
-### Sprint 3 — P4 (LightRAG)
-- [ ] `pip install lightrag-hku`
-- [ ] Criar `core/lightrag_index.py`
-- [ ] Conectar Dream Cycle
-- [ ] Adicionar tool `sinapse_rag_query` no MCP
-- [ ] Testar com corpus existente
+### Sprint 3 — P4 (LightRAG) ✅ CONCLUÍDO (2026-06-21 → 2026-06-24)
+- [x] `pip install lightrag-hku` (1.5.4) → `pyproject.toml` + `uv.lock`
+- [x] Criar `core/lightrag_index.py` (wrapper bge-m3 1024d + `granite3-dense:2b` fixo, 1.5GB, Ollama local)
+- [x] Adicionar tool `sinapse_rag_query` no MCP (modos `naive|local|global|hybrid`)
+- [x] Conectar Dream Cycle — Estágio 3.5 (`index_memory()` best-effort, try/except, após `push_neuron` Graphiti)
+- [x] `install.sh`: `ollama pull granite3-dense:2b` na nota pós-instalação
+- [x] Testar com corpus existente (4 entities + 3 rels extraídos corretamente pelo `granite3-dense:2b`)
+- [x] 20/20 testes unitários passando (`test_sinapse_mcp` + `test_p0_embedding`)
+
+**Commits relevantes:** `56f1e98` (integração inicial v1.5.4) · `fe68300` (fix wrapper async) · `61c5285` (fix health) · `dee365b` (default `granite3-dense:2b`) · commit a definir (Estágio 3.5 + documentação).
+
+**Gap fechado em 2026-06-24:** entre `56f1e98` e o commit `dee365b`, o grafo LightRAG existia e o MCP consultava — mas o Dream Cycle **não alimentava o grafo**. A doc P4 já previa o push pós-síntese, mas o código real só chamava `push_neuron` (Graphiti). Resultado: `sinapse_rag_query` só retornava dados de teste manuais. Commit de hoje adiciona `index_memory()` na linha 372 do `dream_cycle.py`, ao lado do `push_neuron()`, com best-effort try/except — síntese dialética nunca é abortada por falha do grafo.
 
 ### Sprint 4 — P2 (Graphiti) ✅ CONCLUÍDO (2026-06-21, commit `5d90f51`)
 - [x] Docker FalkorDB (`docker-compose.falkordb.yml`)
