@@ -1,1525 +1,426 @@
 # Roadmap de Implementação — Hive-Mind Integrações
-**Data:** 2026-06-24 | **Baseado em:** docs/09-integration-study.md
+**Data:** 2026-06-24 | **Base anatômica:** `docs/01-architecture.md` §2 e `AGENTS.md` §2 | **Base de pesquisa:** `docs/09-integration-study.md`
 
-> Documento de engenharia. Cada task tem: arquivo exato, linha, o que muda, o que conecta.
-> Ordem por ROI decrescente. Nenhuma fase depende da próxima — podem rodar em paralelo.
+> Documento de engenharia orientado pela **anatomia do cérebro**: cada fase adiciona ou
+> reforça um órgão do cérebro. Clones de projetos externos vivem em
+> `integrations/<nome>/` (não em `core/`); deps Python vão no `pyproject.toml`;
+> deps de sistema (binários, Docker, Ollama) vão no `install.sh`. Nomes em
+> `cerebro/` (projetos, tópicos, setores) são fictícios — projetos reais são
+> instalados pelo usuário no diretório `cerebro/cortex/temporal/<projeto>/`.
 
 ---
 
 ## Índice de Fases
 
-| Fase | Nome | Esforço | Impacto | Pré-requisito |
-|------|------|---------|---------|---------------|
-| [P0](#fase-p0--embeddings-100-local-ollama-bge-m3--concluído) | Embeddings 100% Local | ✅ DONE | Alto | — |
-| [P1](#fase-p1--screenpipe-substitui-deep-portal--concluído) | Screenpipe → Deep Portal | ✅ DONE | Alto | Screenpipe instalado* |
-| [P2](#fase-p2--graphiti--falkordb-semântica-temporal--concluído) | Graphiti + FalkorDB | ✅ DONE | Alto | FalkorDB Docker |
-| [P3](#fase-p3--langfuse-self-hosted--observabilidade) | Langfuse Observabilidade | Dias | Alto | Docker |
-| [P4](#fase-p4--lightrag-no-dream-cycle) | LightRAG no Dream Cycle | Dias | Alto | Phase P0 |
-| [P5](#fase-p5--cr-sqlite--sync-multi-dispositivo) | CR-SQLite Multi-Device | Dias | Alto | nenhum |
-| [P6](#fase-p6--a-mem-link-evolution-no-grafo) | A-MEM Link Evolution | Dias | Médio | Phase P2 |
-| [P7](#fase-p7--mcp-streamable-http-spec-2025-03-26) | MCP Streamable HTTP | Semanas | Médio | Nenhum |
-| [P8](#fase-p8--multi-plataforma--instalador-npm-universal) | Multi-plataforma + npm | Semanas | Alto | Nenhum |
+| Fase | Nome | Órgão do cérebro | Status | Commits-chave |
+|------|------|------------------|--------|---------------|
+| [P0](#fase-p0-embeddings-100-local-ollama-bge-m3-concluído) | Embeddings 100% Local (bge-m3) | Córtex (associação) | ✅ DONE 2026-06-21 | `93db445`, `f087279` |
+| [P1](#fase-p1-screenpipe-via-rest-substitui-mss-concluído) | Screenpipe via REST | Córtex occipital (captura) | ✅ DONE 2026-06-21 | `9597ef5`, `2a4cdc8` |
+| [P2](#fase-p2-graphiti-falkordb-lóbulo-temporal-concluído) | Graphiti + FalkorDB | **Lóbulo temporal** (causalidade) | ✅ DONE 2026-06-21 → refinado 2026-06-24 | `5d90f51`, `41fac0c`, `b11d6d6`, `16e0387` |
+| [P3](#fase-p3-lightrag-no-dream-cycle-concluído) | LightRAG no Dream Cycle | **Córtex** (RAG híbrido) | ✅ DONE 2026-06-21 → 2026-06-24 | `56f1e98`, `fe68300`, `61c5285`, `dee365b` |
+| [P4](#fase-p4-sinapse_query-funciona-como-cérebro-federador-7-órgãos-concluído) | sinapse_query funde 7 órgãos | Tronco (entry point único) | ✅ DONE 2026-06-24 | `16e0387` |
+| [P5](#fase-p5-anatomia-canônica-em-3-documentos-concluído) | Anatomia canônica (3 docs) | Tronco (docs) | ✅ DONE 2026-06-23 | `ca1ff96`, `3eb4a35`, `ddf5504` |
+| [P6](#fase-p6-raptor-sumário-recursivo-no-grafo) | RAPTOR (sumário recursivo) | Córtex frontal (síntese) | 🔜 Pendente | — |
+| [P7](#fase-p7-megamem-obsidian-mcp-sqlite-vault-unificado) | MegaMem (Obsidian + MCP + SQLite) | Diencéfalo (cross-projeto) | 🔜 Pendente | — |
+| [P8](#fase-p8-sqlite-lembed-embeddings-nativos-quando-disponível) | sqlite-lembed (nativo) | Córtex (quando Python 3.12+) | ⏸ Bloqueado (bug P0) | — |
+| [P9](#fase-p9-cr-sqlite-sync-multi-dispositivo) | CR-SQLite (multi-device) | Tronco (infra) | 🔜 Pendente | — |
+| [P10](#fase-p10-a-mem-link-evolution-no-grafo) | A-MEM (links evolutivos) | Diencéfalo (relay) | 🔜 Pendente | — |
 
 ---
 
-## Estado Atual do Código
+## 0. Princípios de Integração
+
+### 0.1 Anatomia canônica (4 lobos irmãos)
+
+O cérebro do Hive-Mind tem **4 lobos irmãos**, não hierárquicos:
+
+- **Córtex** (cognição superior, 5 lóbulos): temporal, frontal, parietal, occipital, ínsula
+- **Cerebelo** (ritmo): sessoes, diario, semanal, padroes
+- **Diencéfalo** (relay cross-projeto): setores + roteamento
+- **Tronco** (infra vital): modelos, paineis, infra, meta
+
+Ver `docs/01-architecture.md` §2 e `AGENTS.md` §2 para o detalhamento. **Nenhuma fase pode violar a anatomia** — projetos vão em **lobos apropriados** ou em **integrations/** (vendors externos, que são órgãos mas não são do cérebro central).
+
+### 0.2 Clones de vendors externos
+
+Cada projeto externo que vira órgão do cérebro vive em `integrations/<nome>/`:
 
 ```
-core/
-  database.py       ← EMBED_BACKEND=ollama, bge-m3:latest 1024d via OllamaEmbedder ✅P0
-  indexing.py       ← index_neuron_ids() usa get_embedder() (agnóstico ao backend) ✅P0
-  hnsw_index.py     ← HNSW_DIM=1024 (env-var configurável) ✅P0
-  umc_schema.sql    ← search_vec FLOAT[1024] ✅P0
+integrations/
+├── graphify/         # lobo occipital — clustering estrutural
+├── graphiti/         # lobo temporal — causalidade com validade (commit b11d6d6)
+├── neural-memory/    # córtex — spreading activation
+├── rtk/              # tronco — otimização de shell
+└── claude-mem-plugins/  # lobo temporal — eventos brutos
+```
 
-scripts/
-  dream/
-    dream_cycle.py  ← ETL 806 linhas: Distiller→Validator→Router→Síntese
-  services/
-    sinapse-mcp.py  ← MCP stdio, 450 linhas, _capture_screen() chama visual_capture.py
-  capture/
-    capture_core.py ← SeenStore SQLite WAL ✅ (migrado 2026-06-21)
-    parsers/        ← 11 parsers: antigravity, codex, copilot, hermes, kilo...
-  setup/
-    migrate_embed_dim.py ← script one-shot para re-indexação ✅P0
+`install.sh` trata cada um como vendor (clone + install, opcional). Novos clones seguem o mesmo template: `<integrations>/<nome>/{__init__.py, client.py, README.md}`.
 
-plugins/
-  sqlite-vec-worker/worker.py ← EMBED_BACKEND=ollama, DIMENSIONS=1024 ✅P0
+### 0.3 Dependências
+
+- **Dependências Python** vão em `pyproject.toml` (fonte de verdade única, gerenciada por `uv`)
+- **Dependências de sistema** (binários, Docker, Ollama) vão em `install.sh`
+- **Variáveis de ambiente** têm default sensato e override via `.env`
+- **Nenhuma dependência hardcoded em `core/`** — sempre via env vars ou `pyproject.toml`
+
+### 0.4 Robustez por padrão
+
+Todo órgão novo segue 4 camadas (do P2):
+
+1. **Smoke test** (`assert_health()` ou equivalente)
+2. **Circuit breaker** (3 falhas → cooldown)
+3. **Persistência degradada** (fallback local se backend externo cai)
+4. **Retry com backoff** (1s, 2s, 4s por padrão)
+
+---
+
+## 0.5 Mapa de vendors (estado atual)
+
+| Lobro do cérebro | Vendor | `integrations/` | `pyproject.toml` | `install.sh` | Status |
+|---|---|---|---|---|---|
+| Córtex occipital | Graphify | `integrations/graphify/` | `graphifyy[watch]` | clone + setup_brain.sh | ✅ |
+| **Córtex temporal** | **Graphiti (FalkorDB)** | `integrations/graphiti/` | `graphiti-core`, `falkordb` | clone + Docker FalkorDB | ✅ P2 |
+| **Córtex temporal** | claude-mem | `integrations/claude-mem-plugins/` | (indep, npm) | (indep) | ✅ |
+| Córtex (associação) | Neural Memory | `integrations/neural-memory/` | `neural-memory[pro]` | clone + setup_brain.sh | ✅ |
+| **Córtex** (RAG) | LightRAG | `core/lightrag_index.py` (não vendor) | `lightrag-hku` | `ollama pull granite3-dense:2b` | ✅ P3 |
+| Tronco | RTK | `integrations/rtk/` | (indep, cargo) | cargo install | ✅ |
+| Córtex | SQLite-vec | (nativo) | `sqlite-vec` | (extensão nativa) | ✅ |
+| Córtex (visual) | Screenpipe | (npm) | (indep, npm) | npm install -g @screenpipe/cli | ✅ P1 |
+| Córtex | Fastembed | (nativo) | `fastembed` | (fallback P0) | ✅ |
+
+**Padrão de integração:**
+- Se é órgão do cérebro (Graphiti, Graphify, Neural Memory, claude-mem) → `integrations/<nome>/`
+- Se é utilitário com dep local (LightRAG via pip) → `core/<nome>_index.py` + `pyproject.toml`
+- Se é binário de sistema (Screenpipe, RTK) → `install.sh` baixa
+
+---
+
+## 1. Estado atual do cérebro
+
+```
+core/                              ← código do cérebro central
+├── database.py                    # OllamaEmbedder (bge-m3 1024d) ✅P0
+├── indexing.py                    # index_neuron_ids() ✅P0
+├── hnsw_index.py                  # HNSW_DIM=1024 ✅P0
+├── umc_schema.sql                 # search_vec FLOAT[1024] ✅P0
+├── lightrag_index.py             # LightRAG v1.5.4 wrapper ✅P3
+├── telemetry.py                   # OTEL → Langfuse (opt-in)
+└── paths.py                       # constantes anatômicas (CORTEX, TEMPORAL, etc.)
 
 integrations/
-  neural-memory/    ← graphiti_adapter.py já existe aqui (parcialmente implementado)
+├── graphify/                      # lobo occipital
+├── graphiti/                      # lobo temporal (commit b11d6d6) ✅P2
+│   ├── client.py                  # 4 camadas: smoke + circuit + retry + persist
+│   ├── __init__.py                # API pública + whitebox
+│   └── README.md
+├── neural-memory/                 # córtex (associação)
+├── rtk/                           # tronco (otimização shell)
+└── claude-mem-plugins/            # lobo temporal (eventos)
 
-requirements.txt    ← fastembed (legado, fallback), sqlite-vec, duckdb, mss
+plugins/
+├── hermes/
+│   └── sinapse-memory.py            # 7 backends federados (UMC + NeuralMemory + sqlite-vec + claude-mem + Graphify + Graphiti + filesystem)
+└── sqlite-vec-worker/worker.py      # VEC_EMBED_DIM=1024 ✅P0
+
+scripts/
+├── dream/
+│   └── dream_cycle.py             # ETL: Distiller→Validator→Router→Síntese
+│   └──                              # Stage 3.5: push_neuron (Graphiti) + index_memory (LightRAG) best-effort
+├── services/
+│   ├── sinapse-mcp.py             # MCP stdio, 13 tools sinapse_* + sinapse_query (orquestrador)
+│   ├── sinapse-api.py             # REST API (porta 37702)
+│   └── sinapse-write.py           # CLI: decision, learning, query, health, session-end
+├── capture/
+│   ├── capture_core.py            # SeenStore SQLite WAL ✅
+│   ├── capture_adapters.py        # ADAPTERS dict (screenpipe, etc.)
+│   └── parsers/                   # 11 parsers: antigravity, codex, copilot, hermes, kilo...
+└── setup/
+    └── migrate_embed_dim.py       # 384 → 1024 one-shot ✅P0
 ```
 
 ---
 
-## Fase P0 — Embeddings 100% Local (Ollama bge-m3) ✅ CONCLUÍDO
+## 2. Fases concluídas (P0..P5)
 
-**Objetivo:** eliminar `fastembed + all-MiniLM-L6-v2 (384d)` e migrar para modelo multilingual PT+EN de maior qualidade rodando 100% local via Ollama.
-**Status:** IMPLEMENTADO | **Commits:** `93db445`, `f087279` | **Data:** 2026-06-21
+### Fase P0 — Embeddings 100% Local (Ollama bge-m3) ✅ CONCLUÍDO
 
-### Bloqueio resolvido
+**Objetivo:** eliminar `fastembed + all-MiniLM-L6-v2 (384d)` e usar modelo multilingual PT+EN 1024d rodando 100% local.
+**Status:** ✅ | **Commits:** `93db445`, `f087279` | **Data:** 2026-06-21
 
-`sqlite-lembed` (plano original) é incompatível com Python 3.12+ — a API `sqlite3_result_subtype()` foi restringida e gera `OperationalError: misuse of sqlite3_result_subtype()`. Não é limitação do Python 3.14 especificamente; afeta 3.12 em diante. Solução adotada: Ollama HTTP API, que já estava rodando localmente.
+**Modelo:** `bge-m3:latest` (1024d, MTEB multilingual #1 2024, 91ms warm, EXCELENTE PT-BR)
 
-### Modelo selecionado: `bge-m3:latest`
-
-| Modelo avaliado | Dim | Warm latency | PT support | Decisão |
-|---|---|---|---|---|
-| all-MiniLM-L6-v2 (fastembed) | 384 | 49ms | Fraca | Descartado |
-| nomic-embed-text v1.5 | 768 | 28ms | Moderada | Descartado |
-| nomic-embed-text-v2-moe | 768 | 625ms | Boa | Descartado (lento) |
-| **bge-m3:latest** | **1024** | **91ms** | **Excelente** | **✅ Adotado** |
-
-`bge-m3` (BAAI/bge-m3): MTEB multilingual #1 2024, treinado em 100+ idiomas incluindo PT-BR.
-
-### O que foi implementado
-
-#### Task P0.1 — Backend configurável (`core/database.py`)
-
-```python
-# Env vars para controle:
-EMBED_BACKEND = os.environ.get("EMBED_BACKEND", "ollama")       # "ollama" | "fastembed"
-OLLAMA_BASE   = os.environ.get("OLLAMA_BASE", "http://localhost:11434")
-OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "bge-m3:latest")
-
-class OllamaEmbedder:
-    """HTTP client Ollama /api/embeddings — interface compatível com fastembed."""
-    def embed(self, texts):  # yields list[float] para cada texto
-
-def get_embedder():  # retorna OllamaEmbedder ou TextEmbedding conforme EMBED_BACKEND
-def embed_text(text: str) -> list:  # retorna list() — funciona com ambos os backends
-```
-
-#### Task P0.2 — Dimensão 384 → 1024 (5 arquivos)
+**Arquivos modificados:**
 
 | Arquivo | Mudança |
 |---|---|
-| `core/hnsw_index.py:25` | `HNSW_DIM` default `384` → `1024` |
-| `core/umc_schema.sql:92` | `FLOAT[384]` → `FLOAT[1024]` em `search_vec` |
-| `scripts/setup/setup_umc.py:62,66` | test vector e probe table `384` → `1024` |
-| `scripts/setup/migrate_to_uuid.py:172` | `FLOAT[384]` → `FLOAT[1024]` |
-| `plugins/sqlite-vec-worker/worker.py:45` | `VEC_EMBED_DIM` default `384` → `1024` |
+| `core/database.py` | `OllamaEmbedder` via HTTP, `EMBED_BACKEND=ollama` default |
+| `core/hnsw_index.py:25` | `HNSW_DIM` 384 → 1024 |
+| `core/umc_schema.sql:92` | `FLOAT[384]` → `FLOAT[1024]` |
+| `plugins/sqlite-vec-worker/worker.py` | `VEC_EMBED_DIM` 384 → 1024 |
+| `scripts/setup/migrate_embed_dim.py` | script one-shot (3639/3642 re-indexados em 407s) |
+| `tests/unit/test_p0_embedding.py` | 10 testes (backend, determinismo, dim, live) |
 
-#### Task P0.3 — Worker atualizado (`plugins/sqlite-vec-worker/worker.py`)
+**Bloqueio original:** `sqlite-lembed` (plano inicial) é incompatível com Python 3.12+ (`OperationalError: misuse of sqlite3_result_subtype()`). Solução: Ollama HTTP API.
 
-```python
-EMBED_BACKEND = os.environ.get("EMBED_BACKEND", "ollama")         # ollama | fastembed
-OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "bge-m3:latest")
-DIMENSIONS = int(os.environ.get("VEC_EMBED_DIM", "1024"))
-# fastembed e numpy agora opcionais (try/except)
-```
+**Rollback:** `EMBED_BACKEND=fastembed` + `HNSW_DIM=384`.
 
-#### Task P0.4 — Migração do banco (`scripts/setup/migrate_embed_dim.py`)
+### Fase P1 — Screenpipe via REST substitui mss ✅ CONCLUÍDO
 
-Script one-shot reutilizável:
-1. Drop + recreate `search_vec` com nova dimensão
-2. Re-indexa todos os neurônios via Ollama (incremental — pula já indexados)
-3. Reseta HNSW index em disco
+**Objetivo:** deprecar `mss + LLM Vision` e consumir Screenpipe via REST local.
+**Status:** ✅ | **Commits:** `9597ef5`, `2a4cdc8` | **Data:** 2026-06-21
+**Testes:** 13/13 (10 offline + 3 live, skip se Screenpipe offline)
 
-Resultado: 3639/3642 neurônios re-indexados em 407s (8.9/s). 3 falhas por HTTP 500 do Ollama em conteúdo problemático (0.1%).
-
-```bash
-# Para re-executar migração (ex: após novos neurônios ou mudança de modelo):
-python scripts/setup/migrate_embed_dim.py
-```
-
-#### Task P0.5 — Testes (`tests/unit/test_p0_embedding.py`)
-
-10 testes cobrindo:
-- `embed_text()` retorna lista de floats com dim consistente
-- Determinismo (mesmo texto → mesmo vetor)
-- Seleção de backend via `EMBED_BACKEND` env var
-- `OllamaEmbedder` live (skip se Ollama não estiver rodando)
-- Testes bge-m3 live: dim=1024 confirmado
-
-```bash
-pytest tests/unit/test_p0_embedding.py -v  # 10/10 passando
-pytest tests/unit/ -q                       # 434/434 passando
-```
-
-### Rollback (se necessário)
-
-```bash
-export EMBED_BACKEND=fastembed
-export HNSW_DIM=384
-# Re-executar migrate_embed_dim.py com modelo fastembed carregado
-```
-
-### Notas para sqlite-lembed (futuro)
-
-Quando `sqlite-lembed` resolver o Python 3.12+ bug (`misuse of sqlite3_result_subtype()`), a migração de volta é simples: `EMBED_BACKEND=lembed` + adicionar `_init_lembed()` em `get_connection()`. A interface `embed_text()` já é agnóstica ao backend.
-
----
-
-## Fase P1 — Screenpipe Substitui Deep Portal ✅ CONCLUÍDO
-
-**Objetivo:** deprecar `mss + LLM Vision` e consumir Screenpipe via REST API local.
-**Status:** IMPLEMENTADO | **Commits:** `9597ef5`, `2a4cdc8` | **Data:** 2026-06-21
-**Testes:** 13/13 passando (10 offline + 3 live) | **Suite:** 447/447, 0 skipped
-
-### O que foi implementado
+**Arquivos:**
 
 | Arquivo | Mudança |
 |---|---|
-| `scripts/capture/parsers/screenpipe.py` (novo) | Cliente REST completo: `screenpipe_alive()`, `fetch_recent_ocr()`, `fetch_recent_audio()`, `capture_screenshot()` + suporte `SCREENPIPE_API_KEY` |
-| `scripts/capture/capture_adapters.py` | `_parse_screenpipe()` adapter + entrada `"screenpipe"` em ADAPTERS |
-| `scripts/services/sinapse-mcp.py` | `_capture_screen()` tenta Screenpipe REST primeiro, fallback para `visual_capture.py` |
-| `scripts/setup/install_services.py` | `_install_screenpipe()` — instala binário via npm durante `./install.sh` |
-| `tests/unit/test_screenpipe_parser.py` | 10 testes offline + 3 live (skip automático quando Screenpipe não está rodando) |
+| `scripts/capture/parsers/screenpipe.py` (NOVO) | Cliente REST completo |
+| `scripts/capture/capture_adapters.py` | entrada `"screenpipe"` em ADAPTERS |
+| `scripts/services/sinapse-mcp.py` | `_capture_screen()` tenta Screenpipe primeiro, fallback `visual_capture.py` |
+| `scripts/setup/install_services.py` | `_install_screenpipe()` (npm) |
 
-### Instalação (integrada em `./install.sh`)
+**Env vars:** `SCREENPIPE_BASE` (default `http://localhost:3030`), `SCREENPIPE_TIMEOUT=5`, `SCREENPIPE_API_KEY` (opcional)
 
-O `install.sh` chama `install_services.py install` que agora executa `_install_screenpipe()` automaticamente. Em uma instalação limpa:
+### Fase P2 — Graphiti + FalkorDB (lóbulo temporal) ✅ CONCLUÍDO
 
-```bash
-./install.sh               # instala Screenpipe junto com tudo mais
-```
+**Objetivo:** adicionar janelas de validade temporal (`valid_at`/`invalid_at`) ao grafo neurônios/sinapses.
+**Status:** ✅ | **Commits:** `5d90f51`, `41fac0c` (robustez), `b11d6d6` (move para integrations), `16e0387` (fusão no cérebro)
+**Testes:** 14/14 (11 offline + 3 live)
 
-**Manualmente (se necessário):**
-```bash
-# Linux x64
-npm install -g @screenpipe/cli-linux-x64
+**Evolução em 3 etapas:**
+1. `5d90f51` — Cria `core/graphiti_client.py` + Docker FalkorDB + hook no Dream Cycle
+2. `41fac0c` — Adiciona 4 camadas de robustez: smoke test (`assert_health`), circuit breaker, retry com backoff, persistência JSON-lines em `cortex/temporal/_global/grafo.jsonl`
+3. `b11d6d6` — Move de `core/` para `integrations/graphiti/` (anatomia: vendors externos ficam em `integrations/`, não no cérebro central)
+4. `16e0387` — Funda no `sinapse_query` como 7º backend (`_backend_graphiti` em `plugins/hermes/sinapse-memory.py`)
 
-# Dependência de sistema (Ubuntu/Debian):
-sudo apt-get install libopenblas0
-
-# Iniciar daemon
-screenpipe record --port 3030 --disable-audio &
-
-# Verificar
-curl http://localhost:3030/health  # → {"status": "healthy", ...}
-
-# Os 3 testes live passam automaticamente
-SCREENPIPE_API_KEY=<token> pytest tests/unit/test_screenpipe_parser.py -v
-```
-
-### Notas de implementação
-
-- **Health check:** aceita `status == "ok"` (versões antigas) **e** `"healthy"` (v0.4+)
-- **Auth:** `SCREENPIPE_API_KEY` é opcional — endpoint `/health` é público; `/search` requer token em instâncias com `--api-auth`
-- **Wayland/X11:** captura de tela requer compositor com `ZwlrScreencopy`. Audio e UI events funcionam sem ele.
-- **Linux note:** `libopenblas.so.0` é dep runtime do binário Rust; pode ser resolvida com `sudo apt install libopenblas0` ou via `LD_LIBRARY_PATH`
-
-### Variáveis de ambiente
-
-| Variável | Default | Descrição |
-|----------|---------|-----------|
-| `SCREENPIPE_BASE` | `http://localhost:3030` | URL base da API REST |
-| `SCREENPIPE_TIMEOUT` | `5` | Timeout em segundos |
-| `SCREENPIPE_API_KEY` | `""` | Bearer token (obrigatório se `--api-auth` ativo) |
-
----
-
-## Fase P1 — Screenpipe (plano original — substituído pela implementação acima)
-
-**Objetivo:** deprecar `mss + LLM Vision` e consumir Screenpipe via REST API local.
-**Esforço:** 1-2 dias | **Risco:** Baixo (additive, fallback mantido) | **Pré-req:** Screenpipe instalado
-
-### Por que
-
-Hoje `sinapse-mcp.py:253-269` chama `scripts/visual_capture.py` via subprocess. Screenpipe já roda localmente em `localhost:3030`, já tem SQLite+FTS5, e seu schema pode ser lido via `ATTACH DATABASE`. Ganho: compressão 6x, Whisper local, event-driven (sem polling).
-
-### Task P1.1 — Instalar Screenpipe
-
-```bash
-# Screenpipe (Rust binary — instalar via script oficial)
-curl -sSL https://raw.githubusercontent.com/screenpipe/screenpipe/main/install.sh | bash
-
-# Ou via cargo:
-cargo install screenpipe
-
-# Verificar que roda:
-screenpipe &
-curl http://localhost:3030/health
-```
-
-### Task P1.2 — Criar `scripts/capture/parsers/screenpipe.py`
-
-**Arquivo NOVO:** `scripts/capture/parsers/screenpipe.py`
-
-```python
-"""Parser Screenpipe — lê OCR/áudio via REST API localhost:3030."""
-from __future__ import annotations
-import json
-import urllib.request
-from datetime import datetime, timedelta
-from pathlib import Path
-
-SCREENPIPE_BASE = "http://localhost:3030"
-
-
-def _api(path: str, params: dict = None) -> dict:
-    url = f"{SCREENPIPE_BASE}{path}"
-    if params:
-        qs = "&".join(f"{k}={v}" for k, v in params.items())
-        url = f"{url}?{qs}"
-    try:
-        with urllib.request.urlopen(url, timeout=5) as r:
-            return json.loads(r.read().decode())
-    except Exception:
-        return {}
-
-
-def screenpipe_alive() -> bool:
-    return bool(_api("/health").get("status") == "ok")
-
-
-def fetch_recent_ocr(since_minutes: int = 60, limit: int = 50) -> list[dict]:
-    """Retorna chunks OCR recentes do Screenpipe como sessões para o pipeline."""
-    start_time = (datetime.utcnow() - timedelta(minutes=since_minutes)).isoformat() + "Z"
-    data = _api("/search", {
-        "content_type": "ocr",
-        "start_time": start_time,
-        "limit": limit,
-    })
-    sessions = []
-    for item in data.get("data", []):
-        content = item.get("content", {})
-        text = content.get("text", "").strip()
-        if not text:
-            continue
-        frame_id = str(item.get("content_id", item.get("id", "")))
-        app = content.get("app_name", "unknown")
-        sessions.append({
-            "sid": f"screenpipe:{frame_id}",
-            "prompt": f"[{app}] {text[:120]}",
-            "turns": [{
-                "tool_name": "ScreenCapture",
-                "tool_input": {"app": app, "text": text[:500]},
-                "tool_response": text,
-            }],
-            "last": text[:200],
-        })
-    return sessions
-
-
-def fetch_recent_audio(since_minutes: int = 60, limit: int = 20) -> list[dict]:
-    """Retorna transcrições Whisper recentes do Screenpipe."""
-    start_time = (datetime.utcnow() - timedelta(minutes=since_minutes)).isoformat() + "Z"
-    data = _api("/search", {
-        "content_type": "audio",
-        "start_time": start_time,
-        "limit": limit,
-    })
-    sessions = []
-    for item in data.get("data", []):
-        content = item.get("content", {})
-        text = content.get("transcription", "").strip()
-        if not text:
-            continue
-        chunk_id = str(item.get("content_id", item.get("id", "")))
-        sessions.append({
-            "sid": f"screenpipe:audio:{chunk_id}",
-            "prompt": f"[áudio] {text[:120]}",
-            "turns": [{
-                "tool_name": "AudioTranscription",
-                "tool_input": {"transcription": text[:500]},
-                "tool_response": text,
-            }],
-            "last": text[:200],
-        })
-    return sessions
-```
-
-### Task P1.3 — Atualizar `sinapse-mcp.py` — `_capture_screen()`
-
-**Arquivo:** `scripts/services/sinapse-mcp.py`
-**Função:** `_capture_screen()` — **linhas 253-269**
-
-```python
-# ANTES:
-def _capture_screen(description=""):
-    """Captura a tela chamando o script visual_capture.py via subprocesso."""
-    import subprocess
-    import os
-    ...
-    capture_script = os.path.join(scripts_dir, "visual_capture.py")
-    ...
-```
-
-```python
-# DEPOIS:
-def _capture_screen(description=""):
-    """Captura tela via Screenpipe (REST) com fallback para visual_capture.py."""
-    import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    try:
-        from scripts.capture.parsers.screenpipe import screenpipe_alive, _api
-        if screenpipe_alive():
-            # Solicitar screenshot via Screenpipe
-            import json
-            import urllib.request
-            req = urllib.request.Request(
-                "http://localhost:3030/screenshot",
-                data=json.dumps({"description": description}).encode(),
-                method="POST",
-                headers={"Content-Type": "application/json"},
-            )
-            try:
-                with urllib.request.urlopen(req, timeout=10) as r:
-                    data = json.loads(r.read().decode())
-                    path = data.get("path", "")
-                    if path:
-                        return {"path": path, "description": description, "source": "screenpipe"}
-            except Exception:
-                pass
-    except ImportError:
-        pass
-    # Fallback: visual_capture.py legado
-    import subprocess
-    import os
-    scripts_dir = os.path.join(os.environ.get("SINAPSE_HOME", ""), "scripts")
-    capture_script = os.path.join(scripts_dir, "visual_capture.py")
-    if not os.path.exists(capture_script):
-        return {"error": "visual_capture.py não encontrado e Screenpipe indisponível"}
-    result = subprocess.run(
-        [sys.executable, capture_script, "--description", description],
-        capture_output=True, text=True, timeout=30
-    )
-    path = result.stdout.strip()
-    return {"path": path, "description": description, "source": "visual_capture"}
-```
-
-### Task P1.4 — Adicionar adapter Screenpipe ao pipeline de captura
-
-**Arquivo:** `scripts/capture/capture_adapters.py`
-**Onde:** no dict `ADAPTERS`, adicionar entrada:
-
-```python
-"screenpipe": {
-    "owner": "timer",           # roda via capture-tailer periodicamente
-    "mode": "reparse",
-    "parser": _parse_screenpipe,
-    "sources": [],              # sem arquivo local — usa REST
-    "watch": [],
-},
-```
-
-**Adicionar função no mesmo arquivo:**
-```python
-def _parse_screenpipe(_source=None):
-    """Adapter que lê Screenpipe via REST em vez de arquivo."""
-    try:
-        from scripts.capture.parsers.screenpipe import fetch_recent_ocr, fetch_recent_audio
-        return fetch_recent_ocr(since_minutes=60) + fetch_recent_audio(since_minutes=60)
-    except Exception:
-        return []
-```
-
-### Task P1.5 — Verificação
-
-```bash
-# Testar parser manualmente
-python3 -c "
-from scripts.capture.parsers.screenpipe import screenpipe_alive, fetch_recent_ocr
-print('Screenpipe alive:', screenpipe_alive())
-sessions = fetch_recent_ocr(since_minutes=5)
-print(f'{len(sessions)} sessões OCR recentes')
-"
-```
-
----
-
-## Fase P2 — Graphiti + FalkorDB: Semântica Temporal ✅ CONCLUÍDO
-
-**Objetivo:** adicionar janelas de validade de fatos ao grafo neurônios/sinapses.
-**Status:** IMPLEMENTADO | **Commit:** `5d90f51` | **Data:** 2026-06-21
-**Testes:** 9/9 passando (6 offline + 3 live com FalkorDB rodando)
-
-### Arquivos implementados
+**Arquivos atuais:**
 
 | Arquivo | Papel |
-|---------|-------|
-| `docker-compose.falkordb.yml` | Container FalkorDB (porta 6379, volume persistente) |
-| `core/graphiti_client.py` | Wrapper Graphiti/FalkorDB + Ollama; lazy singleton; `push_neuron()`, `search_graph()`, `graphiti_available()` |
-| `scripts/dream/dream_cycle.py` | Hook `push_neuron()` after `conn.commit()` na síntese (best-effort, swallows errors) |
-| `scripts/services/sinapse-mcp.py` | Tool `sinapse_temporal_graph_search` exposta via MCP |
-| `scripts/setup/install_services.py` | `_start_falkordb()` chamado em `install()` via `docker compose up -d` |
-| `pyproject.toml` / `requirements.txt` / `uv.lock` | `graphiti-core>=0.29.0`, `falkordb>=1.1.2` |
-| `tests/unit/test_p2_graphiti.py` | 9 testes |
+|---|---|
+| `integrations/graphiti/client.py` | Wrapper Graphiti/FalkorDB/Ollama; smoke + circuit + retry + persist |
+| `integrations/graphiti/__init__.py` | API pública (`push_neuron`, `search_graph`, `assert_health`, `circuit_state`) |
+| `integrations/graphiti/README.md` | Anatomia (lóbulo temporal), env vars, instalação |
+| `plugins/hermes/sinapse-memory.py` | `_backend_graphiti` (7º backend do orquestrador) |
+| `docker-compose.falkordb.yml` | Container FalkorDB porta 6379 |
+| `tests/integration/test_graphiti.py` | 14 testes (movido de `tests/unit/test_p2_graphiti.py`) |
+| `pyproject.toml` | `graphiti-core>=0.29.0`, `falkordb>=1.1.2,<2.0.0` |
 
-### Configuração (env vars)
+**Env vars:** `FALKORDB_HOST/PORT/USER/PASSWORD/DB`, `GRAPHITI_LLM_BASE/MODEL`, `GRAPHITI_EMBED_MODEL`, `HIVE_GRAPHITI_RETRIES/CB_FAILS/CB_COOLDOWN`, `HIVE_TEMPORAL_GRAFO` (path do fallback)
 
-| Variável | Padrão | Descrição |
-|----------|--------|-----------|
-| `FALKORDB_HOST` | `localhost` | Host do FalkorDB |
-| `FALKORDB_PORT` | `6379` | Porta Redis-protocol |
-| `FALKORDB_USER` | `` | Auth user (vazio = sem auth) |
-| `FALKORDB_PASSWORD` | `` | Auth password |
-| `FALKORDB_DB` | `sinapse` | Database/grafo no FalkorDB |
-| `GRAPHITI_LLM_BASE` | `http://localhost:11434/v1` | Base URL Ollama (OpenAI-compat) |
-| `GRAPHITI_LLM_MODEL` | `qwen2.5-coder:3b` | Modelo para extração de entidades |
-| `GRAPHITI_EMBED_MODEL` | `bge-m3:latest` | Modelo de embedding |
+**Robustez (4 camadas):**
+1. `assert_health()` — FalkorDB + Ollama LLM + Ollama embed + write/read de prova
+2. Circuit breaker (3 falhas consecutivas → cooldown 30s)
+3. Persistência JSON-lines em `cerebro/cortex/temporal/_global/grafo.jsonl` quando FalkorDB offline
+4. Retry com backoff 1s/2s/4s
 
-### Iniciar FalkorDB
-
-```bash
-# Iniciar (idempotente, via install_services.py ou manualmente):
-docker compose -f docker-compose.falkordb.yml up -d
-
-# Testar conexão:
-python3 -c "import falkordb; db = falkordb.FalkorDB(); print('FalkorDB OK')"
-```
-
-**`requirements.txt`** — adicionar:
-```
-graphiti-core>=0.3.0
-falkordb>=1.0.0
-```
-
-### Task P2.2 — Criar `core/graphiti_client.py`
-
-**Arquivo NOVO:** `core/graphiti_client.py`
-
-```python
-"""Cliente singleton para Graphiti temporal knowledge graph."""
-from __future__ import annotations
-import os
-from pathlib import Path
-from datetime import datetime
-
-_graphiti = None
-
-
-def get_graphiti():
-    """Retorna instância singleton do cliente Graphiti (lazy init)."""
-    global _graphiti
-    if _graphiti is not None:
-        return _graphiti
-    try:
-        from graphiti_core import Graphiti
-    except ImportError:
-        return None
-    uri = os.environ.get("GRAPHITI_URI", "bolt://localhost:7474")
-    user = os.environ.get("GRAPHITI_USER", "")
-    password = os.environ.get("GRAPHITI_PASSWORD", "")
-    try:
-        _graphiti = Graphiti(uri, user, password)
-        return _graphiti
-    except Exception as e:
-        print(f"  ⚠ Graphiti indisponível: {e}")
-        return None
-
-
-async def add_episode(session_id: str, content: str, source: str = "dream_cycle") -> bool:
-    """Insere um episódio consolidado no grafo temporal."""
-    from graphiti_core.nodes import EpisodeType
-    g = get_graphiti()
-    if g is None:
-        return False
-    try:
-        await g.add_episode(
-            name=f"{source}:{session_id}",
-            episode_body=content,
-            source=EpisodeType.text,
-            reference_time=datetime.now(),
-        )
-        return True
-    except Exception as e:
-        print(f"  ⚠ Graphiti add_episode falhou: {e}")
-        return False
-
-
-async def temporal_search(query: str, num_results: int = 10) -> list[dict]:
-    """Busca no grafo com semântica temporal."""
-    g = get_graphiti()
-    if g is None:
-        return []
-    try:
-        results = await g.search(query, num_results=num_results)
-        return [
-            {
-                "fact": r.fact,
-                "valid_from": str(r.valid_at) if hasattr(r, "valid_at") else None,
-                "invalid_from": str(r.invalid_at) if hasattr(r, "invalid_at") else None,
-                "score": getattr(r, "score", 0),
-            }
-            for r in results
-        ]
-    except Exception as e:
-        print(f"  ⚠ Graphiti search falhou: {e}")
-        return []
-```
-
-### Task P2.3 — Conectar ao Dream Cycle
-
-**Arquivo:** `scripts/dream/dream_cycle.py`
-**Onde:** após a função de síntese (após Router aprovar) — adicionar chamada async:
-
-```python
-# Adicionar no topo do arquivo (imports):
-import asyncio
-
-# Adicionar função helper perto do fim do arquivo (antes de main()):
-def _push_to_graphiti(session_id: str, synthesis_text: str) -> None:
-    """Envia memória consolidada ao Graphiti de forma não-bloqueante."""
-    try:
-        from core.graphiti_client import add_episode
-        asyncio.get_event_loop().run_until_complete(
-            add_episode(session_id, synthesis_text, source="dream_cycle")
-        )
-    except Exception as e:
-        print(f"  ⚠ Graphiti push ignorado: {e}")
-```
-
-**Onde chamar:** na função que finaliza cada ciclo de síntese (procurar por `archived = 1` ou `UPDATE observations SET archived`):
-
-```python
-# Logo após o UPDATE que arquiva a observação processada:
-_push_to_graphiti(str(obs_id), synthesis_result)
-```
-
-### Task P2.4 — Adicionar ferramenta MCP `sinapse_temporal_graph_search`
-
-**Arquivo:** `scripts/services/sinapse-mcp.py`
-**Onde:** na lista `TOOLS` (array de dicts de ferramentas) — adicionar entrada:
-
-```python
-{
-    "name": "sinapse_temporal_graph_search",
-    "description": "Busca no grafo temporal Graphiti — retorna fatos com janela de validade (valid_from/invalid_from). Use para perguntas como 'o que era verdade sobre X em tal data'.",
-    "inputSchema": {
-        "type": "object",
-        "properties": {
-            "query": {"type": "string", "description": "Query de busca semântica"},
-            "num_results": {"type": "integer", "default": 10}
-        },
-        "required": ["query"]
-    }
-},
-```
-
-**No dispatcher** (`handle_request` ou equivalente) — adicionar:
-```python
-"sinapse_temporal_graph_search": lambda args: _temporal_graph_search(
-    args["query"], args.get("num_results", 10)
-),
-```
-
-**Adicionar função:**
-```python
-def _temporal_graph_search(query: str, num_results: int = 10) -> dict:
-    import asyncio
-    try:
-        from core.graphiti_client import temporal_search
-        results = asyncio.get_event_loop().run_until_complete(
-            temporal_search(query, num_results)
-        )
-        return {"results": results, "count": len(results)}
-    except Exception as e:
-        return {"error": str(e), "results": []}
-```
-
-### Task P2.5 — Variáveis de ambiente
-
-**Arquivo:** `.env` (gitignored) — adicionar:
-```bash
-GRAPHITI_URI=bolt://localhost:7474
-GRAPHITI_USER=
-GRAPHITI_PASSWORD=
-```
-
----
-
-## Fase P3 — Langfuse Self-Hosted: Observabilidade
-
-**Objetivo:** tracing OpenTelemetry do Dream Cycle e do pipeline de captura.
-**Esforço:** 1-2 dias | **Risco:** Baixo (opt-in via env var)
-
-### Task P3.1 — Deploy Langfuse
-
-```bash
-# docker-compose.langfuse.yml na raiz do projeto
-cat > docker-compose.langfuse.yml << 'EOF'
-version: "3"
-services:
-  langfuse:
-    image: langfuse/langfuse:latest
-    ports:
-      - "3100:3000"
-    environment:
-      DATABASE_URL: "file:/data/langfuse.db"
-      NEXTAUTH_SECRET: "local-secret-change-me"
-      NEXTAUTH_URL: "http://localhost:3100"
-      SALT: "local-salt"
-    volumes:
-      - ./claude-mem/data/langfuse:/data
-EOF
-
-docker-compose -f docker-compose.langfuse.yml up -d
-# Acesso: http://localhost:3100
-```
-
-**`requirements.txt`** — adicionar:
-```
-opentelemetry-sdk>=1.20
-opentelemetry-exporter-otlp-proto-http>=1.20
-```
-
-### Task P3.2 — Criar `core/telemetry.py`
-
-**Arquivo NOVO:** `core/telemetry.py`
-
-```python
-"""Telemetria opcional via OpenTelemetry → Langfuse self-hosted."""
-from __future__ import annotations
-import os
-import base64
-from contextlib import contextmanager
-
-_tracer = None
-_enabled = False
-
-
-def _langfuse_headers() -> dict:
-    pk = os.environ.get("LANGFUSE_PUBLIC_KEY", "")
-    sk = os.environ.get("LANGFUSE_SECRET_KEY", "")
-    if not pk or not sk:
-        return {}
-    token = base64.b64encode(f"{pk}:{sk}".encode()).decode()
-    return {"Authorization": f"Basic {token}"}
-
-
-def init_telemetry() -> bool:
-    """Inicializa OTEL se LANGFUSE_PUBLIC_KEY estiver definido. Idempotente."""
-    global _tracer, _enabled
-    if _tracer is not None:
-        return _enabled
-    headers = _langfuse_headers()
-    if not headers:
-        return False
-    try:
-        from opentelemetry import trace
-        from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-
-        endpoint = os.environ.get("LANGFUSE_HOST", "http://localhost:3100")
-        exporter = OTLPSpanExporter(
-            endpoint=f"{endpoint}/api/public/otel/v1/traces",
-            headers=headers,
-        )
-        provider = TracerProvider()
-        provider.add_span_processor(BatchSpanProcessor(exporter))
-        trace.set_tracer_provider(provider)
-        _tracer = trace.get_tracer("hive-mind")
-        _enabled = True
-        return True
-    except ImportError:
-        return False
-
-
-@contextmanager
-def span(name: str, attributes: dict = None):
-    """Context manager para criar um span OTEL. No-op se telemetria desabilitada."""
-    if not _enabled or _tracer is None:
-        yield None
-        return
-    with _tracer.start_as_current_span(name) as s:
-        if attributes:
-            for k, v in attributes.items():
-                s.set_attribute(k, str(v))
-        yield s
-```
-
-### Task P3.3 — Instrumentar Dream Cycle
-
-**Arquivo:** `scripts/dream/dream_cycle.py`
-**Onde:** no início de `main()` ou da função de ciclo principal:
-
-```python
-# Adicionar import no topo:
-from core.telemetry import init_telemetry, span
-
-# No início de cada ciclo:
-init_telemetry()
-
-# Envolver etapas principais com spans:
-with span("dream.distiller", {"obs_count": len(observations)}):
-    distiller_result = run_distiller(observations)
-
-with span("dream.validator", {"distiller_output": str(distiller_result)[:200]}):
-    validator_result = run_validator(distiller_result)
-
-with span("dream.synthesis", {"session_id": session_id}):
-    synthesis = run_synthesis(validator_result)
-```
-
-### Task P3.4 — Instrumentar capture_core
-
-**Arquivo:** `scripts/capture/capture_core.py`
-**Função:** `ingest()` — envolver emissão com span:
-
-```python
-# Adicionar no topo de ingest():
-from core.telemetry import span  # lazy import para não quebrar se core/ não no path
-
-# Envolver o loop de turns:
-with span("capture.ingest", {"platform": platform, "sid": sid}):
-    # ... código existente do loop de turns ...
-    pass
-```
-
-### Task P3.5 — Variáveis de ambiente
-
-**Arquivo:** `.env`:
-```bash
-LANGFUSE_PUBLIC_KEY=pk-lf-...      # gerado no dashboard http://localhost:3100
-LANGFUSE_SECRET_KEY=sk-lf-...
-LANGFUSE_HOST=http://localhost:3100
-```
-
----
-
-## Fase P4 — LightRAG no Dream Cycle
+### Fase P3 — LightRAG no Dream Cycle ✅ CONCLUÍDO
 
 **Objetivo:** indexação automática de entidades/relações no corpus consolidado.
-**Esforço:** 2-3 dias | **Pré-req:** Phase P0 recomendado
+**Status:** ✅ | **Commits:** `56f1e98`, `fe68300`, `61c5285`, `dee365b`, integração Dream Cycle em 2026-06-24
+**Testes:** `test_sinapse_mcp.py` + `test_p0_embedding.py` passando
 
-### Task P4.1 — Instalar LightRAG
+**Decisão arquitetural crítica (commit `dee365b`):** LightRAG LLM fixo em `granite3-dense:2b` (1.5GB, Ollama local). Razões: (1) roda em qualquer máquina, (2) validação live: extrai 4 entities + 3 rels com JSON schema válido, (3) sem fallback Gemini/cloud — `.env` permite override só em dev. Config em `core/lightrag_index.py:25-29`.
 
-```bash
-pip install lightrag-hku
+**Arquivos:**
+
+| Arquivo | Papel |
+|---|---|
+| `core/lightrag_index.py` | Wrapper LightRAG v1.5.4 (modelo local fixo) |
+| `scripts/dream/dream_cycle.py:372-381` | `index_memory()` best-effort após `push_neuron` Graphiti |
+| `scripts/services/sinapse-mcp.py` | tool `sinapse_rag_query` (modos `naive|local|global|hybrid`) |
+| `install.sh:686` | nota pós-instalação `ollama pull granite3-dense:2b` |
+| `pyproject.toml` | `lightrag-hku>=1.0.0` |
+
+### Fase P4 — sinapse_query funciona como cérebro federador (7 órgãos) ✅ CONCLUÍDO
+
+**Objetivo:** o `sinapse_query` (entry point único do cérebro) funde os 7 órgãos via Context Fusion paralelo.
+**Status:** ✅ | **Commit:** `16e0387` | **Data:** 2026-06-24
+**Testes:** 14/14 (`test_sinapse_mcp.py`)
+
+**Anatomia:** orquestrador `_query_vault_knowledge` em `plugins/hermes/sinapse-memory.py` itera `_READ_BACKENDS` em paralelo (circuit breaker + timeout 8s):
+
+```
+sinapse_query → _query_vault_knowledge (Context Fusion paralelo)
+                 ├── _backend_umc            # lóbulo temporal (índice SQLite consolidado)
+                 ├── _backend_neural_memory # córtex (associação)
+                 ├── _backend_sqlite_vec     # córtex (semântico local)
+                 ├── _backend_claude_mem     # tálamo sensorial (eventos)
+                 ├── _backend_graphify       # lobo occipital (estrutural)
+                 ├── _backend_graphiti       # lóbulo temporal (causalidade) ✓ NOVO
+                 └── _backend_filesystem     # lobo parietal (leitura)
 ```
 
-**`requirements.txt`** — adicionar:
-```
-lightrag-hku>=1.0.0
-```
+**Bug corrigido:** antes do Passo 2, `sinapse_query` chamava `sm._backend_umc()` (apenas 1 backend) — quebrava a anatomia prometida. Agora chama `sm._query_vault_knowledge()` que funde os 7.
 
-### Task P4.2 — Criar `core/lightrag_index.py`
+**Verificado end-to-end:** query de teste roda os 7 em paralelo, Graphiti respondeu em ~1.35s (live FalkorDB), tempo total ~1.4s sob `GLOBAL_QUERY_TIMEOUT=8s`.
 
-**Arquivo NOVO:** `core/lightrag_index.py`
+**Tool `sinapse_temporal_graph_search`** marcada como DEPRECATED no docstring — clientes existentes não quebram, mas o canônico é `sinapse_query`.
 
-```python
-"""LightRAG: indexação de entidades/relações pós Dream Cycle."""
-from __future__ import annotations
-import os
-from pathlib import Path
+### Fase P5 — Anatomia canônica em 3 documentos ✅ CONCLUÍDO
 
-_rag = None
-_WORKING_DIR = str(Path(os.environ.get("SINAPSE_HOME", ".")) / "claude-mem" / "data" / "lightrag")
+**Objetivo:** documento único de verdade para a anatomia do cérebro.
+**Status:** ✅ | **Commits:** `ca1ff96`, `3eb4a35`, `ddf5504` | **Data:** 2026-06-23/24
 
+**3 documentos sincronizados:**
+- `AGENTS.md` (root) — seção 2: anatomia resumida (4 lobos + 5 lóbulos do córtex)
+- `README.md` — "Anatomia do Cérebro" antes de "Visão Geral"
+- `docs/01-architecture.md` — seção 2: anatomia completa (constantes, mapeamento, ferramentas)
 
-def get_rag():
-    global _rag
-    if _rag is not None:
-        return _rag
-    try:
-        from lightrag import LightRAG, QueryParam
-        from lightrag.llm.openai import openai_complete_if_cache, openai_embed
-        import asyncio
-
-        async def _llm_func(prompt, **kwargs):
-            from core.llm_client import call_llm
-            return await asyncio.get_event_loop().run_in_executor(
-                None, call_llm, prompt
-            )
-
-        Path(_WORKING_DIR).mkdir(parents=True, exist_ok=True)
-        _rag = LightRAG(
-            working_dir=_WORKING_DIR,
-            llm_model_func=_llm_func,
-        )
-        return _rag
-    except ImportError:
-        return None
-
-
-async def index_memory(text: str, metadata: dict = None) -> bool:
-    """Indexa texto consolidado no grafo LightRAG."""
-    rag = get_rag()
-    if rag is None:
-        return False
-    try:
-        await rag.ainsert(text)
-        return True
-    except Exception as e:
-        print(f"  ⚠ LightRAG index falhou: {e}")
-        return False
-
-
-async def query_rag(question: str, mode: str = "hybrid") -> str:
-    """Consulta o grafo LightRAG com modo hybrid (grafo + vetor)."""
-    from lightrag import QueryParam
-    rag = get_rag()
-    if rag is None:
-        return ""
-    try:
-        return await rag.aquery(question, param=QueryParam(mode=mode))
-    except Exception as e:
-        print(f"  ⚠ LightRAG query falhou: {e}")
-        return ""
-```
-
-### Task P4.3 — Conectar ao Dream Cycle
-
-**Arquivo:** `scripts/dream/dream_cycle.py`
-**Onde:** mesma área onde chama `_push_to_graphiti()` — adicionar em paralelo:
-
-```python
-# Adicionar helper (junto com _push_to_graphiti):
-def _index_in_lightrag(synthesis_text: str) -> None:
-    """Indexa memória consolidada no LightRAG de forma não-bloqueante."""
-    try:
-        from core.lightrag_index import index_memory
-        asyncio.get_event_loop().run_until_complete(index_memory(synthesis_text))
-    except Exception as e:
-        print(f"  ⚠ LightRAG push ignorado: {e}")
-
-# Chamar após arquivar observação:
-_push_to_graphiti(str(obs_id), synthesis_result)   # Graphiti (fase P2)
-_index_in_lightrag(synthesis_result)               # LightRAG (fase P4)
-```
-
-### Task P4.4 — Adicionar ferramenta MCP `sinapse_rag_query`
-
-**Arquivo:** `scripts/services/sinapse-mcp.py`
-
-```python
-# Na lista de TOOLS:
-{
-    "name": "sinapse_rag_query",
-    "description": "Consulta o índice LightRAG (grafo + vetor) sobre memórias consolidadas. Melhor para perguntas multi-hop que FTS5 não resolve.",
-    "inputSchema": {
-        "type": "object",
-        "properties": {
-            "question": {"type": "string"},
-            "mode": {"type": "string", "enum": ["naive", "local", "global", "hybrid"], "default": "hybrid"}
-        },
-        "required": ["question"]
-    }
-},
-
-# No dispatcher:
-"sinapse_rag_query": lambda args: _rag_query(args["question"], args.get("mode", "hybrid")),
-```
-
-```python
-def _rag_query(question: str, mode: str = "hybrid") -> dict:
-    import asyncio
-    try:
-        from core.lightrag_index import query_rag
-        result = asyncio.get_event_loop().run_until_complete(query_rag(question, mode))
-        return {"answer": result, "mode": mode}
-    except Exception as e:
-        return {"error": str(e)}
-```
+**Nomes fictícios** (projeto-A..I, topico-1..N, setor-1..5) — projetos reais instalados pelo usuário. Root do repo limpo: `CLAUDE.md` (Ruflo config), `AGENT_BOOTSTRAP.md` (órfão) removidos em `ddf5504`.
 
 ---
 
-## Fase P5 — CR-SQLite: Sync Multi-Dispositivo
+## 3. Fases pendentes (P6..P10)
+
+### Fase P6 — RAPTOR (sumário recursivo no grafo) 🔜
+
+**Objetivo:** sumários hierárquicos do corpus — acelera queries multi-hop e melhora grounding em RAGs.
+
+**Anatomia:** Córtex frontal (síntese). Complementa o LightRAG: enquanto LightRAG extrai entidades, RAPTOR constrói árvores de sumário que o cérebro pode consultar como contexto.
+
+**Origem do estudo:** `docs/09-integration-study.md` §4 (RAPTOR paper, Sarthi et al. 2024).
+
+**Tarefas (preliminares):**
+- [ ] Clonar RAPTOR oficial em `integrations/raptor/`
+- [ ] Criar `integrations/raptor/client.py` (wrapper recursivo)
+- [ ] Conectar ao Dream Cycle: chamar `raptor.index()` após `index_memory` (LightRAG)
+- [ ] Adicionar tool `sinapse_hierarchical_search` no MCP (consulta top-down)
+- [ ] `pyproject.toml`: dependência Python (se houver)
+
+**Critério de pronto:** 5+ testes (offline + live com corpus real). README no `integrations/raptor/`. Funda no `sinapse_query` como 8º backend (`_backend_raptor`).
+
+### Fase P7 — MegaMem (Obsidian + MCP + SQLite vault unificado) 🔜
+
+**Objetivo:** unificar vault Obsidian + MCP + SQLite como única fonte de verdade para o cérebro.
+**Anatomia:** Diencéfalo (cross-projeto). MegaMem faz o que o cérebro já faz (vault + busca + MCP), mas com schema externo interoperável.
+**Origem do estudo:** `docs/09-integration-study.md` §2 (MegaMem).
+**Tarefas:**
+- [ ] Avaliar viabilidade: o cérebro já é vault + busca + MCP. MegaMem adiciona interoperabilidade ou duplica?
+- [ ] Se viável, clone em `integrations/megamem/`
+- [ ] Se não, documentar em `09-integration-study.md` por que não foi adotado
+**Critério de pronto:** decisão documentada (ou merge ou rejeição).
+
+### Fase P8 — sqlite-lembed (embeddings nativos quando disponível) ⏸
+
+**Objetivo:** embeddings 100% nativos (sem rede, sem API), quando o bug Python 3.12+ for corrigido.
+**Status:** BLOQUEADO — `OperationalError: misuse of sqlite3_result_subtype()` em Python 3.12+.
+**Anatomia:** Córtex (associação). Substituiria o atual `OllamaEmbedder` (HTTP).
+**Origem do estudo:** `docs/09-integration-study.md` §3 (sqlite-lembed + sqlite-vec duo nativo).
+**Tarefas:**
+- [ ] Monitorar upstream sqlite-lembed para fix Python 3.12+
+- [ ] Quando corrigido: `pip install sqlite-lembed`, `_init_lembed()` em `core/database.py`
+- [ ] Migração de volta: `EMBED_BACKEND=lembed`
+**Critério de pronto:** `EMBED_BACKEND=lembed` no `.env` funciona sem regressão dos 434 testes existentes.
+
+### Fase P9 — CR-SQLite (sync multi-dispositivo) 🔜
 
 **Objetivo:** `hive_mind.db` replicável entre dispositivos sem conflitos.
-**Esforço:** 2-3 dias | **Risco:** Médio (schema change) | **Pré-req:** backup antes
-
-### Task P5.1 — Instalar CR-SQLite
-
-```bash
-pip install crsqlite
-# Verificar extensão:
-python3 -c "import crsqlite; print('CR-SQLite:', crsqlite.__version__)"
-```
-
-**`requirements.txt`**:
-```
-crsqlite>=0.16.0
-```
-
-### Task P5.2 — Criar `core/crdt_sync.py`
-
-**Arquivo NOVO:** `core/crdt_sync.py`
-
-```python
-"""CR-SQLite: sincronização CRDT para hive_mind.db."""
-from __future__ import annotations
-import sqlite3
-import os
-from pathlib import Path
-
-# Tabelas que participam da sincronização CRDT.
-# NÃO incluir capture-state.db — ele é local-only.
-CRDT_TABLES = ["neurons", "synapses", "observations", "visual_memories"]
-
-_crdt_initialized = False
-
-
-def enable_crdt(conn: sqlite3.Connection) -> bool:
-    """Habilita CR-SQLite na conexão e converte tabelas para CRR."""
-    global _crdt_initialized
-    if _crdt_initialized:
-        return True
-    try:
-        import crsqlite
-        conn.enable_load_extension(True)
-        crsqlite.load(conn)
-        for table in CRDT_TABLES:
-            try:
-                conn.execute(f"SELECT crsql_as_crr('{table}')")
-            except sqlite3.OperationalError:
-                pass  # tabela já é CRR ou não existe ainda
-        conn.commit()
-        _crdt_initialized = True
-        return True
-    except ImportError:
-        return False
-
-
-def get_changes_since(conn: sqlite3.Connection, db_version: int = 0) -> list[tuple]:
-    """Retorna mudanças desde a versão `db_version` para transmissão."""
-    return conn.execute(
-        "SELECT * FROM crsql_changes WHERE db_version > ?", (db_version,)
-    ).fetchall()
-
-
-def apply_changes(conn: sqlite3.Connection, changes: list[tuple]) -> int:
-    """Aplica mudanças recebidas de outra instância."""
-    applied = 0
-    for change in changes:
-        try:
-            conn.execute(
-                "INSERT INTO crsql_changes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                change
-            )
-            applied += 1
-        except sqlite3.Error:
-            pass
-    conn.execute("SELECT crsql_commit_alter('neurons')")  # notifica merge
-    conn.commit()
-    return applied
-
-
-def current_db_version(conn: sqlite3.Connection) -> int:
-    """Retorna a versão atual do DB para uso em sincronização incremental."""
-    row = conn.execute("SELECT crsql_db_version()").fetchone()
-    return row[0] if row else 0
-```
-
-### Task P5.3 — Integrar em `core/database.py`
-
-**Arquivo:** `core/database.py`
-**Função:** `get_connection()` — adicionar ao final (antes do `return conn`):
-
-```python
-    # CR-SQLite: habilitar se disponível (no-op se já inicializado)
-    if os.environ.get("HIVE_CRDT_SYNC", "").lower() == "true":
-        from core.crdt_sync import enable_crdt
-        enable_crdt(conn)
-    return conn
-```
-
-### Task P5.4 — Criar `scripts/services/sinapse-sync.py`
-
-**Arquivo NOVO:** `scripts/services/sinapse-sync.py`
-
-```python
-#!/usr/bin/env python3
-"""Sincronização CRDT entre instâncias Hive-Mind.
-
-Uso:
-  sinapse-sync.py --export > changes.bin          # exportar mudanças
-  sinapse-sync.py --import changes.bin            # importar mudanças
-  sinapse-sync.py --push http://remote:37702      # push direto via REST
-  sinapse-sync.py --pull http://remote:37702      # pull direto via REST
-"""
-import argparse
-import json
-import sqlite3
-import sys
-from pathlib import Path
-
-SINAPSE_HOME = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(SINAPSE_HOME))
-
-from core.database import get_connection, DB_PATH
-from core.crdt_sync import get_changes_since, apply_changes, current_db_version
-
-
-def cmd_export(since_version: int = 0):
-    conn = get_connection()
-    changes = get_changes_since(conn, since_version)
-    data = {"version": current_db_version(conn), "changes": [list(c) for c in changes]}
-    print(json.dumps(data))
-
-
-def cmd_import(path: str):
-    data = json.loads(Path(path).read_text())
-    conn = get_connection()
-    applied = apply_changes(conn, [tuple(c) for c in data["changes"]])
-    print(f"Aplicadas {applied} mudanças (versão remota: {data['version']})")
-
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--export", action="store_true")
-    ap.add_argument("--import", dest="import_file")
-    ap.add_argument("--since", type=int, default=0)
-    args = ap.parse_args()
-    if args.export:
-        cmd_export(args.since)
-    elif args.import_file:
-        cmd_import(args.import_file)
-    else:
-        ap.print_help()
-
-
-if __name__ == "__main__":
-    main()
-```
-
-### Task P5.5 — Variáveis de ambiente
-
-**`.env`**:
-```bash
-HIVE_CRDT_SYNC=true        # habilita CR-SQLite em get_connection()
-```
-
----
-
-## Fase P6 — A-MEM Link Evolution no Grafo
-
-**Objetivo:** links entre neurônios evoluem automaticamente quando nova memória é inserida.
-**Esforço:** 2 dias | **Pré-req:** Phase P2 (Graphiti) recomendado
-
-### Task P6.1 — Instalar A-MEM
-
-```bash
-pip install amem
-# ou diretamente do repo:
-pip install git+https://github.com/agiresearch/A-mem.git
-```
-
-### Task P6.2 — Criar `core/amem_linker.py`
-
-**Arquivo NOVO:** `core/amem_linker.py`
-
-```python
-"""A-MEM: evolução automática de links entre neurônios."""
-from __future__ import annotations
-import os
-
-_memory_system = None
-
-
-def get_amem():
-    global _memory_system
-    if _memory_system is not None:
-        return _memory_system
-    try:
-        from amem import AgenticMemory
-        _memory_system = AgenticMemory(
-            llm_backend=os.environ.get("HIVE_DREAMER_PROVIDER", "openai"),
-            model=os.environ.get("HIVE_DREAMER_MODEL", "gpt-4o-mini"),
-        )
-        return _memory_system
-    except ImportError:
-        return None
-
-
-def add_and_evolve(neuron_id: str, content: str, conn) -> list[dict]:
-    """Adiciona memória ao A-MEM e retorna links sugeridos para o grafo Hive-Mind."""
-    mem = get_amem()
-    if mem is None:
-        return []
-    try:
-        # A-MEM analisa o corpus e gera links com memórias relacionadas
-        result = mem.add(content, metadata={"neuron_id": neuron_id})
-        links = []
-        for link in result.get("related_memories", []):
-            related_id = link.get("id")
-            score = link.get("score", 0.0)
-            if related_id and related_id != neuron_id and score > 0.7:
-                links.append({"from": neuron_id, "to": related_id, "weight": score})
-        return links
-    except Exception as e:
-        print(f"  ⚠ A-MEM link evolution falhou: {e}")
-        return []
-
-
-def _write_links_to_hive(links: list[dict], conn) -> int:
-    """Persiste links A-MEM como sinapses no grafo do Hive-Mind."""
-    written = 0
-    for link in links:
-        try:
-            conn.execute(
-                """INSERT OR IGNORE INTO synapses(from_id, to_id, weight, kind)
-                   VALUES (?, ?, ?, 'amem')""",
-                (link["from"], link["to"], link["weight"]),
-            )
-            written += 1
-        except Exception:
-            pass
-    if written:
-        conn.commit()
-    return written
-```
-
-### Task P6.3 — Chamar no Dream Cycle
-
-**Arquivo:** `scripts/dream/dream_cycle.py`
-**Onde:** após `_push_to_graphiti()` e `_index_in_lightrag()`:
-
-```python
-def _evolve_links(neuron_id: str, synthesis_text: str, conn) -> None:
-    """A-MEM: evolui links após nova memória consolidada."""
-    try:
-        from core.amem_linker import add_and_evolve, _write_links_to_hive
-        links = add_and_evolve(neuron_id, synthesis_text, conn)
-        written = _write_links_to_hive(links, conn)
-        if written:
-            print(f"  🔗 A-MEM: {written} novos links criados")
-    except Exception as e:
-        print(f"  ⚠ A-MEM ignorado: {e}")
-
-# Chamar após arquivar observação:
-_push_to_graphiti(str(obs_id), synthesis_result)
-_index_in_lightrag(synthesis_result)
-_evolve_links(str(neuron_id), synthesis_result, conn)
-```
-
----
-
-## Fase P7 — MCP Streamable HTTP (spec 2025-03-26)
-
-**Objetivo:** migrar MCP server de stdio para Streamable HTTP — múltiplos clientes simultâneos.
-**Esforço:** 1-2 semanas | **Risco:** Médio (mudança de protocolo)
-
-### Task P7.1 — Criar `scripts/services/sinapse-mcp-http.py`
-
-**Arquivo NOVO:** `scripts/services/sinapse-mcp-http.py`
-
-```python
-#!/usr/bin/env python3
-"""MCP server via Streamable HTTP (spec 2025-03-26).
-
-Roda em paralelo ao stdio server existente (sinapse-mcp.py).
-Permite múltiplos agentes conectados simultaneamente.
-
-Uso: python sinapse-mcp-http.py --port 37703
-"""
-from __future__ import annotations
-import json
-import sys
-import asyncio
-from pathlib import Path
-from aiohttp import web
-
-SINAPSE_HOME = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(SINAPSE_HOME))
-
-# Importa lógica de handle_request do servidor stdio existente
-from scripts.services.sinapse_mcp import handle_request, TOOLS  # noqa
-
-
-async def handle_mcp(request: web.Request) -> web.Response:
-    """Endpoint SSE para MCP Streamable HTTP."""
-    body = await request.json()
-    result = handle_request(body)
-    return web.json_response(result or {"jsonrpc": "2.0", "result": None, "id": body.get("id")})
-
-
-async def handle_tools_list(request: web.Request) -> web.Response:
-    return web.json_response({"tools": TOOLS})
-
-
-def main():
-    import argparse
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--port", type=int, default=37703)
-    ap.add_argument("--host", default="127.0.0.1")
-    args = ap.parse_args()
-
-    app = web.Application()
-    app.router.add_post("/mcp", handle_mcp)
-    app.router.add_get("/mcp/tools", handle_tools_list)
-    app.router.add_get("/health", lambda r: web.json_response({"status": "ok"}))
-
-    print(f"MCP HTTP server em http://{args.host}:{args.port}/mcp")
-    web.run_app(app, host=args.host, port=args.port)
-
-
-if __name__ == "__main__":
-    main()
-```
-
-**`requirements.txt`**:
-```
-aiohttp>=3.9
-```
-
-### Task P7.2 — Adicionar serviço systemd
-
-**Arquivo:** `scripts/setup/install_services.py`
-**Onde:** no dict `unit_definitions` — adicionar:
-
-```python
-"sinapse-mcp-http.service": """[Unit]
-Description=Hive-Mind MCP HTTP Server (Streamable HTTP spec 2025-03-26)
-After=network.target
-
-[Service]
-Type=simple
-ExecStart={venv}/python {project}/scripts/services/sinapse-mcp-http.py --port 37703
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-""",
-```
-
----
-
-## Fase P8 — Multi-plataforma + Instalador npm Universal
-
-**Objetivo:** transformar o Hive-Mind em um projeto instalável via `npx @sinapse/cli install` — como projetos grandes (Vercel CLI, Supabase CLI, etc.) — funcionando em Linux, macOS e Windows sem depender de bash ou systemd.
-**Esforço:** 2-3 semanas | **Risco:** Médio | **Pré-req:** P0, P1 (para incluir Screenpipe no pacote)
-
-### Motivação
-
-O `install.sh` atual é bash + systemd — Linux-only. Para Windows seria necessário um `install.ps1`. A abordagem npm resolve as três plataformas de uma vez: Node.js está disponível em todas, e é o padrão de distribuição de CLIs modernas (Vercel, Prisma, Claude Code, etc.).
-
-### Arquitetura alvo
-
-```
-npx @sinapse/cli install
-    ↓
-packages/sinapse-cli/        ← pacote npm raiz
-  bin/sinapse                ← entrada CLI (Node.js)
-  src/
-    install.js               ← orquestra todas as etapas
-    detect-platform.js       ← Linux / macOS / Windows
-    steps/
-      python-env.js          ← cria .venv com uv
-      screenpipe.js          ← @screenpipe/cli-{platform}-{arch}
-      ollama.js              ← verifica/instala Ollama
-      services.js            ← systemd (Linux) | launchd (macOS) | NSSM/schtasks (Windows)
-      mcp.js                 ← register-mcp.sh → register-mcp.js
-```
-
-### Task P8.1 — Criar `packages/sinapse-cli/package.json`
-
-```json
-{
-  "name": "@sinapse/cli",
-  "version": "1.0.0",
-  "description": "Hive-Mind — instalador universal (Linux, macOS, Windows)",
-  "bin": {
-    "sinapse": "./bin/sinapse.js"
-  },
-  "scripts": {
-    "install-sinapse": "node bin/sinapse.js install"
-  },
-  "optionalDependencies": {
-    "@screenpipe/cli-linux-x64":   "^0.4.0",
-    "@screenpipe/cli-darwin-arm64":"^0.4.0",
-    "@screenpipe/cli-darwin-x64":  "^0.4.0",
-    "@screenpipe/cli-win32-x64":   "^0.4.0"
-  },
-  "engines": { "node": ">=18" }
-}
-```
-
-`optionalDependencies` faz o npm baixar apenas o binário da plataforma atual — mesmo mecanismo do esbuild, Prisma, etc.
-
-### Task P8.2 — Detecção de plataforma (`src/detect-platform.js`)
-
-```js
-// Retorna: { os: 'linux'|'darwin'|'win32', arch: 'x64'|'arm64', serviceManager: 'systemd'|'launchd'|'nssm' }
-export function detectPlatform() {
-  const os   = process.platform;           // 'linux' | 'darwin' | 'win32'
-  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
-  const serviceManager =
-    os === 'linux'  ? 'systemd' :
-    os === 'darwin' ? 'launchd' : 'nssm';
-  return { os, arch, serviceManager };
-}
-```
-
-### Task P8.3 — Screenpipe platform-aware (`src/steps/screenpipe.js`)
-
-```js
-import { detectPlatform } from '../detect-platform.js';
-
-export async function installScreenpipe() {
-  const { os, arch } = detectPlatform();
-  const pkg = `@screenpipe/cli-${os}-${arch}`;   // ex: @screenpipe/cli-linux-x64
-  // optionalDependencies já baixou o binário no npm install
-  // só precisamos expor o PATH
-  const binPath = resolve(import.meta.dirname, `../../node_modules/${pkg}/bin`);
-  if (existsSync(binPath)) {
-    console.log(`[screenpipe] binário disponível: ${binPath}`);
-    return binPath;
-  }
-  console.warn(`[screenpipe] pacote ${pkg} não encontrado — instalação opcional`);
-  return null;
-}
-```
-
-### Task P8.4 — Gerenciadores de serviço por plataforma
-
-| Plataforma | Mecanismo | Arquivo gerado |
-|------------|-----------|----------------|
-| Linux | `systemd --user` | `~/.config/systemd/user/sinapse-*.service` |
-| macOS | `launchd` | `~/Library/LaunchAgents/com.sinapse.*.plist` |
-| Windows | `NSSM` ou `schtasks` | Serviço Windows via NSSM ou tarefa agendada |
-
-```js
-// src/steps/services.js
-export async function installServices(platform) {
-  if (platform.serviceManager === 'systemd')  return installSystemd();
-  if (platform.serviceManager === 'launchd')  return installLaunchd();
-  if (platform.serviceManager === 'nssm')     return installNSSM();
-}
-```
-
-`installSystemd()` chama o `install_services.py` existente — sem reescrita.
-`installLaunchd()` gera `.plist` equivalentes aos `.service` arquivos.
-`installNSSM()` usa `nssm install <name> python <script>` para cada serviço.
-
-### Task P8.5 — Entrada principal (`bin/sinapse.js`)
-
-```js
-#!/usr/bin/env node
-import { detectPlatform } from '../src/detect-platform.js';
-import { installScreenpipe } from '../src/steps/screenpipe.js';
-import { installServices }   from '../src/steps/services.js';
-import { installPythonEnv }  from '../src/steps/python-env.js';
-
-const [, , command] = process.argv;
-
-if (command === 'install') {
-  const platform = detectPlatform();
-  console.log(`[sinapse] plataforma: ${platform.os}/${platform.arch} (${platform.serviceManager})`);
-  await installPythonEnv();       // uv sync
-  await installScreenpipe();      // @screenpipe/cli-{platform}
-  await installServices(platform);// systemd | launchd | nssm
-  console.log('[sinapse] instalação concluída');
-}
-```
-
-### Task P8.6 — Publicação e uso
-
-```bash
-# Publicar
-npm publish --access public   # → @sinapse/cli no npm registry
-
-# Instalar em qualquer OS:
-npx @sinapse/cli install
-
-# Ou instalar globalmente:
-npm install -g @sinapse/cli
-sinapse install
-```
-
-### Compatibilidade com `install.sh` atual
-
-O `install.sh` **não é removido** — continua funcionando para usuários Linux avançados. O `@sinapse/cli` é a nova camada universal por cima. As etapas Python (uv, venv, migrate scripts) continuam sendo delegadas ao Python/shell existente; o npm CLI só orquestra e resolve dependências binárias cross-platform.
-
-### Dependências de sistema por plataforma
-
-| Dep | Linux | macOS | Windows |
-|-----|-------|-------|---------|
-| libopenblas | `sudo apt install libopenblas0` | Bundled | `vcredist` / conda |
-| Ollama | `.sh` installer | `.dmg` | `.exe` installer |
-| FFmpeg | `sudo apt install ffmpeg` | `brew install ffmpeg` | `winget install ffmpeg` |
-| Node.js ≥18 | Pré-requisito | Pré-requisito | Pré-requisito |
-
----
-
-## Resumo: Mapa de Arquivos por Fase
-
-| Fase | Arquivo | Ação |
-|------|---------|------|
-| P0 | `core/database.py` | Substituir bloco `fastembed` por `sqlite-lembed` + fallback |
-| P0 | `core/indexing.py` | Usar `embed_text(t, conn=conn)` em vez de `embedder.embed()` |
-| P0 | `requirements.txt` | `+sqlite-lembed` |
-| P1 | `scripts/capture/parsers/screenpipe.py` | **NOVO** — adapter REST |
-| P1 | `scripts/capture/capture_adapters.py` | `+screenpipe` no dict ADAPTERS |
-| P1 | `scripts/services/sinapse-mcp.py` | `_capture_screen()` com fallback Screenpipe |
-| P2 | `core/graphiti_client.py` | **NOVO** — wrapper async |
-| P2 | `scripts/dream/dream_cycle.py` | `+_push_to_graphiti()` pós síntese |
-| P2 | `scripts/services/sinapse-mcp.py` | `+sinapse_temporal_graph_search` tool |
-| P2 | `requirements.txt` | `+graphiti-core, falkordb` |
-| P3 | `core/telemetry.py` | **NOVO** — OTEL wrapper |
-| P3 | `scripts/dream/dream_cycle.py` | `+span()` nas etapas do pipeline |
-| P3 | `scripts/capture/capture_core.py` | `+span()` em `ingest()` |
-| P3 | `requirements.txt` | `+opentelemetry-sdk, opentelemetry-exporter-otlp-proto-http` |
-| P4 | `core/lightrag_index.py` | **NOVO** — wrapper LightRAG |
-| P4 | `scripts/dream/dream_cycle.py` | `+_index_in_lightrag()` pós síntese |
-| P4 | `scripts/services/sinapse-mcp.py` | `+sinapse_rag_query` tool |
-| P4 | `requirements.txt` | `+lightrag-hku` |
-| P5 | `core/crdt_sync.py` | **NOVO** — CR-SQLite helpers |
-| P5 | `core/database.py` | `+enable_crdt()` em `get_connection()` |
-| P5 | `scripts/services/sinapse-sync.py` | **NOVO** — CLI de sync |
-| P5 | `requirements.txt` | `+crsqlite` |
-| P6 | `core/amem_linker.py` | **NOVO** — A-MEM wrapper |
-| P6 | `scripts/dream/dream_cycle.py` | `+_evolve_links()` pós síntese |
-| P7 | `scripts/services/sinapse-mcp-http.py` | **NOVO** — HTTP server |
-| P7 | `scripts/setup/install_services.py` | `+sinapse-mcp-http.service` |
-| P8 | `packages/sinapse-cli/package.json` | **NOVO** — pacote npm `@sinapse/cli` |
-| P8 | `packages/sinapse-cli/bin/sinapse.js` | **NOVO** — entrypoint CLI cross-platform |
-| P8 | `packages/sinapse-cli/src/detect-platform.js` | **NOVO** — detecção Linux/macOS/Windows |
-| P8 | `packages/sinapse-cli/src/steps/screenpipe.js` | **NOVO** — `@screenpipe/cli-{os}-{arch}` |
-| P8 | `packages/sinapse-cli/src/steps/services.js` | **NOVO** — systemd / launchd / NSSM |
-| P8 | `scripts/setup/install_services.py` | `_install_screenpipe()` platform-aware |
-
----
-
-## Checklist por Sprint
-
-### Sprint 1 — P0 + P3 (Embeddings + Observabilidade)
-- [ ] `pip install sqlite-lembed`
-- [ ] Baixar GGUF `all-MiniLM-L6-v2.Q8_0.gguf`
-- [ ] Reescrever bloco embedder em `core/database.py`
-- [ ] Atualizar `core/indexing.py`
-- [ ] Deploy Langfuse Docker
-- [ ] Criar `core/telemetry.py`
-- [ ] Instrumentar Dream Cycle com spans
-- [ ] `pytest tests/unit/ -q` → tudo verde
-
-### Sprint 2 — P1 (Screenpipe)
-- [ ] Instalar Screenpipe
-- [ ] Criar `scripts/capture/parsers/screenpipe.py`
-- [ ] Atualizar `capture_adapters.py`
-- [ ] Atualizar `_capture_screen()` no MCP server
-- [ ] Testar captura via `sinapse_capture_screen`
-
-### Sprint 3 — P4 (LightRAG) ✅ CONCLUÍDO (2026-06-21 → 2026-06-24)
-- [x] `pip install lightrag-hku` (1.5.4) → `pyproject.toml` + `uv.lock`
-- [x] Criar `core/lightrag_index.py` (wrapper bge-m3 1024d + `granite3-dense:2b` fixo, 1.5GB, Ollama local)
-- [x] Adicionar tool `sinapse_rag_query` no MCP (modos `naive|local|global|hybrid`)
-- [x] Conectar Dream Cycle — Estágio 3.5 (`index_memory()` best-effort, try/except, após `push_neuron` Graphiti)
-- [x] `install.sh`: `ollama pull granite3-dense:2b` na nota pós-instalação
-- [x] Testar com corpus existente (4 entities + 3 rels extraídos corretamente pelo `granite3-dense:2b`)
-- [x] 20/20 testes unitários passando (`test_sinapse_mcp` + `test_p0_embedding`)
-
-**Commits relevantes:** `56f1e98` (integração inicial v1.5.4) · `fe68300` (fix wrapper async) · `61c5285` (fix health) · `dee365b` (default `granite3-dense:2b`) · commit a definir (Estágio 3.5 + documentação).
-
-**Gap fechado em 2026-06-24:** entre `56f1e98` e o commit `dee365b`, o grafo LightRAG existia e o MCP consultava — mas o Dream Cycle **não alimentava o grafo**. A doc P4 já previa o push pós-síntese, mas o código real só chamava `push_neuron` (Graphiti). Resultado: `sinapse_rag_query` só retornava dados de teste manuais. Commit de hoje adiciona `index_memory()` na linha 372 do `dream_cycle.py`, ao lado do `push_neuron()`, com best-effort try/except — síntese dialética nunca é abortada por falha do grafo.
-
-### Sprint 4 — P2 (Graphiti) ✅ CONCLUÍDO (2026-06-21, commit `5d90f51`)
-- [x] Docker FalkorDB (`docker-compose.falkordb.yml`)
-- [x] `uv add graphiti-core falkordb` → pyproject.toml + uv.lock
-- [x] Criar `core/graphiti_client.py` (Ollama LLM + embedder + cross_encoder)
-- [x] Conectar Dream Cycle (`push_neuron()` hook após `conn.commit()`)
-- [x] Adicionar tool `sinapse_temporal_graph_search` no MCP
-- [x] 9/9 testes passando (live com FalkorDB + Ollama)
-
-### Sprint 5 — P5 (CR-SQLite)
-- [ ] Backup de `hive_mind.db` antes de qualquer mudança
+**Anatomia:** Tronco (infra vital). Sincronização é infra — não é um órgão cognitivo.
+**Origem do estudo:** `docs/09-integration-study.md` §3.
+**Tarefas:**
 - [ ] `pip install crsqlite`
-- [ ] Criar `core/crdt_sync.py`
-- [ ] Integrar em `get_connection()`
-- [ ] Criar `sinapse-sync.py`
-- [ ] Testar sync entre duas instâncias locais (dois diretórios)
+- [ ] Criar `core/crdt_sync.py` (helpers CR-SQLite)
+- [ ] Integrar em `core/database.py:get_connection()` (`HIVE_CRDT_SYNC=true`)
+- [ ] Criar `scripts/services/sinapse-sync.py` (CLI export/import/push/pull)
+- [ ] Testar sync entre duas instâncias locais
+**Critério de pronto:** dois diretórios sincronizam alterações sem perda; `pytest tests/integration/test_crdt.py` passa.
+**Risco:** médio (migração de schema). Backup antes.
 
-### Sprint 6 — P8 (Multi-plataforma + npm)
-- [ ] Criar `packages/sinapse-cli/` com `package.json` e `bin/sinapse`
-- [ ] Implementar detecção de plataforma em `install_services.py`
-- [ ] Criar `install.ps1` para Windows (PowerShell)
-- [ ] Criar `install.sh` agnóstico (Linux + macOS)
-- [ ] Publicar `@sinapse/cli` no npm registry
-- [ ] Testar instalação limpa em Linux, macOS e Windows
-- [ ] Documentar `npx @sinapse/cli install`
+### Fase P10 — A-MEM (link evolution no grafo) 🔜
+
+**Objetivo:** links entre neurônios evoluem automaticamente quando nova memória é inserida (re-linking baseado em similaridade semântica + LLM).
+**Anatomia:** Diencéfalo (relay entre memórias). Complementa o Graphiti: enquanto Graphiti extrai causalidade, A-MEM sugere links associativos.
+**Origem do estudo:** `docs/09-integration-study.md` §1 (A-MEM, AGI Research).
+**Tarefas:**
+- [ ] `pip install amem` (ou clone direto do repo agiresearch/A-mem)
+- [ ] Criar `core/amem_linker.py` (wrapper A-MEM)
+- [ ] Conectar ao Dream Cycle: chamar `add_and_evolve()` após `index_memory` (LightRAG)
+- [ ] Persistir links sugeridos como `synapses` no SQLite
+**Critério de pronto:** links novos aparecem no grafo após Dream Cycle; `pytest tests/integration/test_amem.py` passa.
+
+---
+
+## 4. Checklist por sprint
+
+### Sprint 1 — P0+P1+P2+P3+P4+P5 ✅ CONCLUÍDO (2026-06-21 → 2026-06-24)
+- [x] P0: bge-m3 1024d via Ollama (commit `93db445`, `f087279`)
+- [x] P1: Screenpipe via REST (commit `9597ef5`)
+- [x] P2: Graphiti + FalkorDB + 4 camadas robustez (commit `5d90f51`, `41fac0c`)
+- [x] P2: move para `integrations/graphiti/` (commit `b11d6d6`)
+- [x] P3: LightRAG no Dream Cycle com `granite3-dense:2b` (commit `dee365b`)
+- [x] P4: sinapse_query funde 7 órgãos (commit `16e0387`)
+- [x] P5: anatomia em 3 docs (commit `ca1ff96`, `3eb4a35`, `ddf5504`)
+
+**Suite:** 466 testes passando, 6 falhas pré-existentes (não relacionadas).
+
+### Sprint 2 — P6 (RAPTOR) + P7 (MegaMem decisão)
+- [ ] RAPTOR: clone em `integrations/raptor/`
+- [ ] RAPTOR: funde no sinapse_query como 8º backend
+- [ ] MegaMem: decisão documentada (merge ou rejeição)
+- [ ] 8 testes novos (4 RAPTOR + 4 MegaMem ou rejeição)
+
+### Sprint 3 — P9 (CR-SQLite) + P10 (A-MEM)
+- [ ] P9: `core/crdt_sync.py` + sync CLI
+- [ ] P9: backup + migração
+- [ ] P10: `core/amem_linker.py` + Dream Cycle hook
+- [ ] 8 testes novos (4 CRDT + 4 A-MEM)
+- [ ] **Suite esperada:** 480+ testes passando
+
+### Sprint 4 — P8 (sqlite-lembed) quando bug for corrigido
+- [ ] `pip install sqlite-lembed`
+- [ ] Migração de OllamaEmbedder → lembed
+- [ ] Sem regressão nos testes existentes
+
+---
+
+## 5. Resumo: Mapa de Arquivos por Fase
+
+| Fase | Arquivo | Ação | Status |
+|------|---------|------|--------|
+| P0 | `core/database.py` | `OllamaEmbedder` HTTP | ✅ |
+| P0 | `core/hnsw_index.py` | `HNSW_DIM=1024` | ✅ |
+| P0 | `core/umc_schema.sql` | `FLOAT[1024]` | ✅ |
+| P0 | `plugins/sqlite-vec-worker/worker.py` | `VEC_EMBED_DIM=1024` | ✅ |
+| P0 | `scripts/setup/migrate_embed_dim.py` | one-shot 384→1024 | ✅ |
+| P1 | `scripts/capture/parsers/screenpipe.py` | **NOVO** | ✅ |
+| P1 | `scripts/capture/capture_adapters.py` | `+screenpipe` | ✅ |
+| P2 | `integrations/graphiti/client.py` | **NOVO** (4 camadas) | ✅ |
+| P2 | `integrations/graphiti/__init__.py` | API pública | ✅ |
+| P2 | `integrations/graphiti/README.md` | anatomia | ✅ |
+| P2 | `plugins/hermes/sinapse-memory.py` | `+_backend_graphiti` | ✅ |
+| P2 | `docker-compose.falkordb.yml` | FalkorDB | ✅ |
+| P2 | `tests/integration/test_graphiti.py` | 14 testes | ✅ |
+| P3 | `core/lightrag_index.py` | **NOVO** (granite3-dense:2b) | ✅ |
+| P3 | `scripts/dream/dream_cycle.py` | `+index_memory()` | ✅ |
+| P4 | `scripts/services/sinapse-mcp.py` | `sinapse_query` orquestrador | ✅ |
+| P5 | `AGENTS.md`, `README.md`, `docs/01-architecture.md` | anatomia em 3 docs | ✅ |
+| P6 | `integrations/raptor/client.py` | **NOVO** (RAPTOR) | 🔜 |
+| P6 | `plugins/hermes/sinapse-memory.py` | `+_backend_raptor` | 🔜 |
+| P7 | `integrations/megamem/` (se viável) | **NOVO** | 🔜 |
+| P8 | `core/database.py` | `+_init_lembed()` | ⏸ |
+| P9 | `core/crdt_sync.py` | **NOVO** | 🔜 |
+| P9 | `scripts/services/sinapse-sync.py` | **NOVO** CLI | 🔜 |
+| P10 | `core/amem_linker.py` | **NOVO** | 🔜 |
+
+---
+
+## 6. Gaps conhecidos (2026-06-24)
+
+| Gap | Onde | Workaround | Quando resolve |
+|---|---|---|---|
+| sqlite-lembed incompatível Python 3.12+ | P0 embeddings | `EMBED_BACKEND=ollama` (atual) | Quando upstream corrigir |
+| LightRAG cobre sub-região do occipital junto com Graphify | P3 RAG | LightRAG é `core/` (não `integrations/`) por ser wrapper Python, não vendor | P6 (RAPTOR) pode consolidar |
+| `sinapse_temporal_graph_search` ainda existe como tool MCP | `scripts/services/sinapse-mcp.py` | Marcada como DEPRECATED; `sinapse_query` é o canônico | Próxima release (remover) |
+| `cerebro/_Consciencia.md` e MOCs auto-gerados não estão no gitignore | `generate_mocs.py` | Regenerados a cada Dream Cycle | Considerar `.gitignore` |
+| `_Consciencia.md` reference pode divergir entre docs | 3 docs | Commit único sincroniza | Já resolvido em `ca1ff96` |
+| Brain UI (frontend de visualização do grafo) | nenhum | Não há skill de canvas/web design no projeto | Avaliar em sprint futura |
+
+---
+
+## 7. Próximo passo imediato
+
+Executar **Sprint 2** quando você confirmar:
+- [ ] P6 (RAPTOR): clone + 4 testes + fundir como 8º backend
+- [ ] P7 (MegaMem): decisão de merge ou rejeição (com justificativa)
+
+Sem confirmação, não mexo.
