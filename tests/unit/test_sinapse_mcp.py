@@ -37,6 +37,7 @@ class TestSinapseMCP:
             "sinapse_zettelkasten_split",
             "sinapse_capture_screen",
             "sinapse_plan_goal",
+            "sinapse_rag_query",
             "search_memories",
         }
 
@@ -131,3 +132,93 @@ class TestSinapseMCP:
             assert "inputSchema" in tool
             assert "name" in tool
             assert "description" in tool
+
+    # ------------------------------------------------------------------
+    # Passo 2: sinapse_query agora funde 7 backends via Context Fusion
+    # ------------------------------------------------------------------
+
+    def test_sinapse_query_description_lists_seven_backends(self):
+        """A description da tool sinapse_query deve listar os 7 backends.
+
+        Anatomia canônica: UMC + NeuralMemory + sqlite-vec + claude-mem
+        + Graphify + Graphiti + filesystem. Se um backend for removido
+        da anatomia, atualize a description explicitamente.
+        """
+        req = {"jsonrpc": "2.0", "id": 100, "method": "tools/list", "params": {}}
+        resp = mcp.handle_request(req)
+        tools = {t["name"]: t for t in resp["result"]["tools"]}
+        desc = tools["sinapse_query"]["description"]
+        for backend in ("UMC", "NeuralMemory", "sqlite-vec", "claude-mem",
+                        "Graphify", "Graphiti", "filesystem"):
+            assert backend in desc, f"sinapse_query description missing: {backend}"
+
+    def test_sinapse_query_calls_query_vault_knowledge(self, monkeypatch):
+        """_sinapse_query_with_diagnostics chama sm._query_vault_knowledge
+        (orquestrador), nao sm._backend_umc (apenas UMC).
+
+        Antes do Passo 2: `sinapse_query` chamava so UMC (1 backend) —
+        quebrava a anatomia prometida. Agora deve chamar o orquestrador
+        que funde os 7 backends.
+        """
+        # Importa o plugin via importlib (mesmo padrao do conftest em tests/integration/).
+        import importlib.util as _il
+        _plugin_path = Path(__file__).parent.parent.parent / "plugins" / "hermes" / "sinapse-memory.py"
+        if "sinapse_memory" not in sys.modules:
+            _spec = _il.spec_from_file_location("sinapse_memory", _plugin_path)
+            _mod = _il.module_from_spec(_spec)
+            sys.modules["sinapse_memory"] = _mod
+            _spec.loader.exec_module(_mod)
+        sm = sys.modules["sinapse_memory"]
+        # Monkeypatcha o orquestrador
+        called = {}
+        def _fake_orchestrator(query):
+            called["query"] = query
+            return {"source": "context-fusion", "observations": [
+                {"content": "stub"}, {"content": "stub2"},
+            ], "query": query, "backends_hit": 7}
+        monkeypatch.setattr(sm, "_query_vault_knowledge", _fake_orchestrator)
+        result = mcp._sinapse_query_with_diagnostics("hello")
+        assert called.get("query") == "hello"
+        assert result["source"] == "context-fusion"
+        assert result["backends_hit"] == 7
+
+    def test_sinapse_query_handles_all_backends_unhealthy(self, monkeypatch):
+        """Quando o orquestrador retorna None (nenhum backend saudável),
+        o MCP devolve um dict de erro estruturado (nao exception silenciosa).
+        """
+        import importlib.util as _il
+        _plugin_path = Path(__file__).parent.parent.parent / "plugins" / "hermes" / "sinapse-memory.py"
+        if "sinapse_memory" not in sys.modules:
+            _spec = _il.spec_from_file_location("sinapse_memory", _plugin_path)
+            _mod = _il.module_from_spec(_spec)
+            sys.modules["sinapse_memory"] = _mod
+            _spec.loader.exec_module(_mod)
+        sm = sys.modules["sinapse_memory"]
+        monkeypatch.setattr(sm, "_query_vault_knowledge", lambda q: None)
+        result = mcp._sinapse_query_with_diagnostics("hello")
+        assert result["error_type"] == "BackendUnavailable"
+        assert "nenhum backend saudável" in result["error"]
+
+    def test_graphiti_backend_is_registered_in_plugin(self):
+        """_backend_graphiti deve estar registrado em _READ_BACKENDS.
+
+        Anatomia: Graphiti é um orgão do lobulo temporal. Sem o registro,
+        o orquestrador do cerebro não funde Graphiti no sinapse_query.
+        """
+        import importlib.util as _il
+        _plugin_path = Path(__file__).parent.parent.parent / "plugins" / "hermes" / "sinapse-memory.py"
+        if "sinapse_memory" not in sys.modules:
+            _spec = _il.spec_from_file_location("sinapse_memory", _plugin_path)
+            _mod = _il.module_from_spec(_spec)
+            sys.modules["sinapse_memory"] = _mod
+            _spec.loader.exec_module(_mod)
+        sm = sys.modules["sinapse_memory"]
+        assert hasattr(sm, "_backend_graphiti"), (
+            "Plugin sinapse-memory deve expor _backend_graphiti (7o backend)"
+        )
+        assert sm._backend_graphiti in sm._READ_BACKENDS, (
+            "_backend_graphiti deve estar registrado em _READ_BACKENDS"
+        )
+        assert sm._backend_graphiti in sm._READ_BACKENDS, (
+            "_backend_graphiti deve estar registrado em _READ_BACKENDS"
+        )

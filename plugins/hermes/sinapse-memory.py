@@ -68,6 +68,12 @@ NMEM_BIN = os.path.expanduser("~/.local/bin/nmem")
 NMEM_TIMEOUT = 5
 VEC_WORKER_URL = "http://127.0.0.1:37701"
 
+# Graphiti (orgão do lóbulo temporal) — FalkorDB + Ollama.
+# Quando FalkorDB está offline, search_graph() cai para o fallback JSON-lines
+# automaticamente; o cérebro não perde a capacidade de responder.
+GRAPHITI_TIMEOUT = 3
+GRAPHITI_MAX_RESULTS = 10
+
 GLOBAL_QUERY_TIMEOUT = 8
 MAX_CONTEXT_CHARS = 3000
 MAX_NODES = 5
@@ -302,6 +308,48 @@ def _backend_filesystem(query: str) -> Optional[Dict[str, Any]]:
     return result
 
 
+def _backend_graphiti(query: str) -> Optional[Dict[str, Any]]:
+    """Busca temporal com causalidade no Graphiti (orgão do lóbulo temporal).
+
+    Contrato idêntico ao `backend_claude_mem` / `backend_graphify`:
+    retorna dict {source, observations, count, query} ou None quando
+    o FalkorDB está offline e o fallback também não tem o termo.
+
+    Quando o FalkorDB responde, observations é a lista de edges com
+    fact, valid_at, invalid_at, uuid. Quando cai no fallback JSON-lines
+    (no proprio cortex/temporal/_global/), observations também é uma
+    lista de edges (mesmo schema). Quando nem FalkorDB nem fallback
+    retornam nada, retorna None — o orquestrador pula silenciosamente.
+    """
+    try:
+        from integrations.graphiti import search_graph
+    except ImportError:
+        # integrations/graphiti nao clonado: pula silenciosamente.
+        return None
+    try:
+        edges = search_graph(query, num_results=GRAPHITI_MAX_RESULTS)
+    except Exception as e:
+        _log("warning", "graphiti backend failed", query=query, error=str(e))
+        return None
+    if not edges:
+        return None
+    observations = [
+        {
+            "content": (e.get("fact") or "")[:OBSERVATION_CHARS],
+            "uuid": e.get("uuid", ""),
+            "valid_at": e.get("valid_at", ""),
+            "invalid_at": e.get("invalid_at", ""),
+        }
+        for e in edges
+    ]
+    return {
+        "source": "graphiti (temporal)",
+        "observations": observations,
+        "count": len(observations),
+        "query": query,
+    }
+
+
 # Registra backends na ordem de prioridade
 def register_backend(fn: Callable) -> None:
     """Registra um backend de busca. Ordem de registro = prioridade."""
@@ -314,6 +362,7 @@ register_backend(_backend_neural_memory)
 register_backend(_backend_sqlite_vec)
 register_backend(_backend_claude_mem)
 register_backend(_backend_graphify)
+register_backend(_backend_graphiti)   # lóbulo temporal — causalidade com validade
 register_backend(_backend_filesystem)
 
 

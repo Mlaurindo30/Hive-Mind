@@ -55,7 +55,7 @@ SINAPSE_INSTRUCTIONS = _load_instructions()
 TOOLS = [
     {
         "name": "sinapse_query",
-        "description": "Search the Sinapse vault across all memory backends (NeuralMemory associative, claude-mem semantic/Chroma, Graphify structural/Leiden clustering). Returns nodes, edges, and observations from the knowledge graph and temporal memory.",
+        "description": "Orquestrador cerebral — funde 7 backends via Context Fusion (paralelo, circuit breaker, timeout 8s): UMC (índice SQLite consolidado), NeuralMemory (associação), sqlite-vec (semântico local), claude-mem (eventos temporais), Graphify (estrutural/Leiden), Graphiti (causalidade temporal com validade) e filesystem scan. Returns nodes, edges, observations e temporal facts do cérebro inteiro.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -351,18 +351,25 @@ def _rag_query(question: str, mode: str = "hybrid") -> dict:
 
 def _sinapse_query_with_diagnostics(query: str) -> dict:
     """
-    Envolve sm._backend_umc propagando a exception quando o backend falha.
+    Orquestrador cerebral — funde todos os 7 backends registrados via
+    Context Fusion (paralelo, circuit breaker, global timeout 8s).
 
-    O backend em core/memory/backends/umc.py engole a exception via log_fn
-    e devolve None — para debug de produção, o chamador MCP precisa saber
-    o motivo da falha (core.database ausente, sqlite-vec indisponível, etc.).
-    O `or` original em HANDLERS['sinapse_query'] silenciava essa perda.
+    Antes (bug): chamava `sm._backend_umc(query)` — apenas 1 backend
+    (UMC), quebrando a promessa da anatomia (cérebro federador com
+    Graphify + claude-mem + NeuralMemory + filesystem + sqlite-vec +
+    graphiti + umc).
+
+    Agora: chama `sm._query_vault_knowledge(query)` que itera
+    `_READ_BACKENDS` e funde os resultados. Quando TODOS os backends
+    estão indisponíveis (orquestrador retorna None), devolve um dict
+    de erro estruturado para o chamador MCP entender (sem exception
+    silenciosa).
     """
     try:
-        result = sm._backend_umc(query)
+        result = sm._query_vault_knowledge(query)
     except Exception as e:
         return {
-            "source": "umc",
+            "source": "context-fusion",
             "observations": [],
             "query": query,
             "error": str(e),
@@ -370,10 +377,10 @@ def _sinapse_query_with_diagnostics(query: str) -> dict:
         }
     if result is None:
         return {
-            "source": "umc",
+            "source": "context-fusion",
             "observations": [],
             "query": query,
-            "error": "_backend_umc returned None (backend indisponível ou query falhou)",
+            "error": "_query_vault_knowledge returned None (nenhum backend saudável)",
             "error_type": "BackendUnavailable",
         }
     return result
@@ -530,8 +537,10 @@ def _temporal_graph_search(query: str, num_results: int = 10):
 
     DEPRECATED: esta tool é mantida para não quebrar clientes existentes,
     mas a consulta cerebral canônica é `sinapse_query` (que funde os
-    5 órgãos via Context Fusion). Graphiti é apenas um dos órgãos
-    que o cérebro funde — expor como tool separada quebra a anatomia.
+    7 órgãos via Context Fusion: UMC + NeuralMemory + sqlite-vec +
+    claude-mem + Graphify + Graphiti + filesystem). Graphiti é apenas
+    um dos órgãos que o cérebro funde — expor como tool separada quebra
+    a anatomia. Será removida em release futura.
     """
     try:
         import sys as _sys
