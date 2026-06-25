@@ -74,6 +74,18 @@ PAINEIS_ROOT = TRONCO / "paineis"           # bases (.base)
 ATTACHMENTS_ROOT = VAULT_ROOT / "attachments"
 
 
+# ===== INTEGRATIONS — vendors (órgãos externos) =====
+# Cada projeto em `integrations/<nome>/` é um vendor — código clonado que
+# serve como órgão do cérebro. Graphiti, Graphify, RTK, Neural Memory e
+# claude-mem vivem aqui. Use as constantes em vez de paths hardcoded.
+INTEGRATIONS_ROOT = SINAPSE_HOME / "integrations"
+GRAPHITI_INTEGRATION = INTEGRATIONS_ROOT / "graphiti"      # lóbulo temporal
+GRAPHIFY_INTEGRATION = INTEGRATIONS_ROOT / "graphify"      # lóbulo occipital
+NEURAL_MEMORY_INTEGRATION = INTEGRATIONS_ROOT / "neural-memory"  # córtex (associação)
+RTK_INTEGRATION = INTEGRATIONS_ROOT / "rtk"               # tronco (otimização)
+CLAUDE_MEM_INTEGRATION = INTEGRATIONS_ROOT / "claude-mem-plugins"  # lóbulo temporal (eventos)
+
+
 # ===== Helpers de path =====
 def neuron_path(project: str, topic: str, hash16: str) -> Path:
     """cortex/temporal/{projeto}/{topico}/neuronio-{hash16}.md (eixo por projeto)."""

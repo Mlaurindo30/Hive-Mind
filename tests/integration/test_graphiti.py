@@ -1,32 +1,51 @@
-"""Testes do cliente Graphiti P2 (core/graphiti_client.py).
+"""Testes do cliente Graphiti P2 (integrations/graphiti/client.py).
 
 Verifica:
   - graphiti_available() retorna False quando FalkorDB offline
-  - push_neuron() retorna False quando FalkorDB offline
+  - push_neuron() retorna True via fallback (escreve JSON-lines) quando offline
   - search_graph() retorna [] quando FalkorDB offline
   - Testes live (skip se FalkorDB não estiver rodando)
+  - Robustez: smoke test, circuit breaker, retry com backoff
 """
 from __future__ import annotations
 
 import sys
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from core import graphiti_client as gc
+from integrations.graphiti import (
+    _build_client,
+    _circuit_record_failure,
+    _circuit_record_success,
+    _fallback_append,
+    _fallback_dir,
+    _fallback_path,
+    _fallback_search,
+    _graphiti,
+    _retry_with_backoff,
+    assert_health,
+    circuit_state,
+    graphiti_available,
+    ollama_model_exists,
+    push_neuron,
+    reset_circuit,
+    search_graph,
+)
+import integrations.graphiti as gc
 
 
 @pytest.fixture(autouse=True)
 def _reset_singleton():
     """Reset the graphiti singleton before each test to prevent state leakage."""
-    original = gc._graphiti
-    gc._graphiti = None
+    original = gc.client._graphiti
+    gc.client._graphiti = None
     yield
-    gc._graphiti = original
+    gc.client._graphiti = original
 
 
 # ---------------------------------------------------------------------------
@@ -50,11 +69,9 @@ def test_push_neuron_offline_uses_fallback(monkeypatch, tmp_path):
     Contrato mudou: antes retornava False silenciosamente. Agora o cérebro
     preserva o neurônio no arquivo do lóbulo temporal para não perder dados.
     """
-    from core import graphiti_client as gc
-
     fallback = tmp_path / "grafo.jsonl"
     monkeypatch.setenv("HIVE_TEMPORAL_GRAFO", str(fallback))
-    monkeypatch.setattr(gc, "graphiti_available", lambda: False)
+    monkeypatch.setattr(gc.client, "graphiti_available", lambda: False)
     gc.reset_circuit()
 
     result = gc.push_neuron("n001", "test content")
@@ -65,41 +82,33 @@ def test_push_neuron_offline_uses_fallback(monkeypatch, tmp_path):
 
 def test_search_graph_offline(monkeypatch):
     """search_graph() → [] quando FalkorDB offline."""
-    monkeypatch.setattr(gc, "graphiti_available", lambda: False)
+    monkeypatch.setattr(gc.client, "graphiti_available", lambda: False)
     assert gc.search_graph("test query") == []
 
 
 def test_push_neuron_swallows_errors(monkeypatch):
     """push_neuron() retorna False (nunca lança) mesmo com erro inesperado."""
-    monkeypatch.setattr(gc, "graphiti_available", lambda: True)
-
-    mock_client = MagicMock()
-    mock_client.add_episode.side_effect = RuntimeError("boom")
-    monkeypatch.setattr(gc, "_graphiti", mock_client)
-
-    # asyncio.run() will call mock_client.add_episode as coroutine — patch properly
-    import asyncio
+    monkeypatch.setattr(gc.client, "graphiti_available", lambda: True)
 
     async def _raise(*_a, **_kw):
         raise RuntimeError("boom")
 
+    mock_client = MagicMock()
     mock_client.add_episode = _raise
+    monkeypatch.setattr(gc.client, "_graphiti", mock_client)
     result = gc.push_neuron("n002", "content", source="test")
     assert result is False
 
 
 def test_search_graph_swallows_errors(monkeypatch):
     """search_graph() retorna [] (nunca lança) mesmo com erro inesperado."""
-    monkeypatch.setattr(gc, "graphiti_available", lambda: True)
-
-    import asyncio
-
     async def _raise(*_a, **_kw):
         raise RuntimeError("boom")
 
     mock_client = MagicMock()
     mock_client.search = _raise
-    monkeypatch.setattr(gc, "_graphiti", mock_client)
+    monkeypatch.setattr(gc.client, "_graphiti", mock_client)
+    monkeypatch.setattr(gc.client, "graphiti_available", lambda: True)
     result = gc.search_graph("test")
     assert result == []
 
@@ -114,23 +123,18 @@ def test_build_client_uses_env(monkeypatch):
 
     captured = {}
 
-    def _fake_graphiti(**kwargs):
-        captured.update(kwargs)
-        return MagicMock()
-
-    from graphiti_core.driver import falkordb_driver as fdr
-
-    original_driver = fdr.FalkorDriver
-
     def _fake_driver(host, port, username, password, database):
         captured["host"] = host
         captured["port"] = port
         captured["database"] = database
         return MagicMock()
 
+    from graphiti_core.driver import falkordb_driver as fdr
+
     monkeypatch.setattr(fdr, "FalkorDriver", _fake_driver)
 
     import graphiti_core as gcore
+
     monkeypatch.setattr(gcore, "Graphiti", lambda **kw: MagicMock())
 
     try:
@@ -158,7 +162,7 @@ def test_live_graphiti_available():
 
 @pytest.mark.skipif(not _is_falkordb_alive(), reason="FalkorDB não está rodando em localhost:6379")
 def test_live_push_neuron():
-    result = gc.push_neuron("test-neuron-p2", "Teste P2: graphiti + FalkorDB integração.", source="test")
+    result = gc.push_neuron("test-neuron-p2-integration", "Teste P2: graphiti + FalkorDB integração.", source="test")
     assert result is True
 
 
@@ -175,28 +179,17 @@ def test_live_search_graph():
 # Testes de robustez (4 pontos)
 # ---------------------------------------------------------------------------
 
-def test_ollama_model_exists_unknown_returns_false(monkeypatch):
+def test_ollama_model_exists_unknown_returns_false():
     """ollama_model_exists() → False para modelo que não está no Ollama."""
-    # Não monkeypatcho o urllib; o modelo 'definitely-not-installed-xyz'
-    # não está no Ollama. Em CI sem Ollama, o import falha → também False.
-    from core import graphiti_client as gc
-
-    # Garantimos que retornou False mesmo se o servidor responder
-    # (porque o modelo específico não está lá).
     result = gc.ollama_model_exists("definitely-not-installed-xyz-model-zzz")
     assert result is False
 
 
-def test_circuit_breaker_opens_after_failures(monkeypatch):
+def test_circuit_breaker_opens_after_failures():
     """Circuit breaker abre após HIVE_GRAPHITI_CB_FAILS falhas consecutivas."""
-    from core import graphiti_client as gc
-
     gc.reset_circuit()
-    # Não monkeypatcho graphiti_available — o circuit breaker é
-    # independente do estado do FalkorDB. Forço falhas via _retry_with_backoff
-    # que é o que realmente incrementa consecutive_failures.
 
-    # Forçar 3 falhas
+    # Forçar 3 falhas via _retry_with_backoff
     for _ in range(3):
         def _runner():
             import asyncio
@@ -222,10 +215,8 @@ def test_circuit_breaker_opens_after_failures(monkeypatch):
     assert gc.circuit_state()["open"] is False
 
 
-def test_circuit_breaker_resets_on_success(monkeypatch):
+def test_circuit_breaker_resets_on_success():
     """Circuit breaker reseta consecutive_failures após sucesso."""
-    from core import graphiti_client as gc
-
     gc.reset_circuit()
 
     # 2 falhas
@@ -253,12 +244,10 @@ def test_circuit_breaker_resets_on_success(monkeypatch):
 
 def test_push_neuron_fallback_when_falkordb_offline(tmp_path, monkeypatch):
     """push_neuron escreve no JSON-lines do lóbulo temporal quando FalkorDB offline."""
-    from core import graphiti_client as gc
-
     gc.reset_circuit()
     fallback_path = tmp_path / "grafo.jsonl"
     monkeypatch.setenv("HIVE_TEMPORAL_GRAFO", str(fallback_path))
-    monkeypatch.setattr(gc, "graphiti_available", lambda: False)
+    monkeypatch.setattr(gc.client, "graphiti_available", lambda: False)
 
     result = gc.push_neuron("test-fallback-1", "conteudo do neuronio")
     assert result is True, f"push_neuron deveria ter sucesso via fallback"
@@ -276,11 +265,9 @@ def test_push_neuron_fallback_when_falkordb_offline(tmp_path, monkeypatch):
 
 def test_assert_health_returns_dict(monkeypatch):
     """assert_health() retorna dict estruturado (mesmo sem FalkorDB/Ollama)."""
-    from core import graphiti_client as gc
-
     gc.reset_circuit()
-    monkeypatch.setattr(gc, "graphiti_available", lambda: False)
-    monkeypatch.setattr(gc, "ollama_model_exists", lambda m: False)
+    monkeypatch.setattr(gc.client, "graphiti_available", lambda: False)
+    monkeypatch.setattr(gc.client, "ollama_model_exists", lambda m: False)
 
     health = gc.assert_health()
     assert "falkordb" in health

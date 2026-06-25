@@ -366,9 +366,11 @@ def run_synthesis_cycle(deadline: Optional[float] = None):
                 # 5. Marcar ambiguidade como sintetizada
                 conn.execute("UPDATE ambiguities SET status = 'synthesized' WHERE id = ?", (amb['id'],))
                 conn.commit()
-                # P2: push synthesized neuron to Graphiti temporal graph (best-effort)
+                # P2: push synthesized neuron to Graphiti temporal graph (best-effort).
+                # Graphiti é um orgão do lobulo temporal do cerebro (mora em
+                # integrations/graphiti/, antes em core/graphiti_client.py).
                 try:
-                    from core.graphiti_client import push_neuron
+                    from integrations.graphiti import push_neuron
                     push_neuron(neuron_id, synthesis.final_content, source="dream")
                 except ImportError:
                     pass

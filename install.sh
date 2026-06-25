@@ -648,6 +648,32 @@ else
     echo -e "  ${YELLOW}⊘${NC}  Health check: alguns backends offline"
     echo -e "  Execute: python3 scripts/services/sinapse-write.py health"
 fi
+
+# Checagem opcional do FalkorDB (Graphiti — lóbulo temporal).
+# Se FalkorDB não estiver respondendo, o cérebro usa o fallback JSON-lines
+# automaticamente; não bloqueia a instalação.
+echo ""
+echo -e "${BOLD}Graphiti (lóbulo temporal):${NC}"
+if "$PYTHON" -c "
+import os, sys
+sys.path.insert(0, '$PROJECT_ROOT')
+try:
+    from integrations.graphiti import assert_health
+    h = assert_health()
+    if h['falkordb']:
+        print('  OK: FalkorDB em', os.environ.get('FALKORDB_HOST', 'localhost'))
+    else:
+        print('  WARN: FalkorDB offline — cérebro usará fallback JSON-lines em')
+        print('        cerebro/cortex/temporal/_global/grafo.jsonl')
+        sys.exit(0)
+except Exception as e:
+    print('  WARN: Graphiti não pôde ser checado:', e)
+    sys.exit(0)
+"; then
+    :
+else
+    echo -e "  ${YELLOW}⊘${NC}  Graphiti check falhou (não-bloqueante)"
+fi
 echo ""
 
 if $WITH_TESTS; then
