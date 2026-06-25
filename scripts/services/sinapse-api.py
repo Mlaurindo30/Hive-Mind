@@ -159,6 +159,33 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Acesso negado.")
     return token
 
+
+# ---------------------------------------------------------------------------
+# Sync CRDT (P8) — reusa a lógica de scripts/services/sinapse-sync.py
+# (nome com hífen → carregado via importlib). Mantém uma única fonte de
+# verdade para export/import de crsql_changes; a API só expõe via HTTP.
+# ---------------------------------------------------------------------------
+_SYNC_MODULE = None
+
+def _get_sync_module():
+    global _SYNC_MODULE
+    if _SYNC_MODULE is None:
+        spec = importlib.util.spec_from_file_location(
+            "sinapse_sync", Path(__file__).resolve().parent / "sinapse-sync.py"
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _SYNC_MODULE = mod
+    return _SYNC_MODULE
+
+def _require_crdt_enabled():
+    """Fail-fast: os endpoints de sync só fazem sentido com CRDT habilitado."""
+    if os.environ.get("HIVE_CRDT_SYNC", "").lower() != "true":
+        raise HTTPException(
+            status_code=503,
+            detail="HIVE_CRDT_SYNC não habilitado nesta instância (defina HIVE_CRDT_SYNC=true).",
+        )
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -405,6 +432,65 @@ def post_neurons_import(request: Request, body: NeuronImportRequest):
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+# Teto de changes por POST /sync/import (proteção DoS — ver post_sync_import).
+_MAX_SYNC_CHANGES = int(os.environ.get("HIVE_SYNC_MAX_CHANGES", "1000000"))
+
+
+class SyncImportRequest(BaseModel):
+    changes: List[Any]
+    version: Optional[int] = None
+    site_id_hex: Optional[Any] = None
+    exported_at_unix: Optional[int] = None
+
+
+@app.get("/api/v1/sync/export", dependencies=[Depends(verify_api_key)])
+@limiter.limit("30/minute")
+def get_sync_export(request: Request, since: int = Query(0, ge=0)):
+    """Exporta changes CRDT LOCAIS (crsql_changes) desde a versão `since`.
+
+    Caminho de PULL do P8: um peer (workstation/laptop/servidor) faz
+    GET aqui e recebe {version, site_id_hex, changes, exported_at_unix}.
+    Reusa sinapse-sync._export — mesma serialização (bytes → hex).
+    """
+    _require_crdt_enabled()
+    try:
+        return _get_sync_module()._export(since)
+    except HTTPException:
+        raise
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=f"CRDT indisponível: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/sync/import", dependencies=[Depends(verify_api_key)])
+@limiter.limit("30/minute")
+def post_sync_import(request: Request, body: SyncImportRequest):
+    """Aplica changes CRDT recebidos de um peer via apply_changes (crsql_changes).
+
+    Caminho de PUSH do P8: o peer POSTa o payload de /sync/export e o
+    CR-SQLite resolve o merge LWW por coluna (convergência sem conflito).
+    Reusa sinapse-sync._import_changes — preserva PK binária e propaga updates.
+    """
+    _require_crdt_enabled()
+    # Guard de tamanho: o body é parseado em memória; um cap evita que um peer
+    # (mesmo autenticado) faça a API alocar GBs num único POST. 1M changes é
+    # folgado para sync real (~65k changes ≈ DB de 72MB) mas finito.
+    if len(body.changes) > _MAX_SYNC_CHANGES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"changes excede o limite ({len(body.changes)} > {_MAX_SYNC_CHANGES}).",
+        )
+    try:
+        return _get_sync_module()._import_changes({"changes": body.changes})
+    except HTTPException:
+        raise
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=f"CRDT indisponível: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/v1/vault/{secret_id}", dependencies=[Depends(verify_api_key)])

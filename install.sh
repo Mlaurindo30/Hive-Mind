@@ -729,6 +729,100 @@ for m in json.load(sys.stdin)['models']:
 fi
 echo ""
 
+# =============================================================================
+# 13. CR-SQLite (vendor opcional — sync multi-device via CRDT)
+# =============================================================================
+# Politica 0.2 do roadmap: vendor externo em integrations/<nome>/.
+# Binario vem de https://github.com/vlcn-io/cr-sqlite/releases (release pinada).
+# E opt-in: controlado por HIVE_CRDT_SYNC=true no .env (default false).
+CRSQLITE_VERSION="${CRSQLITE_VERSION:-0.16.3}"
+CRSQLITE_DIR="$PROJECT_ROOT/integrations/crsqlite"
+
+download_crsqlite_asset() {
+    local asset=$1
+    local url="https://github.com/vlcn-io/cr-sqlite/releases/download/v${CRSQLITE_VERSION}/${asset}"
+    local tmp_dir; tmp_dir=$(mktemp -d)
+    local zipfile="${tmp_dir}/${asset}"
+    trap 'rm -rf "$tmp_dir"' RETURN
+
+    echo -e "  Baixando ${url}"
+    if ! curl --proto '=https' --tlsv1.2 -sSfL -o "$zipfile" "$url"; then
+        echo -e "  ${YELLOW}!${NC} Falha no download de ${asset} (rede ou release)."
+        return 1
+    fi
+
+    # Extrai apenas o binario nomeado pelo upstream (a partir de v0.16.1 o
+    # zip ja vem com o nome final do .so/.dylib/.dll, sem rename).
+    if command -v unzip >/dev/null 2>&1; then
+        unzip -o -j "$zipfile" -d "$CRSQLITE_DIR" 2>/dev/null || {
+            echo -e "  ${YELLOW}!${NC} unzip falhou para ${asset}"
+            return 1
+        }
+    elif command -v python3 >/dev/null 2>&1; then
+        python3 -c "
+import zipfile, sys
+with zipfile.ZipFile('$zipfile') as z:
+    z.extractall('$CRSQLITE_DIR')
+" || return 1
+    else
+        echo -e "  ${YELLOW}!${NC} Nenhum unzip ou python3 disponivel para extrair."
+        return 1
+    fi
+    return 0
+}
+
+download_crsqlite() {
+    mkdir -p "$CRSQLITE_DIR"
+
+    # Escolhe asset conforme plataforma detectada.
+    local sys_name kernel
+    sys_name=$(uname -s 2>/dev/null || echo "Linux")
+    kernel=$(uname -m 2>/dev/null || echo "x86_64")
+
+    local asset=""
+    case "$sys_name" in
+        Linux)
+            case "$kernel" in
+                x86_64|amd64)  asset="crsqlite-linux-x86_64.zip" ;;
+                aarch64|arm64) asset="crsqlite-linux-aarch64.zip" ;;
+                *) echo -e "  ${YELLOW}!${NC} Arquitetura Linux nao suportada: $kernel"; return 1 ;;
+            esac ;;
+        Darwin)
+            case "$kernel" in
+                x86_64|amd64)  asset="crsqlite-darwin-x86_64.zip" ;;
+                arm64|aarch64) asset="crsqlite-darwin-aarch64.zip" ;;
+                *) echo -e "  ${YELLOW}!${NC} Arquitetura Darwin nao suportada: $kernel"; return 1 ;;
+            esac ;;
+        *)
+            echo -e "  ${YELLOW}!${NC} SO nao suportado para CR-SQLite pre-compilado: $sys_name"
+            echo -e "         Compilar do source (Rust nightly + make loadable) ou desabilitar P8."
+            return 1 ;;
+    esac
+
+    download_crsqlite_asset "$asset"
+}
+
+if [ -f "$CRSQLITE_DIR/crsqlite.so" ] || [ -f "$CRSQLITE_DIR/crsqlite.dylib" ] || [ -f "$CRSQLITE_DIR/crsqlite.dll" ]; then
+    echo -e "${BOLD}[13] CR-SQLite vendor ja presente em $CRSQLITE_DIR — pulando download${NC}"
+elif $FORCE || [ "${INSTALL_CRSQLITE:-false}" = "true" ]; then
+    echo -e "${BOLD}[13] Baixando CR-SQLite v${CRSQLITE_VERSION} para integrations/crsqlite/...${NC}"
+    if ! download_crsqlite; then
+        echo -e "  ${YELLOW}!${NC} CR-SQLite NAO instalado. P8 (sync multi-device) fica desabilitado."
+        echo -e "         Habilite depois com: INSTALL_CRSQLITE=true bash install.sh"
+    else
+        echo -e "  ${GREEN}OK${NC} CR-SQLite v${CRSQLITE_VERSION} em $CRSQLITE_DIR"
+        ls -la "$CRSQLITE_DIR" | grep -E "crsqlite\.(so|dylib|dll)" || true
+    fi
+else
+    echo -e "${BOLD}[13] CR-SQLite (P8) - opt-in.${NC}"
+    echo -e "         Para sync multi-device via CRDT, rode:"
+    echo -e "           INSTALL_CRSQLITE=true bash install.sh"
+    echo -e "         e defina HIVE_CRDT_SYNC=true no .env. Mais em:"
+    echo -e "           $CRSQLITE_DIR/README.md"
+fi
+
+echo ""
+
 # ── Configuração Interativa Pós-Instalação (Opcional) ───────────────────────
 HAS_DREAMER=false
 if [ -f "$PROJECT_ROOT/.env" ]; then

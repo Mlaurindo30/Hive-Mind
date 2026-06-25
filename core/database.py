@@ -114,6 +114,30 @@ def get_connection():
             sqlite_vec.load(conn)
         finally:
             conn.enable_load_extension(False)
+
+    # CR-SQLite (P8 - sync multi-device): opt-in via HIVE_CRDT_SYNC=true.
+    # Quando habilitado:
+    #   1. Carrega a extensao nativa crsqlite (integrations/crsqlite/<bin>)
+    #   2. Tenta CRR-upgrade em cada tabela CRR-elegivel (silencioso se
+    #      tabela nao existe - permite uso em DBs de teste com schema minimo)
+    #   3. Falhas nao sao fatais - o cerebro segue funcional sem sync
+    # Requer que setup_crdt.py tenha migrado o schema para CRR-compat
+    # (core/umc_schema_crr.sql). Ver docs/10-implementation-roadmap.md §4 P8.
+    if os.environ.get("HIVE_CRDT_SYNC", "").lower() == "true":
+        try:
+            from integrations.crsqlite.client import enable_crdt
+            # enable_crdt ja carrega a extensao internamente (load_crsqlite_extension
+            # e sua primeira operacao); nao chamar duas vezes.
+            enable_crdt(conn)
+        except (RuntimeError, ImportError, sqlite3.OperationalError) as e:
+            # Binario ausente, vendor nao carregado, ou schema nao CRR-compat.
+            # Log mas nao quebra - sync opt-in.
+            import sys
+            print(
+                f"[hive-mind] CR-SQLite nao inicializado: {type(e).__name__}: {e}. "
+                "Sync desabilitado nesta conexao. Rode setup_crdt.py se quiser sync.",
+                file=sys.stderr,
+            )
     return conn
 
 def execute_insert(conn, table, data):
@@ -271,7 +295,13 @@ def ensure_migrations(conn):
     if "source_machine" not in existing_cols:
         import socket
         hostname = socket.gethostname()
-        conn.execute(f"ALTER TABLE observations ADD COLUMN source_machine TEXT DEFAULT '{hostname}'")
+        # ALTER nao aceita placeholder no DEFAULT; cria a coluna sem default e
+        # popula via UPDATE parametrizado (hostname pode conter aspas/';' — POSIX).
+        conn.execute("ALTER TABLE observations ADD COLUMN source_machine TEXT")
+        conn.execute(
+            "UPDATE observations SET source_machine = ? WHERE source_machine IS NULL",
+            (hostname,),
+        )
 
     # Phase HM-11: Intent Memory columns
     if "goal_id" not in existing_cols:

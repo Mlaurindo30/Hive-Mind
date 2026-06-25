@@ -7,6 +7,7 @@
 > vão no `install.sh`. Nomes em `cerebro/` (projetos, tópicos, setores) são fictícios —
 > projetos reais são instalados pelo usuário em `cerebro/cortex/temporal/<projeto>/`.
 >
+> **4ª passada (2026-06-25):** marcação da Fase P8 (CR-SQLite) como **em implementação**.
 > **3ª passada de validação (2026-06-25) + refinamento posterior (sessão #S2864):** cada afirmação abaixo foi verificada
 > contra código real (ver §0.6 "Metodologia de validação"). A 2ª passada listava 13
 > fases pendentes. Reduzimos para **6** (P7..P13; **gap em P12** — aposentado na §3.2
@@ -23,6 +24,7 @@
 ## Índice
 
 - [§0 Princípios e anatomia](#0-princípios-e-anatomia)
+- [§0.7 Nomenclatura sem sufixos de versão](#07-nomenclatura-sem-sufixos-de-versão)
 - [§1 Estado atual do cérebro](#1-estado-atual-do-cérebro)
 - [§2 Fases concluídas (P0..P5)](#2-fases-concluídas-p0p5)
 - [§3 Já integrado no `integrations/neural-memory/` (rastreabilidade)](#3-já-integrado-no-integrationsneural-memory-rastreabilidade)
@@ -32,6 +34,32 @@
 - [§7 Sprints](#7-sprints)
 - [§8 Mapa de arquivos por fase](#8-mapa-de-arquivos-por-fase)
 - [§9 Gaps conhecidos](#9-gaps-conhecidos-2026-06-25)
+- [§10 Decisões de implementação P8](#10-decisões-de-implementação-p8)
+- [§11 Próximo passo imediato](#11-próximo-passo-imediato)
+
+---
+
+## 0.7 Nomenclatura sem sufixos de versão
+
+**Regra (vinculante):** arquivos, classes, funções, tabelas e migrations do Hive-Mind **não usam sufixos de versão** (`v2`, `v3`, `v4`). Evoluções ficam com **sufixo semântico que descreve a propriedade**.
+
+| Em vez de | Usar | Razão |
+|---|---|---|
+| `umc_schema_v2.sql` | `umc_schema_crr.sql` | "CRR" descreve a propriedade (compatível com CRDT), não uma versão |
+| `migrate_to_v2.py` / `migrate_crdt.py` | `setup_crdt.py` | "setup" indica que é migração; sem número de versão |
+| `core_v3/` | `core_crr/` ou feature directory | Diretório descreve a capacidade, não release |
+| Classe `OllamaEmbedderV2` | Classe `OllamaEmbedder` (modifica in-place) ou nova classe com nome próprio | Nenhuma versão no nome |
+| Tabela `neurons_v2` | Tabela `neurons` (com `crsql_as_crr`) ou `synced_neurons` | Tabelas descrevem o que são |
+
+**Exceção:** referências a **upstream externo** mantêm o nome upstream:
+- `OmniParser v2` (Microsoft) → `OmniParser v2`
+- `all-MiniLM-L6-v2` (HuggingFace) → `all-MiniLM-L6-v2`
+- `liteLLM v1.50` → como o upstream chama
+- Versões de release do upstream em comentários/release notes: `v0.16.3` do `vlcn-io/cr-sqlite`
+
+**Quando a regra não vale:** comentários inline que referenciam versões de release do upstream (ex: `# release v0.16.3 de vlcn-io/cr-sqlite`).
+
+**Origem da regra:** sessão de 2026-06-25 (Sprint 3.1 P8). Decisão registrada na memória do projeto.
 
 ---
 
@@ -419,20 +447,74 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
 
 **Decisão dependente:** avaliar se agentes atuais (Kilo, Hermes, Codex, Cursor) suportam spec 2025-03-26. Se nenhum suportar, deferir.
 
-### Fase P8 — CR-SQLite (sync multi-dispositivo) 🔜
+### Fase P8 — CR-SQLite (sync multi-dispositivo) 🔜 **EM IMPLEMENTAÇÃO**
 
 **Origem:** `09` §7 — CR-SQLite (vlcn-io).
 **Lobo:** Tronco (infra de sincronização). Habilita instâncias Hive-Mind em workstation + laptop + servidor convergindo sem conflitos.
-**ROI:** Alto | **Esforço:** Médio | **Status:** 🔜 Pendente | **Risco:** Médio (migração de schema — backup antes)
+**ROI:** Alto | **Esforço:** Médio | **Status:** 🔜 **Em implementação (2026-06-25)** | **Risco:** Médio (migração de schema — backup antes)
 
 **Estado atual (verificado):**
 - Nenhum arquivo em `core/` ou `scripts/` menciona `crsqlite`, `crsql_as_crr`, ou `crsql_changes` — gap real confirmado
 - Tabelas sincronizáveis (de `core/umc_schema.sql`): `neurons`, `synapses`, `observations`, `vault`, `ambiguities`, `visual_memories`, `document_memories`, `causal_edges`, `goals`
 - `capture-state.db` NÃO deve sincronizar (local-only, SeenStore)
 
+**P8.1 — Decisão de execução (2026-06-25):**
+A fase P8 foi selecionada para implementação neste ciclo. O escopo inicial cobre
+somente a sincronização do `hive_mind.db` via CR-SQLite; o vault `.md` continua sendo
+sincronizado externamente pelo Syncthing (já existente: `scripts/services/syncthing_watcher.py`).
+Não se altera a topologia single-writer do Dream Cycle (ver §5, rejeição de Yjs).
+
+**P8.2 — Premissas validadas (gate técnico 2026-06-25, fontes oficiais + empírica):**
+Validação feita com binário real `crsqlite-linux-x86_64.zip` v0.16.3 (642KB → `crsqlite.so` 2.1MB),
+baixado de https://github.com/vlcn-io/cr-sqlite/releases/tag/v0.16.3, carregado via
+`sqlite3.Connection.load_extension` em Python 3.12.12. Cross-checado com
+https://github.com/vlcn-io/cr-sqlite (README) e https://observablehq.com/@tantaman/cr-sqlite-basic-setup.
+
+- **Distribuição:** binário pré-compilado por plataforma em GitHub Releases. **NÃO** há wheel Python no PyPI.
+  O roadmap antigo dizia `uv add crsqlite` — errado. Caminho correto: `install.sh` baixa
+  o zip de GitHub Releases para `integrations/crsqlite/crsqlite.{so,dylib,dll}`. É um **vendor externo**,
+  igual a graphify/graphiti/rtk, então segue a anatomia §0.2 e mora em `integrations/`, não em `core/`.
+- **Carregamento:** por conexão, antes de qualquer outra operação: `conn.load_extension(crsqlite_so_path)`.
+  Nomes por plataforma: `crsqlite.so` (Linux), `crsqlite.dylib` (macOS), `crsqlite.dll` (Windows).
+- **Funções disponíveis** (23): `crsql_as_crr`, `crsql_as_table`, `crsql_changes` (virtual table),
+  `crsql_db_version`, `crsql_site_id`, `crsql_finalize`, `crsql_begin_alter`/`crsql_commit_alter`,
+  `crsql_automigrate`, `crsql_config_get`/`crsql_config_set`, `crsql_sha`, etc.
+- **Filtro correto para mudanças LOCAIS:**
+  `SELECT * FROM crsql_changes WHERE db_version > ? AND site_id = crsql_site_id()`
+- **Finalize é obrigatório antes de fechar conexão:** `crsql_finalize()` para limpar triggers internos.
+
+**P8.3 — Restrições de schema descobertas (empíricas, contra cópia do `hive_mind.db`):**
+Auditoria linha-a-linha em `core/umc_schema.sql` (linhas 1–130) com o binário v0.16.3:
+
+| Tabela | Status atual | Bloqueio CR-SQLite | Correção necessária |
+|---|---|---|---|
+| `neurons` | `id TEXT PRIMARY KEY` | PK nullable + colunas `NOT NULL` sem `DEFAULT` | `id TEXT PRIMARY KEY NOT NULL DEFAULT ''` + DEFAULT em todas as colunas NOT NULL |
+| `synapses` | idem | idem | idem |
+| `observations` | tem DEFAULTs | ✅ único que passou upgrade | manter |
+| `vault` | `id TEXT PRIMARY KEY` + `encrypted_secret BLOB NOT NULL` | PK nullable + NOT NULL sem DEFAULT | PK + DEFAULT + `encrypted_secret` precisa de DEFAULT |
+| `ambiguities` | 5 colunas NOT NULL sem DEFAULT | bloqueio total | DEFAULT em todas |
+| `visual_memories` | `image_path TEXT NOT NULL` sem DEFAULT | bloqueio | DEFAULT |
+| `document_memories` | `id TEXT PRIMARY KEY` + `file_hash TEXT UNIQUE` | PK nullable + **UNIQUE constraint além da PK é proibido em CRR** | PK + DEFAULT; remover `UNIQUE` de `file_hash` (deduplicação passa a ser app-level) |
+| `causal_edges` | 2 FKs `NOT NULL` sem DEFAULT | bloqueio | DEFAULT |
+| `goals` | 3 colunas `NOT NULL` sem DEFAULT | bloqueio | DEFAULT |
+| `search_vec` (vec0) | virtual table | CR-SQLite **não suporta** virtual tables como CRR | **fica fora do CRR** — cada máquina reconstrói via Dream Cycle |
+| binário nativo | `core/` | política §0.2 (vendors em `integrations/`) | mover para `integrations/crsqlite/crsqlite.{so,dylib,dll}` |
+| `search_fts` (fts5) | virtual table | idem | idem |
+
+**Decisão sobre migração:** gerar `core/umc_schema_crr.sql` (CRR-compatível) e
+`scripts/setup/setup_crdt.py` que (a) faz backup `hive_mind.db.pre-crr`,
+(b) cria DB novo com schema CRR-compatível, (c) copia dados preservando PKs, (d) executa
+`crsql_as_crr` em cada tabela. Não há migração in-place — `crsql_as_crr` é
+irreversível uma vez que triggers internos estão ativos.
+
 **Tarefas:**
-- [ ] `uv add crsqlite` (extensão loadable) — **verificar se o pacote PyPI traz o binário nativo (`.so`/`.dylib`) pré-compilado para a plataforma alvo; se não, adicionar download/compilação do binário ao `install.sh`**
-- [ ] Criar `core/crdt_sync.py`:
+- [x] **Decidido:** implementar P8 agora
+- [x] **Premissas validadas** (binário real, schema auditado)
+- [ ] Adicionar step em `install.sh` para baixar `crsqlite-{platform}-{arch}.zip` da release
+  pinada (HIVE_CRSQLITE_VERSION=v0.16.3) e extrair para `integrations/crsqlite/crsqlite.{so,dylib,dll}`
+- [ ] Criar `core/umc_schema_crr.sql` com PK NOT NULL DEFAULT + DEFAULTs nas NOT NULL columns
+  + remover UNIQUE de `document_memories.file_hash`
+- [ ] Criar `core/crdt_sync.py` (substituir o esboço da §4 original, agora com premissas corrigidas):
   ```python
   """CR-SQLite: sincronização CRDT para hive_mind.db."""
   from __future__ import annotations
@@ -486,6 +568,91 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
       row = conn.execute("SELECT crsql_db_version()").fetchone()
       return row[0] if row else 0
   ```
+  **ESBOco ORIGINAL ACIMA USA `import crsqlite` (NAO EXISTE no PyPI). Versao corrigida (P8.2/P8.3):**
+  ```python
+  """CR-SQLite: sincronizacao CRDT para hive_mind.db.
+
+  Carrega a extensao nativa (crsqlite.so/.dylib/.dll) e expoe primitivas.
+  NAO usar `import crsqlite` — nao existe wheel PyPI; o binario vem do
+  install.sh e fica em integrations/crsqlite/.
+  """
+  from __future__ import annotations
+  import platform
+  import sqlite3
+  from pathlib import Path
+
+  INTEGRATIONS_DIR = Path(__file__).resolve().parents[1]  # integrations/
+  VENDOR_DIR = INTEGRATIONS_DIR / "crsqlite"
+
+  # Tabelas CRR-elegiveis (ver P8.3). search_vec/search_fts sao VIRTUAIS
+  # e CR-SQLite nao suporta; ficam fora e cada maquina reconstroi.
+  CRDT_TABLES = [
+      "neurons", "synapses", "observations", "vault", "ambiguities",
+      "visual_memories", "document_memories", "causal_edges", "goals",
+  ]
+
+  def _lib_filename() -> str:
+      system = platform.system().lower()
+      machine = platform.machine().lower()
+      if system == "linux":
+          return "crsqlite.so" if machine in ("x86_64", "amd64") else f"crsqlite-{machine}.so"
+      if system == "darwin":
+          return "crsqlite.dylib"
+      if system == "windows":
+          return "crsqlite.dll"
+      raise RuntimeError(f"Plataforma nao suportada: {system}/{machine}")
+
+  def load_crsqlite_extension(conn: sqlite3.Connection) -> None:
+      """Carrega a extensao. Deve ser a PRIMEIRA operacao apos abrir conexao."""
+      lib = VENDOR_DIR / _lib_filename()
+      if not lib.exists():
+          raise RuntimeError(
+              f"crsqlite nao encontrado em {lib}. Rode install.sh para baixar (seção CR-SQLite em integrations/crsqlite/)."
+          )
+      conn.enable_load_extension(True)
+      try:
+          conn.load_extension(str(lib))
+      finally:
+          conn.enable_load_extension(False)
+
+  def enable_crdt(conn: sqlite3.Connection) -> None:
+      """Carrega a extensao e converte as tabelas CRDT_TABLES para CRR.
+      Idempotente: reexecutar e no-op. Falha se tabela faltar (nao silenciosa)."""
+      load_crsqlite_extension(conn)
+      for table in CRDT_TABLES:
+          conn.execute(f"SELECT crsql_as_crr('{table}')")
+      conn.commit()
+
+  def get_changes_since(conn: sqlite3.Connection, db_version: int) -> list[tuple]:
+      """Mudancas LOCAIS (exclui o que veio de outros peers)."""
+      site = conn.execute("SELECT crsql_site_id()").fetchone()[0]
+      return conn.execute(
+          "SELECT * FROM crsql_changes "
+          "WHERE db_version > ? AND site_id = ?",
+          (db_version, site),
+      ).fetchall()
+
+  def apply_changes(conn: sqlite3.Connection, changes: list[tuple]) -> int:
+      applied = 0
+      for change in changes:
+          try:
+              conn.execute(
+                  "INSERT INTO crsql_changes VALUES (?,?,?,?,?,?,?,?,?)",
+                  change,
+              )
+              applied += 1
+          except sqlite3.IntegrityError:
+              pass  # mudanca antiga ja aplicada
+      conn.commit()
+      return applied
+
+  def current_db_version(conn: sqlite3.Connection) -> int:
+      return conn.execute("SELECT crsql_db_version()").fetchone()[0]
+
+  def finalize(conn: sqlite3.Connection) -> None:
+      """Chame antes de fechar a conexao para limpar triggers internos."""
+      conn.execute("SELECT crsql_finalize()")
+  ```
 - [ ] Integrar em `core/database.py:93` `get_connection()` — adicionar antes do `return conn`:
   ```python
   if os.environ.get("HIVE_CRDT_SYNC", "").lower() == "true":
@@ -538,10 +705,20 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
 - [ ] `tests/integration/test_crdt.py` — sync entre dois diretórios
 
 **Critério de pronto:**
-- Dois diretórios sincronizam alterações sem perda (test A: inst1 adiciona neurônio, export→import→inst2 tem o neurônio)
-- `tests/integration/test_crdt.py` passa (4+ testes: export, import, conflict resolution, version tracking)
+- Dois diretórios sincronizam alterações sem perda — cobrindo **insert E update** em linha existente,
+  e verificando que a **PK chega íntegra** (o `pk` de `crsql_changes` é um blob binário packed;
+  decodificá-lo como utf-8 corrompe o id). Import sempre via `crsql_changes`/`apply_changes`,
+  nunca `INSERT OR IGNORE` direto nas tabelas user.
+- `tests/integration/test_crdt.py` passa (6 testes: export, import, conflict LWW, version tracking,
+  `test_cli_import_preserves_id_and_propagates_update`, finalize)
 - `capture-state.db` permanece local-only (não sincroniza)
 - Backup restaurável se migration falhar
+
+> **Lição (2026-06-25):** a 1ª implementação trocou `apply_changes` por `INSERT OR IGNORE`
+> direto nas tabelas, alegando 190s→1.7s (111×). Medição empírica mostrou que (a) os 190s vinham
+> do truque de arquivo temporário do Bloco C, não do `apply_changes` (que faz 65k changes em ~0.5s
+> até em DB populado), e (b) o `INSERT OR IGNORE` **corrompia a PK** (0/32500 ids corretos) e
+> **perdia updates**. O teste antigo só contava linhas, nunca verificava id nem update. Revertido.
 
 ### Fase P9 — Langfuse Self-Hosted (instrumentação real) 🔜
 
@@ -901,10 +1078,21 @@ Cada fase, ao concluir, entrega:
 - [ ] 8 testes novos
 - **Esforço:** P9 é o de maior ROI desta sprint (Langfuse self-hosted já tem infra, falta só instrumentação + deps)
 
-### Sprint 3 — P7 (Streamable HTTP) + P8 (CR-SQLite) 🔜
+### Sprint 3 — P7 (Streamable HTTP) + P8 (CR-SQLite) 🔜 **P8 EM ANDAMENTO**
 - [ ] P7: criar `sinapse-mcp-http.py` + aiohttp + systemd unit + testes E2E
-- [ ] P8: `core/crdt_sync.py` + `sinapse-sync.py` CLI + backup + testes sync entre 2 dirs
+- [x] **P8 em andamento:** `core/crdt_sync.py` + `sinapse-sync.py` CLI + backup + testes sync entre 2 dirs
 - [ ] 8 testes novos
+
+**Sprint 3.1 — P8 CR-SQLite (previsto para esta sessão):**
+| # | Tarefa | Arquivo/entregável | Critério de aceite |
+|---|--------|--------------------|--------------------|
+| 1 | Adicionar CR-SQLite como vendor em `integrations/` | `integrations/crsqlite/` (clone de https://github.com/vlcn-io/cr-sqlite) + nova seção em `install.sh` | `integrations/crsqlite/crsqlite.so` existe e `load_extension` carrega |
+| 2 | Criar schema CRR-compatível e migrar | `core/umc_schema_crr.sql` + `scripts/setup/setup_crdt.py` | ✅ **FEITO** — 11.106 linhas migradas, 1.634 órfãos de FK removidos, 9/9 tabelas aceitam `crsql_as_crr`. `--dry-run` validado (nenhuma escrita). Validação empírica contra cópia do `hive_mind.db` real |
+| 3 | Hook CR-SQLite em `get_connection()` | `core/database.py:117` (após `sqlite_vec.load`) | ✅ **FEITO** — opt-in via `HIVE_CRDT_SYNC=true`. Carrega `integrations.crsqlite.client`, roda `enable_crdt`, falha silenciosa com stderr-warn se vendor ausente ou schema não-CRR. 4 cenários validados empiricamente |
+| 4 | CLI de sincronização | `scripts/services/sinapse-sync.py` | ✅ **FEITO** — `--export`, `--import`, `--push`, `--pull`, `--sync`. **Import via `apply_changes` (crsql_changes), NÃO `INSERT OR IGNORE`.** Performance medida: **65k changes em ~0.5s** inclusive em DB já populado. ⚠️ A 1ª versão usou `INSERT OR IGNORE` direto (alegando 190s→1.7s/111×) — **revertida em 2026-06-25**: corrompia a PK (0/32500 ids corretos) e perdia updates; os 190s eram do truque temp file do Bloco C, não do `apply_changes` |
+| 5 | Garantir local-only | `integrations/crsqlite/client.py:CRDT_TABLES` (exclui `capture-state.db`, `search_vec`, `search_fts`) | tabelas virtuais e locais não são CRR |
+| 6 | Testes de integração | `tests/integration/test_crdt.py` + `test_sync_endpoints.py` + `test_crdt_gaps.py` | ✅ **FEITO** — **21 testes reais**: export, import, conflict LWW, version tracking, PK íntegra + update propaga, finalize, 4 de endpoints HTTP (auth, gate 503, round-trip), e 11 de gaps (convergência bidirecional, DELETE tombstone, --since incremental, idempotência, NULLs, preservação de todas as colunas, tabelas goals/observations, payload vazio, serialização bytes) |
+| 7 | Endpoints HTTP de sync (Bloco D) | `scripts/services/sinapse-api.py` → `GET /api/v1/sync/export`, `POST /api/v1/sync/import` | ✅ **FEITO** — reusam `_export`/`_import_changes` do CLI (DRY), auth Bearer, rate-limit 30/min, gate `HIVE_CRDT_SYNC`. Ativam `--push`/`--pull`/`--sync` over-the-wire |
 
 ### Sprint 4 — P10 (RAPTOR mensal/anual) + P13 (OmniParser) 🔜
 - [ ] P10: `monthly_synthesizer.py` + `yearly_synthesizer.py` + timers + `sinapse_hierarchical_search`
@@ -942,9 +1130,9 @@ Cada fase, ao concluir, entrega:
 | (neural-memory) | `integrations/neural-memory/` | 7 projetos do 09 | ✅ DONE (§3) |
 | P7 | `scripts/services/sinapse-mcp-http.py` | **NOVO** (Streamable HTTP) | 🔜 |
 | P7 | `scripts/setup/install_services.py` | `+sinapse-mcp-http.service` | 🔜 |
-| P8 | `core/crdt_sync.py` | **NOVO** | 🔜 |
-| P8 | `core/database.py:93` | `+enable_crdt()` | 🔜 |
-| P8 | `scripts/services/sinapse-sync.py` | **NOVO** CLI | 🔜 |
+| P8 | `integrations/crsqlite/client.py` | **NOVO** | 🔄 (Sprint 3.1) |
+| P8 | `core/database.py:117` | `+enable_crdt()` hook (envolve `integrations/crsqlite/client.py`) | ✅ FEITO |
+| P8 | `scripts/services/sinapse-sync.py` | **NOVO** CLI (usa `integrations/crsqlite/client.py`) | 🔄 (Sprint 3.1) |
 | P9 | `pyproject.toml` | `+opentelemetry-sdk, +opentelemetry-exporter-otlp-proto-http` | 🔜 |
 | P9 | `scripts/dream/dream_cycle.py` | `+span()` em 4 estágios | 🔜 |
 | P9 | `scripts/capture/capture_core.py` | `+span()` em `ingest()` | 🔜 |
@@ -967,23 +1155,65 @@ Cada fase, ao concluir, entrega:
 | `sinapse_temporal_graph_search` ainda existe como tool MCP | `scripts/services/sinapse-mcp.py` | Marcada DEPRECATED; `sinapse_query` é canônico | Próxima release (remover) |
 | `_Consciencia.md` e MOCs auto-gerados não estão no gitignore | `generate_mocs.py` | Regenerados a cada Dream Cycle | Considerar `.gitignore` |
 | Brain UI (frontend de visualização do grafo) | nenhum | `integrations/neural-memory/dashboard/` tem React dashboard — não integrado ao cérebro | Avaliar em sprint futura |
-| Sem sync multi-device | — | Manual rsync | P8 (CR-SQLite) |
+| Sem sync multi-device | `core/crdt_sync.py` (em criação) | Manual rsync; CR-SQLite em andamento | P8 (CR-SQLite) — em resolução na Sprint 3.1 |
 | Sem nível mensal/anual de destilação | — | Diário + semanal existem | P10 (RAPTOR) |
 | Sem embedding visual CLIP | `visual_memories` table só texto | LLM Vision processa screenshot direto | P11 (LanceDB) + P13 (OmniParser) |
 | Sem pré-parser UI de screenshots | LLM Vision puro | — | P13 (OmniParser) |
 | Downloads de pesos de visão não estão no `install.sh` (CLIP ~600MB P11, OmniParser ~1.3GB P13) | install.sh | Só em notas/comentários | Wirar como step opt-in por `HIVE_VISION_TIER` |
 | Deps reais do OmniParser não resolvidas (são "provavelmente") | P13 | — | **Bloqueia P13** — verificar upstream antes de implementar |
 | Pacote/modelo CLIP a fixar (`open-clip-torch` + `torch`, modelo `ViT-B-32`) | P11 | — | P11 (decidir CPU/CUDA) |
-| `crsqlite`: confirmar se PyPI traz binário nativo da plataforma | P8 | — | P8 (senão step no install.sh) |
+| Distribuição: binário vem de GitHub Releases, não PyPI (v0.16.3 validada, 642KB) | P8 | `install.sh` baixa para `integrations/crsqlite/` (clone/vendor — política §0.2) | P8 install step |
 | Tools MCP novas (`sinapse_hierarchical_search` P10, `sinapse_visual_search` P11) precisam registro em `TOOLS`/`tools/list` | `sinapse-mcp.py` | — | P10/P11 (senão invisíveis aos clientes) |
 | `integrations/patches/` aplicado sobre clones, antes não documentado | §0.2 | Agora documentado | — |
 | Langfuse MCP (`avivsinai/langfuse-mcp`) em limbo (sub-item opcional do P9) | P9 | Deferido | Decidir: sub-fase ou §5 |
 
 ---
 
-## 10. Próximo passo imediato
+## 10. Decisões de implementação P8
 
-**Sprint 2** (proposto) — confirmar antes de executar:
+A fase P8 foi declarada **em implementação** durante a sessão de 2026-06-25. Esta seção registra as decisões tomadas antes do código começar.
+
+### 10.1 Escopo incluído
+- CR-SQLite como mecanismo de sincronização do `hive_mind.db` (apenas UMC).
+- Binário nativo + wrapper Python vivem em `integrations/crsqlite/` (clone de https://github.com/vlcn-io/cr-sqlite).
+- CLI `scripts/services/sinapse-sync.py` com subcomandos `--export`, `--import`, `--push`, `--pull`.
+- Backup automático antes de qualquer migração de schema (`scripts/setup/setup_crdt.py` ou step no `install.sh`).
+- Testes de integração `tests/integration/test_crdt.py` (4+ casos: export, import, resolução de conflito, version tracking).
+- Habilitação condicional por env `HIVE_CRDT_SYNC=true`.
+
+### 10.2 Escopo **excluído** (não implementado neste ciclo)
+- Sincronização do vault `.md` (continua sendo responsabilidade do Syncthing / `scripts/services/syncthing_watcher.py`, fora de `integrations/`).
+- Topologia multi-writer do Dream Cycle (mantém single-writer).
+- CRDT para `capture-state.db` (WAL local-only, descartável).
+- Conectores de nuvem (Dropbox, S3, WebDAV).
+- UI/UX para resolução manual de conflitos (resolve via LWW + flag `needs_review`).
+
+### 10.3 Riscos e mitigações
+| Risco | Probabilidade | Impacto | Mitigação |
+|---|---|---|---|
+| `crsqlite` exige PK NOT NULL + colunas com DEFAULT em todas as CRR | Alta | Impede P8 até migrar schema | Criar `umc_schema_crr.sql` (PK NOT NULL DEFAULT, remove UNIQUE de `document_memories.file_hash`) e `scripts/setup/setup_crdt.py` |
+| Migração de schema corromper UMC existente | Baixa | Alto | Backup obrigatório antes de `crsql_as_crr`; rollback documentado |
+| Conflitos não resolvidos corretamente entre dispositivos | Média | Médio | Implementar LWW por coluna + log de ambiguidades; revisão manual via flag |
+| Performance do CRDT degradar queries existentes | Baixa | Médio | Adicionar testes de benchmark; manter índices FTS e vec intactos |
+
+### 10.4 Notas de rastreabilidade
+- Fase P8 está prevista originalmente em `docs/09-integration-study.md` §7 (CR-SQLite / vlcn-io).
+- Também mencionada como "Sem sync multi-device" no §9 Gaps conhecidos.
+- A implementação não altera documentos de arquitetura (`docs/01-architecture.md`) nem a anatomia canônica.
+
+---
+
+## 11. Próximo passo imediato
+
+**Sprint 3.1** (em andamento) — implementar P8 CR-SQLite:
+- [x] Decisão tomada: implementar P8 agora
+- [ ] Adicionar CR-SQLite como vendor em `integrations/crsqlite/` + seção em `install.sh` (clone de https://github.com/vlcn-io/cr-sqlite, v0.16.3)
+- [ ] Criar `core/crdt_sync.py` com env `HIVE_CRDT_SYNC`
+- [ ] Criar `scripts/services/sinapse-sync.py` CLI
+- [ ] Criar `tests/integration/test_crdt.py`
+- [ ] Atualizar `scripts/setup/install_services.py` se necessário
+
+**Sprint 2** (proposto) — continua pendente, aguardando confirmação:
 - [ ] P9 (Langfuse): adicionar deps em `pyproject.toml` + instrumentar 4+ pontos do pipeline (Dream Cycle, capture_core, sinapse-mcp)
 
-Sem confirmação, não mexo.
+Sem confirmação, Sprint 2 continua sem execução.

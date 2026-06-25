@@ -36,6 +36,11 @@ __pycache__/
 .venv/
 venv/
 
+# ── Binários CR-SQLite (P8) — baixados pelo install.sh, não commitar ──
+integrations/crsqlite/crsqlite.so
+integrations/crsqlite/crsqlite.dylib
+integrations/crsqlite/crsqlite.dll
+
 # ── Sistema ────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
