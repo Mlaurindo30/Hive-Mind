@@ -7,11 +7,16 @@
 > vão no `install.sh`. Nomes em `cerebro/` (projetos, tópicos, setores) são fictícios —
 > projetos reais são instalados pelo usuário em `cerebro/cortex/temporal/<projeto>/`.
 >
-> **3ª passada de validação (2026-06-25):** cada afirmação abaixo foi verificada
+> **3ª passada de validação (2026-06-25) + refinamento posterior (sessão #S2864):** cada afirmação abaixo foi verificada
 > contra código real (ver §0.6 "Metodologia de validação"). A 2ª passada listava 13
-> fases pendentes; esta reduz para **7** porque 7 projetos do `09` já estão
-> implementados dentro de `integrations/neural-memory/` (Mem0, OpenMemory, Cognee,
-> MemoryOS, MemOS, A-MEM, HippoRAG 2) — não são fases, são capacidades existentes.
+> fases pendentes. Reduzimos para **6** (P7..P13; **gap em P12** — aposentado na §3.2
+> por já existir como DuckDB) por dois motivos:
+> - 7 projetos do `09` já estão implementados dentro de `integrations/neural-memory/`
+>   (Mem0, OpenMemory, Cognee, MemoryOS, MemOS, A-MEM, HippoRAG 2) — não são fases,
+>   são capacidades existentes (rastreabilidade em §3.1).
+> - P6 sqlite-lembed/GGUF foi **descartado** nesta 4ª passada porque Ollama `bge-m3`
+>   (P0) já é 100% local e sqlite-lembed exigiria modelo GGUF/llama.cpp avulso,
+>   violando a política §0.3.1 — ver §5.
 
 ---
 
@@ -21,7 +26,7 @@
 - [§1 Estado atual do cérebro](#1-estado-atual-do-cérebro)
 - [§2 Fases concluídas (P0..P5)](#2-fases-concluídas-p0p5)
 - [§3 Já integrado no `integrations/neural-memory/` (rastreabilidade)](#3-já-integrado-no-integrationsneural-memory-rastreabilidade)
-- [§4 Fases pendentes (P6..P13)](#4-fases-pendentes-p6p13)
+- [§4 Fases pendentes (P7..P13)](#4-fases-pendentes-p7p13)
 - [§5 Rejeitados com razão](#5-rejeitados-com-razão)
 - [§6 Critério geral de "pronto"](#6-critério-geral-de-pronto)
 - [§7 Sprints](#7-sprints)
@@ -41,7 +46,7 @@
 
 Ver `docs/01-architecture.md` §2 e `AGENTS.md` §2. **Nenhuma fase pode violar a anatomia** — projetos vão em lobos apropriados ou em `integrations/` (vendors externos, que são órgãos mas não são o cérebro central).
 
-### 0.2 Clones de vendors externos
+### 0.2 Vendors externos (clones reais + wrappers locais)
 
 ```
 integrations/
@@ -50,9 +55,12 @@ integrations/
 ├── neural-memory/        # córtex (associação) + diencéfalo (evolução) — PROJETO COMPLETO (ver §3)
 ├── rtk/                  # tronco — otimização de shell
 ├── claude-mem-plugins/   # lóbulo temporal — eventos brutos
-├── lancedb/              # P11 — storage multimodal
-└── omniparser/           # P13 — UI parsing
+├── patches/              # patches aplicados sobre os clones (graphify, neural-memory) durante o install.sh
+├── lancedb/              # P11 — wrapper local (pip `lancedb`, NÃO é clone) — storage multimodal
+└── omniparser/           # P13 — clone real de microsoft/OmniParser — UI parsing
 ```
+
+> **Taxonomia:** `graphify`, `neural-memory`, `rtk` e `omniparser` (P13) são **clones git reais** (build a partir do source pelo `install.sh`). `graphiti` e `lancedb` (P11) são **wrappers locais** sobre um pacote pip (`graphiti-core` / `lancedb`) — só hospedam um `client.py`. `claude-mem-plugins` é um shim. `patches/` aplica ajustes sobre os clones.
 
 ### 0.3 Dependências
 
@@ -60,6 +68,12 @@ integrations/
 - **Sistema (binários, Docker, Ollama):** `install.sh`
 - **Env vars:** default sensato + override via `.env`
 - **Nada hardcoded em `core/`:** sempre env vars ou `pyproject.toml`
+
+### 0.3.1 Política de modelos (Ollama + visão dedicada)
+
+- **Texto / embeddings / LLM → Ollama, sempre.** `bge-m3` (1024d) p/ embeddings; `granite3-dense:2b` e afins p/ LLM. **Nenhum modelo GGUF/llama.cpp avulso, nenhum peso PyTorch para texto.** (Por isso não há fase sqlite-lembed/GGUF — ver §5.)
+- **Visão → modelos dedicados, CPU-friendly, por _tier_ de máquina.** Os modelos de visão do Ollama são pesados e **não cobrem detecção estruturada de UI**; o alvo vai da máquina robusta à mais simples. Logo a visão usa modelos dedicados (CLIP p/ embedding visual em P11; OmniParser/YOLO p/ parsing de UI em P13), **sempre opcionais e graduáveis** via env `HIVE_VISION_TIER`: `none` (máquina simples — sem visão dedicada) → `lite` (modelos CPU pequenos) → `full` (pesos maiores / GPU).
+- **Regra:** nenhuma fase pode forçar um runtime de modelo que quebre máquinas simples. Visão dedicada é **opt-in**.
 
 ### 0.4 Robustez por padrão (4 camadas, do P2)
 
@@ -72,10 +86,10 @@ integrations/
 
 | Lobo | Vendor | `integrations/` | `pyproject.toml` | `install.sh` | Status |
 |---|---|---|---|---|---|
-| Córtex occipital | Graphify | `integrations/graphify/` | `graphifyy[watch]` | clone + setup_brain.sh | ✅ |
-| **Lóbulo temporal** | **Graphiti (FalkorDB)** | `integrations/graphiti/` | `graphiti-core`, `falkordb` | clone + Docker FalkorDB | ✅ P2 |
+| Córtex occipital | Graphify | `integrations/graphify/` | `graphifyy[watch]` | clone + install.sh (não existe `setup_brain.sh`) | ✅ |
+| **Lóbulo temporal** | **Graphiti (FalkorDB)** | `integrations/graphiti/` (wrapper, não clone) | `graphiti-core`, `falkordb` | pip + Docker FalkorDB | ✅ P2 |
 | **Lóbulo temporal** | claude-mem | `integrations/claude-mem-plugins/` | (indep, npm) | (indep) | ✅ |
-| Córtex + Diencéfalo | Neural Memory | `integrations/neural-memory/` | `neural-memory[pro]` | clone + setup_brain.sh | ✅ (ver §3) |
+| Córtex + Diencéfalo | Neural Memory | `integrations/neural-memory/` | `neural-memory[pro]` | clone + install.sh (não existe `setup_brain.sh`) | ✅ (ver §3) |
 | **Córtex** (RAG) | LightRAG | `core/lightrag_index.py` (não vendor) | `lightrag-hku` | `ollama pull granite3-dense:2b` | ✅ P3 |
 | Tronco | RTK | `integrations/rtk/` | (indep, cargo) | cargo install | ✅ |
 | Córtex | SQLite-vec | (nativo) | `sqlite-vec` | (extensão nativa) | ✅ |
@@ -181,14 +195,14 @@ cerebro/cerebelo/padroes/          # Patterns.md + pattern_models.py (procedural
 
 | Arquivo | Linha | Mudança |
 |---|---|---|
-| `core/database.py` | 25-30 | `OllamaEmbedder` via HTTP, `EMBED_BACKEND=ollama` default |
+| `core/database.py` | 28-31 | `OLLAMA_EMBED_MODEL` env + `class OllamaEmbedder` via HTTP; `EMBED_BACKEND=ollama` default |
 | `core/hnsw_index.py` | 25 | `HNSW_DIM` 384 → 1024 |
 | `core/umc_schema.sql` | 92 | `FLOAT[384]` → `FLOAT[1024]` em `search_vec` |
 | `plugins/sqlite-vec-worker/worker.py` | 54 | `VEC_EMBED_DIM` 384 → 1024 |
 | `scripts/setup/migrate_embed_dim.py` | — | script one-shot (3639/3642 re-indexados em 407s) |
 | `tests/unit/test_p0_embedding.py` | — | 10 testes (backend, determinismo, dim, live) |
 
-**Bloqueio original:** `sqlite-lembed` (plano inicial) incompatível com Python 3.12+ (`OperationalError: misuse sqlite3_result_subtype()`). Solução: Ollama HTTP API. sqlite-lembed volta no roadmap como P6 (⏸ bloqueado).
+**Bloqueio original:** `sqlite-lembed` (plano inicial) incompatível com Python 3.12+ (`OperationalError: misuse sqlite3_result_subtype()`). Solução: Ollama HTTP API. sqlite-lembed foi **descartado** (embeddings rodam no Ollama `bge-m3`; ver §5 e a política de modelos §0.3.1).
 
 **Rollback:** `EMBED_BACKEND=fastembed` + `HNSW_DIM=384` + `OLLAMA_EMBED_MODEL=all-MiniLM-L6-v2`.
 
@@ -246,7 +260,7 @@ cerebro/cerebelo/padroes/          # Patterns.md + pattern_models.py (procedural
 **Objetivo:** indexação automática de entidades/relações no corpus consolidado.
 **Status:** ✅ | **Commits:** `56f1e98`, `fe68300`, `61c5285`, `dee365b`, integração Dream Cycle em 2026-06-24
 
-**Decisão arquitetural (commit `dee365b`):** LightRAG LLM fixo em `granite3-dense:2b` (1.5GB, Ollama local). Razões: (1) roda em qualquer máquina, (2) validação live: extrai 4 entities + 3 rels com JSON schema válido, (3) sem fallback Gemini/cloud — `.env` permite override só em dev. Config em `core/lightrag_index.py:25-29`.
+**Decisão arquitetural (commit `dee365b`):** LightRAG LLM fixo em `granite3-dense:2b` (1.5GB, Ollama local). Razões: (1) roda em qualquer máquina, (2) validação live: extrai 4 entities + 3 rels com JSON schema válido, (3) sem fallback Gemini/cloud — `.env` permite override só em dev. Config em `core/lightrag_index.py:25-29` (comentário explicativo) e linha 29 (`_LIGHTRAG_CHAT_MODEL`).
 
 **Arquivos:**
 
@@ -315,62 +329,22 @@ O `integrations/neural-memory/` é um **projeto completo** (não um wrapper) que
 
 ### 3.2 DuckDB analytics (descoberta em §0.6)
 
-O DuckDB (P12 da 2ª passada) **não é fase pendente** — já está em `scripts/analytics/hive_analytics.py` com 4 queries analíticas (growth, top_topics, quarantine_rate, intent_by_goal, ...). Dep `duckdb>=0.10` já no `pyproject.toml`. Marcar como DONE.
+O DuckDB (P12 da 2ª passada) **não é fase pendente** — já está em `scripts/analytics/hive_analytics.py` com 4 queries analíticas (growth, top_topics, quarantine_rate, intent_by_goal). Dep `duckdb>=0.10` já no `pyproject.toml`. Marcar como DONE.
+
+> **Escopo (DONE parcial):** entregue a metade **OLAP** (analytics). A extensão vetorial `vss`/HNSW do DuckDB (estudada no `09 §3`) **não** foi implementada — busca vetorial fica no `sqlite-vec`/HNSW 1024d. Reabrir como item futuro só se quiser analytics-sobre-embeddings no DuckDB.
 
 ### 3.3 Implicação para o roadmap
 
-A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passada reduz para **7** (P6,P7,P8,P9,P10,P11,P13; P12 aposentado→DuckDB §3.2) porque:
+A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passada reduz para **6** (P7,P8,P9,P10,P11,P13; P6 sqlite-lembed/GGUF descartado — ver §5; P12 aposentado→DuckDB §3.2) porque:
 - Mem0, OpenMemory, Cognee, MemoryOS, MemOS, A-MEM, HippoRAG 2 → já no neural-memory (rastreabilidade em §3.1)
 - DuckDB → já em `scripts/analytics/` (§3.2)
 - Microsoft GraphRAG → coberto por RAPTOR (P10) + PPR do neural-memory (§5)
 
 ---
 
-## 4. Fases pendentes (P6..P13)
+## 4. Fases pendentes (P7..P13)
 
-7 fases, cada uma com: origem no `09`, lobo do cérebro, estado atual verificado, arquivos a criar/modificar (linhas exatas quando aplicável), código de exemplo, env vars, comandos de instalação, testes, critério de pronto.
-
-### Fase P6 — sqlite-lembed (embeddings nativos no SQLite) ⏸
-
-**Origem:** `09` §3 — sqlite-lembed + sqlite-vec duo nativo.
-**Lobo:** Córtex (associação). Substituiria `OllamaEmbedder` (HTTP) por embeddings 100% in-process.
-**ROI:** Alto | **Esforço:** Baixo (quando desbloqueado) | **Status:** ⏸ BLOQUEADO
-**Bloqueio:** `OperationalError: misuse of sqlite3_result_subtype()` em Python 3.12+. Issue upstream `asg017/sqlite-lembed`.
-
-**Estado atual (verificado):**
-- `core/database.py:93` `get_connection()` já carrega `sqlite-vec` via `enable_load_extension` (linha 111-116)
-- `pyproject.toml` tem `sqlite-vec>=0.1.1` mas **não tem** `sqlite-lembed`
-- `EMBED_BACKEND=ollama` é o default (P0)
-
-**Tarefas:**
-- [ ] Monitorar upstream `asg017/sqlite-lembed` para fix Python 3.12+
-- [ ] Quando corrigido: `uv add sqlite-lembed` (vai para `pyproject.toml`)
-- [ ] `core/database.py:93` — adicionar após `sqlite_vec.load(conn)`:
-  ```python
-  if os.environ.get("EMBED_BACKEND") == "lembed":
-      import sqlite_lembed
-      conn.enable_load_extension(True)
-      try:
-          sqlite_lembed.load(conn)
-          conn.execute("SELECT lembed_init_model('nomic-embed-text-v1.5.Q4_K_M.gguf')")
-      finally:
-          conn.enable_load_extension(False)
-  ```
-- [ ] `core/indexing.py` — substituir chamada `embed_text()` externa por:
-  ```sql
-  INSERT INTO vec_memories SELECT lembed(content) FROM memories WHERE id=?
-  ```
-- [ ] Baixar GGUF: `nomic-embed-text-v1.5.Q4_K_M.gguf` (~270MB, 384d) OU `bge-m3` GGUF (1024d)
-- [ ] `.env`: `EMBED_BACKEND=lembed`, `LEMBED_MODEL_PATH=...gguf`
-- [ ] Migration script: re-indexar 3639+ neurônios (como P0 fez)
-
-**Critério de pronto:**
-- `EMBED_BACKEND=lembed` funciona sem regressão na suíte existente (534 funções test_ em 89 arquivos)
-- Ollama NÃO precisa estar rodando (embeddings in-process)
-- Benchmark: latência de `embed_text()` ≤ 50ms (vs Ollama HTTP 91ms)
-- `tests/unit/test_p0_embedding.py` continua passando (interface agnóstica ao backend)
-
-**Rollback:** `EMBED_BACKEND=ollama` no `.env`.
+6 fases, cada uma com: origem no `09`, lobo do cérebro, estado atual verificado, arquivos a criar/modificar (linhas exatas quando aplicável), código de exemplo, env vars, comandos de instalação, testes, critério de pronto.
 
 ### Fase P7 — MegaMem Streamable HTTP (MCP spec 2025-03-26) 🔜
 
@@ -403,9 +377,9 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
       return web.json_response({"tools": TOOLS})
 
   def main():
-      import argparse
+      import argparse, os
       ap = argparse.ArgumentParser()
-      ap.add_argument("--port", type=int, default=37703)
+      ap.add_argument("--port", type=int, default=int(os.environ.get("SINAPSE_MCP_HTTP_PORT", "37703")))
       ap.add_argument("--host", default="127.0.0.1")
       args = ap.parse_args()
       app = web.Application()
@@ -433,7 +407,8 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
   WantedBy=default.target
   """,
   ```
-- [ ] `register-mcp.sh` — detectar agentes que falam Streamable HTTP (spec 2025-03-26) e registrar `http://localhost:37703/mcp` em vez de stdio
+- [ ] **Env vars:** `SINAPSE_MCP_HTTP_PORT` (default 37703), `SINAPSE_MCP_HTTP_HOST` (default 127.0.0.1) — **não hardcodar a porta** (systemd + register-mcp leem do env)
+- [ ] `register-mcp.sh` — adicionar bloco que detecta agentes Streamable HTTP (spec 2025-03-26) e escreve `{"url":"http://localhost:${SINAPSE_MCP_HTTP_PORT}/mcp"}` no config do agente em vez do entry stdio (especificar o trecho exato a editar por agente)
 - [ ] Testes: `tests/integration/test_mcp_http.py` — cliente MCP Streamable HTTP contra o server
 
 **Critério de pronto:**
@@ -456,7 +431,7 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
 - `capture-state.db` NÃO deve sincronizar (local-only, SeenStore)
 
 **Tarefas:**
-- [ ] `uv add crsqlite` (extensão loadable)
+- [ ] `uv add crsqlite` (extensão loadable) — **verificar se o pacote PyPI traz o binário nativo (`.so`/`.dylib`) pré-compilado para a plataforma alvo; se não, adicionar download/compilação do binário ao `install.sh`**
 - [ ] Criar `core/crdt_sync.py`:
   ```python
   """CR-SQLite: sincronização CRDT para hive_mind.db."""
@@ -625,7 +600,7 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
   LANGFUSE_HOST=http://localhost:3100
   ```
 - [ ] `install.sh` — nota pós-instalação sobre Langfuse (opt-in via env)
-- [ ] Opcional: adicionar Langfuse MCP (`avivsinai/langfuse-mcp`) como ferramenta para o cérebro consultar seus próprios traces
+- [ ] **Langfuse MCP** (`avivsinai/langfuse-mcp`, projeto distinto do `09 §2`): status **DEFERIDO** — sub-item opcional, sem arquivos/testes próprios nesta passada. Decisão: implementar só após P9 base validado, OU mover para §5 (Rejeitados) se o cérebro consultar traces via REST do Langfuse direto
 
 **Critério de pronto:**
 - Dream Cycle gera traces visíveis em `http://localhost:3100` (replay de sessão)
@@ -702,7 +677,7 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
       level: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'auto' (todos)
       """
   ```
-- [ ] Adicionar ao `_backend_*` ou como tool separada no `sinapse_query` (decidir anatomia)
+- [ ] **Registrar `sinapse_hierarchical_search` em `TOOLS` + `tools/list` do `sinapse-mcp.py`** (senão fica invisível aos clientes). É tool separada e **NÃO entra em `_READ_BACKENDS`** — não é backend de fusão, é busca multinível sob demanda
 - [ ] `tests/integration/test_raptor.py` — 4 testes (consolidação mensal, anual, hierarchical search, levels)
 
 **Critério de pronto:**
@@ -726,7 +701,7 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
 
 **Tarefas:**
 - [ ] `uv add lancedb`
-- [ ] `uv add clip-embed` ou `uv add transformers torch` (para CLIP — escolher leve: `open-clip-torch` ou `clip-anylen`)
+- [ ] **Decisão de pacote (fixar uma):** `uv add open-clip-torch torch` (wheel CPU por default; CUDA via `.env`). `clip_embed` no código de exemplo abaixo é **placeholder** — substituir por `open_clip` real
 - [ ] Criar `integrations/lancedb/client.py`:
   ```python
   """LanceDB — storage multimodal para embeddings visuais (córtex occipital).
@@ -786,7 +761,7 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
   except ImportError:
       pass
   ```
-- [ ] Tool `sinapse_visual_search` no MCP:
+- [ ] Tool `sinapse_visual_search` no MCP — **registrar em `TOOLS` + `tools/list` do `sinapse-mcp.py`** (senão fica invisível aos clientes); **NÃO entra em `_READ_BACKENDS`** (store visual separado, não backend de fusão):
   ```python
   def _visual_search(query: str = "", image_path: str = "", top_k: int = 10) -> dict:
       """Busca visual: screenshots parecidos com texto ou imagem de referência."""
@@ -795,7 +770,7 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
                               query_text=query or None, top_k=top_k)
       return {"results": results, "count": len(results)}
   ```
-- [ ] `pyproject.toml`: `lancedb>=0.5`, `clip-embed` ou `transformers` + `torch`
+- [ ] `pyproject.toml`: `lancedb>=0.5`, `open-clip-torch>=2.20`, `torch>=2.0` (pinar wheel CPU; `torch` é dep pesado ~2GB — decidir CPU/CUDA)
 - [ ] `tests/integration/test_lancedb.py` — 4 testes (index, search visual, search text, empty)
 
 **Critério de pronto:**
@@ -805,7 +780,11 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
 - `tests/integration/test_lancedb.py` passa
 - Storage em `claude-mem/data/lancedb/` (anatomia: occipital storage)
 
-**Risco:** CLIP precisa de modelo (~600MB) — pode usar Ollama CLIP se disponível, ou `open-clip-torch` local.
+**Modelo CLIP:** `ViT-B-32` (open_clip, ~600MB) — **adicionar download ao `install.sh` (opt-in)** ou baixar on-first-use via `open_clip.create_model_and_transforms`. Não deixar só em nota de risco.
+
+**Tier de máquina (§0.3.1):** CLIP só roda em `HIVE_VISION_TIER=lite|full`. Em `none` (máquina simples) a busca visual cai no Vision LLM Ollama (descrição) + `bge-m3` no store atual — **sem CLIP, sem torch**. Modelo dedicado é opt-in por capacidade de hardware.
+
+**Nota de dimensão:** embeddings visuais CLIP são **512d** e vivem num store LanceDB **separado** — **NÃO** usam o índice HNSW 1024d (bge-m3) do cérebro. Sem conflito de dimensão.
 
 ### Fase P13 — OmniParser v2 (UI screenshot parsing, pré-processador) 🔜
 
@@ -819,7 +798,7 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
 - OmniParser ausente — gap real (pré-processador)
 
 **Tarefas:**
-- [ ] Clonar `microsoft/OmniParser` em `integrations/omniparser/`
+- [ ] Clonar `https://github.com/microsoft/OmniParser` (**pinar tag/commit**) em `integrations/omniparser/` e **registrar em `pyproject.toml` `[tool.uv.sources]`** (como `graphifyy` e `neural-memory`) — não deixar clone manual avulso
 - [ ] `integrations/omniparser/client.py`:
   ```python
   """OmniParser v2 — pré-processador de screenshots para elementos UI estruturados.
@@ -859,7 +838,9 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
       analysis: VisionAnalysis = call_llm_with_fallback(...)
   ```
 - [ ] Medir redução de tokens: antes/depois (benchmark em `tests/integration/test_omniparser.py`)
-- [ ] `pyproject.toml`: deps do OmniParser (verificar upstream — provavelmente `torch` + `transformers` + pesos)
+- [ ] **Resolver deps reais do OmniParser ANTES de implementar** (upstream usa `torch`, `transformers`, `ultralytics`/YOLO, `easyocr`) — pinar versões + wheel CPU/CUDA. ⚠️ **Fase NÃO é implementável enquanto as deps forem "provavelmente"**
+- [ ] **Pesos (~1.3GB):** adicionar step de download ao `install.sh` (`huggingface-cli download microsoft/OmniParser-v2.0`), não deixar só em comentário de código
+- [ ] **Tier de máquina (§0.3.1):** OmniParser (YOLO, ~1.3GB) só ativo em `HIVE_VISION_TIER=full` (ou `HIVE_OMNIPARSER_ENABLED=true`); default off → fallback Vision LLM Ollama puro. **Pesos pesados não podem quebrar máquina simples** — por isso é dedicado e opt-in, não Ollama (que é pesado p/ visão e não faz detecção estruturada)
 - [ ] `tests/integration/test_omniparser.py` — 4 testes (parse, prompt generation, fallback quando offline, redução de tokens)
 
 **Critério de pronto:**
@@ -880,6 +861,8 @@ Projetos do `09-integration-study.md` que NÃO são fases do roadmap, com justif
 | Projeto | Onde no `09` | Razão da rejeição | Verificado |
 |---|---|---|---|
 | **Letta (ex-MemGPT)** | §1 | As 3 camadas (Core/Recall/Archival) já mapeiam para o cérebro: sessão ativa (Core), `cortex/parietal/inbox/` (Recall), `cortex/temporal/` (Archival). Letta é runtime de agente externo, não órgão — integrar = acoplar a runtime externo. | ✅ `cerebro/cortex/{temporal,parietal/inbox}` existem |
+| **Zep** | §1 | Não é fase separada: o componente open-source do Zep **é o Graphiti** (citado no próprio `09 §1`), já entregue no **P2**. | ✅ ver §2 P2 |
+| **sqlite-lembed (GGUF)** | §3 | Embeddings rodam no **Ollama `bge-m3`** (P0, 100% local). sqlite-lembed exigiria modelo **GGUF/llama.cpp avulso** (contra a política de modelos §0.3.1) e está bloqueado upstream (Python 3.12+). Sem ganho real: Ollama já é local e continua sendo dependência (LightRAG/Graphiti/Vision), então não remove nada — só economiza ~40ms. | ✅ P0 cobre |
 | **MCP server oficial (memory)** | §2 | Schema inferior (JSONL) vs `sinapse_query` (7 backends, SQLite+FTS5+HNSW+grafo). | ✅ `plugins/hermes/sinapse-memory.py` tem 7 backends |
 | **sqlite-memory-mcp** | §2 | Drop-in replacement do oficial, mas `hive_mind.db` já é superior (FTS5 + sqlite-vec + HNSW + WAL). | ✅ `core/umc_schema.sql` tem 9 tabelas |
 | **Microsoft GraphRAG** | §4 | RAPTOR (P10) cobre recursão; PPR do neural-memory (`engine/ppr_activation.py`) cobre community detection-like. GraphRAG tem "custo de indexação inviável para uso diário" (citado no `09`). Só faria sentido como batch mensal — mas RAPTOR nível mensal já faz síntese hierárquica. | ✅ RAPTOR P10 + PPR existente |
@@ -913,8 +896,7 @@ Cada fase, ao concluir, entrega:
 ### Sprint 1 — P0..P5 ✅ CONCLUÍDO (2026-06-21 → 2026-06-24)
 - [x] P0..P5 conforme §2.
 
-### Sprint 2 — P6 (sqlite-lembed) + P9 (Langfuse instrumentação) 🔜
-- [ ] P6: monitorar upstream sqlite-lembed; se corrigido, implementar (deps + `_init_lembed()` + migration)
+### Sprint 2 — P9 (Langfuse instrumentação) 🔜
 - [ ] P9: `pyproject.toml` deps + instrumentar Dream Cycle + capture_core + sinapse-mcp (4+ spans)
 - [ ] 8 testes novos
 - **Esforço:** P9 é o de maior ROI desta sprint (Langfuse self-hosted já tem infra, falta só instrumentação + deps)
@@ -940,7 +922,7 @@ Cada fase, ao concluir, entrega:
 
 | Fase | Arquivo principal | Ação | Status |
 |------|---------|------|--------|
-| P0 | `core/database.py` | `OllamaEmbedder` HTTP (linha 25-30) | ✅ |
+| P0 | `core/database.py` | `OllamaEmbedder` HTTP (linha 28-31) | ✅ |
 | P0 | `core/hnsw_index.py:25` | `HNSW_DIM=1024` | ✅ |
 | P0 | `core/umc_schema.sql:92` | `FLOAT[1024]` | ✅ |
 | P0 | `plugins/sqlite-vec-worker/worker.py:54` | `VEC_EMBED_DIM=1024` | ✅ |
@@ -958,8 +940,6 @@ Cada fase, ao concluir, entrega:
 | P5 | `AGENTS.md`, `README.md`, `docs/01-architecture.md` | anatomia em 3 docs | ✅ |
 | (DuckDB) | `scripts/analytics/hive_analytics.py` | 4 queries OLAP | ✅ DONE (§3) |
 | (neural-memory) | `integrations/neural-memory/` | 7 projetos do 09 | ✅ DONE (§3) |
-| P6 | `core/database.py:93` | `+_init_lembed()` quando desbloqueado | ⏸ |
-| P6 | `core/indexing.py` | `+lembed()` SQL | ⏸ |
 | P7 | `scripts/services/sinapse-mcp-http.py` | **NOVO** (Streamable HTTP) | 🔜 |
 | P7 | `scripts/setup/install_services.py` | `+sinapse-mcp-http.service` | 🔜 |
 | P8 | `core/crdt_sync.py` | **NOVO** | 🔜 |
@@ -983,7 +963,6 @@ Cada fase, ao concluir, entrega:
 
 | Gap | Onde | Workaround | Quando resolve |
 |---|---|---|---|
-| sqlite-lembed incompatível Python 3.12+ | P6 embeddings | `EMBED_BACKEND=ollama` (atual, P0) | Quando upstream corrigir (P6) |
 | `core/telemetry.py` existe mas não está instrumentado nem em `pyproject.toml` | P9 Langfuse | — | P9 (deps + instrumentação) |
 | `sinapse_temporal_graph_search` ainda existe como tool MCP | `scripts/services/sinapse-mcp.py` | Marcada DEPRECATED; `sinapse_query` é canônico | Próxima release (remover) |
 | `_Consciencia.md` e MOCs auto-gerados não estão no gitignore | `generate_mocs.py` | Regenerados a cada Dream Cycle | Considerar `.gitignore` |
@@ -992,13 +971,19 @@ Cada fase, ao concluir, entrega:
 | Sem nível mensal/anual de destilação | — | Diário + semanal existem | P10 (RAPTOR) |
 | Sem embedding visual CLIP | `visual_memories` table só texto | LLM Vision processa screenshot direto | P11 (LanceDB) + P13 (OmniParser) |
 | Sem pré-parser UI de screenshots | LLM Vision puro | — | P13 (OmniParser) |
+| Downloads de pesos de visão não estão no `install.sh` (CLIP ~600MB P11, OmniParser ~1.3GB P13) | install.sh | Só em notas/comentários | Wirar como step opt-in por `HIVE_VISION_TIER` |
+| Deps reais do OmniParser não resolvidas (são "provavelmente") | P13 | — | **Bloqueia P13** — verificar upstream antes de implementar |
+| Pacote/modelo CLIP a fixar (`open-clip-torch` + `torch`, modelo `ViT-B-32`) | P11 | — | P11 (decidir CPU/CUDA) |
+| `crsqlite`: confirmar se PyPI traz binário nativo da plataforma | P8 | — | P8 (senão step no install.sh) |
+| Tools MCP novas (`sinapse_hierarchical_search` P10, `sinapse_visual_search` P11) precisam registro em `TOOLS`/`tools/list` | `sinapse-mcp.py` | — | P10/P11 (senão invisíveis aos clientes) |
+| `integrations/patches/` aplicado sobre clones, antes não documentado | §0.2 | Agora documentado | — |
+| Langfuse MCP (`avivsinai/langfuse-mcp`) em limbo (sub-item opcional do P9) | P9 | Deferido | Decidir: sub-fase ou §5 |
 
 ---
 
 ## 10. Próximo passo imediato
 
 **Sprint 2** (proposto) — confirmar antes de executar:
-- [ ] P6 (sqlite-lembed): monitorar upstream; implementar se corrigido
 - [ ] P9 (Langfuse): adicionar deps em `pyproject.toml` + instrumentar 4+ pontos do pipeline (Dream Cycle, capture_core, sinapse-mcp)
 
 Sem confirmação, não mexo.
