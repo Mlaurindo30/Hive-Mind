@@ -44,10 +44,23 @@ def test_graphiti_available_offline(monkeypatch):
     assert gc.graphiti_available() is False
 
 
-def test_push_neuron_offline(monkeypatch):
-    """push_neuron() → False quando FalkorDB offline."""
+def test_push_neuron_offline_uses_fallback(monkeypatch, tmp_path):
+    """push_neuron() → True via fallback (escreve no JSON-lines) quando FalkorDB offline.
+
+    Contrato mudou: antes retornava False silenciosamente. Agora o cérebro
+    preserva o neurônio no arquivo do lóbulo temporal para não perder dados.
+    """
+    from core import graphiti_client as gc
+
+    fallback = tmp_path / "grafo.jsonl"
+    monkeypatch.setenv("HIVE_TEMPORAL_GRAFO", str(fallback))
     monkeypatch.setattr(gc, "graphiti_available", lambda: False)
-    assert gc.push_neuron("n001", "test content") is False
+    gc.reset_circuit()
+
+    result = gc.push_neuron("n001", "test content")
+    assert result is True
+    assert fallback.exists()
+    assert "n001" in fallback.read_text()
 
 
 def test_search_graph_offline(monkeypatch):
@@ -156,3 +169,124 @@ def test_live_search_graph():
     for r in results:
         assert "fact" in r
         assert "uuid" in r
+
+
+# ---------------------------------------------------------------------------
+# Testes de robustez (4 pontos)
+# ---------------------------------------------------------------------------
+
+def test_ollama_model_exists_unknown_returns_false(monkeypatch):
+    """ollama_model_exists() → False para modelo que não está no Ollama."""
+    # Não monkeypatcho o urllib; o modelo 'definitely-not-installed-xyz'
+    # não está no Ollama. Em CI sem Ollama, o import falha → também False.
+    from core import graphiti_client as gc
+
+    # Garantimos que retornou False mesmo se o servidor responder
+    # (porque o modelo específico não está lá).
+    result = gc.ollama_model_exists("definitely-not-installed-xyz-model-zzz")
+    assert result is False
+
+
+def test_circuit_breaker_opens_after_failures(monkeypatch):
+    """Circuit breaker abre após HIVE_GRAPHITI_CB_FAILS falhas consecutivas."""
+    from core import graphiti_client as gc
+
+    gc.reset_circuit()
+    # Não monkeypatcho graphiti_available — o circuit breaker é
+    # independente do estado do FalkorDB. Forço falhas via _retry_with_backoff
+    # que é o que realmente incrementa consecutive_failures.
+
+    # Forçar 3 falhas
+    for _ in range(3):
+        def _runner():
+            import asyncio
+
+            async def _raise():
+                raise RuntimeError("boom")
+
+            return asyncio.run(_raise())
+
+        gc._retry_with_backoff(_runner)
+
+    state = gc.circuit_state()
+    assert state["open"] is True
+    assert state["consecutive_failures"] >= 3
+    assert state["remaining_s"] > 0
+
+    # graphiti_available deve retornar False durante cooldown
+    # (o circuit está aberto, então retorna False sem tentar FalkorDB)
+    assert gc.graphiti_available() is False
+
+    # Reset
+    gc.reset_circuit()
+    assert gc.circuit_state()["open"] is False
+
+
+def test_circuit_breaker_resets_on_success(monkeypatch):
+    """Circuit breaker reseta consecutive_failures após sucesso."""
+    from core import graphiti_client as gc
+
+    gc.reset_circuit()
+
+    # 2 falhas
+    for _ in range(2):
+        def _runner():
+            import asyncio
+
+            async def _raise():
+                raise RuntimeError("boom")
+
+            return asyncio.run(_raise())
+
+        gc._retry_with_backoff(_runner)
+
+    assert gc.circuit_state()["consecutive_failures"] == 2
+
+    # 1 sucesso
+    def _ok():
+        return "ok"
+
+    gc._retry_with_backoff(_ok)
+    assert gc.circuit_state()["consecutive_failures"] == 0
+    assert gc.circuit_state()["open"] is False
+
+
+def test_push_neuron_fallback_when_falkordb_offline(tmp_path, monkeypatch):
+    """push_neuron escreve no JSON-lines do lóbulo temporal quando FalkorDB offline."""
+    from core import graphiti_client as gc
+
+    gc.reset_circuit()
+    fallback_path = tmp_path / "grafo.jsonl"
+    monkeypatch.setenv("HIVE_TEMPORAL_GRAFO", str(fallback_path))
+    monkeypatch.setattr(gc, "graphiti_available", lambda: False)
+
+    result = gc.push_neuron("test-fallback-1", "conteudo do neuronio")
+    assert result is True, f"push_neuron deveria ter sucesso via fallback"
+
+    assert fallback_path.exists()
+    content = fallback_path.read_text()
+    assert "test-fallback-1" in content
+    assert '"fallback": true' in content
+
+    # Search também usa fallback
+    results = gc.search_graph("conteudo")
+    assert len(results) >= 1
+    assert results[0]["uuid"] == "neuron:test-fallback-1"
+
+
+def test_assert_health_returns_dict(monkeypatch):
+    """assert_health() retorna dict estruturado (mesmo sem FalkorDB/Ollama)."""
+    from core import graphiti_client as gc
+
+    gc.reset_circuit()
+    monkeypatch.setattr(gc, "graphiti_available", lambda: False)
+    monkeypatch.setattr(gc, "ollama_model_exists", lambda m: False)
+
+    health = gc.assert_health()
+    assert "falkordb" in health
+    assert health["falkordb"] is False
+    assert "llm_model" in health
+    assert "embed_model" in health
+    assert "circuit" in health
+    assert "errors" in health
+    assert len(health["errors"]) >= 1  # FalkorDB + 2 modelos ausentes
