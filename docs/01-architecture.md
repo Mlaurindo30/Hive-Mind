@@ -8,25 +8,26 @@
 ## Índice
 
 1. [Princípios de Design](#1-princípios-de-design)
-2. [Visão Macro do Sistema](#2-visão-macro-do-sistema)
-3. [Unified Memory Core (UMC)](#3-unified-memory-core-umc)
-4. [Fluxo de Leitura](#4-fluxo-de-leitura)
-5. [Fluxo de Escrita](#5-fluxo-de-escrita)
-6. [O Ciclo de Sonho (Hive-Dreamer)](#6-o-ciclo-de-sonho-hive-dreamer)
-7. [Sincronização P2P e Fusão Semântica](#7-sincronização-p2p-e-fusão-semântica)
-8. [Camada Multimodal](#8-camada-multimodal)
-9. [Camada de Acesso](#9-camada-de-acesso)
-10. [Autenticação Multi-Provedor](#10-autenticação-multi-provedor)
-11. [Estrutura do Vault](#11-estrutura-do-vault)
-12. [Automação e Cron](#12-automação-e-cron)
-13. [Como Estender para Novos Agentes](#13-como-estender-para-novos-agentes)
-14. [Testes e Qualidade](#14-testes-e-qualidade)
-15. [Disaster Recovery](#15-disaster-recovery)
-16. [Referência de Configuração](#16-referência-de-configuração)
-17. [Fase HM-11: Deep Reflection](#17-fase-hm-11-deep-reflection-raciocínio-de-longo-prazo)
-18. [Fase HM-12: Federated Swarm](#18-fase-hm-12-enxame-federado-federated-swarm)
-19. [Decisões de Design (ADRs)](#19-decisões-de-design-adrs)
-20. [Governança de Fases](#20-governança-de-fases)
+2. [Anatomia do Cérebro](#2-anatomia-do-cérebro)
+3. [Visão Macro do Sistema](#3-visão-macro-do-sistema)
+4. [Unified Memory Core (UMC)](#4-unified-memory-core-umc)
+5. [Fluxo de Leitura](#5-fluxo-de-leitura)
+6. [Fluxo de Escrita](#6-fluxo-de-escrita)
+7. [O Ciclo de Sonho (Hive-Dreamer)](#7-o-ciclo-de-sonho-hive-dreamer)
+8. [Sincronização P2P e Fusão Semântica](#8-sincronização-p2p-e-fusão-semântica)
+9. [Camada Multimodal](#9-camada-multimodal)
+10. [Camada de Acesso](#10-camada-de-acesso)
+11. [Autenticação Multi-Provedor](#11-autenticação-multi-provedor)
+12. [Estrutura do Vault](#12-estrutura-do-vault)
+13. [Automação e Cron](#13-automação-e-cron)
+14. [Como Estender para Novos Agentes](#14-como-estender-para-novos-agentes)
+15. [Testes e Qualidade](#15-testes-e-qualidade)
+16. [Disaster Recovery](#16-disaster-recovery)
+17. [Referência de Configuração](#17-referência-de-configuração)
+18. [Fase HM-11: Deep Reflection](#18-fase-hm-11-deep-reflection-raciocínio-de-longo-prazo)
+19. [Fase HM-12: Federated Swarm](#19-fase-hm-12-enxame-federado-federated-swarm)
+20. [Decisões de Design (ADRs)](#20-decisões-de-design-adrs)
+21. [Governança de Fases](#21-governança-de-fases)
 
 ---
 
@@ -40,7 +41,167 @@
 
 ---
 
-## 2. Visão Macro do Sistema
+## 2. Anatomia do Cérebro
+
+O Hive-Mind é organizado como um cérebro. O vault `cerebro/` espelha a anatomia — **quatro lobos irmãos sob a Consciência**, e o Córtex tem **cinco lóbulos próprios**. Esta seção é **canônica** para entender onde cada peça de código mora.
+
+```
+                          ┌─────────────────────────────────────┐
+                          │   🧠 Consciência (Home)             │
+                          │   "eu" que integra os lobos         │
+                          └──────────────┬──────────────────────┘
+                                         │
+        ┌──────────────────┬─────────────┼─────────────┬──────────────────┐
+        │                  │             │             │                  │
+   ┌────▼─────────┐  ┌──────▼─────┐  ┌────▼─────┐  ┌────▼────────┐  ┌────▼────────┐
+   │ 🧠 CÓRTEX    │  │ 🥁 CEREBELO │  │ 🔀 DIENCÉFALO│  │ 🌿 TRONCO │  │  (cortex    │
+   │ (cognição)  │  │ (ritmo)    │  │ (relay     │  │ (infra     │  │   detail)  │
+   │             │  │            │  │  cross-    │  │  vital)    │  │            │
+   │ 5 lóbulos:  │  │ • sessoes/ │  │  projeto)  │  │ • modelos/ │  │ (continua  │
+   │ • Temporal  │  │ • diario/  │  │            │  │ • paineis/ │  │   abaixo)  │
+   │ • Frontal   │  │ • semanal/ │  │ • setores/ │  │ • infra/   │  │            │
+   │ • Parietal  │  │ • padroes/ │  │   (5)      │  │ • meta/    │  │            │
+   │ • Occipital │  │            │  │ • roteamento/  │         │  │            │
+   │ • Ínsula    │  │            │  │            │  │            │  │            │
+   └─────────────┘  └────────────┘  └────────────┘  └────────────┘  └────────────┘
+```
+
+**Os quatro lobos sob a Consciência são pares** (Córtex, Cerebelo, Diencéfalo, Tronco) — não há hierarquia entre eles. O Tronco **não é descendente** de nenhum outro lobo; é irmão.
+
+### 2.1 Córtex — cognição superior (5 lóbulos)
+
+```
+   🧠 CÓRTEX
+   ├── ⏱ TEMPORAL     — memória de longo prazo, eixo primário por projeto
+   │       └── <projeto>/<topico>/neuronio-<hash>.md
+   ├── 🎯 FRONTAL     — decisões, planejamento, trabalho ativo
+   │       └── decisoes/  trabalho/{active,ativo,arquivo}/
+   │           projetos/  brain/  org/{people,teams}/
+   ├── 📥 PARIETAL    — sensorial (inbox, referências)
+   │       └── inbox/{visual,documents}/  referencias/  analises/
+   ├── 👁 OCCIPITAL   — visão (capturas + grafo de conhecimento)
+   │       └── capturas-visuais/  grafo/  (graphify-out/)
+   └── 💓 ÍNSULA      — interocepção, autoconsciência
+           └── saude/  conflitos/
+```
+
+#### 2.1.1 Lóbulo Temporal — detalhe (eixo primário do cérebro)
+
+O lóbulo temporal é onde mora a **memória de longo prazo organizada por projeto**. É o **eixo primário** do cérebro. Estrutura genérica (projetos e tópicos são fictícios — `projeto-A`, `topico-1`, etc.):
+
+```
+cortex/temporal/
+├── projeto-A/                     # neurônio-projeto (exemplo)
+│   ├── topico-1/                  # neurônio-tópico (1 neurônio = 1 fato atômico)
+│   ├── topico-2/
+│   └── topico-3/
+├── projeto-B/                     # neurônio-projeto (exemplo)
+│   ├── topico-1/
+│   ├── topico-2/
+│   ├── topico-3/
+│   ├── topico-4/
+│   ├── topico-5/
+│   └── topico-6/
+├── projeto-C/                     # neurônio-projeto (exemplo)
+├── projeto-D/                     # neurônio-projeto (exemplo)
+├── projeto-E/                     # neurônio-projeto (exemplo)
+├── projeto-F/                     # neurônio-projeto (exemplo)
+├── projeto-G/                     # neurônio-projeto (exemplo)
+├── projeto-H/                     # neurônio-projeto (exemplo)
+├── projeto-I/                     # neurônio-projeto (exemplo)
+│
+├── _global/                        # conhecimento sem projeto (preferências globais)
+├── hipocampo/                      # consolidação: Dream Cycle staging + quarentena
+└── arquivo/                        # memória fria (>90d, substância profunda)
+```
+
+Cada `neuronio-<hash>.md` tem frontmatter com `integrity_hash` (SHA-256 do conteúdo) e é único por hash — neurônios nunca duplicam. O índice SQLite (UMC `hive_mind.db`) acelera queries sobre esses neurônios; o `vault` continua sendo a fonte única de verdade.
+
+### 2.2 Cerebelo — ritmo e coordenação
+
+```
+   🥁 CEREBELO
+   ├── sessoes/   → logs de sessão de trabalho (YYYY/MM/YYYY-MM-DD-HHMM-{slug}.md)
+   ├── diario/    → reflexões diárias (YYYY/MM/YYYY-MM-DD.md)
+   ├── semanal/   → sínteses semanais
+   └── padroes/   → padrões aprendidos (memória procedural)
+       + cerebro/brain/Patterns.md  (Padrões aprendidos — referência canônica)
+```
+
+### 2.3 Diencéfalo — relay cross-projeto
+
+```
+   🔀 DIENCÉFALO
+   ├── setores/     → conhecimento que cruza múltiplos projetos
+   │   ├── setor-1.md      ← neurônios usados em vários projetos
+   │   ├── setor-2.md
+   │   ├── setor-3.md
+   │   ├── setor-4.md
+   │   └── setor-5.md
+   └── roteamento/  → regras de roteamento de conhecimento entre projetos
+```
+
+### 2.4 Tronco — infra vital (irmão dos outros 3, não descendente)
+
+```
+   🌿 TRONCO
+   ├── modelos/   → templates Obsidian tipados (Atom, Work, Decision, Thinking, Análise Fria)
+   ├── paineis/   → bases Obsidian (.base) — Work Dashboard, Incidents, People, Review Evidence
+   ├── infra/     → configuração de infraestrutura do vault
+   └── meta/      → meta-informação do vault, sub-vaults, links cross-vault
+```
+
+### 2.5 Mapeamento lobo → função → componente técnico
+
+| Lobo | Função | Onde mora no código/vault |
+|---|---|---|
+| **Córtex frontal** | Decisão, planejamento, trabalho | `core/`, `scripts/dream/dream_cycle.py` (síntese dialética), `cerebro/cortex/frontal/{decisoes,trabalho,brain,projetos,org}` |
+| **Córtex parietal** | Sensorial — inbox, referências | `scripts/capture/`, `cerebro/cortex/parietal/{inbox,referencias}` |
+| **Córtex occipital** | Visão — capturas + **grafo** | `scripts/capture/visual_capture.py` + `graphify-out/graph.json` (Graphify, em `cerebro/cortex/occipital/grafo/`) |
+| **Córtex temporal** | Memória de longo prazo por projeto | `cerebro/cortex/temporal/<projeto>/<topico>/neuronio-*.md` + UMC `hive_mind.db` (indexador) |
+| **Córtex ínsula** | Saúde, autoconsciência | `scripts/health/`, `cerebro/cortex/insula/{saude,conflitos}` |
+| **Cerebelo** | Ritmo — diário, semanal, sessões, padrões | `cerebelo/{sessoes,diario,semanal,padroes}/` + `cerebro/brain/Patterns.md` |
+| **Diencéfalo** | Relay cross-projeto | `cerebro/diencefalo/setores/<setor>.md` |
+| **Tronco** | Infra vital | `cerebro/tronco/{modelos,paineis,infra,meta}/` — templates, bases, configuração, sub-vaults |
+
+### 2.6 Ferramentas externas como órgãos do cérebro
+
+As 5 ferramentas que alimentam o cérebro **não são bancos paralelos**. São **órgãos do mesmo cérebro** que contribuem para uma única percepção (a resposta do `sinapse_query`).
+
+| Ferramenta | Órgão do cérebro | Função |
+|---|---|---|
+| **Graphify** | Córtex occipital (visão/grafo) | Indexa o `cerebro/` em `graph.json` com Leiden clustering |
+| **claude-mem** | Córtex temporal (memória de eventos) | Tracking temporal, FTS5, Chroma. Alimenta neurônios em `cortex/temporal/` |
+| **RTK** | Tronco (otimização) | Otimiza comandos shell — "sistema nervoso autônomo" que regula execução |
+| **NeuralMemory** | Córtex (associação) | Spreading activation, memória associativa |
+| **Filesystem scan** | Córtex parietal (sentido imediato) | Lê o vault direto, sem esperar reindexação |
+
+O `sinapse_query` é o ponto de entrada único do cérebro. Dispara os 5 órgãos, funde via Context Fusion e devolve **um único pacote de contexto**, não 5 respostas.
+
+### 2.7 Constantes canônicas de path
+
+A anatomia é codificada em `core/paths.py`. Constantes expostas:
+
+```python
+CORTEX     = VAULT_ROOT / "cortex"      # Córtex (5 lóbulos)
+TEMPORAL   = CORTEX / "temporal"        # Lóbulo temporal (memória)
+FRONTAL    = CORTEX / "frontal"         # Lóbulo frontal (decisão)
+PARIETAL   = CORTEX / "parietal"        # Lóbulo parietal (sensorial)
+OCCIPITAL  = CORTEX / "occipital"       # Lóbulo occipital (visão/grafo)
+INSULA     = CORTEX / "insula"          # Lóbulo ínsula (autoconsciência)
+DIENCEFALO = VAULT_ROOT / "diencefalo"  # Diencéfalo (relay)
+SECTORS_ROOT = DIENCEFALO / "setores"
+CEREBELO   = VAULT_ROOT / "cerebelo"    # Cerebelo (ritmo)
+DAILY_ROOT, SESSIONS_ROOT, WEEKLY_ROOT, PADROES_ROOT = cerebelo/...
+TRONCO     = VAULT_ROOT / "tronco"      # Tronco (infra)
+META_ROOT, MODELOS_ROOT, PAINEIS_ROOT = tronco/...
+```
+
+Qualquer novo código que criar/modificar arquivo no vault **deve usar essas constantes**, não caminhos hardcoded. Detalhamento de cada lobo em `cerebro/cortex/cortex.md`, `cerebro/cerebelo/cerebelo.md`, `cerebro/diencefalo/diencefalo.md`, `cerebro/tronco/tronco.md` e `cerebro/cortex/{frontal,parietal,occipital,temporal,insula}/*.md`.
+
+---
+
+## 3. Visão Macro do Sistema
 
 ```
   ┌──────────────────────────────────────────────────────────────────────┐
@@ -116,7 +277,7 @@
 
 ---
 
-## 3. Unified Memory Core (UMC)
+## 4. Unified Memory Core (UMC)
 
 Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em runtime. Schema em [`core/umc_schema.sql`](../core/umc_schema.sql).
 
@@ -184,7 +345,7 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
 
 ---
 
-## 4. Fluxo de Leitura
+## 5. Fluxo de Leitura
 
 ```
   Usuário faz pergunta
@@ -227,7 +388,7 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
 
 ---
 
-## 5. Fluxo de Escrita
+## 6. Fluxo de Escrita
 
 ```
   Agente chama sinapse_save_decision("Migrar VPS", conteúdo)
@@ -275,7 +436,7 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
 
 ---
 
-## 6. O Ciclo de Sonho (Hive-Dreamer)
+## 7. O Ciclo de Sonho (Hive-Dreamer)
 
 `scripts/dream/dream_cycle.py` — consolidação offline com saída Pydantic validada.
 
@@ -356,7 +517,7 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
 
 ---
 
-## 7. Sincronização P2P e Fusão Semântica
+## 8. Sincronização P2P e Fusão Semântica
 
 ```
   Máquina A           Syncthing (P2P)         Máquina B
@@ -407,7 +568,7 @@ Setup completo em [`07-p2p-sync-setup.md`](07-p2p-sync-setup.md).
 
 ---
 
-## 8. Camada Multimodal
+## 9. Camada Multimodal
 
 ```
   ENTRADA                    PROCESSAMENTO              SAÍDA
@@ -431,7 +592,7 @@ O estágio multimodal roda **dentro** do Dream Cycle — imagens e documentos en
 
 ---
 
-## 9. Camada de Acesso
+## 10. Camada de Acesso
 
 ### 9.1 MCP Server (`scripts/services/sinapse-mcp.py`)
 
@@ -497,7 +658,7 @@ FastAPI, porta `HIVE_MIND_API_PORT` (default **37702**). Fail-closed sem `HIVE_M
 
 ---
 
-## 10. Autenticação Multi-Provedor
+## 11. Autenticação Multi-Provedor
 
 `PROVIDERS_CONFIG` em `core/auth.py` cobre 10 provedores:
 
@@ -568,7 +729,7 @@ Política de retry/fallback por classe de erro: ver tabela em [`02-ai-models.md`
 
 ---
 
-## 11. Estrutura do Vault
+## 12. Estrutura do Vault
 
 ```
   cerebro/
@@ -599,7 +760,7 @@ Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiL
 
 ---
 
-## 12. Automação e Cron
+## 13. Automação e Cron
 
 | Processo | Trigger | Ação |
 |----------|---------|------|
@@ -612,7 +773,7 @@ Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiL
 
 ---
 
-## 13. Como Estender para Novos Agentes
+## 14. Como Estender para Novos Agentes
 
 ```
   1. sinapse.yaml
@@ -649,7 +810,7 @@ Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiL
 
 ---
 
-## 14. Testes e Qualidade
+## 15. Testes e Qualidade
 
 ```bash
 ./tests/run_all.sh   # Smoke → Unit → Integration → E2E
@@ -667,7 +828,7 @@ Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiL
 
 ---
 
-## 15. Disaster Recovery
+## 16. Disaster Recovery
 
 ```bash
 ./scripts/utils/recover.sh
@@ -691,7 +852,7 @@ Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiL
 
 ---
 
-## 16. Referência de Configuração
+## 17. Referência de Configuração
 
 `sinapse.yaml` — schema resumido com comentários no próprio arquivo:
 
@@ -716,7 +877,7 @@ cron:           # sync_schedule ("0 */6 * * *"), rebuild_schedule ("0 2 * * 0")
 
 ---
 
-## 17. Fase HM-11: Deep Reflection (Raciocínio de Longo Prazo)
+## 18. Fase HM-11: Deep Reflection (Raciocínio de Longo Prazo)
 
 ### Intent Memory (goal_id / why)
 
@@ -751,7 +912,7 @@ Tabela `causal_edges` registra relações causa→efeito entre neurônios. A fun
 
 ---
 
-## 18. Fase HM-12: Enxame Federado (Federated Swarm)
+## 19. Fase HM-12: Enxame Federado (Federated Swarm)
 
 ### Modelo de Visibilidade
 
@@ -814,7 +975,7 @@ Redação irreversível aplicada ao `content` e `label` dos neurônios antes do 
 
 ---
 
-## 19. Decisões de Design (ADRs)
+## 20. Decisões de Design (ADRs)
 
 Registro das decisões arquiteturais que moldaram o design atual. Cada ADR documenta o contexto, a decisão tomada, o rationale e os trade-offs aceitos.
 
@@ -874,7 +1035,7 @@ Registro das decisões arquiteturais que moldaram o design atual. Cada ADR docum
 
 ---
 
-## 20. Governança de Fases
+## 21. Governança de Fases
 
 ### Namespace de Fases
 

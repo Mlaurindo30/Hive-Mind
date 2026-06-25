@@ -104,6 +104,50 @@ Tools disponíveis:
 
 ---
 
+## Anatomia do Cérebro
+
+O Hive-Mind é organizado como um cérebro. O vault `cerebro/` espelha a anatomia — **quatro lobos irmãos sob a Consciência**, e o Córtex tem **cinco lóbulos próprios**.
+
+```
+                          ┌─────────────────────────────────────┐
+                          │   🧠 Consciência (Home)             │
+                          │   "eu" que integra os lobos         │
+                          └──────────────┬──────────────────────┘
+                                         │
+        ┌──────────────────┬─────────────┼─────────────┬──────────────────┐
+        │                  │             │             │                  │
+   ┌────▼─────────┐  ┌──────▼─────┐  ┌────▼─────┐  ┌────▼────────┐  ┌────▼────────┐
+   │ 🧠 CÓRTEX    │  │ 🥁 CEREBELO │  │ 🔀 DIENCÉFALO│  │ 🌿 TRONCO │  │  (cortex    │
+   │ (cognição)  │  │ (ritmo)    │  │ (relay     │  │ (infra     │  │   detail)  │
+   │             │  │            │  │  cross-    │  │  vital)    │  │            │
+   │ 5 lóbulos:  │  │ • sessoes/ │  │  projeto)  │  │ • modelos/ │  │ (continua  │
+   │ • Temporal  │  │ • diario/  │  │            │  │ • paineis/ │  │   abaixo)  │
+   │ • Frontal   │  │ • semanal/ │  │ • setores/ │  │ • infra/   │  │            │
+   │ • Parietal  │  │ • padroes/ │  │   (5)      │  │ • meta/    │  │            │
+   │ • Occipital │  │            │  │ • roteamento/  │         │  │            │
+   │ • Ínsula    │  │            │  │            │  │            │  │            │
+   └─────────────┘  └────────────┘  └────────────┘  └────────────┘  └────────────┘
+```
+
+Os **quatro lobos sob a Consciência são pares** (Córtex, Cerebelo, Diencéfalo, Tronco) — não há hierarquia entre eles. O Tronco **não é descendente** de nenhum outro lobo; é irmão.
+
+| Lobo | Função | Onde mora |
+|---|---|---|
+| Córtex frontal | Decisão, planejamento, trabalho | `core/`, `scripts/dream/dream_cycle.py`, `cortex/frontal/{decisoes,trabalho,brain,projetos,org}` |
+| Córtex parietal | Sensorial — inbox, referências | `scripts/capture/`, `cortex/parietal/{inbox,referencias}` |
+| Córtex occipital | Visão — capturas + **grafo** | `graphify-out/graph.json` (Graphify, em `cortex/occipital/grafo/`) |
+| Córtex temporal | Memória de longo prazo por projeto (eixo primário) | `cortex/temporal/<projeto>/<topico>/neuronio-*.md` + UMC `hive_mind.db` |
+| Córtex ínsula | Saúde, autoconsciência | `scripts/health/`, `cortex/insula/{saude,conflitos}` |
+| Cerebelo | Ritmo — diário, semanal, sessões, padrões | `cerebelo/{sessoes,diario,semanal,padroes}/`, `brain/Patterns.md` |
+| Diencéfalo | Relay cross-projeto | `diencefalo/setores/` (5 setores) |
+| Tronco | Infra vital | `tronco/{modelos,paineis,infra,meta}/` |
+
+**Lóbulo Temporal** (eixo primário — onde mora a memória por projeto): 1 neurônio-projeto por projeto (`cortex/temporal/<projeto>/`) com 1 neurônio-fato por arquivo (`neuronio-<hash>.md`) + `_global/` (preferências sem projeto) + `hipocampo/` (consolidação Dream Cycle) + `arquivo/` (memória fria >90d).
+
+As ferramentas externas são **órgãos do cérebro**, não bancos paralelos: Graphify (occipital), claude-mem (temporal), RTK (tronco), NeuralMemory (associação), filesystem scan (parietal). Anatomia completa em [`AGENTS.md`](AGENTS.md) e [`docs/01-architecture.md`](docs/01-architecture.md).
+
+---
+
 ## Visão Geral da Arquitetura
 
 ```
