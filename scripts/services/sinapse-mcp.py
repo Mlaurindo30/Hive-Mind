@@ -526,11 +526,17 @@ def _plan_goal(goal: str, context=None):
 
 
 def _temporal_graph_search(query: str, num_results: int = 10):
-    """Search Graphiti temporal graph via FalkorDB."""
+    """Search Graphiti temporal graph via FalkorDB.
+
+    DEPRECATED: esta tool é mantida para não quebrar clientes existentes,
+    mas a consulta cerebral canônica é `sinapse_query` (que funde os
+    5 órgãos via Context Fusion). Graphiti é apenas um dos órgãos
+    que o cérebro funde — expor como tool separada quebra a anatomia.
+    """
     try:
         import sys as _sys
         _sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-        from core.graphiti_client import search_graph, graphiti_available
+        from integrations.graphiti import search_graph, graphiti_available
         if not graphiti_available():
             return {"source": "graphiti", "available": False, "results": [], "query": query}
         results = search_graph(query, num_results=num_results)
