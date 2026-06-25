@@ -251,112 +251,122 @@ def main() -> int:
         tmp_db = Path(tmp.name)
 
     print(f"\n[b] Criando DB temporario {tmp_db}")
-    new = sqlite3.connect(tmp_db)
-
-    # sqlite-vec DEVE ser carregado ANTES de aplicar o schema (que cria
-    # CREATE VIRTUAL TABLE vec0). CR-SQLite tambem precisa estar carregado
-    # antes de chamar crsql_as_crr.
     try:
-        import sqlite_vec
-        new.enable_load_extension(True)
-        sqlite_vec.load(new)
-        new.load_extension(str(find_vendor_lib()))
-        new.enable_load_extension(False)
-    except (ImportError, RuntimeError) as e:
-        print(f"  ERRO ao carregar extensoes: {e}")
-        print(f"  Rode install.sh (etapa CR-SQLite) antes de setup_crdt.py")
-        return 2
+        new = sqlite3.connect(tmp_db)
 
-    new.executescript(schema_path.read_text())
-    print("  [OK] Schema CRR aplicado (sqlite-vec + crsqlite carregados)")
-
-    # (c) Copia dados
-    print(f"\n[c] Copiando dados das {len(CRDT_TABLES)} tabelas CRR-eligiveis")
-    src_conn = sqlite3.connect(src_db)
-    src_conn.row_factory = sqlite3.Row
-
-    total_copied = 0
-    total_orphans = 0
-    for table in CRDT_TABLES:
-        if table not in COLUMNS_PER_TABLE:
-            print(f"  [SKIP] {table} (sem mapeamento de colunas)")
-            continue
-        # Verificar se tabela existe no DB original
-        src_has = src_conn.execute(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
-            (table,),
-        ).fetchone()
-        if not src_has:
-            print(f"  [SKIP] {table} (nao existe no DB original)")
-            continue
-        copied, orphans = copy_table_data(
-            src_conn, new, table, COLUMNS_PER_TABLE[table]
-        )
-        total_copied += copied
-        total_orphans += orphans
-        print(f"  [{table:18s}] {copied:5d} copiados, {orphans:3d} orfaos removidos")
-    src_conn.close()
-    new.commit()
-    print(f"  [OK] Total: {total_copied} linhas copiadas, "
-          f"{total_orphans} orfaos removidos (FKs quebradas)")
-
-    # (d) search_vec / search_fts: como CRR nao suporta virtual tables,
-    #     elas serao reconstruidas via Dream Cycle em cada maquina.
-    #     Apenas garantimos que existem no DB novo (ja criadas pelo schema).
-
-    # (e) CRR upgrade — fecha a conexao da fase (b)-(c) antes de reabrir,
-    #     senao o handle (com WAL/-shm) vaza ate o fim do processo.
-    new.close()
-    print(f"\n[e] Aplicando crsql_as_crr em {len(CRDT_TABLES)} tabelas")
-    try:
-        new = open_with_extensions(tmp_db)
-    except RuntimeError as e:
-        print(f"  ERRO: {e}")
-        return 2
-
-    upgraded, failed = [], []
-    for table in CRDT_TABLES:
+        # sqlite-vec DEVE ser carregado ANTES de aplicar o schema (que cria
+        # CREATE VIRTUAL TABLE vec0). CR-SQLite tambem precisa estar carregado
+        # antes de chamar crsql_as_crr.
         try:
-            new.execute(f"SELECT crsql_as_crr('{table}')")
-            upgraded.append(table)
-            print(f"  [OK]   {table}")
-        except sqlite3.OperationalError as e:
-            failed.append((table, str(e)))
-            print(f"  [FAIL] {table}: {e}")
-    new.commit()
+            import sqlite_vec
+            new.enable_load_extension(True)
+            sqlite_vec.load(new)
+            new.load_extension(str(find_vendor_lib()))
+            new.enable_load_extension(False)
+        except (ImportError, RuntimeError) as e:
+            print(f"  ERRO ao carregar extensoes: {e}")
+            print(f"  Rode install.sh (etapa CR-SQLite) antes de setup_crdt.py")
+            return 2
 
-    if failed:
-        print(f"\n  AVISO: {len(failed)}/{len(CRDT_TABLES)} tabelas falharam no CRR upgrade")
-        print(f"  CR-SQLite recusa tabelas com schema invalido.")
-        print(f"  Verifique o schema CRR (core/umc_schema_crr.sql) e reinicie.")
+        new.executescript(schema_path.read_text())
+        print("  [OK] Schema CRR aplicado (sqlite-vec + crsqlite carregados)")
 
-    # (f) Smoke test
-    print(f"\n[f] Smoke test")
-    db_v = new.execute("SELECT crsql_db_version()").fetchone()[0]
-    changes = new.execute("SELECT count(*) FROM crsql_changes").fetchone()[0]
-    print(f"  crsql_db_version: {db_v}")
-    print(f"  crsql_changes count: {changes}")
+        # (c) Copia dados
+        print(f"\n[c] Copiando dados das {len(CRDT_TABLES)} tabelas CRR-eligiveis")
+        src_conn = sqlite3.connect(src_db)
+        src_conn.row_factory = sqlite3.Row
 
-    # Finalize e commit final
-    new.execute("SELECT crsql_finalize()")
-    new.close()
+        total_copied = 0
+        total_orphans = 0
+        for table in CRDT_TABLES:
+            if table not in COLUMNS_PER_TABLE:
+                print(f"  [SKIP] {table} (sem mapeamento de colunas)")
+                continue
+            # Verificar se tabela existe no DB original
+            src_has = src_conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                (table,),
+            ).fetchone()
+            if not src_has:
+                print(f"  [SKIP] {table} (nao existe no DB original)")
+                continue
+            copied, orphans = copy_table_data(
+                src_conn, new, table, COLUMNS_PER_TABLE[table]
+            )
+            total_copied += copied
+            total_orphans += orphans
+            print(f"  [{table:18s}] {copied:5d} copiados, {orphans:3d} orfaos removidos")
+        src_conn.close()
+        new.commit()
+        print(f"  [OK] Total: {total_copied} linhas copiadas, "
+              f"{total_orphans} orfaos removidos (FKs quebradas)")
 
-    # (g) Substituir original pelo novo. (dry-run ja retornou em (a); aqui e
-    #     sempre o caminho de escrita real.)
-    print(f"\n[g] Substituindo {src_db} pelo novo DB CRR")
-    shutil.copy2(tmp_db, src_db)
-    print(f"  [OK] {src_db} agora e o DB CRR-compat")
-    tmp_db.unlink()
+        # (d) search_vec / search_fts: como CRR nao suporta virtual tables,
+        #     elas serao reconstruidas via Dream Cycle em cada maquina.
+        #     Apenas garantimos que existem no DB novo (ja criadas pelo schema).
 
-    # Backup criado em (a): mantem por padrao; --no-keep-original apaga.
-    if not args.keep_original:
-        backup.unlink(missing_ok=True)
-        print(f"  [OK] Backup {backup} removido (--no-keep-original)")
-    else:
-        print(f"  [info] Backup preservado: {backup}")
+        # (e) CRR upgrade — fecha a conexao da fase (b)-(c) antes de reabrir,
+        #     senao o handle (com WAL/-shm) vaza ate o fim do processo.
+        new.close()
+        print(f"\n[e] Aplicando crsql_as_crr em {len(CRDT_TABLES)} tabelas")
+        try:
+            new = open_with_extensions(tmp_db)
+        except RuntimeError as e:
+            print(f"  ERRO: {e}")
+            return 2
 
-    print("\n=== Concluido ===")
-    return 0
+        upgraded, failed = [], []
+        for table in CRDT_TABLES:
+            try:
+                new.execute(f"SELECT crsql_as_crr('{table}')")
+                upgraded.append(table)
+                print(f"  [OK]   {table}")
+            except sqlite3.OperationalError as e:
+                failed.append((table, str(e)))
+                print(f"  [FAIL] {table}: {e}")
+        new.commit()
+
+        if failed:
+            print(f"\n  ABORT: {len(failed)}/{len(CRDT_TABLES)} tabelas falharam no CRR upgrade")
+            print(f"  CR-SQLite recusa tabelas com schema invalido.")
+            print(f"  Verifique o schema CRR (core/umc_schema_crr.sql) e reinicie.")
+            print(f"  DB original preservado. Backup em {backup}.")
+            new.close()
+            return 2
+
+        # (f) Smoke test
+        print(f"\n[f] Smoke test")
+        db_v = new.execute("SELECT crsql_db_version()").fetchone()[0]
+        changes = new.execute("SELECT count(*) FROM crsql_changes").fetchone()[0]
+        print(f"  crsql_db_version: {db_v}")
+        print(f"  crsql_changes count: {changes}")
+
+        # Finalize e commit final
+        new.execute("SELECT crsql_finalize()")
+        new.close()
+
+        # (g) Substituir original pelo novo. (dry-run ja retornou em (a); aqui e
+        #     sempre o caminho de escrita real.)
+        print(f"\n[g] Substituindo {src_db} pelo novo DB CRR")
+        shutil.copy2(tmp_db, src_db)
+        print(f"  [OK] {src_db} agora e o DB CRR-compat")
+
+        # Backup criado em (a): mantem por padrao; --no-keep-original apaga.
+        if not args.keep_original:
+            backup.unlink(missing_ok=True)
+            print(f"  [OK] Backup {backup} removido (--no-keep-original)")
+        else:
+            print(f"  [info] Backup preservado: {backup}")
+
+        print("\n=== Concluido ===")
+        return 0
+    finally:
+        # Garante que o DB temporario (com WAL/-shm) nao vaze em nenhum path
+        # de erro. missing_ok=True para nao falhar se ja foi removido no caminho
+        # feliz (linha da fase g).
+        tmp_db.unlink(missing_ok=True)
+        for suffix in ("-wal", "-shm"):
+            tmp_db.with_name(tmp_db.name + suffix).unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

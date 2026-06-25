@@ -88,8 +88,16 @@ def _export(since_version: int = 0) -> dict[str, Any]:
     finally:
         try:
             finalize(conn)
-        except Exception:
-            pass
+        except Exception as e:
+            # Nao silencia: loga no stderr para o caller saber que o estado
+            # CRR pode ter ficado inconsistente. Re-raise quebra o fluxo do
+            # CLI, mas o log permite diagnostico.
+            import sys
+            print(
+                f"[sinapse-sync] AVISO: crsql_finalize falhou: "
+                f"{type(e).__name__}: {e}. Estado CRR pode estar inconsistente.",
+                file=sys.stderr,
+            )
         conn.close()
 
 
@@ -136,8 +144,16 @@ def _import_changes(payload: dict[str, Any]) -> dict[str, int]:
     finally:
         try:
             finalize(conn)
-        except Exception:
-            pass
+        except Exception as e:
+            # Nao silencia: loga no stderr para o caller saber que o estado
+            # CRR pode ter ficado inconsistente. Re-raise quebra o fluxo do
+            # CLI, mas o log permite diagnostico.
+            import sys
+            print(
+                f"[sinapse-sync] AVISO: crsql_finalize falhou: "
+                f"{type(e).__name__}: {e}. Estado CRR pode estar inconsistente.",
+                file=sys.stderr,
+            )
         conn.close()
 
     return {"applied": applied, "received": len(changes)}

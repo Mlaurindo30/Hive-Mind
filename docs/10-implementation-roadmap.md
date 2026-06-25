@@ -464,11 +464,18 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
 
 **Decisão dependente:** avaliar se agentes atuais (Kilo, Hermes, Codex, Cursor) suportam spec 2025-03-26. Se nenhum suportar, deferir.
 
-### Fase P8 — CR-SQLite (sync multi-dispositivo) 🔜 **EM IMPLEMENTAÇÃO**
+### Fase P8 — CR-SQLite (sync multi-dispositivo) ✅ CONCLUÍDO
 
 **Origem:** `09` §7 — CR-SQLite (vlcn-io).
 **Lobo:** Tronco (infra de sincronização). Habilita instâncias Hive-Mind em workstation + laptop + servidor convergindo sem conflitos.
-**ROI:** Alto | **Esforço:** Médio | **Status:** 🔜 **Em implementação (2026-06-25)** | **Risco:** Médio (migração de schema — backup antes)
+**ROI:** Alto | **Esforço:** Médio | **Status:** ✅ **Concluído (2026-06-25)** | **Risco:** Médio (migração de schema — backup antes)
+
+**Resultado da re-passagem com swarm (tester + code reviewer, 2026-06-25):**
+- 30/30 testes de integração passando (P7+P8: `test_crdt.py`, `test_crdt_gaps.py`, `test_mcp_http.py`, `test_sync_endpoints.py`)
+- Code review adversarial: 7 achados (1 bloqueante corrigido, 6 warnings — 3 corrigidos nesta re-passagem, 3 restantes são débito técnico não-bloqueante)
+- Correção central validada: `_import_changes` usa `apply_changes` via `crsql_changes` (PK binária packed preservada), NÃO `INSERT OR IGNORE` direto (Opção B foi revertida por corromper a PK)
+- Fixes aplicados nesta re-passagem: `.gitignore` cobre `hive_mind.db.pre-crr*` (B1); `setup_crdt.py` aborta em falhas parciais de CRR upgrade (W1) + `try/finally` para não vazar `tmp_db` (W2); `sinapse-sync.py` loga falhas de `crsql_finalize` no stderr em vez de silenciar (W3)
+- Débito técnico restante (não-bloqueante, follow-up): W4 (`enable_crdt` roda em toda `get_connection()` — otimização futura de separar load_extension de crsql_as_crr), W5 (sync_import descarta proveniência version/site_id), W6 (`_SESSIONS` do MCP HTTP sem TTL/cap)
 
 **Estado atual (verificado):**
 - Nenhum arquivo em `core/` ou `scripts/` menciona `crsqlite`, `crsql_as_crr`, ou `crsql_changes` — gap real confirmado
@@ -1095,7 +1102,7 @@ Cada fase, ao concluir, entrega:
 - [ ] 8 testes novos
 - **Esforço:** P9 é o de maior ROI desta sprint (Langfuse self-hosted já tem infra, falta só instrumentação + deps)
 
-### Sprint 3 — P7 (Streamable HTTP) + P8 (CR-SQLite) 🔜 **P8 EM ANDAMENTO**
+### Sprint 3 — P7 (Streamable HTTP) + P8 (CR-SQLite) ✅ CONCLUÍDO (2026-06-25)
 - [ ] P7: criar `sinapse-mcp-http.py` + aiohttp + systemd unit + testes E2E
 - [x] **P8 em andamento:** `core/crdt_sync.py` + `sinapse-sync.py` CLI + backup + testes sync entre 2 dirs
 - [ ] 8 testes novos

@@ -83,6 +83,8 @@ config/component-lock-backups/
 hive_mind.db
 hive_mind.db-*
 hive_mind.db.bak
+hive_mind.db.pre-crr*
+hive_mind.db.pre-crr.*
 *.db.bak
 banco.db
 ruvector.db
