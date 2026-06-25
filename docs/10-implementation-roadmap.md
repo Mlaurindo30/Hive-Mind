@@ -1,137 +1,103 @@
 # Roadmap de Implementação — Hive-Mind Integrações
-**Data:** 2026-06-24 | **Base anatômica:** `docs/01-architecture.md` §2 e `AGENTS.md` §2 | **Base de pesquisa:** `docs/09-integration-study.md`
+**Data:** 2026-06-25 | **Base anatômica:** `docs/01-architecture.md` §2 e `AGENTS.md` §2 | **Base de pesquisa:** `docs/09-integration-study.md`
 
-> Documento de engenharia orientado pela **anatomia do cérebro**: cada fase adiciona
-> ou reforça um órgão do cérebro. Clones de projetos externos vivem em
-> `integrations/<nome>/` (não em `core/`); deps Python vão no `pyproject.toml`;
-> deps de sistema (binários, Docker, Ollama) vão no `install.sh`. Nomes em
-> `cerebro/` (projetos, tópicos, setores) são fictícios — projetos reais são
-> instalados pelo usuário no diretório `cerebro/cortex/temporal/<projeto>/`.
+> Documento de engenharia orientado pela **anatomia do cérebro**. Cada fase adiciona
+> ou reforça um órgão. Clones de projetos externos vivem em `integrations/<nome>/`;
+> deps Python vão no `pyproject.toml`; deps de sistema (binários, Docker, Ollama)
+> vão no `install.sh`. Nomes em `cerebro/` (projetos, tópicos, setores) são fictícios —
+> projetos reais são instalados pelo usuário em `cerebro/cortex/temporal/<projeto>/`.
 >
-> **Catálogo completo** de 22 fases (sem limite artificial). Cada fase vem do
-> estudo `09-integration-study.md` ou foi decidida nesta conversa.
-> Não há número fixo de fases — adiciono mais conforme novos projetos
-> externos forem estudados ou a anatomia exigir.
+> **3ª passada de validação (2026-06-25):** cada afirmação abaixo foi verificada
+> contra código real (ver §0.6 "Metodologia de validação"). A 2ª passada listava 13
+> fases pendentes; esta reduz para **6** porque 7 projetos do `09` já estão
+> implementados dentro de `integrations/neural-memory/` (Mem0, OpenMemory, Cognee,
+> MemoryOS, MemOS, A-MEM, HippoRAG 2) — não são fases, são capacidades existentes.
 
 ---
 
-## Índice de Fases
+## Índice
 
-### Concluídas (P0..P5)
-| Fase | Nome | Órgão do cérebro | Status | Commits-chave |
-|------|------|------------------|--------|---------------|
-| [P0](#fase-p0-embeddings-100-local-ollama-bge-m3-concluído) | Embeddings 100% Local (bge-m3) | Cortex (associação) | ✅ DONE 2026-06-21 | `93db445`, `f087279` |
-| [P1](#fase-p1-screenpipe-via-rest-substitui-mss-concluído) | Screenpipe via REST | Cortex occipital (captura) | ✅ DONE 2026-06-21 | `9597ef5`, `2a4cdc8` |
-| [P2](#fase-p2-graphiti-falkordb-lóbulo-temporal-concluído) | Graphiti + FalkorDB | **Lóbulo temporal** (causalidade) | ✅ DONE 2026-06-21 → refinado 2026-06-24 | `5d90f51`, `41fac0c`, `b11d6d6`, `16e0387` |
-| [P3](#fase-p3-lightrag-no-dream-cycle-concluído) | LightRAG no Dream Cycle | Cortex (RAG híbrido) | ✅ DONE 2026-06-21 → 2026-06-24 | `56f1e98`, `fe68300`, `61c5285`, `dee365b` |
-| [P4](#fase-p4-sinapse_query-funciona-como-cérebro-federador-7-órgãos-concluído) | sinapse_query funde 7 órgãos | Tronco (entry point único) | ✅ DONE 2026-06-24 | `16e0387` |
-| [P5](#fase-p5-anatomia-canônica-em-3-documentos-concluído) | Anatomia canônica (3 docs) | Tronco (docs) | ✅ DONE 2026-06-23 | `ca1ff96`, `3eb4a35`, `ddf5504` |
-
-### Pendentes (P6..P22) — ordem por ROI
-| Fase | Nome | Órgão do cérebro | ROI | Esforço |
-|------|------|------------------|-----|---------|
-| [P6](#fase-p6-sqlite-lembed-embeddings-nativos-no-sqlite) | sqlite-lembed | Cortex (embeddings nativos) | Alto | Baixo |
-| [P7](#fase-p7-megamem-streamable-http-mcp-spec-2025-03-26) | MegaMem Streamable HTTP | Tronco (transporte MCP) | Alto | Médio |
-| [P8](#fase-p8-openmemory-mcp-camada-de-memória-compartilhada) | OpenMemory MCP | Diencéfalo (cross-agente) | Alto | Baixo |
-| [P9](#fase-p9-langfuse-self-hosted-observabilidade-via-opentelemetry) | Langfuse Self-Hosted | Cerebelo (ritmo) | Alto | Médio |
-| [P10](#fase-p10-cr-sqlite-sync-multi-dispositivo) | CR-SQLite | Tronco (infra sync) | Alto | Médio |
-| [P11](#fase-p11-a-mem-link-evolution-no-grafo) | A-MEM (link evolution) | Diencéfalo (cross-memória) | Médio | Médio |
-| [P12](#fase-p12-cognee-recall-router-multi-hop) | Cognee (recall router) | Cortex (busca semântica) | Médio | Médio |
-| [P13](#fase-p13-hipporag-2-retrieval-multi-hop-via-pagerank) | HippoRAG 2 | Cortex (retrieval associativo) | Médio | Alto |
-| [P14](#fase-p14-raptor-sumário-recursivo-em-múltiplos-níveis) | RAPTOR (sumário recursivo) | Cortex frontal (síntese) | Médio | Alto |
-| [P15](#fase-p15-mem0-camada-de-memória-universal-para-agentes) | Mem0 (memória universal) | Diencéfalo (cross-tool) | Médio | Médio |
-| [P16](#fase-p16-lancedb-storage-multimodal-para-captura-visual) | LanceDB (multimodal) | Cortex occipital | Médio | Alto |
-| [P17](#fase-p17-duckdb-analytics-olap-sobre-o-corpus) | DuckDB (analytics) | Cerebelo (análise) | Médio | Baixo |
-| [P18](#fase-p18-omniparser-v2-ui-screenshot-parsing) | OmniParser v2 | Cortex occipital (UI parsing) | Médio | Alto |
-| [P19](#fase-p19-automerge-sync-do-vault-cerebro) | Automerge (vault sync) | Tronco (infra sync) | Baixo | Alto |
-| [P20](#fase-p20-microsoft-graphrag-síntese-hierárquica-de-longo-prazo) | Microsoft GraphRAG | Cortex frontal (síntese batch) | Baixo | Alto |
-| [P21](#fase-p21-letta-archival-memory-para-agentes-de-longa-duração) | Letta (archival memory) | Cortex ínsula (auto-consciência) | Baixo | Alto |
-| [P22](#fase-p22-memoryos-memória-procedural-skill-reuse) | MemoryOS (procedural) | Cerebelo (procedural) | Baixo | Alto |
-
-**Detalhamento por ROI no `09` (matriz original):** SQLite-lembed (P0), Graphiti (P1→P2 aqui), CR-SQLite (P1→P10), Screenpipe (P1→P1), OpenMemory (P1→P8), Langfuse (P2→P9), A-MEM (P2→P11), MegaMem (P2→P7), RAPTOR (P3→P14), Cognee (P3→P12), HippoRAG (P3→P13), LanceDB (P3→P16), DuckDB (P3→P17), Automerge (P4→P19), OmniParser (P4→P18), Letta (P4→P21), MemoryOS (P5→P22), GraphRAG (P5→P20). Mem0 (não estava na matriz, adicionado como P15 por potencial mencionado no `09` §1).
+- [§0 Princípios e anatomia](#0-princípios-e-anatomia)
+- [§1 Estado atual do cérebro](#1-estado-atual-do-cérebro)
+- [§2 Fases concluídas (P0..P5)](#2-fases-concluídas-p0p5)
+- [§3 Já integrado no `integrations/neural-memory/` (rastreabilidade)](#3-já-integrado-no-integrationsneural-memory-rastreabilidade)
+- [§4 Fases pendentes (P6..P13)](#4-fases-pendentes-p6p13)
+- [§5 Rejeitados com razão](#5-rejeitados-com-razão)
+- [§6 Critério geral de "pronto"](#6-critério-geral-de-pronto)
+- [§7 Sprints](#7-sprints)
+- [§8 Mapa de arquivos por fase](#8-mapa-de-arquivos-por-fase)
+- [§9 Gaps conhecidos](#9-gaps-conhecidos-2026-06-25)
 
 ---
 
-## 0. Princípios de Integração
+## 0. Princípios e anatomia
 
-### 0.1 Anatomia canônica (4 lobos irmãos)
+### 0.1 Anatomia canônica (4 lobos irmãos, não hierárquicos)
 
-O cérebro do Hive-Mind tem **4 lobos irmãos**, não hierárquicos:
-
-- **Cortex** (cognição superior, 5 lóbulos): temporal, frontal, parietal, occipital, ínsula
-- **Cerebelo** (ritmo): sessoes, diario, semanal, padroes
+- **Córtex** (cognição superior, 5 lóbulos): temporal, frontal, parietal, occipital, ínsula
+- **Cerebelo** (ritmo): sessões, diário, semanal, padrões
 - **Diencéfalo** (relay cross-projeto): setores + roteamento
-- **Tronco** (infra vital): modelos, paineis, infra, meta
+- **Tronco** (infra vital): modelos, painéis, infra, meta
 
-Ver `docs/01-architecture.md` §2 e `AGENTS.md` §2 para o detalhamento. **Nenhuma fase pode violar a anatomia** — projetos vão em **lobos apropriados** ou em **integrations/** (vendors externos, que são órgãos mas não são do cérebro central).
+Ver `docs/01-architecture.md` §2 e `AGENTS.md` §2. **Nenhuma fase pode violar a anatomia** — projetos vão em lobos apropriados ou em `integrations/` (vendors externos, que são órgãos mas não são o cérebro central).
 
 ### 0.2 Clones de vendors externos
 
-Cada projeto externo que vira órgão do cérebro vive em `integrations/<nome>/`:
-
 ```
 integrations/
-├── graphify/         # cortex occipital — clustering estrutural
-├── graphiti/         # lobo temporal — causalidade com validade (P2)
-├── neural-memory/    # cortex — spreading activation
-├── rtk/              # tronco — otimização de shell
-├── claude-mem-plugins/  # lobo temporal — eventos brutos
-├── megamem/          # P7 — MCP Streamable HTTP
-├── openmemory/       # P8 — memória compartilhada cross-agente
-├── langfuse/         # P9 — observabilidade OTEL
-├── crsqlite/         # P10 — CRDT sync
-├── amem/             # P11 — link evolution
-├── cognee/           # P12 — recall router
-├── hipporag/         # P13 — retrieval multi-hop
-├── raptor/           # P14 — sumário recursivo
-├── mem0/             # P15 — camada universal de memória
-├── lancedb/          # P16 — storage multimodal
-├── duckdb/           # P17 — analytics
-├── omniparser/       # P18 — UI parsing
-├── automerge/        # P19 — vault sync CRDT
-├── graphrag/         # P20 — síntese hierárquica
-├── letta/            # P21 — archival memory
-└── memoryos/         # P22 — memória procedural
+├── graphify/             # córtex occipital — clustering estrutural (Leiden)
+├── graphiti/             # lóbulo temporal — causalidade com validade (P2)
+├── neural-memory/        # córtex (associação) + diencéfalo (evolução) — PROJETO COMPLETO (ver §3)
+├── rtk/                  # tronco — otimização de shell
+├── claude-mem-plugins/   # lóbulo temporal — eventos brutos
+├── lancedb/              # P11 — storage multimodal
+└── omniparser/           # P13 — UI parsing
 ```
-
-`install.sh` trata cada um como vendor (clone + install, opcional). Novos clones seguem o mesmo template: `<integrations>/<nome>/{__init__.py, client.py, README.md}`.
 
 ### 0.3 Dependências
 
-- **Dependências Python** vão em `pyproject.toml` (fonte de verdade única, gerenciada por `uv`)
-- **Dependências de sistema** (binários, Docker, Ollama) vão em `install.sh`
-- **Variáveis de ambiente** têm default sensato e override via `.env`
-- **Nenhuma dependência hardcoded em `core/`** — sempre via env vars ou `pyproject.toml`
+- **Python:** `pyproject.toml` (fonte de verdade única, `uv sync`)
+- **Sistema (binários, Docker, Ollama):** `install.sh`
+- **Env vars:** default sensato + override via `.env`
+- **Nada hardcoded em `core/`:** sempre env vars ou `pyproject.toml`
 
-### 0.4 Robustez por padrão
+### 0.4 Robustez por padrão (4 camadas, do P2)
 
-Todo órgão novo segue 4 camadas (do P2):
-
-1. **Smoke test** (`assert_health()` ou equivalente)
+1. **Smoke test** (`assert_health()`)
 2. **Circuit breaker** (3 falhas → cooldown)
 3. **Persistência degradada** (fallback local se backend externo cai)
-4. **Retry com backoff** (1s, 2s, 4s por padrão)
+4. **Retry com backoff** (1s, 2s, 4s)
 
----
+### 0.5 Mapa de vendors (estado atual)
 
-## 0.5 Mapa de vendors (estado atual)
-
-| Lobro do cérebro | Vendor | `integrations/` | `pyproject.toml` | `install.sh` | Status |
+| Lobo | Vendor | `integrations/` | `pyproject.toml` | `install.sh` | Status |
 |---|---|---|---|---|---|
-| Cortex occipital | Graphify | `integrations/graphify/` | `graphifyy[watch]` | clone + setup_brain.sh | ✅ |
-| **Lobo temporal** | **Graphiti (FalkorDB)** | `integrations/graphiti/` | `graphiti-core`, `falkordb` | clone + Docker FalkorDB | ✅ P2 |
-| **Lobo temporal** | claude-mem | `integrations/claude-mem-plugins/` | (indep, npm) | (indep) | ✅ |
-| Cortex (associação) | Neural Memory | `integrations/neural-memory/` | `neural-memory[pro]` | clone + setup_brain.sh | ✅ |
-| **Cortex** (RAG) | LightRAG | `core/lightrag_index.py` (não vendor) | `lightrag-hku` | `ollama pull granite3-dense:2b` | ✅ P3 |
+| Córtex occipital | Graphify | `integrations/graphify/` | `graphifyy[watch]` | clone + setup_brain.sh | ✅ |
+| **Lóbulo temporal** | **Graphiti (FalkorDB)** | `integrations/graphiti/` | `graphiti-core`, `falkordb` | clone + Docker FalkorDB | ✅ P2 |
+| **Lóbulo temporal** | claude-mem | `integrations/claude-mem-plugins/` | (indep, npm) | (indep) | ✅ |
+| Córtex + Diencéfalo | Neural Memory | `integrations/neural-memory/` | `neural-memory[pro]` | clone + setup_brain.sh | ✅ (ver §3) |
+| **Córtex** (RAG) | LightRAG | `core/lightrag_index.py` (não vendor) | `lightrag-hku` | `ollama pull granite3-dense:2b` | ✅ P3 |
 | Tronco | RTK | `integrations/rtk/` | (indep, cargo) | cargo install | ✅ |
-| Cortex | SQLite-vec | (nativo) | `sqlite-vec` | (extensão nativa) | ✅ |
-| Cortex (visual) | Screenpipe | (npm) | (indep, npm) | npm install -g @screenpipe/cli | ✅ P1 |
-| Cortex | Fastembed | (nativo) | `fastembed` | (fallback P0) | ✅ |
+| Córtex | SQLite-vec | (nativo) | `sqlite-vec` | (extensão nativa) | ✅ |
+| Córtex (visual) | Screenpipe | (npm) | (indep, npm) | npm install -g @screenpipe/cli | ✅ P1 |
+| Córtex | Fastembed | (nativo) | `fastembed` | (fallback P0) | ✅ |
+| **Cerebelo (analytics)** | **DuckDB** | `scripts/analytics/hive_analytics.py` | `duckdb>=0.10` | (nativo, 9 queries) | ✅ DONE (ver §3) |
 
-**Padrão de integração:**
-- Se é órgão do cérebro (Graphiti, Graphify, Neural Memory, claude-mem) → `integrations/<nome>/`
-- Se é utilitário com dep local (LightRAG via pip) → `core/<nome>_index.py` + `pyproject.toml`
-- Se é binário de sistema (Screenpipe, RTK) → `install.sh` baixa
+### 0.6 Metodologia de validação (3ª passada)
+
+Cada afirmação "cérebro já tem X" foi verificada com:
+
+```bash
+grep -rln "X" core/ scripts/ integrations/
+ls -la <arquivo>
+.venv/bin/python -c "import <módulo>; print(hasattr(...))"
+```
+
+Resultados:
+- 7 projetos do `09` descobertos como **já implementados** em `integrations/neural-memory/` (ver §3)
+- DuckDB analytics descoberto em `scripts/analytics/hive_analytics.py` (9 queries)
+- `core/telemetry.py` é OTEL completo e funcional (não draft como afirmei antes), MAS não está em `pyproject.toml` e não é importado em nenhum script — Langfuse é gap real de **instrumentação**, não de código
+- A-MEM e Graphiti são **complementares** (Graphiti extrai edges novas; A-MEM evolui links existentes) — e A-MEM já está no neural-memory
 
 ---
 
@@ -140,42 +106,64 @@ Todo órgão novo segue 4 camadas (do P2):
 ```
 core/                              ← código do cérebro central
 ├── database.py                    # OllamaEmbedder (bge-m3 1024d) ✅P0
+│   # get_connection():93 carrega sqlite-vec (extensão)
+│   # add_visual_memory():221 (visual_memories table, só texto — sem embedding CLIP)
 ├── indexing.py                    # index_neuron_ids() ✅P0
 ├── hnsw_index.py                  # HNSW_DIM=1024 ✅P0
-├── umc_schema.sql                 # search_vec FLOAT[1024] ✅P0
-├── lightrag_index.py             # LightRAG v1.5.4 wrapper ✅P3
-├── telemetry.py                   # OTEL → Langfuse (opt-in, P9)
-└── paths.py                       # constantes anatômicas (CORTEX, TEMPORAL, etc.)
+├── umc_schema.sql                 # 9 tabelas: neurons, synapses, observations, vault,
+│   #                              #   ambiguities, visual_memories, document_memories,
+│   #                              #   causal_edges, goals ✅P0
+├── lightrag_index.py             # LightRAG v1.5.4 wrapper (granite3-dense:2b fixo) ✅P3
+├── telemetry.py                   # OTEL completo (init_telemetry, span()) — MAS NÃO INSTRUMENTADO
+└── paths.py                       # constantes anatômicas (CORTEX, TEMPORAL, INTEGRATIONS_ROOT, ...)
 
 integrations/
-├── graphify/                      # cortex occipital
-├── graphiti/                      # lobo temporal (commit b11d6d6) ✅P2
+├── graphify/                      # córtex occipital
+├── graphiti/                      # lóbulo temporal ✅P2 (commit b11d6d6)
 │   ├── client.py                  # 4 camadas: smoke + circuit + retry + persist
 │   ├── __init__.py                # API pública + whitebox
 │   └── README.md
-├── neural-memory/                 # cortex (associação)
+├── neural-memory/                 # ✅ PROJETO COMPLETO (ver §3) — cobre 7 projetos do 09
+│   ├── src/neural_memory/
+│   │   ├── integration/adapters/mem0_adapter.py    # Mem0 + OpenMemory
+│   │   ├── mcp/{evolution,recall,cognitive}_handler.py  # Cognee + A-MEM
+│   │   └── engine/
+│   │       ├── ppr_activation.py                  # HippoRAG 2 (Personalized PageRank)
+│   │       ├── consolidation.py, lifecycle.py     # MemoryOS (BAI-LAB)
+│   │       ├── brain_evolution.py                 # A-MEM (link evolution)
+│   │       └── learning_rule.py, workflow_suggest.py  # MemOS (skill reuse)
+│   └── (conectado ao cérebro via _backend_neural_memory)
 ├── rtk/                           # tronco (otimização shell)
-└── claude-mem-plugins/            # lobo temporal (eventos)
+└── claude-mem-plugins/            # lóbulo temporal (eventos brutos)
 
 plugins/
 ├── hermes/
-│   └── sinapse-memory.py            # 7 backends federados (UMC + NeuralMemory + sqlite-vec + claude-mem + Graphify + Graphiti + filesystem)
-└── sqlite-vec-worker/worker.py      # VEC_EMBED_DIM=1024 ✅P0
+│   └── sinapse-memory.py          # 7 backends federados via _query_vault_knowledge ✅P4
+│       # _READ_BACKENDS: umc, neural_memory, sqlite_vec, claude_mem, graphify, graphiti, filesystem
+└── sqlite-vec-worker/worker.py    # VEC_EMBED_DIM=1024 ✅P0
 
 scripts/
 ├── dream/
-│   └── dream_cycle.py             # ETL: Distiller→Validator→Router→Síntese
-│                                  # Stage 3.5: push_neuron (Graphiti) + index_memory (LightRAG) best-effort
+│   ├── dream_cycle.py             # ETL Distiller→Validator→Router→Síntese
+│   #                              # Stage 3.5: push_neuron (Graphiti) + index_memory (LightRAG)
+│   ├── daily_writer.py            # nível 1 (diário) ✅
+│   └── weekly_synthesizer.py      # nível 2 (semanal) ✅ — FALTA mensal/anual (P10)
 ├── services/
-│   ├── sinapse-mcp.py             # MCP stdio, 13 tools sinapse_* + sinapse_query (orquestrador)
-│   ├── sinapse-api.py             # REST API (porta 37702)
+│   ├── sinapse-mcp.py             # MCP stdio (13 tools), sinapse_query orquestrador ✅P4
+│   ├── sinapse-api.py             # REST API FastAPI :37702
 │   └── sinapse-write.py           # CLI: decision, learning, query, health, session-end
 ├── capture/
 │   ├── capture_core.py            # SeenStore SQLite WAL ✅
-│   ├── capture_adapters.py        # ADAPTERS dict (screenpipe, etc.)
-│   └── parsers/                   # 11 parsers: antigravity, codex, copilot, hermes, kilo...
+│   ├── capture_adapters.py        # ADAPTERS dict (screenpipe, ...)
+│   └── parsers/                   # 11 parsers
+├── analytics/
+│   └── hive_analytics.py          # DuckDB OLAP (9 queries: growth, top_topics, ...) ✅ DONE
+├── knowledge/
+│   └── pattern_distiller.py       # extração de padrões (cerebelo/padroes)
 └── setup/
     └── migrate_embed_dim.py       # 384 → 1024 one-shot ✅P0
+
+cerebro/cerebelo/padroes/          # Patterns.md + pattern_models.py (procedural parcial) ✅
 ```
 
 ---
@@ -184,25 +172,25 @@ scripts/
 
 ### Fase P0 — Embeddings 100% Local (Ollama bge-m3) ✅ CONCLUÍDO
 
-**Objetivo:** eliminar `fastembed + all-MiniLM-L6-v2 (384d)` e usar modelo multilingual PT+EN 1024d rodando 100% local.
+**Objetivo:** eliminar `fastembed + all-MiniLM-L6-v2 (384d)` e usar modelo multilingual PT+EN 1024d local.
 **Status:** ✅ | **Commits:** `93db445`, `f087279` | **Data:** 2026-06-21
 
 **Modelo:** `bge-m3:latest` (1024d, MTEB multilingual #1 2024, 91ms warm, EXCELENTE PT-BR)
 
 **Arquivos modificados:**
 
-| Arquivo | Mudança |
-|---|---|
-| `core/database.py` | `OllamaEmbedder` via HTTP, `EMBED_BACKEND=ollama` default |
-| `core/hnsw_index.py:25` | `HNSW_DIM` 384 → 1024 |
-| `core/umc_schema.sql:92` | `FLOAT[384]` → `FLOAT[1024]` |
-| `plugins/sqlite-vec-worker/worker.py` | `VEC_EMBED_DIM` 384 → 1024 |
-| `scripts/setup/migrate_embed_dim.py` | script one-shot (3639/3642 re-indexados em 407s) |
-| `tests/unit/test_p0_embedding.py` | 10 testes (backend, determinismo, dim, live) |
+| Arquivo | Linha | Mudança |
+|---|---|---|
+| `core/database.py` | 25-30 | `OllamaEmbedder` via HTTP, `EMBED_BACKEND=ollama` default |
+| `core/hnsw_index.py` | 25 | `HNSW_DIM` 384 → 1024 |
+| `core/umc_schema.sql` | 92 | `FLOAT[384]` → `FLOAT[1024]` em `search_vec` |
+| `plugins/sqlite-vec-worker/worker.py` | 45 | `VEC_EMBED_DIM` 384 → 1024 |
+| `scripts/setup/migrate_embed_dim.py` | — | script one-shot (3639/3642 re-indexados em 407s) |
+| `tests/unit/test_p0_embedding.py` | — | 10 testes (backend, determinismo, dim, live) |
 
-**Bloqueio original:** `sqlite-lembed` (plano inicial) é incompatível com Python 3.12+ (`OperationalError: misuse of sqlite3_result_subtype()`). Solução: Ollama HTTP API.
+**Bloqueio original:** `sqlite-lembed` (plano inicial) incompatível com Python 3.12+ (`OperationalError: misuse sqlite3_result_subtype()`). Solução: Ollama HTTP API. sqlite-lembed volta no roadmap como P6 (⏸ bloqueado).
 
-**Rollback:** `EMBED_BACKEND=fastembed` + `HNSW_DIM=384`.
+**Rollback:** `EMBED_BACKEND=fastembed` + `HNSW_DIM=384` + `OLLAMA_EMBED_MODEL=all-MiniLM-L6-v2`.
 
 ### Fase P1 — Screenpipe via REST substitui mss ✅ CONCLUÍDO
 
@@ -214,7 +202,7 @@ scripts/
 
 | Arquivo | Mudança |
 |---|---|
-| `scripts/capture/parsers/screenpipe.py` (NOVO) | Cliente REST completo |
+| `scripts/capture/parsers/screenpipe.py` (NOVO) | Cliente REST: `screenpipe_alive()`, `fetch_recent_ocr()`, `fetch_recent_audio()`, `capture_screenshot()` |
 | `scripts/capture/capture_adapters.py` | entrada `"screenpipe"` em ADAPTERS |
 | `scripts/services/sinapse-mcp.py` | `_capture_screen()` tenta Screenpipe primeiro, fallback `visual_capture.py` |
 | `scripts/setup/install_services.py` | `_install_screenpipe()` (npm) |
@@ -223,14 +211,14 @@ scripts/
 
 ### Fase P2 — Graphiti + FalkorDB (lóbulo temporal) ✅ CONCLUÍDO
 
-**Objetivo:** adicionar janelas de validade temporal (`valid_at`/`invalid_at`) ao grafo neurônios/sinapses.
+**Objetivo:** janelas de validade temporal (`valid_at`/`invalid_at`) no grafo.
 **Status:** ✅ | **Commits:** `5d90f51`, `41fac0c` (robustez), `b11d6d6` (move para integrations), `16e0387` (fusão no cérebro)
 **Testes:** 14/14 (11 offline + 3 live)
 
-**Evolução em 3 etapas:**
+**Evolução em 4 commits:**
 1. `5d90f51` — Cria `core/graphiti_client.py` + Docker FalkorDB + hook no Dream Cycle
-2. `41fac0c` — Adiciona 4 camadas de robustez: smoke test (`assert_health`), circuit breaker, retry com backoff, persistência JSON-lines em `cortex/temporal/_global/grafo.jsonl`
-3. `b11d6d6` — Move de `core/` para `integrations/graphiti/` (anatomia: vendors externos ficam em `integrations/`, não no cérebro central)
+2. `41fac0c` — 4 camadas de robustez (smoke, circuit breaker, retry backoff, persistência JSON-lines em `cortex/temporal/_global/grafo.jsonl`)
+3. `b11d6d6` — Move `core/` → `integrations/graphiti/` (anatomia: vendors em `integrations/`)
 4. `16e0387` — Funda no `sinapse_query` como 7º backend (`_backend_graphiti` em `plugins/hermes/sinapse-memory.py`)
 
 **Arquivos atuais:**
@@ -238,7 +226,7 @@ scripts/
 | Arquivo | Papel |
 |---|---|
 | `integrations/graphiti/client.py` | Wrapper Graphiti/FalkorDB/Ollama; smoke + circuit + retry + persist |
-| `integrations/graphiti/__init__.py` | API pública (`push_neuron`, `search_graph`, `assert_health`, `circuit_state`) |
+| `integrations/graphiti/__init__.py` | API pública (`push_neuron`, `search_graph`, `assert_health`, `circuit_state`) + whitebox internals |
 | `integrations/graphiti/README.md` | Anatomia (lóbulo temporal), env vars, instalação |
 | `plugins/hermes/sinapse-memory.py` | `_backend_graphiti` (7º backend do orquestrador) |
 | `docker-compose.falkordb.yml` | Container FalkorDB porta 6379 |
@@ -257,18 +245,17 @@ scripts/
 
 **Objetivo:** indexação automática de entidades/relações no corpus consolidado.
 **Status:** ✅ | **Commits:** `56f1e98`, `fe68300`, `61c5285`, `dee365b`, integração Dream Cycle em 2026-06-24
-**Testes:** `test_sinapse_mcp.py` + `test_p0_embedding.py` passando
 
-**Decisão arquitetural crítica (commit `dee365b`):** LightRAG LLM fixo em `granite3-dense:2b` (1.5GB, Ollama local). Razões: (1) roda em qualquer máquina, (2) validação live: extrai 4 entities + 3 rels com JSON schema válido, (3) sem fallback Gemini/cloud — `.env` permite override só em dev. Config em `core/lightrag_index.py:25-29`.
+**Decisão arquitetural (commit `dee365b`):** LightRAG LLM fixo em `granite3-dense:2b` (1.5GB, Ollama local). Razões: (1) roda em qualquer máquina, (2) validação live: extrai 4 entities + 3 rels com JSON schema válido, (3) sem fallback Gemini/cloud — `.env` permite override só em dev. Config em `core/lightrag_index.py:25-29`.
 
 **Arquivos:**
 
 | Arquivo | Papel |
 |---|---|
 | `core/lightrag_index.py` | Wrapper LightRAG v1.5.4 (modelo local fixo) |
-| `scripts/dream/dream_cycle.py:372-381` | `index_memory()` best-effort após `push_neuron` Graphiti |
+| `scripts/dream/dream_cycle.py` | 372-381: `index_memory()` best-effort após `push_neuron` Graphiti |
 | `scripts/services/sinapse-mcp.py` | tool `sinapse_rag_query` (modos `naive|local|global|hybrid`) |
-| `install.sh:686` | nota pós-instalação `ollama pull granite3-dense:2b` |
+| `install.sh` | nota pós-instalação `ollama pull granite3-dense:2b` |
 | `pyproject.toml` | `lightrag-hku>=1.0.0` |
 
 ### Fase P4 — sinapse_query funciona como cérebro federador (7 órgãos) ✅ CONCLUÍDO
@@ -277,16 +264,16 @@ scripts/
 **Status:** ✅ | **Commit:** `16e0387` | **Data:** 2026-06-24
 **Testes:** 14/14 (`test_sinapse_mcp.py`)
 
-**Anatomia:** orquestrador `_query_vault_knowledge` em `plugins/hermes/sinapse-memory.py` itera `_READ_BACKENDS` em paralelo (circuit breaker + timeout 8s):
+**Anatomia:** orquestrador `_query_vault_knowledge` em `plugins/hermes/sinapse-memory.py:327` itera `_READ_BACKENDS` em paralelo (circuit breaker + timeout 8s):
 
 ```
 sinapse_query → _query_vault_knowledge (Context Fusion paralelo)
-                 ├── _backend_umc            # lobo temporal (índice SQLite consolidado)
-                 ├── _backend_neural_memory # cortex (associação)
-                 ├── _backend_sqlite_vec     # cortex (semântico local)
+                 ├── _backend_umc            # lóbulo temporal (índice SQLite consolidado)
+                 ├── _backend_neural_memory # córtex (associação + PPR + evolução)
+                 ├── _backend_sqlite_vec     # córtex (semântico local)
                  ├── _backend_claude_mem     # tálamo sensorial (eventos)
-                 ├── _backend_graphify       # lobo occipital (estrutural)
-                 ├── _backend_graphiti       # lobo temporal (causalidade) ✓ NOVO
+                 ├── _backend_graphify       # lobo occipital (estrutural/Leiden)
+                 ├── _backend_graphiti       # lóbulo temporal (causalidade) ✓ P2
                  └── _backend_filesystem     # lobo parietal (leitura)
 ```
 
@@ -302,7 +289,7 @@ sinapse_query → _query_vault_knowledge (Context Fusion paralelo)
 **Status:** ✅ | **Commits:** `ca1ff96`, `3eb4a35`, `ddf5504` | **Data:** 2026-06-23/24
 
 **3 documentos sincronizados:**
-- `AGENTS.md` (root) — seção 2: anatomia resumida (4 lobos + 5 lóbulos do cortex)
+- `AGENTS.md` (root) — seção 2: anatomia resumida (4 lobos + 5 lóbulos do córtex)
 - `README.md` — "Anatomia do Cérebro" antes de "Visão Geral"
 - `docs/01-architecture.md` — seção 2: anatomia completa (constantes, mapeamento, ferramentas)
 
@@ -310,355 +297,708 @@ sinapse_query → _query_vault_knowledge (Context Fusion paralelo)
 
 ---
 
-## 3. Fases pendentes (P6..P22) — origem no `09-integration-study.md`
+## 3. Já integrado no `integrations/neural-memory/` (rastreabilidade)
 
-Cada fase abaixo lista:
-- **Origem:** §n do `09-integration-study.md` ou decisão desta conversa
-- **Lobo do cérebro:** onde a fase adiciona/reforça o órgão
-- **Critério de pronto:** testes + health check + documentação
+O `integrations/neural-memory/` é um **projeto completo** (não um wrapper) que já implementa capacidades equivalentes a 7 projetos do `09-integration-study.md`. Está conectado ao cérebro via `_backend_neural_memory` (chama binário `nmem`). Esta seção documenta quais projetos do estudo já têm equivalente funcional, para que o roadmap §4 não os liste como pendentes.
 
-### Fase P6 — sqlite-lembed (embeddings nativos no SQLite) 🔜
+### 3.1 Mapeamento verificado (cada arquivo confirmado em disco)
+
+| Projeto do `09` | Onde no `09` | Equivalente em `integrations/neural-memory/` | Verificado |
+|---|---|---|---|
+| **Mem0** | §1 | `src/neural_memory/integration/adapters/mem0_adapter.py` + `mcp/mem0_sync_handler.py` + testes `test_mem0_sync_handler.py`, `test_mem0_self_hosted.py` | ✅ |
+| **OpenMemory** | §1 | `tests/unit/test_openmemory_features.py` + docs `docs/guides/memory-layer-unification.md` | ✅ |
+| **Cognee** | §1 | `mcp/cognitive_handler.py` + `mcp/recall_handler.py` (roteamento via handlers) | ✅ |
+| **MemoryOS (BAI-LAB)** | §1 | `engine/consolidation.py` + `engine/lifecycle.py` (4 módulos: Storage/Updating/Retrieval/Generation mapeiam para consolidation/lifecycle/retrieval/enrichment) | ✅ |
+| **MemOS** | §1 | `engine/learning_rule.py` + `engine/workflow_suggest.py` + `cerebro/cerebelo/padroes/Patterns.md` (skill reuse via learning rules + padrões) | ✅ |
+| **A-MEM** | §1 + §6 | `engine/brain_evolution.py` + `engine/consolidation.py` + testes `test_related_memories.py`, `test_cross_memory_link.py` (link evolution contínuo — complementa Graphiti que extrai edges novas) | ✅ |
+| **HippoRAG 2** | §4 | `engine/ppr_activation.py` (Personalized PageRank com `damping`, `max_iterations`, `epsilon` — exato algoritmo do HippoRAG) | ✅ |
+
+### 3.2 DuckDB analytics (descoberta em §0.6)
+
+O DuckDB (P12 da 2ª passada) **não é fase pendente** — já está em `scripts/analytics/hive_analytics.py` com 9 queries analíticas (growth, top_topics, quarantine_rate, intent_by_goal, ...). Dep `duckdb>=0.10` já no `pyproject.toml`. Marcar como DONE.
+
+### 3.3 Implicação para o roadmap
+
+A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passada reduz para **6** (P6..P13) porque:
+- Mem0, OpenMemory, Cognee, MemoryOS, MemOS, A-MEM, HippoRAG 2 → já no neural-memory (rastreabilidade em §3.1)
+- DuckDB → já em `scripts/analytics/` (§3.2)
+- Microsoft GraphRAG → coberto por RAPTOR (P10) + PPR do neural-memory (§5)
+
+---
+
+## 4. Fases pendentes (P6..P13)
+
+6 fases, cada uma com: origem no `09`, lobo do cérebro, estado atual verificado, arquivos a criar/modificar (linhas exatas quando aplicável), código de exemplo, env vars, comandos de instalação, testes, critério de pronto.
+
+### Fase P6 — sqlite-lembed (embeddings nativos no SQLite) ⏸
 
 **Origem:** `09` §3 — sqlite-lembed + sqlite-vec duo nativo.
-**Lobo:** Cortex (associação). Substituiria o atual `OllamaEmbedder` (HTTP).
-**ROI:** Alto | **Esforço:** Baixo (quando bug for corrigido) | **Status:** ⏸ BLOQUEADO
-**Bloqueio:** `OperationalError: misuse of sqlite3_result_subtype()` em Python 3.12+. Issue upstream (`asg017/sqlite-lembed`).
+**Lobo:** Córtex (associação). Substituiria `OllamaEmbedder` (HTTP) por embeddings 100% in-process.
+**ROI:** Alto | **Esforço:** Baixo (quando desbloqueado) | **Status:** ⏸ BLOQUEADO
+**Bloqueio:** `OperationalError: misuse of sqlite3_result_subtype()` em Python 3.12+. Issue upstream `asg017/sqlite-lembed`.
+
+**Estado atual (verificado):**
+- `core/database.py:93` `get_connection()` já carrega `sqlite-vec` via `enable_load_extension` (linha 111-116)
+- `pyproject.toml` tem `sqlite-vec>=0.1.1` mas **não tem** `sqlite-lembed`
+- `EMBED_BACKEND=ollama` é o default (P0)
+
 **Tarefas:**
-- [ ] Monitorar upstream para fix Python 3.12+
-- [ ] Quando corrigido: `pip install sqlite-lembed`
-- [ ] `_init_lembed()` em `core/database.py:get_connection()`
-- [ ] `EMBED_BACKEND=lembed` no `.env`
-- [ ] Migration script 1024→1024 (sem mudança) — só troca backend
-**Critério de pronto:** `EMBED_BACKEND=lembed` funciona sem regressão nos 466+ testes existentes. Sem Ollama rodando (embeddings in-process).
-**ROI esperado:** elimina OllamaEmbedder → redução de dependência externa no pipeline de indexação.
+- [ ] Monitorar upstream `asg017/sqlite-lembed` para fix Python 3.12+
+- [ ] Quando corrigido: `uv add sqlite-lembed` (vai para `pyproject.toml`)
+- [ ] `core/database.py:93` — adicionar após `sqlite_vec.load(conn)`:
+  ```python
+  if os.environ.get("EMBED_BACKEND") == "lembed":
+      import sqlite_lembed
+      conn.enable_load_extension(True)
+      try:
+          sqlite_lembed.load(conn)
+          conn.execute("SELECT lembed_init_model('nomic-embed-text-v1.5.Q4_K_M.gguf')")
+      finally:
+          conn.enable_load_extension(False)
+  ```
+- [ ] `core/indexing.py` — substituir chamada `embed_text()` externa por:
+  ```sql
+  INSERT INTO vec_memories SELECT lembed(content) FROM memories WHERE id=?
+  ```
+- [ ] Baixar GGUF: `nomic-embed-text-v1.5.Q4_K_M.gguf` (~270MB, 384d) OU `bge-m3` GGUF (1024d)
+- [ ] `.env`: `EMBED_BACKEND=lembed`, `LEMBED_MODEL_PATH=...gguf`
+- [ ] Migration script: re-indexar 3639+ neurônios (como P0 fez)
 
-### Fase P7 — MegaMem (Streamable HTTP, MCP spec 2025-03-26) 🔜
+**Critério de pronto:**
+- `EMBED_BACKEND=lembed` funciona sem regressão nos 466+ testes existentes
+- Ollama NÃO precisa estar rodando (embeddings in-process)
+- Benchmark: latência de `embed_text()` ≤ 50ms (vs Ollama HTTP 91ms)
+- `tests/unit/test_p0_embedding.py` continua passando (interface agnóstica ao backend)
 
-**Origem:** `09` §2 — MegaMem (Obsidian + MCP + SQLite).
-**Lobo:** Tronco (transporte MCP). Migra de stdio para Streamable HTTP.
+**Rollback:** `EMBED_BACKEND=ollama` no `.env`.
+
+### Fase P7 — MegaMem Streamable HTTP (MCP spec 2025-03-26) 🔜
+
+**Origem:** `09` §2 — MegaMem (Obsidian + MCP + SQLite, suporte Streamable HTTP).
+**Lobo:** Tronco (transporte MCP). Migra de stdio para Streamable HTTP — habilita múltiplos agentes conectados simultaneamente ao mesmo cérebro.
 **ROI:** Alto | **Esforço:** Médio | **Status:** 🔜 Pendente
+
+**Estado atual (verificado):**
+- `scripts/services/sinapse-mcp.py` é **stdio** (stdin.readline loop, JSON-RPC, 629 linhas)
+- `scripts/services/sinapse-api.py` é REST FastAPI :37702 (não é MCP Streamable HTTP)
+- Não existe `*mcp-http*` ou `aiohttp` em nenhum arquivo MCP
+
 **Tarefas:**
-- [ ] Avaliar viabilidade da migração stdio → Streamable HTTP
-- [ ] Se viável: criar `scripts/services/sinapse-mcp-http.py` (paralelo ao stdio)
-- [ ] `pyproject.toml`: `aiohttp>=3.9`
-- [ ] Adicionar systemd unit `sinapse-mcp-http.service` em `install_services.py`
-- [ ] Testes: cliente MCP 2025-03-26 rodando contra o server novo
-**Critério de pronto:** múltiplos clientes MCP conectados simultaneamente ao mesmo server; testes E2E de Streamable HTTP passam.
-**Decisão dependente:** avaliar se a migração é compatível com agentes atuais (Kilo, Hermes, Codex) que falam stdio.
+- [ ] Criar `scripts/services/sinapse-mcp-http.py` (paralelo ao stdio, não substitui):
+  ```python
+  #!/usr/bin/env python3
+  """MCP server via Streamable HTTP (spec 2025-03-26).
+  Roda em paralelo ao sinapse-mcp.py (stdio). Permite múltiplos agentes simultâneos.
+  Uso: python sinapse-mcp-http.py --port 37703
+  """
+  from aiohttp import web
+  from scripts.services.sinapse_mcp import handle_request, TOOLS  # reutiliza lógica
 
-### Fase P8 — OpenMemory MCP (camada de memória compartilhada) 🔜
+  async def handle_mcp(request: web.Request) -> web.Response:
+      body = await request.json()
+      result = handle_request(body)
+      return web.json_response(result or {"jsonrpc": "2.0", "result": None, "id": body.get("id")})
 
-**Origem:** `09` §1 — OpenMemory (by Mem0).
-**Lobo:** Diencéfalo (camada de memória cross-agente). Complementa o cérebro atual: ao invés de interceptar sessões via arquivo/inotify, agentes escrevem direto no OpenMemory.
-**ROI:** Alto | **Esforço:** Baixo | **Status:** 🔜 Pendente
-**Tarefas:**
-- [ ] `pip install openmemory` (ou clone do MCP server)
-- [ ] Configurar OpenMemory como endpoint MCP para Claude Code, Codex, Kilo Code
-- [ ] Hive-Mind consome via REST API local (`localhost:port/memories`)
-- [ ] Adicionar `_backend_openmemory` ao `sinapse_query` (8º backend)
-**Critério de pronto:** 2+ agentes diferentes escrevem memórias no OpenMemory; `sinapse_query` retorna memórias cross-agente.
-**Anatomia:** o OpenMemory vira um 8º backend do orquestrador. Cache em `cortex/temporal/_global/openmemory_cache.json` para fallback.
+  async def handle_tools_list(request: web.Request) -> web.Response:
+      return web.json_response({"tools": TOOLS})
 
-### Fase P9 — Langfuse Self-Hosted (observabilidade via OpenTelemetry) 🔜
+  def main():
+      import argparse
+      ap = argparse.ArgumentParser()
+      ap.add_argument("--port", type=int, default=37703)
+      ap.add_argument("--host", default="127.0.0.1")
+      args = ap.parse_args()
+      app = web.Application()
+      app.router.add_post("/mcp", handle_mcp)
+      app.router.add_get("/mcp/tools", handle_tools_list)
+      app.router.add_get("/health", lambda r: web.json_response({"status": "ok"}))
+      print(f"MCP HTTP server em http://{args.host}:{args.port}/mcp")
+      web.run_app(app, host=args.host, port=args.port)
 
-**Origem:** `09` §5 — Langfuse + OpenTelemetry.
-**Lobo:** Cerebelo (ritmo/observabilidade). Captura spans do Dream Cycle, capture pipeline, MCP server.
-**ROI:** Alto | **Esforço:** Médio | **Status:** 🔜 Pendente
-**Tarefas:**
-- [ ] `docker-compose.langfuse.yml` (já existe como draft no `10` original)
-- [ ] `core/telemetry.py` (já existe com `init_telemetry()`, `span()` context manager)
-- [ ] `pyproject.toml`: `opentelemetry-sdk`, `opentelemetry-exporter-otlp-proto-http`
-- [ ] Instrumentar `scripts/dream/dream_cycle.py` (spans em cada etapa)
-- [ ] Instrumentar `scripts/capture/capture_core.py` (span em `ingest()`)
-- [ ] `.env`: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_HOST`
-- [ ] Adicionar Langfuse MCP (`avivsinai/langfuse-mcp`) como ferramenta do cérebro
-**Critério de pronto:** Dream Cycle gera traces em `http://localhost:3100`; replay de sessão possível; `sinapse_query` aceita `?trace_id=` para correlacionar com Langfuse.
-**Opt-in:** só ativa se `LANGFUSE_PUBLIC_KEY` estiver definido em `.env`. Sem cloud lock-in.
+  if __name__ == "__main__":
+      main()
+  ```
+- [ ] `pyproject.toml`: adicionar `aiohttp>=3.9`
+- [ ] `scripts/setup/install_services.py` — adicionar unit systemd:
+  ```python
+  "sinapse-mcp-http.service": """[Unit]
+  Description=Hive-Mind MCP HTTP Server (Streamable HTTP spec 2025-03-26)
+  After=network.target
+  [Service]
+  Type=simple
+  ExecStart={venv}/python {project}/scripts/services/sinapse-mcp-http.py --port 37703
+  Restart=always
+  RestartSec=5
+  [Install]
+  WantedBy=default.target
+  """,
+  ```
+- [ ] `register-mcp.sh` — detectar agentes que falam Streamable HTTP (spec 2025-03-26) e registrar `http://localhost:37703/mcp` em vez de stdio
+- [ ] Testes: `tests/integration/test_mcp_http.py` — cliente MCP Streamable HTTP contra o server
 
-### Fase P10 — CR-SQLite (sync multi-dispositivo) 🔜
+**Critério de pronto:**
+- 2+ clientes MCP (ex: Claude Code + Codex) conectados simultaneamente ao mesmo server sem conflito
+- Testes E2E Streamable HTTP passam (initialize, tools/list, tools/call)
+- stdio server continua funcionando (compatibilidade retroativa)
+- `sinapse_health` reporta o novo endpoint
+
+**Decisão dependente:** avaliar se agentes atuais (Kilo, Hermes, Codex, Cursor) suportam spec 2025-03-26. Se nenhum suportar, deferir.
+
+### Fase P8 — CR-SQLite (sync multi-dispositivo) 🔜
 
 **Origem:** `09` §7 — CR-SQLite (vlcn-io).
-**Lobo:** Tronco (infra de sincronização).
-**ROI:** Alto | **Esforço:** Médio | **Status:** 🔜 Pendente
+**Lobo:** Tronco (infra de sincronização). Habilita instâncias Hive-Mind em workstation + laptop + servidor convergindo sem conflitos.
+**ROI:** Alto | **Esforço:** Médio | **Status:** 🔜 Pendente | **Risco:** Médio (migração de schema — backup antes)
+
+**Estado atual (verificado):**
+- Nenhum arquivo em `core/` ou `scripts/` menciona `crsqlite`, `crsql_as_crr`, ou `crsql_changes` — gap real confirmado
+- Tabelas sincronizáveis (de `core/umc_schema.sql`): `neurons`, `synapses`, `observations`, `vault`, `ambiguities`, `visual_memories`, `document_memories`, `causal_edges`, `goals`
+- `capture-state.db` NÃO deve sincronizar (local-only, SeenStore)
+
 **Tarefas:**
-- [ ] `pip install crsqlite` (extensão loadable)
-- [ ] `core/crdt_sync.py` — helpers `enable_crdt()`, `get_changes_since()`, `apply_changes()`, `current_db_version()`
-- [ ] Integrar em `core/database.py:get_connection()` (`HIVE_CRDT_SYNC=true`)
-- [ ] Tabelas CRR: `neurons`, `synapses`, `observations`, `visual_memories` (NÃO `capture-state.db` — local-only)
-- [ ] `scripts/services/sinapse-sync.py` — CLI (`--export`, `--import`, `--push`, `--pull`)
+- [ ] `uv add crsqlite` (extensão loadable)
+- [ ] Criar `core/crdt_sync.py`:
+  ```python
+  """CR-SQLite: sincronização CRDT para hive_mind.db."""
+  from __future__ import annotations
+  import sqlite3
+  import os
+
+  # Tabelas que participam da sincronização CRDT.
+  # NÃO incluir capture-state.db — ele é local-only.
+  CRDT_TABLES = ["neurons", "synapses", "observations", "visual_memories",
+                 "document_memories", "causal_edges", "goals", "vault", "ambiguities"]
+
+  _crdt_initialized = False
+
+  def enable_crdt(conn: sqlite3.Connection) -> bool:
+      """Habilita CR-SQLite e converte tabelas para CRR."""
+      global _crdt_initialized
+      if _crdt_initialized:
+          return True
+      try:
+          import crsqlite
+          conn.enable_load_extension(True)
+          crsqlite.load(conn)
+          for table in CRDT_TABLES:
+              try:
+                  conn.execute(f"SELECT crsql_as_crr('{table}')")
+              except sqlite3.OperationalError:
+                  pass  # tabela já é CRR ou não existe
+          conn.commit()
+          _crdt_initialized = True
+          return True
+      except ImportError:
+          return False
+
+  def get_changes_since(conn: sqlite3.Connection, db_version: int = 0) -> list[tuple]:
+      return conn.execute(
+          "SELECT * FROM crsql_changes WHERE db_version > ?", (db_version,)
+      ).fetchall()
+
+  def apply_changes(conn: sqlite3.Connection, changes: list[tuple]) -> int:
+      applied = 0
+      for change in changes:
+          try:
+              conn.execute("INSERT INTO crsql_changes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", change)
+              applied += 1
+          except sqlite3.Error:
+              pass
+      conn.commit()
+      return applied
+
+  def current_db_version(conn: sqlite3.Connection) -> int:
+      row = conn.execute("SELECT crsql_db_version()").fetchone()
+      return row[0] if row else 0
+  ```
+- [ ] Integrar em `core/database.py:93` `get_connection()` — adicionar antes do `return conn`:
+  ```python
+  if os.environ.get("HIVE_CRDT_SYNC", "").lower() == "true":
+      from core.crdt_sync import enable_crdt
+      enable_crdt(conn)
+  return conn
+  ```
+- [ ] Criar `scripts/services/sinapse-sync.py` (CLI):
+  ```python
+  #!/usr/bin/env python3
+  """Sincronização CRDT entre instâncias Hive-Mind.
+  Uso:
+    sinapse-sync.py --export > changes.json
+    sinapse-sync.py --import changes.json
+    sinapse-sync.py --push http://remote:37702
+    sinapse-sync.py --pull http://remote:37702
+  """
+  import argparse, json, sys
+  from pathlib import Path
+  from core.database import get_connection
+  from core.crdt_sync import get_changes_since, apply_changes, current_db_version
+
+  def cmd_export(since_version: int = 0):
+      conn = get_connection()
+      changes = get_changes_since(conn, since_version)
+      print(json.dumps({"version": current_db_version(conn),
+                         "changes": [list(c) for c in changes]}))
+
+  def cmd_import(path: str):
+      data = json.loads(Path(path).read_text())
+      conn = get_connection()
+      applied = apply_changes(conn, [tuple(c) for c in data["changes"]])
+      print(f"Aplicadas {applied} mudanças (versão remota: {data['version']})")
+
+  def main():
+      ap = argparse.ArgumentParser()
+      ap.add_argument("--export", action="store_true")
+      ap.add_argument("--import", dest="import_file")
+      ap.add_argument("--since", type=int, default=0)
+      args = ap.parse_args()
+      if args.export: cmd_export(args.since)
+      elif args.import_file: cmd_import(args.import_file)
+      else: ap.print_help()
+
+  if __name__ == "__main__":
+      main()
+  ```
+- [ ] Backup de `hive_mind.db` antes de habilitar CRDT (migration irreversível)
 - [ ] `.env`: `HIVE_CRDT_SYNC=true`
-**Critério de pronto:** dois diretórios sincronizam alterações sem perda; `tests/integration/test_crdt.py` passa.
-**Anatomia:** CR-SQLite é infra do Tronco, não é um órgão cognitivo. Mantém `cortex/temporal/_global/` (vault Obsidian) sincronizado entre workstation + laptop + servidor.
+- [ ] `tests/integration/test_crdt.py` — sync entre dois diretórios
 
-### Fase P11 — A-MEM (link evolution no grafo) 🔜
+**Critério de pronto:**
+- Dois diretórios sincronizam alterações sem perda (test A: inst1 adiciona neurônio, export→import→inst2 tem o neurônio)
+- `tests/integration/test_crdt.py` passa (4+ testes: export, import, conflict resolution, version tracking)
+- `capture-state.db` permanece local-only (não sincroniza)
+- Backup restaurável se migration falhar
 
-**Origem:** `09` §1 + §6 — A-MEM (AGI Research, NeurIPS 2025).
-**Lobo:** Diencéfalo (relay entre memórias). Links associativos que evoluem dinamicamente.
-**ROI:** Médio | **Esforço:** Médio | **Status:** 🔜 Pendente
+### Fase P9 — Langfuse Self-Hosted (instrumentação real) 🔜
+
+**Origem:** `09` §5 — Langfuse + OpenTelemetry.
+**Lobo:** Cerebelo (ritmo/observabilidade). Tracing distribuído do Dream Cycle e pipeline de captura.
+**ROI:** Alto | **Esforço:** Médio | **Status:** 🔜 Pendente
+
+**Estado atual (verificado):**
+- `core/telemetry.py` é **OTEL completo e funcional** (NÃO draft como afirmei na 1ª passada):
+  - `_langfuse_headers()` — auth Basic via `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY`
+  - `init_telemetry()` — idempotente, cria `TracerProvider` + `BatchSpanProcessor` + `OTLPSpanExporter` → `/api/public/otel/v1/traces`
+  - `span(name, attributes)` — context manager que cria span OTEL (no-op se desabilitado)
+- `docker-compose.langfuse.yml` existe (porta 3100, volume `claude-mem/data/langfuse`)
+- **GAP REAL:** `opentelemetry-sdk` e `opentelemetry-exporter-otlp-proto-http` **NÃO** estão no `pyproject.toml`
+- **GAP REAL:** `telemetry.py` **não é importado em nenhum script** (`grep -rln "from core.telemetry import" scripts/ core/` retorna vazio) — não está instrumentado
+
 **Tarefas:**
-- [ ] `pip install amem` (ou clone de `agiresearch/A-mem`)
-- [ ] `core/amem_linker.py` — `add_and_evolve()` + `_write_links_to_hive()`
-- [ ] Conectar ao Dream Cycle: chamar após `index_memory` (LightRAG)
-- [ ] Persistir links sugeridos como `synapses` no SQLite com `kind='amem'`
-- [ ] `pyproject.toml`: `amem` ou path do clone
-**Critério de pronto:** links novos aparecem no grafo após Dream Cycle; `tests/integration/test_amem.py` passa.
-**Decisão pendente:** o A-MEM evolui links automaticamente; o Dream Cycle faz isso explicitamente. Avaliar se a evolução implícita do A-MEM substitui ou complementa a etapa de Síntese.
+- [ ] `pyproject.toml`: adicionar
+  ```
+  opentelemetry-sdk>=1.20
+  opentelemetry-exporter-otlp-proto-http>=1.20
+  ```
+- [ ] Deploy Langfuse: `docker compose -f docker-compose.langfuse.yml up -d` (porta 3100)
+- [ ] Gerar keys no dashboard `http://localhost:3100` → `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`
+- [ ] Instrumentar `scripts/dream/dream_cycle.py` — no início de `_run_dream_cycle_inner()`:
+  ```python
+  from core.telemetry import init_telemetry, span
+  init_telemetry()
+  # Envolver etapas:
+  with span("dream.distiller", {"obs_count": len(observations)}):
+      distilled = agent_distill_and_validate(...)
+  with span("dream.validator", {"distiller_output": str(distilled)[:200]}):
+      validated = agent_validate(...)
+  with span("dream.synthesis", {"session_id": session_id}):
+      synthesis = run_synthesis_cycle(...)
+  with span("dream.persist", {"persisted": total_persisted}):
+      _route_and_persist_project(...)
+  ```
+- [ ] Instrumentar `scripts/capture/capture_core.py` — em `ingest()`:
+  ```python
+  from core.telemetry import span
+  with span("capture.ingest", {"platform": platform, "sid": sid}):
+      # ... loop de turns existente ...
+  ```
+- [ ] Instrumentar `scripts/services/sinapse-mcp.py` — em `handle_request()`:
+  ```python
+  from core.telemetry import span, init_telemetry
+  init_telemetry()  # no main()
+  with span(f"mcp.{tool_name}", {"tool": tool_name}):
+      result = handler(tool_args)
+  ```
+- [ ] `.env`:
+  ```bash
+  LANGFUSE_PUBLIC_KEY=pk-lf-...
+  LANGFUSE_SECRET_KEY=sk-lf-...
+  LANGFUSE_HOST=http://localhost:3100
+  ```
+- [ ] `install.sh` — nota pós-instalação sobre Langfuse (opt-in via env)
+- [ ] Opcional: adicionar Langfuse MCP (`avivsinai/langfuse-mcp`) como ferramenta para o cérebro consultar seus próprios traces
 
-### Fase P12 — Cognee (recall router multi-hop) 🔜
+**Critério de pronto:**
+- Dream Cycle gera traces visíveis em `http://localhost:3100` (replay de sessão)
+- Cada span tem atributos (`obs_count`, `session_id`, etc.)
+- `sinapse_query` aceita correlação com trace_id (opcional)
+- Opt-in: sem `LANGFUSE_PUBLIC_KEY` no `.env`, `telemetry.py` é no-op (zero overhead)
+- `tests/unit/test_telemetry.py` — 4 testes (init idempotente, span no-op quando desabilitado, span com attributes, erro não propagado)
 
-**Origem:** `09` §1 — Cognee (topoteretes).
-**Lobo:** Cortex (busca semântica com roteamento automático).
-**ROI:** Médio | **Esforço:** Médio | **Status:** 🔜 Pendente
-**Tarefas:**
-- [ ] `pip install cognee`
-- [ ] `integrations/cognee/client.py` — wrapper Python
-- [ ] Cognee ingere corpus do Hive-Mind e gera knowledge graph próprio (não conflita com o Graphiti)
-- [ ] Adicionar `_backend_cognee` ao `sinapse_query` (9º backend)
-- [ ] Quando query multi-hop: roteia para Cognee em vez de sqlite-vec
-**Critério de pronto:** query "o que se relaciona com X" retorna top-K com roteamento automático; testes de recall multi-hop passam.
-**Risco:** Cognee tem ontologia gerada por LLM — pode divergir do cérebro. Avaliar qualidade das edges geradas vs. Graphiti (que usa FalkorDB).
-
-### Fase P13 — HippoRAG 2 (retrieval multi-hop via PageRank) 🔜
-
-**Origem:** `09` §4 — HippoRAG 2 (OSU NLP Group).
-**Lobo:** Cortex (retrieval associativo). Personalizado PageRank sobre knowledge graph.
-**ROI:** Médio | **Esforço:** Alto | **Status:** 🔜 Pendente
-**Tarefas:**
-- [ ] Clone `OSU-NLP-Group/HippoRAG` em `integrations/hipporag/`
-- [ ] Ingerir o mesmo grafo do Graphiti/FalkorDB
-- [ ] Adicionar tool `sinapse_associative_search` (top-K via PageRank)
-- [ ] Comparar qualidade do recall com sqlite-vec (factual) e LightRAG (grafo)
-**Critério de pronto:** query "o que se relaciona com X que vi na sessão de Y semanas atrás" retorna resultados úteis; benchmark contra HippoRAG paper.
-**Risco:** complexidade alta. Avaliar se sqlite-vec + Graphiti já cobrem o caso.
-
-### Fase P14 — RAPTOR (sumário recursivo em múltiplos níveis) 🔜
+### Fase P10 — RAPTOR (nível mensal/anual — recursão real) 🔜
 
 **Origem:** `09` §6 — RAPTOR (Stanford 2024).
-**Lobo:** Cortex frontal (síntese hierárquica).
+**Lobo:** Córtex frontal (síntese hierárquica multi-nível).
 **ROI:** Médio | **Esforço:** Alto | **Status:** 🔜 Pendente
+
+**Estado atual (verificado):**
+- `scripts/dream/daily_writer.py` — nível 1 (diário) ✅ existe
+- `scripts/dream/weekly_synthesizer.py` — nível 2 (semanal, 325 linhas, gerado por `sinapse-weekly.timer` Sun 04:00) ✅ existe
+- **GAP REAL:** não existe `monthly_synthesizer.py` nem `yearly_synthesizer.py` — só 2 níveis, sem recursão real (sem nível 3 mensal sobre as semanas, sem nível 4 anual sobre os meses)
+- `grep -c "recursive\|hierarchical\|level.*3\|monthly\|mensal" scripts/dream/weekly_synthesizer.py` → 0
+
 **Tarefas:**
-- [ ] Clone `parthsarthi03/raptor` em `integrations/raptor/`
-- [ ] Scheduler no Dream Cycle:
-  - Nível 1: destilação diária cria sumário do dia
-  - Nível 2: destilação semanal sobre os diários
-  - Nível 3: destilação mensal sobre as semanas
-- [ ] Cada nível armazenado como tipo de neurônio diferente no grafo
-- [ ] Adicionar tool `sinapse_hierarchical_search` (consulta top-down)
-**Critério de pronto:** query "resuma o que aconteceu em 2026-06" retorna sumário do nível 3 (mês); testes de destilação em múltiplos níveis passam.
+- [ ] Criar `scripts/dream/monthly_synthesizer.py` — nível 3, baseado no `weekly_synthesizer.py`:
+  ```python
+  #!/usr/bin/env python3
+  """Monthly Synthesizer — nível 3 do RAPTOR.
+  Consolida 4-5 semanais do mês em 1 sumário mensal.
+  Disparado por systemd `sinapse-monthly.timer` (1º de cada mês 05:00).
+  Uso: python monthly_synthesizer.py --year 2026 --month 6
+  """
+  import argparse, sys
+  from pathlib import Path
+  from datetime import date
+  from scripts.dream.weekly_synthesizer import collect_daily_logs, generate_markdown
 
-### Fase P15 — Mem0 (camada de memória universal para agentes) 🔜
+  def get_month_weeks(year: int, month: int) -> list[tuple[int, int]]:
+      """Retorna [(year, week_num), ...] para todas as semanas do mês."""
+      # ... calendar.isocalendar() ...
 
-**Origem:** `09` §1 — Mem0 (mem0ai).
-**Lobo:** Diencéfalo (camada cross-tool). Universalidade: outros agentes (não-Hive-Mind) já falam Mem0 MCP.
-**ROI:** Médio | **Esforço:** Médio | **Status:** 🔜 Pendente
-**Tarefas:**
-- [ ] Avaliar: Mem0 substitui ou complementa o cérebro? Risco de duplicar gestão de memória.
-- [ ] Se complementar: criar adapter em `integrations/mem0/client.py` que escreve neurônios no `hive_mind.db` quando Mem0 recebe `remember()`
-- [ ] `pyproject.toml`: `mem0ai`
-- [ ] Documentar coexistência Mem0 + Hive-Mind (cada um serve um nicho)
-**Critério de pronto:** decisão documentada (merge ou coexistência) — `09` recomenda coexistência como camada de adapter.
-**Risco:** Mem0 tem sua própria deduplicação e extração. Avaliar se conflita com o Dream Cycle.
+  def collect_weekly_summaries(year: int, month: int) -> list[dict]:
+      """Lê os .md das semanas do mês de cerebro/cerebelo/semanal/."""
+      # ...
 
-### Fase P16 — LanceDB (storage multimodal para captura visual) 🔜
+  def main():
+      ap = argparse.ArgumentParser()
+      ap.add_argument("--year", type=int, required=True)
+      ap.add_argument("--month", type=int, required=True)
+      args = ap.parse_args()
+      # ... consolidar semanas → mensal ...
+  ```
+- [ ] Criar `scripts/dream/yearly_synthesizer.py` — nível 4, sobre os mensais
+- [ ] `scripts/setup/install_services.py` — adicionar timers:
+  ```python
+  "sinapse-monthly.timer": """[Unit]
+  Description=Hive-Mind Monthly Synthesizer (RAPTOR nível 3)
+  [Timer]
+  OnCalendar=*-*-01 05:00
+  Persistent=true
+  [Install]
+  WantedBy=default.target
+  """,
+  "sinapse-yearly.timer": """[Unit]
+  Description=Hive-Mind Yearly Synthesizer (RAPTOR nível 4)
+  [Timer]
+  OnCalendar=*-01-01 06:00
+  Persistent=true
+  [Install]
+  WantedBy=default.target
+  """,
+  ```
+- [ ] Tool `sinapse_hierarchical_search` no MCP — consulta top-down (mês → semana → dia):
+  ```python
+  def _hierarchical_search(query: str, level: str = "auto") -> dict:
+      """Busca em múltiplos níveis de abstração.
+      level: 'daily' | 'weekly' | 'monthly' | 'yearly' | 'auto' (todos)
+      """
+  ```
+- [ ] Adicionar ao `_backend_*` ou como tool separada no `sinapse_query` (decidir anatomia)
+- [ ] `tests/integration/test_raptor.py` — 4 testes (consolidação mensal, anual, hierarchical search, levels)
 
-**Origem:** `09` §3 — LanceDB.
-**Lobo:** Cortex occipital (storage multimodal). Suporta imagens, vídeos, embeddings de screenshots.
+**Critério de pronto:**
+- Query "resuma o que aconteceu em 2026-06" retorna sumário do nível 3 (mês)
+- Query "resuma 2026" retorna sumário do nível 4 (ano)
+- Timers `sinapse-monthly.timer` e `sinapse-yearly.timer` ativos
+- Cada nível armazenado em `cerebro/cerebelo/{mensal,anual}/`
+- 4+ testes passando
+
+### Fase P11 — LanceDB (storage multimodal para captura visual) 🔜
+
+**Origem:** `09` §3 — LanceDB (embedded columnar + vector, multimodal).
+**Lobo:** Córtex occipital (storage multimodal). Suporta embeddings de imagens/vídeos (CLIP), não só texto.
 **ROI:** Médio | **Esforço:** Alto | **Status:** 🔜 Pendente
+
+**Estado atual (verificado):**
+- `core/database.py:221` `add_visual_memory(image_path, description, ocr_text, neuron_id, metadata)` existe
+- `core/umc_schema.sql:110` `visual_memories` table existe — MAS armazena só `image_path` + `description` + `ocr_text` (texto), **não embedding visual CLIP**
+- LanceDB ausente do `pyproject.toml` e de todo código — gap real
+- Screenpipe (P1) captura screenshots mas não gera embedding visual
+
 **Tarefas:**
-- [ ] `pip install lancedb`
-- [ ] `integrations/lancedb/client.py` — storage de embeddings visuais (screenshots do Screenpipe)
-- [ ] Integração com captura visual: cada screenshot → embedding (CLIP) → LanceDB
-- [ ] Adicionar tool `sinapse_visual_search` (busca por similaridade visual)
-**Critério de pronto:** screenshots do Screenpipe indexados; busca visual ("screenshots parecidos com X") retorna resultados relevantes.
+- [ ] `uv add lancedb`
+- [ ] `uv add clip-embed` ou `uv add transformers torch` (para CLIP — escolher leve: `open-clip-torch` ou `clip-anylen`)
+- [ ] Criar `integrations/lancedb/client.py`:
+  ```python
+  """LanceDB — storage multimodal para embeddings visuais (córtex occipital).
+  Indexa screenshots do Screenpipe como embeddings CLIP para busca visual.
+  """
+  from pathlib import Path
+  import lancedb
+  import os
 
-### Fase P17 — DuckDB (analytics OLAP sobre o corpus) 🔜
+  _db = None
+  _WORKING_DIR = str(Path(os.environ.get("SINAPSE_HOME", ".")) / "claude-mem" / "data" / "lancedb")
 
-**Origem:** `09` §3 — DuckDB + extensão vetorial `vss`.
-**Lobo:** Cerebelo (análise estatística). DuckDB lê `hive_mind.db` via `ATTACH DATABASE` sem migrar dados.
-**ROI:** Médio | **Esforço:** Baixo | **Status:** 🔜 Pendente
-**Tarefas:**
-- [ ] `pip install duckdb`
-- [ ] `core/duckdb_analytics.py` — módulo que abre `hive_mind.db` via DuckDB
-- [ ] Queries analíticas: distribuição temporal de neurônios, top-k projetos por densidade, etc.
-- [ ] Tool `sinapse_analytics` (somente leitura, agregada)
-- [ ] `pyproject.toml`: `duckdb>=0.10` (já presente)
-**Critério de pronto:** 5+ queries analíticas rodando sem copiar dados; testes de analytics retornam resultados esperados.
+  def get_db():
+      global _db
+      if _db is None:
+          Path(_WORKING_DIR).mkdir(parents=True, exist_ok=True)
+          _db = lancedb.connect(_WORKING_DIR)
+      return _db
 
-### Fase P18 — OmniParser v2 (UI screenshot parsing) 🔜
+  def index_screenshot(image_path: str, description: str, ocr_text: str = "") -> bool:
+      """Indexa screenshot com embedding CLIP + texto."""
+      try:
+          import clip_embed  # ou transformers CLIP
+          db = get_db()
+          table = db.open_table("screenshots") if "screenshots" in db.table_names() \
+              else db.create_table("screenshots", data=[{"image_path": "", "vector": [0.0]*512, "description": "", "ocr_text": ""}])
+          vec = clip_embed.embed_image(image_path)  # CLIP 512d ou 768d
+          table.add([{
+              "image_path": image_path,
+              "vector": vec,
+              "description": description,
+              "ocr_text": ocr_text,
+          }])
+          return True
+      except Exception as e:
+          print(f"  [LanceDB] index falhou: {e}")
+          return False
+
+  def search_visual(query_image_path: str = None, query_text: str = None, top_k: int = 10) -> list[dict]:
+      """Busca screenshots por similaridade visual (CLIP) ou texto."""
+      db = get_db()
+      if "screenshots" not in db.table_names():
+          return []
+      table = db.open_table("screenshots")
+      if query_image_path:
+          qvec = clip_embed.embed_image(query_image_path)
+      else:
+          qvec = clip_embed.embed_text(query_text)
+      return table.search(qvec).limit(top_k).to_list()
+  ```
+- [ ] Conectar ao Dream Cycle `run_visual_dream_stage()` — após `add_visual_memory()`, chamar `index_screenshot()`:
+  ```python
+  # Em scripts/dream/dream_cycle.py, dentro de run_visual_dream_stage:
+  try:
+      from integrations.lancedb.client import index_screenshot
+      index_screenshot(str(img_path), analysis.description, analysis.ocr)
+  except ImportError:
+      pass
+  ```
+- [ ] Tool `sinapse_visual_search` no MCP:
+  ```python
+  def _visual_search(query: str = "", image_path: str = "", top_k: int = 10) -> dict:
+      """Busca visual: screenshots parecidos com texto ou imagem de referência."""
+      from integrations.lancedb.client import search_visual
+      results = search_visual(query_image_path=image_path or None,
+                              query_text=query or None, top_k=top_k)
+      return {"results": results, "count": len(results)}
+  ```
+- [ ] `pyproject.toml`: `lancedb>=0.5`, `clip-embed` ou `transformers` + `torch`
+- [ ] `tests/integration/test_lancedb.py` — 4 testes (index, search visual, search text, empty)
+
+**Critério de pronto:**
+- Screenshots do Screenpipe indexados com embedding CLIP
+- Busca visual ("screenshots parecidos com X") retorna top-K relevante
+- Busca por texto ("tela com terminal") retorna screenshots correspondentes
+- `tests/integration/test_lancedb.py` passa
+- Storage em `claude-mem/data/lancedb/` (anatomia: occipital storage)
+
+**Risco:** CLIP precisa de modelo (~600MB) — pode usar Ollama CLIP se disponível, ou `open-clip-torch` local.
+
+### Fase P13 — OmniParser v2 (UI screenshot parsing, pré-processador) 🔜
 
 **Origem:** `09` §8 — OmniParser v2 (Microsoft).
-**Lobo:** Cortex occipital (UI parsing estruturado). Extrai elementos UI de screenshots antes do LLM Vision.
+**Lobo:** Córtex occipital (UI parsing estruturado). Pré-processador que extrai elementos UI (bounding boxes, tipos) antes do LLM Vision — reduz tokens.
 **ROI:** Médio | **Esforço:** Alto | **Status:** 🔜 Pendente
+
+**Estado atual (verificado):**
+- `scripts/dream/dream_cycle.py:448` chama `call_llm_with_fallback("vision", ..., vision_prompt, VisionAnalysis, image_path=...)` — LLM Vision processa screenshot **direto** (sem pré-parser estruturado)
+- `core/schemas/vision_models.py` define `VisionAnalysis` (description, ocr, inferred_topics, importance_score)
+- OmniParser ausente — gap real (pré-processador)
+
 **Tarefas:**
-- [ ] Clone `microsoft/OmniParser` em `integrations/omniparser/`
-- [ ] Pré-processamento: cada screenshot do Screenpipe → OmniParser → elementos estruturados (bounding boxes, tipos)
-- [ ] LLM Vision (existente) interpreta apenas elementos relevantes
-- [ ] Avaliar redução de tokens: medir antes/depois
-**Critério de pronto:** screenshots processados em ~50% do tempo do LLM Vision puro; qualidade de extração comparável ou melhor.
-**Risco:** OmniParser tem 39.5% no ScreenSpot Pro — viável mas não perfeito.
+- [ ] Clonar `microsoft/OmniParser` em `integrations/omniparser/`
+- [ ] `integrations/omniparser/client.py`:
+  ```python
+  """OmniParser v2 — pré-processador de screenshots para elementos UI estruturados.
+  Extrai bounding boxes + tipos de elemento antes do LLM Vision. Reduz tokens.
+  """
+  from pathlib import Path
 
-### Fase P19 — Automerge (sync do vault `cerebro/`) 🔜
+  def parse_ui_elements(image_path: str) -> dict:
+      """Extrai elementos UI estruturados de um screenshot.
+      Returns: {elements: [{bbox, type, text}], annotated_image_path}
+      """
+      # Chama OmniParser (peso ~1.3GB, roda local)
+      ...
 
-**Origem:** `09` §7 — Automerge.
-**Lobo:** Tronco (sync do vault entre máquinas).
-**ROI:** Baixo | **Esforço:** Alto | **Status:** 🔜 Pendente
-**Tarefas:**
-- [ ] Avaliar: o CR-SQLite (P10) já cobre o `hive_mind.db`. Automerge cobre o vault `.md` Obsidian.
-- [ ] Se necessário: `npm install @automerge/automerge` + scripts de sync
-- [ ] Cada arquivo `.md` vira um documento Automerge
-**Critério de pronto:** vault `cerebro/` sincroniza entre 2 instâncias sem perda; merge automático de conflitos.
-**Risco:** alto esforço. Avaliar se Yjs (mais simples para edição) não seria melhor. Ver `09` §7.
+  def elements_to_prompt(elements: list[dict]) -> str:
+      """Converte elementos estruturados em prompt compacto para o LLM Vision."""
+      return "\n".join(f"[{e['type']}] {e['text']}" for e in elements)
+  ```
+- [ ] Modificar `scripts/dream/dream_cycle.py:run_visual_dream_stage()` — pré-processar antes do LLM Vision:
+  ```python
+  # ANTES (atual):
+  analysis: VisionAnalysis = call_llm_with_fallback(
+      "vision", "Analise esta imagem.", vision_prompt, VisionAnalysis, image_path=str(img_path)
+  )
 
-### Fase P20 — Microsoft GraphRAG (síntese hierárquica de longo prazo) 🔜
+  # DEPOIS:
+  try:
+      from integrations.omniparser.client import parse_ui_elements, elements_to_prompt
+      ui = parse_ui_elements(str(img_path))
+      structured_prompt = elements_to_prompt(ui["elements"])
+      analysis: VisionAnalysis = call_llm_with_fallback(
+          "vision", structured_prompt, vision_prompt, VisionAnalysis,
+          image_path=ui.get("annotated_image_path", str(img_path))
+      )
+  except ImportError:
+      # Fallback: LLM Vision puro (atual)
+      analysis: VisionAnalysis = call_llm_with_fallback(...)
+  ```
+- [ ] Medir redução de tokens: antes/depois (benchmark em `tests/integration/test_omniparser.py`)
+- [ ] `pyproject.toml`: deps do OmniParser (verificar upstream — provavelmente `torch` + `transformers` + pesos)
+- [ ] `tests/integration/test_omniparser.py` — 4 testes (parse, prompt generation, fallback quando offline, redução de tokens)
 
-**Origem:** `09` §4 — Microsoft GraphRAG.
-**Lobo:** Cortex frontal (síntese batch).
-**ROI:** Baixo | **Esforço:** Alto | **Status:** 🔜 Pendente (custo alto)
-**Tarefas:**
-- [ ] Clone `microsoft/graphrag` em `integrations/graphrag/`
-- [ ] Batch mode no Dream Cycle: a cada mês, roda GraphRAG sobre o corpus do mês para gerar sumários hierárquicos (community detection + Leiden algorithm)
-- [ ] Avaliar se RAPTOR (P14) já cobre; se sim, marcar P20 como redundante e documentar
-**Critério de pronto:** run mensal de GraphRAG sobre corpus real retorna sumários úteis em tempo aceitável.
-**Risco:** `09` cita "custo de indexação inviável para uso diário" — só faz sentido como batch mensal.
+**Critério de pronto:**
+- Screenshots processados em ≤ 70% do tempo do LLM Vision puro
+- Tokens enviados ao LLM Vision reduzidos em ≥ 40%
+- Qualidade de extração (description, ocr) comparável ou melhor que LLM Vision puro
+- `tests/integration/test_omniparser.py` passa
+- Fallback funciona quando OmniParser offline (volta para LLM Vision puro)
 
-### Fase P21 — Letta (archival memory para agentes de longa duração) 🔜
-
-**Origem:** `09` §1 — Letta (ex-MemGPT).
-**Lobo:** Cortex ínsula (auto-consciência de agente). Memória de agente em 3 camadas (Core/Recall/Archival).
-**ROI:** Baixo | **Esforço:** Alto | **Status:** 🔜 Pendente
-**Tarefas:**
-- [ ] Avaliar viabilidade: o cérebro já cobre as 3 camadas (inbox sensorial = Recall, neurônios consolidados = Archival, sessão ativa = Core).
-- [ ] Se Letta trouxer valor: usar REST API para injetar Archival Memory do Dream Cycle em agentes Letta externos
-- [ ] Documentar coexistência (cérebro + Letta)
-**Critério de pronto:** decisão documentada (merge, coexistência ou rejeição).
-
-### Fase P22 — MemoryOS (memória procedural, skill reuse) 🔜
-
-**Origem:** `09` §1 — MemoryOS (BAI-LAB).
-**Lobo:** Cerebelo (procedural). Skill reuse cross-task.
-**ROI:** Baixo | **Esforço:** Alto | **Status:** 🔜 Pendente
-**Tarefas:**
-- [ ] Avaliar se o cérebro tem lacuna em memória procedural
-- [ ] Se sim: integrar módulo tool-memory do MemoryOS
-- [ ] Classificar memórias como factuais vs. procedurais (roteamento no Dream Cycle)
-**Critério de pronto:** memórias procedurais ("como fazer X") separadas das factuais ("o que é X"); tool memory do MemoryOS persiste.
+**Risco:** OmniParser tem 39.5% no ScreenSpot Pro — viável mas não perfeito. Avaliar qualidade real contra o corpus do Hive-Mind antes de adotar como padrão.
 
 ---
 
-## 4. Critério geral de "pronto" por fase
+## 5. Rejeitados com razão
 
-Cada fase, ao concluir, deve entregar:
+Projetos do `09-integration-study.md` que NÃO são fases do roadmap, com justificativa verificada contra código.
 
-1. **Código:** arquivos no path correto (anatomia)
-2. **Dependências:** em `pyproject.toml` (Python) ou `install.sh` (sistema)
-3. **Testes:** mínimo 4 (smoke + 2 unit + 1 integration)
-4. **Health check:** se for órgão novo, `assert_health()` no install.sh
-5. **Documentação:** README no `integrations/<nome>/` (se vendor) ou seção no `docs/`
-6. **Fusão no cérebro:** se for órgão, registrado no `_READ_BACKENDS` (faz parte do `sinapse_query`)
-7. **Migration script** (se mudar schema)
+| Projeto | Onde no `09` | Razão da rejeição | Verificado |
+|---|---|---|---|
+| **Letta (ex-MemGPT)** | §1 | As 3 camadas (Core/Recall/Archival) já mapeiam para o cérebro: sessão ativa (Core), `cortex/parietal/inbox/` (Recall), `cortex/temporal/` (Archival). Letta é runtime de agente externo, não órgão — integrar = acoplar a runtime externo. | ✅ `cerebro/cortex/{temporal,parietal/inbox}` existem |
+| **MCP server oficial (memory)** | §2 | Schema inferior (JSONL) vs `sinapse_query` (7 backends, SQLite+FTS5+HNSW+grafo). | ✅ `plugins/hermes/sinapse-memory.py` tem 7 backends |
+| **sqlite-memory-mcp** | §2 | Drop-in replacement do oficial, mas `hive_mind.db` já é superior (FTS5 + sqlite-vec + HNSW + WAL). | ✅ `core/umc_schema.sql` tem 9 tabelas |
+| **Microsoft GraphRAG** | §4 | RAPTOR (P10) cobre recursão; PPR do neural-memory (`engine/ppr_activation.py`) cobre community detection-like. GraphRAG tem "custo de indexação inviável para uso diário" (citado no `09`). Só faria sentido como batch mensal — mas RAPTOR nível mensal já faz síntese hierárquica. | ✅ RAPTOR P10 + PPR existente |
+| **AgentOps** | §5 | Cloud-first (sem self-hosting gratuito). Langfuse self-hosted (P9) cobre observabilidade sem vendor lock-in. | ✅ P9 cobre |
+| **Arize Phoenix** | §5 | Drift detection é feature do Langfuse quando configurado. Ferramenta separada = redundante. | ✅ P9 cobre |
+| **W&B Weave** | §5 | Auto-logging de traces MCP — Langfuse (P9) já faz via OTLP. Duplicado. | ✅ P9 cobre |
+| **MemCoT** | §6 | "Ainda paper sem implementação madura" (citado no `09` §6). Sem código para integrar. | ✅ só paper |
+| **Automerge** | §7 | CR-SQLite (P8) resolve sync do `hive_mind.db`. Para vault `.md`, Syncthing/Obsidian Sync são soluções externas válidas já usadas. Automerge adiciona complexidade para `.md` que Syncthing já cobre. | ✅ P8 + Syncthing (`scripts/services/syncthing_watcher.py` existe) |
+| **Yjs** | §7 | CRDT para edição colaborativa em tempo real. Cérebro é single-writer (Dream Cycle) — edição simultânea não é caso de uso. | ✅ Dream Cycle é single-writer |
+| **Cognee** (rejeitado como fase, mas já integrado) | §1 | Já no neural-memory (`mcp/cognitive_handler.py`, `recall_handler.py`). Não é fase pendente. | ✅ ver §3 |
+| **HippoRAG 2** (rejeitado como fase, mas já integrado) | §4 | PPR já no neural-memory (`engine/ppr_activation.py`). Não é fase pendente. | ✅ ver §3 |
 
 ---
 
-## 5. Checklist por sprint (rolling)
+## 6. Critério geral de "pronto"
+
+Cada fase, ao concluir, entrega:
+
+1. **Código** em path correto (anatomia — `core/`, `integrations/<nome>/`, `scripts/...`)
+2. **Dependências** em `pyproject.toml` (Python) ou `install.sh` (sistema)
+3. **Testes** mínimo 4 (smoke + 2 unit + 1 integration)
+4. **Health check** se for órgão novo — `assert_health()` no `install.sh`
+5. **Documentação** README no `integrations/<nome>/` (se vendor) ou seção no `docs/`
+6. **Fusão no cérebro** se for órgão — registrado no `_READ_BACKENDS` (faz parte do `sinapse_query`)
+7. **Migration script** se mudar schema (backup antes)
+
+---
+
+## 7. Sprints
 
 ### Sprint 1 — P0..P5 ✅ CONCLUÍDO (2026-06-21 → 2026-06-24)
-- [x] P0..P5 conforme detalhado em §2.
+- [x] P0..P5 conforme §2.
 
-### Sprint 2 — P6 (sqlite-lembed quando desbloqueado) + P8 (OpenMemory) 🔜
-- [ ] P6: monitorar upstream; se corrigido, implementar
-- [ ] P8: configurar OpenMemory + 8º backend
+### Sprint 2 — P6 (sqlite-lembed) + P9 (Langfuse instrumentação) 🔜
+- [ ] P6: monitorar upstream sqlite-lembed; se corrigido, implementar (deps + `_init_lembed()` + migration)
+- [ ] P9: `pyproject.toml` deps + instrumentar Dream Cycle + capture_core + sinapse-mcp (4+ spans)
+- [ ] 8 testes novos
+- **Esforço:** P9 é o de maior ROI desta sprint (Langfuse self-hosted já tem infra, falta só instrumentação + deps)
+
+### Sprint 3 — P7 (Streamable HTTP) + P8 (CR-SQLite) 🔜
+- [ ] P7: criar `sinapse-mcp-http.py` + aiohttp + systemd unit + testes E2E
+- [ ] P8: `core/crdt_sync.py` + `sinapse-sync.py` CLI + backup + testes sync entre 2 dirs
 - [ ] 8 testes novos
 
-### Sprint 3 — P7 (MegaMem) + P9 (Langfuse) 🔜
-- [ ] P7: avaliar viabilidade Streamable HTTP
-- [ ] P9: Langfuse self-hosted + instrumentação OTEL
+### Sprint 4 — P10 (RAPTOR mensal/anual) + P13 (OmniParser) 🔜
+- [ ] P10: `monthly_synthesizer.py` + `yearly_synthesizer.py` + timers + `sinapse_hierarchical_search`
+- [ ] P13: clonar OmniParser + pré-processar screenshots + benchmark redução tokens
 - [ ] 8 testes novos
 
-### Sprint 4 — P10 (CR-SQLite) + P11 (A-MEM) 🔜
-- [ ] P10: `core/crdt_sync.py` + sync CLI
-- [ ] P11: `core/amem_linker.py` + Dream Cycle hook
-- [ ] 8 testes novos
-
-### Sprint 5 — P12 (Cognee) + P13 (HippoRAG 2) 🔜
-- [ ] P12: 9º backend (cognee)
-- [ ] P13: tool `sinapse_associative_search`
-- [ ] 8 testes novos
-
-### Sprint 6 — P14 (RAPTOR) + P15 (Mem0 coexistência) 🔜
-- [ ] P14: scheduler recursivo no Dream Cycle
-- [ ] P15: decisão de coexistência documentada
-- [ ] 8 testes novos
-
-### Sprint 7 — P16 (LanceDB) + P17 (DuckDB) + P18 (OmniParser) 🔜
-- [ ] P16: storage multimodal
-- [ ] P17: analytics
-- [ ] P18: pré-processamento visual
-
-### Sprint 8 — P19 (Automerge) + P20 (Microsoft GraphRAG) + P21 (Letta) + P22 (MemoryOS) 🔜
-- [ ] P19..P22: decisões de coexistência (alguns marcados como "não fazer" se redundantes)
+### Sprint 5 — P11 (LanceDB multimodal) 🔜
+- [ ] P11: `integrations/lancedb/client.py` + CLIP + index screenshots + `sinapse_visual_search`
+- [ ] 4 testes novos
+- **Risco:** CLIP precisa de modelo (~600MB) — avaliar Ollama CLIP vs local
 
 ---
 
-## 6. Resumo: Mapa de Arquivos por Fase
+## 8. Mapa de arquivos por fase
 
 | Fase | Arquivo principal | Ação | Status |
 |------|---------|------|--------|
-| P0 | `core/database.py` | `OllamaEmbedder` HTTP | ✅ |
-| P0 | `core/hnsw_index.py` | `HNSW_DIM=1024` | ✅ |
-| P0 | `core/umc_schema.sql` | `FLOAT[1024]` | ✅ |
-| P0 | `plugins/sqlite-vec-worker/worker.py` | `VEC_EMBED_DIM=1024` | ✅ |
+| P0 | `core/database.py` | `OllamaEmbedder` HTTP (linha 25-30) | ✅ |
+| P0 | `core/hnsw_index.py:25` | `HNSW_DIM=1024` | ✅ |
+| P0 | `core/umc_schema.sql:92` | `FLOAT[1024]` | ✅ |
+| P0 | `plugins/sqlite-vec-worker/worker.py:45` | `VEC_EMBED_DIM=1024` | ✅ |
 | P0 | `scripts/setup/migrate_embed_dim.py` | one-shot 384→1024 | ✅ |
 | P1 | `scripts/capture/parsers/screenpipe.py` | **NOVO** | ✅ |
 | P1 | `scripts/capture/capture_adapters.py` | `+screenpipe` | ✅ |
 | P2 | `integrations/graphiti/client.py` | **NOVO** | ✅ |
+| P2 | `integrations/graphiti/__init__.py` | API pública | ✅ |
 | P2 | `plugins/hermes/sinapse-memory.py` | `+_backend_graphiti` | ✅ |
 | P2 | `docker-compose.falkordb.yml` | FalkorDB | ✅ |
 | P2 | `tests/integration/test_graphiti.py` | 14 testes | ✅ |
 | P3 | `core/lightrag_index.py` | **NOVO** (granite3-dense:2b) | ✅ |
-| P3 | `scripts/dream/dream_cycle.py` | `+index_memory()` | ✅ |
+| P3 | `scripts/dream/dream_cycle.py:372-381` | `+index_memory()` | ✅ |
 | P4 | `scripts/services/sinapse-mcp.py` | `sinapse_query` orquestrador | ✅ |
 | P5 | `AGENTS.md`, `README.md`, `docs/01-architecture.md` | anatomia em 3 docs | ✅ |
-| P6 | `core/database.py` | `+_init_lembed()` | ⏸ |
+| (DuckDB) | `scripts/analytics/hive_analytics.py` | 9 queries OLAP | ✅ DONE (§3) |
+| (neural-memory) | `integrations/neural-memory/` | 7 projetos do 09 | ✅ DONE (§3) |
+| P6 | `core/database.py:93` | `+_init_lembed()` quando desbloqueado | ⏸ |
+| P6 | `core/indexing.py` | `+lembed()` SQL | ⏸ |
 | P7 | `scripts/services/sinapse-mcp-http.py` | **NOVO** (Streamable HTTP) | 🔜 |
-| P8 | `integrations/openmemory/client.py` | **NOVO** | 🔜 |
-| P8 | `plugins/hermes/sinapse-memory.py` | `+_backend_openmemory` | 🔜 |
-| P9 | `core/telemetry.py` | OTEL → Langfuse (opt-in) | 🔜 |
-| P9 | `scripts/dream/dream_cycle.py` | spans | 🔜 |
-| P10 | `core/crdt_sync.py` | **NOVO** | 🔜 |
-| P10 | `scripts/services/sinapse-sync.py` | **NOVO** CLI | 🔜 |
-| P11 | `core/amem_linker.py` | **NOVO** | 🔜 |
-| P12 | `integrations/cognee/client.py` | **NOVO** | 🔜 |
-| P13 | `integrations/hipporag/client.py` | **NOVO** | 🔜 |
-| P14 | `integrations/raptor/client.py` | **NOVO** | 🔜 |
-| P15 | `integrations/mem0/client.py` | **NOVO** | 🔜 |
-| P16 | `integrations/lancedb/client.py` | **NOVO** | 🔜 |
-| P17 | `core/duckdb_analytics.py` | **NOVO** | 🔜 |
-| P18 | `integrations/omniparser/client.py` | **NOVO** | 🔜 |
-| P19 | `integrations/automerge/client.py` | **NOVO** | 🔜 |
-| P20 | `integrations/graphrag/client.py` | **NOVO** | 🔜 |
-| P21 | `integrations/letta/client.py` | **NOVO** | 🔜 |
-| P22 | `integrations/memoryos/client.py` | **NOVO** | 🔜 |
+| P7 | `scripts/setup/install_services.py` | `+sinapse-mcp-http.service` | 🔜 |
+| P8 | `core/crdt_sync.py` | **NOVO** | 🔜 |
+| P8 | `core/database.py:93` | `+enable_crdt()` | 🔜 |
+| P8 | `scripts/services/sinapse-sync.py` | **NOVO** CLI | 🔜 |
+| P9 | `pyproject.toml` | `+opentelemetry-sdk, +opentelemetry-exporter-otlp-proto-http` | 🔜 |
+| P9 | `scripts/dream/dream_cycle.py` | `+span()` em 4 estágios | 🔜 |
+| P9 | `scripts/capture/capture_core.py` | `+span()` em `ingest()` | 🔜 |
+| P9 | `scripts/services/sinapse-mcp.py` | `+span()` em `handle_request()` | 🔜 |
+| P10 | `scripts/dream/monthly_synthesizer.py` | **NOVO** (nível 3) | 🔜 |
+| P10 | `scripts/dream/yearly_synthesizer.py` | **NOVO** (nível 4) | 🔜 |
+| P10 | `scripts/setup/install_services.py` | `+sinapse-monthly.timer`, `+sinapse-yearly.timer` | 🔜 |
+| P11 | `integrations/lancedb/client.py` | **NOVO** (CLIP embeddings) | 🔜 |
+| P11 | `scripts/dream/dream_cycle.py:run_visual_dream_stage` | `+index_screenshot()` | 🔜 |
+| P13 | `integrations/omniparser/client.py` | **NOVO** (UI parsing) | 🔜 |
+| P13 | `scripts/dream/dream_cycle.py:run_visual_dream_stage` | pré-processar antes do LLM Vision | 🔜 |
 
 ---
 
-## 7. Gaps conhecidos (2026-06-24)
+## 9. Gaps conhecidos (2026-06-25)
 
 | Gap | Onde | Workaround | Quando resolve |
 |---|---|---|---|
-| sqlite-lembed incompatível Python 3.12+ | P0 embeddings | `EMBED_BACKEND=ollama` (atual) | Quando upstream corrigir (P6) |
-| LightRAG cobre sub-região do occipital junto com Graphify | P3 RAG | LightRAG é `core/` (não `integrations/`) por ser wrapper Python | P12 (Cognee) pode consolidar |
-| `sinapse_temporal_graph_search` ainda existe como tool MCP | `scripts/services/sinapse-mcp.py` | Marcada como DEPRECATED; `sinapse_query` é o canônico | Próxima release (remover) |
+| sqlite-lembed incompatível Python 3.12+ | P6 embeddings | `EMBED_BACKEND=ollama` (atual, P0) | Quando upstream corrigir (P6) |
+| `core/telemetry.py` existe mas não está instrumentado nem em `pyproject.toml` | P9 Langfuse | — | P9 (deps + instrumentação) |
+| `sinapse_temporal_graph_search` ainda existe como tool MCP | `scripts/services/sinapse-mcp.py` | Marcada DEPRECATED; `sinapse_query` é canônico | Próxima release (remover) |
 | `_Consciencia.md` e MOCs auto-gerados não estão no gitignore | `generate_mocs.py` | Regenerados a cada Dream Cycle | Considerar `.gitignore` |
-| Brain UI (frontend de visualização do grafo) | nenhum | Não há skill de canvas/web design no projeto | Avaliar em sprint futura |
-| 17 fases pendentes (P6..P22) ainda não implementadas | `09-integration-study.md` | Roadmap priorizado por ROI | Conforme sprints |
+| Brain UI (frontend de visualização do grafo) | nenhum | `integrations/neural-memory/dashboard/` tem React dashboard — não integrado ao cérebro | Avaliar em sprint futura |
+| Sem sync multi-device | — | Manual rsync | P8 (CR-SQLite) |
+| Sem nível mensal/anual de destilação | — | Diário + semanal existem | P10 (RAPTOR) |
+| Sem embedding visual CLIP | `visual_memories` table só texto | LLM Vision processa screenshot direto | P11 (LanceDB) + P13 (OmniParser) |
+| Sem pré-parser UI de screenshots | LLM Vision puro | — | P13 (OmniParser) |
 
 ---
 
-## 8. Próximo passo imediato
+## 10. Próximo passo imediato
 
 **Sprint 2** (proposto) — confirmar antes de executar:
-- [ ] P6 (sqlite-lembed): monitorar upstream + implementar assim que corrigido
-- [ ] P8 (OpenMemory): configurar + 8º backend
-- [ ] P9 (Langfuse): self-hosted + instrumentação OTEL
+- [ ] P6 (sqlite-lembed): monitorar upstream; implementar se corrigido
+- [ ] P9 (Langfuse): adicionar deps em `pyproject.toml` + instrumentar 4+ pontos do pipeline (Dream Cycle, capture_core, sinapse-mcp)
 
 Sem confirmação, não mexo.
