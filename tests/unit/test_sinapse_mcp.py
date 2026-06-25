@@ -154,7 +154,7 @@ class TestSinapseMCP:
 
     def test_sinapse_health_description_lists_seven_backends_and_excludes_rtk(self):
         """A description da tool sinapse_health deve listar os 7 read-backends
-        E não mencionar RTK como backend (RTK é CLI proxy de comandos shell,
+        E não mencionar RTK como backend (RTK é CLI proxy externo unrelated,
         não read-backend do cérebro).
 
         Guardrail para o acordo 9ea63d6: sinapse_health não pode herdar a
@@ -169,25 +169,25 @@ class TestSinapseMCP:
                         "Graphify", "Graphiti", "filesystem"):
             assert backend in desc, f"sinapse_health description missing: {backend}"
         # RTK NÃO é read-backend — se aparecer, DEVE estar marcado claramente
-        # como fora do path de query. Os marcadores válidos:
+        # como fora do path de query. Marcadores válidos:
         # - "CLI proxy", "CLI tool" (descrição técnica correta)
         # - "NOT a read-backend", "NOT a backend", "does NOT participate"
-        # - "rewriting shell commands", "reduce.*token" (descrição do que faz)
+        # - "unrelated", "shell commands" (delimitando que é externo)
         # Nunca como backend listado.
         if "RTK" in desc:
             rtk_idx = desc.find("RTK")
-            window = desc[max(0, rtk_idx - 60):rtk_idx + 80]
+            window = desc[max(0, rtk_idx - 80):rtk_idx + 100]
             exclusion_markers = (
                 "CLI proxy", "CLI tool",
                 "NOT a read-backend", "NOT a backend",
                 "does NOT participate", "does not participate",
-                "rewriting shell", "reduce", "token",
+                "unrelated", "shell commands",
             )
             assert any(m in window for m in exclusion_markers), (
                 f"RTK aparece em sinapse_health sem contexto de exclusão claro: "
                 f"'...{window}...'. Se RTK for mencionado, deve estar marcado "
-                "como não-read-backend (CLI proxy que rewrite shell commands, "
-                "não participa do sinapse_query)."
+                "como não-read-backend do cérebro (CLI proxy externo, "
+                "unrelated, agents install separately via 'rtk init')."
             )
 
     def test_sinapse_query_calls_query_vault_knowledge(self, monkeypatch):
