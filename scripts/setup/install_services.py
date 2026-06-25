@@ -110,6 +110,28 @@ RestartSec=5
 [Install]
 WantedBy=default.target
 """,
+        # P7: MCP via Streamable HTTP (paralelo ao stdio). Permite multiplos
+        # agentes simultaneos no mesmo cerebro. Porta/host via env (nao hardcode).
+        "sinapse-mcp-http.service": f"""[Unit]
+Description=Hive-Mind MCP Streamable HTTP Server (spec 2025-03-26)
+After=network.target sinapse-claude-mem.service
+{common_unit}
+
+[Service]
+Type=simple
+UMask=0077
+WorkingDirectory={path}
+EnvironmentFile={path}/.env
+Environment=SINAPSE_MCP_HTTP_HOST=127.0.0.1
+Environment=SINAPSE_MCP_HTTP_PORT=37703
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart={path}/.venv/bin/python {path}/scripts/services/sinapse-mcp-http.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+""",
         "sinapse-capture-tailer.service": f"""[Unit]
 Description=Hive-Mind capture tailer (transcripts de agents → claude-mem)
 After=network.target sinapse-claude-mem.service

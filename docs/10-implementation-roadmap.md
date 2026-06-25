@@ -374,11 +374,28 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
 
 6 fases, cada uma com: origem no `09`, lobo do cérebro, estado atual verificado, arquivos a criar/modificar (linhas exatas quando aplicável), código de exemplo, env vars, comandos de instalação, testes, critério de pronto.
 
-### Fase P7 — MegaMem Streamable HTTP (MCP spec 2025-03-26) 🔜
+### Fase P7 — MegaMem Streamable HTTP (MCP spec 2025-03-26) ✅ CONCLUÍDO
 
 **Origem:** `09` §2 — MegaMem (Obsidian + MCP + SQLite, suporte Streamable HTTP).
 **Lobo:** Tronco (transporte MCP). Migra de stdio para Streamable HTTP — habilita múltiplos agentes conectados simultaneamente ao mesmo cérebro.
-**ROI:** Alto | **Esforço:** Médio | **Status:** 🔜 Pendente
+**ROI:** Alto | **Esforço:** Médio | **Status:** ✅ **CONCLUÍDO (2026-06-25)**
+
+> **Concluído (2026-06-25):** `scripts/services/sinapse-mcp-http.py` (aiohttp),
+> rodando em paralelo ao stdio, reusa `handle_request`/`TOOLS` do `sinapse-mcp.py`
+> via `importlib` (o esboço original com `from ... import sinapse_mcp` não funciona —
+> nome com hífen). **Decisão de design:** as tools `sinapse_*` são todas
+> request/response — não há mensagem iniciada pelo servidor —, então **não foi
+> implementado SSE/server-push** (seria stream sem nada a transmitir). Conformidade
+> Streamable HTTP onde importa para interop: `POST /mcp` (single+batch) → JSON;
+> notificações → `202`; `initialize` → header `Mcp-Session-Id`; `GET /mcp` → `405`
+> (spec permite sem SSE); `DELETE /mcp` encerra sessão; `/health`. `aiohttp>=3.9` em
+> `pyproject.toml`; unit `sinapse-mcp-http.service` (porta 37703 via env) em
+> `install_services.py`. Testes: `tests/integration/test_mcp_http.py` (9), +
+> smoke ao vivo via curl (initialize/tools-list=13/405/health). **Verificado por
+> teste:** dispatch JSON-RPC + wiring real de initialize/tools-list. **Verificação
+> manual (não automatizada):** conectar um cliente MCP real, ex.:
+> `claude mcp add --transport http sinapse-http http://localhost:37703/mcp`.
+> `register-mcp.sh` ativo não existe no tree (só em `backups/`); registro é manual.
 
 **Estado atual (verificado):**
 - `scripts/services/sinapse-mcp.py` é **stdio** (stdin.readline loop, JSON-RPC, 644 linhas)
@@ -1205,15 +1222,16 @@ A fase P8 foi declarada **em implementação** durante a sessão de 2026-06-25. 
 
 ## 11. Próximo passo imediato
 
-**Sprint 3.1** (em andamento) — implementar P8 CR-SQLite:
-- [x] Decisão tomada: implementar P8 agora
-- [ ] Adicionar CR-SQLite como vendor em `integrations/crsqlite/` + seção em `install.sh` (clone de https://github.com/vlcn-io/cr-sqlite, v0.16.3)
-- [ ] Criar `core/crdt_sync.py` com env `HIVE_CRDT_SYNC`
-- [ ] Criar `scripts/services/sinapse-sync.py` CLI
-- [ ] Criar `tests/integration/test_crdt.py`
-- [ ] Atualizar `scripts/setup/install_services.py` se necessário
+**Sprint 3 — P7 + P8: ✅ CONCLUÍDA (2026-06-25).**
+- [x] P8 CR-SQLite: vendor + `install.sh`, `setup_crdt.py`, hook `HIVE_CRDT_SYNC`,
+      `sinapse-sync.py` CLI (import via `apply_changes`), endpoints HTTP (Bloco D),
+      21 testes. Branch `p8-crsqlite-sync`.
+- [x] P7 Streamable HTTP: `sinapse-mcp-http.py` (aiohttp, sem SSE — ver §P7),
+      unit systemd, `aiohttp` em deps, 9 testes.
 
-**Sprint 2** (proposto) — continua pendente, aguardando confirmação:
-- [ ] P9 (Langfuse): adicionar deps em `pyproject.toml` + instrumentar 4+ pontos do pipeline (Dream Cycle, capture_core, sinapse-mcp)
+**Fases pendentes (4):** P9 (Langfuse/observabilidade), P10 (RAPTOR mensal/anual),
+P11 (LanceDB multimodal), P13 (OmniParser). P6 e P12 mortos (ver §3).
 
-Sem confirmação, Sprint 2 continua sem execução.
+**Próximo sugerido — P9 (Langfuse):** adicionar deps em `pyproject.toml` +
+instrumentar 4+ pontos do pipeline (Dream Cycle, capture_core, sinapse-mcp).
+Independente das demais; aguarda confirmação do usuário.
