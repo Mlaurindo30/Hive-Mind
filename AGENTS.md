@@ -20,7 +20,103 @@ Infraestrutura de **inteligência coletiva e multimodal**: unifica o que o agent
 
 ---
 
-## 2. Ferramentas MCP disponíveis
+## 2. Anatomia do cérebro
+
+O Hive-Mind é organizado como um cérebro. O vault `cerebro/` espelha a anatomia — cada lobo tem uma função, cada projeto consumidor é um neurônio no lobo temporal. Esta seção é **canônica**: o desenho do produto, não o template do vault pessoal de nenhum agente.
+
+```
+                  ┌─────────────────────────────────────┐
+                  │   🧠 Consciência (Home)             │
+                  │   "eu" que integra os lobos         │
+                  └──────────────┬──────────────────────┘
+                                 │
+        ┌─────────────┬──────────┴───────────┬──────────────┐
+        │             │                      │              │
+   ┌────▼────┐   ┌────▼────┐         ┌───────▼──────┐  ┌────▼────┐
+   │ CÓRTEX  │   │CEREBELO │         │ DIENCÉFALO  │  │ TRONCO  │
+   │ (cogn.) │   │ (ritmo) │         │  (relay     │  │ (infra) │
+   │         │   │         │         │  cross-proj)│  │         │
+   │ • frontal │ • diário  │         │             │  │ • modelos
+   │ • parietal│ • semanal│         │ • ai-infra  │  │ • paineis
+   │ • occipital│ • sessões│        │ • dev-tools │  │ • meta
+   │ • temporal│ • padroes│         │ • finance   │  │ • infra
+   │ • ínsula  │          │         │ • infra     │  │
+   │          │           │         │ • pkm       │  │
+   └────┬─────┴────────────┘         └──────┬──────┘  └────┬────┘
+        │                                  │             │
+        │         cada lobo tem             │             │
+        │         sua função no fluxo       │             │
+        │                                  │             │
+        └──────────────┬───────────────────┘             │
+                       │                                 │
+                  ┌────▼──────────────────┐              │
+                  │   Lobo Temporal        │              │
+                  │   (memória)            │◄─────────────┘
+                  │                        │
+                  │ 1 neurônio por projeto: │
+                  │ • ComfyUI              │
+                  │ • Hive-Mind            │
+                  │ • Thoth                │
+                  │ • OpenAlice            │
+                  │ • agent-langgraph      │
+                  │ • e2e-chatbot-app-next │
+                  │ • michel               │
+                  │ • open-design          │
+                  │ • openclaw-crestodian  │
+                  └────────────────────────┘
+```
+
+### 2.1 Mapeamento lobo → função → componente técnico
+
+| Lobo | Função | Onde mora no código/vault |
+|---|---|---|
+| **Córtex frontal** | Decisão, planejamento, trabalho | `core/`, `scripts/dream/dream_cycle.py` (síntese dialética), `cerebro/cortex/frontal/decisoes/`, `cerebro/cortex/frontal/trabalho/` |
+| **Córtex parietal** | Sensorial — inbox, referências | `scripts/capture/`, `cerebro/cortex/parietal/inbox/`, `cerebro/cortex/parietal/referencias/` |
+| **Córtex occipital** | Visão — capturas + **grafo** | `scripts/capture/visual_capture.py` + `graphify-out/graph.json` (Graphify, em `cerebro/cortex/occipital/grafo/`) |
+| **Córtex temporal** | Memória de longo prazo por projeto | `cerebro/cortex/temporal/<projeto>/<tópico>/neuronio-*.md` + UMC `hive_mind.db` (indexador) |
+| **Córtex ínsula** | Saúde, autoconsciência | `scripts/health/`, health dashboard |
+| **Cerebelo** | Ritmo — diário, semanal, sessões, padrões | `cerebelo/{diario,semanal,sessoes,padroes}/` + `cerebro/brain/Patterns.md` |
+| **Diencéfalo** | Relay cross-projeto | `cerebro/diencefalo/setores/<setor>.md` (ai-infra, dev-tools, finance, infra, pkm) — conhecimento que pertence a mais de um projeto |
+| **Tronco** | Infra vital | `cerebro/tronco/{modelos,paineis,infra,meta}/` — templates Obsidian, painéis, configuração |
+
+### 2.2 Ferramentas externas como órgãos do cérebro
+
+As 5 ferramentas listadas em `cerebro/AGENTS.md` (template) **não são 5 bancos paralelos**. São 5 **órgãos do mesmo cérebro** que contribuem para uma única percepção (a resposta do `sinapse_query`).
+
+| Ferramenta | Órgão do cérebro | Função |
+|---|---|---|
+| **Graphify** | Córtex occipital (visão/grafo) | Indexa o `cerebro/` em `graph.json` com Leiden clustering |
+| **claude-mem** | Córtex temporal (memória de eventos) | Tracking temporal, FTS5, Chroma. Alimenta neurônios em `cortex/temporal/` |
+| **RTK** | Tronco (otimização) | Otimiza comandos shell — "sistema nervoso autônomo" que regula execução |
+| **NeuralMemory** | Córtex (associação) | Spreading activation, memória associativa |
+| **Filesystem scan** | Córtex parietal (sentido imediato) | Lê o vault direto, sem esperar reindexação |
+
+O `sinapse_query` é o ponto de entrada único do cérebro. Dispara os 5 órgãos, funde via Context Fusion e devolve **um único pacote de contexto**, não 5 respostas.
+
+### 2.3 Constantes canônicas de path
+
+A anatomia é codificada em `core/paths.py`. Constantes expostas:
+
+```python
+CORTEX     = VAULT_ROOT / "cortex"      # Córtex (5 lobos)
+TEMPORAL   = CORTEX / "temporal"        # Lobo temporal (memória)
+FRONTAL    = CORTEX / "frontal"         # Lobo frontal (decisão)
+PARIETAL   = CORTEX / "parietal"        # Lobo parietal (sensorial)
+OCCIPITAL  = CORTEX / "occipital"       # Lobo occipital (visão/grafo)
+INSULA     = CORTEX / "insula"          # Lobo ínsula (autoconsciência)
+DIENCEFALO = VAULT_ROOT / "diencefalo"  # Diencéfalo (relay)
+SECTORS_ROOT = DIENCEFALO / "setores"
+CEREBELO   = VAULT_ROOT / "cerebelo"    # Cerebelo (ritmo)
+DAILY_ROOT, SESSIONS_ROOT, WEEKLY_ROOT, PADROES_ROOT = cerebelo/...
+TRONCO     = VAULT_ROOT / "tronco"      # Tronco (infra)
+META_ROOT, MODELOS_ROOT, PAINEIS_ROOT = tronco/...
+```
+
+Qualquer novo código que criar/modificar arquivo no vault **deve usar essas constantes**, não caminhos hardcoded.
+
+---
+
+## 3. Ferramentas MCP disponíveis
 
 Se você está conectado via MCP (`scripts/services/sinapse-mcp.py`):
 
@@ -39,19 +135,11 @@ Se você está conectado via MCP (`scripts/services/sinapse-mcp.py`):
 
 ---
 
-## 3. Fluxo multimodal
-
-```
-CAPTURA (Visão/Texto)          RECONCILIAÇÃO (Sonho)          REDUÇÃO (Atlas)
-──────────────────────         ───────────────────────        ─────────────────
-Agente vê erro/UI    ──┐       Dream Cycle (noturno)    ──┐   Fato unificado
-Agente lê PDF/DOCX   ──┼──►    Distiller→Validator→     ──┼──► Nota no Obsidian
-Agente registra log  ──┘       Router + Síntese Dialética──┘   Neuron no SQLite
-```
+## 4. Fluxo multimodal
 
 ---
 
-## 4. Comandos de operação
+## 5. Comandos de operação
 
 ```bash
 ./scripts/services/start-watcher.sh                 # Sincronia em tempo real (Obsidian → SQLite)
@@ -65,7 +153,7 @@ python3 scripts/services/sinapse-api.py             # REST API (requer HIVE_MIND
 
 ---
 
-## 5. Instalação em máquina nova (instruções para agente ou humano)
+## 6. Instalação em máquina nova (instruções para agente ou humano)
 
 Sequência completa para colocar o Hive-Mind funcionando do zero:
 
@@ -99,7 +187,7 @@ registrar, **reinicie o agente** e valide pedindo: "use a tool sinapse_health".
 
 ---
 
-## 6. Integração com agentes externos
+## 7. Integração com agentes externos
 
 | Método | Agentes | Como funciona |
 |--------|---------|---------------|
@@ -115,7 +203,7 @@ Hooks automáticos para Claude Code e Codex CLI:
 
 ---
 
-## 7. Guardrails
+## 8. Guardrails
 
 - **Nunca** commite dados sensíveis: `.env`, API keys, tokens, `hive_mind.db` (banco de memória pessoal).
 - **Nunca** modifique `cerebro/` sem o Watcher ativo (ou rode `./scripts/graph/build-graph.sh` depois).
@@ -126,7 +214,7 @@ Hooks automáticos para Claude Code e Codex CLI:
 
 ---
 
-## 8. Testes
+## 9. Testes
 
 Antes de qualquer commit:
 

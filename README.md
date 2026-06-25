@@ -104,7 +104,50 @@ Tools disponíveis:
 
 ---
 
-## Visão Geral da Arquitetura
+## Anatomia do Cérebro
+
+O Hive-Mind é organizado como um cérebro. O vault `cerebro/` espelha a anatomia — cada lobo tem uma função, cada projeto consumidor é um neurônio no lobo temporal. As dimensões de memória abaixo correspondem a órgãos do cérebro, não a bancos paralelos.
+
+```
+                  ┌─────────────────────────────────────┐
+                  │   🧠 Consciência (Home)             │
+                  │   "eu" que integra os lobos         │
+                  └──────────────┬──────────────────────┘
+                                 │
+        ┌─────────────┬──────────┴───────────┬──────────────┐
+        │             │                      │              │
+   ┌────▼────┐   ┌────▼────┐         ┌───────▼──────┐  ┌────▼────┐
+   │ CÓRTEX  │   │CEREBELO │         │ DIENCÉFALO  │  │ TRONCO  │
+   │ (cogn.) │   │ (ritmo) │         │  (relay     │  │ (infra) │
+   │ • frontal  │ • diário  │         │             │  │ • modelos
+   │ • parietal │ • semanal│         │ • ai-infra  │  │ • paineis
+   │ • occipital│ • sessões│        │ • dev-tools │  │ • meta
+   │ • temporal │ • padroes│         │ • finance   │  │ • infra
+   │ • ínsula   │          │         │ • infra/pkm │  │
+   └────┬─────┴────────────┘         └──────┬──────┘  └────┬────┘
+        │                                  │             │
+        └──────────────┬───────────────────┘             │
+                       │                                 │
+                  ┌────▼──────────────────┐              │
+                  │   Lobo Temporal        │◄─────────────┘
+                  │   (memória por projeto) │
+                  └────────────────────────┘
+```
+
+| Lobo | Função | Onde mora |
+|---|---|---|
+| Córtex frontal | Decisão, planejamento, trabalho | `core/`, `scripts/dream/dream_cycle.py`, `cortex/frontal/` |
+| Córtex parietal | Sensorial — inbox, referências | `scripts/capture/`, `cortex/parietal/` |
+| Córtex occipital | Visão — capturas + **grafo** | `graphify-out/graph.json` (Graphify, em `cortex/occipital/grafo/`) |
+| Córtex temporal | Memória de longo prazo por projeto | `cortex/temporal/<projeto>/<tópico>/neuronio-*.md` + UMC `hive_mind.db` |
+| Córtex ínsula | Saúde, autoconsciência | `scripts/health/`, health dashboard |
+| Cerebelo | Ritmo — diário, semanal, sessões, padrões | `cerebelo/{diario,semanal,sessoes,padroes}/`, `brain/Patterns.md` |
+| Diencéfalo | Relay cross-projeto | `diencefalo/setores/` (ai-infra, dev-tools, finance, infra, pkm) |
+| Tronco | Infra vital | `tronco/{modelos,paineis,infra,meta}/` |
+
+As ferramentas externas são **órgãos do cérebro**, não bancos paralelos: Graphify (occipital), claude-mem (temporal), RTK (tronco), NeuralMemory (associação), filesystem scan (parietal). Anatomia completa em [`AGENTS.md`](AGENTS.md) e [`docs/01-architecture.md`](docs/01-architecture.md).
+
+---
 
 ```
   ┌────────────────────────────────────────────────────────────────┐
