@@ -9,7 +9,7 @@
 >
 > **3ª passada de validação (2026-06-25):** cada afirmação abaixo foi verificada
 > contra código real (ver §0.6 "Metodologia de validação"). A 2ª passada listava 13
-> fases pendentes; esta reduz para **6** porque 7 projetos do `09` já estão
+> fases pendentes; esta reduz para **7** porque 7 projetos do `09` já estão
 > implementados dentro de `integrations/neural-memory/` (Mem0, OpenMemory, Cognee,
 > MemoryOS, MemOS, A-MEM, HippoRAG 2) — não são fases, são capacidades existentes.
 
@@ -81,7 +81,7 @@ integrations/
 | Córtex | SQLite-vec | (nativo) | `sqlite-vec` | (extensão nativa) | ✅ |
 | Córtex (visual) | Screenpipe | (npm) | (indep, npm) | npm install -g @screenpipe/cli | ✅ P1 |
 | Córtex | Fastembed | (nativo) | `fastembed` | (fallback P0) | ✅ |
-| **Cerebelo (analytics)** | **DuckDB** | `scripts/analytics/hive_analytics.py` | `duckdb>=0.10` | (nativo, 9 queries) | ✅ DONE (ver §3) |
+| **Cerebelo (analytics)** | **DuckDB** | `scripts/analytics/hive_analytics.py` | `duckdb>=0.10` | (nativo, 4 queries) | ✅ DONE (ver §3) |
 
 ### 0.6 Metodologia de validação (3ª passada)
 
@@ -95,7 +95,7 @@ ls -la <arquivo>
 
 Resultados:
 - 7 projetos do `09` descobertos como **já implementados** em `integrations/neural-memory/` (ver §3)
-- DuckDB analytics descoberto em `scripts/analytics/hive_analytics.py` (9 queries)
+- DuckDB analytics descoberto em `scripts/analytics/hive_analytics.py` (4 queries)
 - `core/telemetry.py` é OTEL completo e funcional (não draft como afirmei antes), MAS não está em `pyproject.toml` e não é importado em nenhum script — Langfuse é gap real de **instrumentação**, não de código
 - A-MEM e Graphiti são **complementares** (Graphiti extrai edges novas; A-MEM evolui links existentes) — e A-MEM já está no neural-memory
 
@@ -157,7 +157,7 @@ scripts/
 │   ├── capture_adapters.py        # ADAPTERS dict (screenpipe, ...)
 │   └── parsers/                   # 11 parsers
 ├── analytics/
-│   └── hive_analytics.py          # DuckDB OLAP (9 queries: growth, top_topics, ...) ✅ DONE
+│   └── hive_analytics.py          # DuckDB OLAP (4 queries: growth, top_topics, ...) ✅ DONE
 ├── knowledge/
 │   └── pattern_distiller.py       # extração de padrões (cerebelo/padroes)
 └── setup/
@@ -184,7 +184,7 @@ cerebro/cerebelo/padroes/          # Patterns.md + pattern_models.py (procedural
 | `core/database.py` | 25-30 | `OllamaEmbedder` via HTTP, `EMBED_BACKEND=ollama` default |
 | `core/hnsw_index.py` | 25 | `HNSW_DIM` 384 → 1024 |
 | `core/umc_schema.sql` | 92 | `FLOAT[384]` → `FLOAT[1024]` em `search_vec` |
-| `plugins/sqlite-vec-worker/worker.py` | 45 | `VEC_EMBED_DIM` 384 → 1024 |
+| `plugins/sqlite-vec-worker/worker.py` | 54 | `VEC_EMBED_DIM` 384 → 1024 |
 | `scripts/setup/migrate_embed_dim.py` | — | script one-shot (3639/3642 re-indexados em 407s) |
 | `tests/unit/test_p0_embedding.py` | — | 10 testes (backend, determinismo, dim, live) |
 
@@ -264,7 +264,7 @@ cerebro/cerebelo/padroes/          # Patterns.md + pattern_models.py (procedural
 **Status:** ✅ | **Commit:** `16e0387` | **Data:** 2026-06-24
 **Testes:** 14/14 (`test_sinapse_mcp.py`)
 
-**Anatomia:** orquestrador `_query_vault_knowledge` em `plugins/hermes/sinapse-memory.py:327` itera `_READ_BACKENDS` em paralelo (circuit breaker + timeout 8s):
+**Anatomia:** orquestrador `_query_vault_knowledge` em `plugins/hermes/sinapse-memory.py:376` itera `_READ_BACKENDS` em paralelo (circuit breaker + timeout 8s):
 
 ```
 sinapse_query → _query_vault_knowledge (Context Fusion paralelo)
@@ -288,7 +288,7 @@ sinapse_query → _query_vault_knowledge (Context Fusion paralelo)
 **Objetivo:** documento único de verdade para a anatomia do cérebro.
 **Status:** ✅ | **Commits:** `ca1ff96`, `3eb4a35`, `ddf5504` | **Data:** 2026-06-23/24
 
-**3 documentos sincronizados:**
+**Seção de anatomia (§2) sincronizada nos 3 documentos** (a reconciliação de §2.6 / contagem de tools / contagem de testes foi feita numa passada posterior, 2026-06-25):
 - `AGENTS.md` (root) — seção 2: anatomia resumida (4 lobos + 5 lóbulos do córtex)
 - `README.md` — "Anatomia do Cérebro" antes de "Visão Geral"
 - `docs/01-architecture.md` — seção 2: anatomia completa (constantes, mapeamento, ferramentas)
@@ -315,11 +315,11 @@ O `integrations/neural-memory/` é um **projeto completo** (não um wrapper) que
 
 ### 3.2 DuckDB analytics (descoberta em §0.6)
 
-O DuckDB (P12 da 2ª passada) **não é fase pendente** — já está em `scripts/analytics/hive_analytics.py` com 9 queries analíticas (growth, top_topics, quarantine_rate, intent_by_goal, ...). Dep `duckdb>=0.10` já no `pyproject.toml`. Marcar como DONE.
+O DuckDB (P12 da 2ª passada) **não é fase pendente** — já está em `scripts/analytics/hive_analytics.py` com 4 queries analíticas (growth, top_topics, quarantine_rate, intent_by_goal, ...). Dep `duckdb>=0.10` já no `pyproject.toml`. Marcar como DONE.
 
 ### 3.3 Implicação para o roadmap
 
-A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passada reduz para **6** (P6..P13) porque:
+A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passada reduz para **7** (P6,P7,P8,P9,P10,P11,P13; P12 aposentado→DuckDB §3.2) porque:
 - Mem0, OpenMemory, Cognee, MemoryOS, MemOS, A-MEM, HippoRAG 2 → já no neural-memory (rastreabilidade em §3.1)
 - DuckDB → já em `scripts/analytics/` (§3.2)
 - Microsoft GraphRAG → coberto por RAPTOR (P10) + PPR do neural-memory (§5)
@@ -328,7 +328,7 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
 
 ## 4. Fases pendentes (P6..P13)
 
-6 fases, cada uma com: origem no `09`, lobo do cérebro, estado atual verificado, arquivos a criar/modificar (linhas exatas quando aplicável), código de exemplo, env vars, comandos de instalação, testes, critério de pronto.
+7 fases, cada uma com: origem no `09`, lobo do cérebro, estado atual verificado, arquivos a criar/modificar (linhas exatas quando aplicável), código de exemplo, env vars, comandos de instalação, testes, critério de pronto.
 
 ### Fase P6 — sqlite-lembed (embeddings nativos no SQLite) ⏸
 
@@ -365,7 +365,7 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
 - [ ] Migration script: re-indexar 3639+ neurônios (como P0 fez)
 
 **Critério de pronto:**
-- `EMBED_BACKEND=lembed` funciona sem regressão nos 466+ testes existentes
+- `EMBED_BACKEND=lembed` funciona sem regressão na suíte existente (534 funções test_ em 89 arquivos)
 - Ollama NÃO precisa estar rodando (embeddings in-process)
 - Benchmark: latência de `embed_text()` ≤ 50ms (vs Ollama HTTP 91ms)
 - `tests/unit/test_p0_embedding.py` continua passando (interface agnóstica ao backend)
@@ -379,7 +379,7 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
 **ROI:** Alto | **Esforço:** Médio | **Status:** 🔜 Pendente
 
 **Estado atual (verificado):**
-- `scripts/services/sinapse-mcp.py` é **stdio** (stdin.readline loop, JSON-RPC, 629 linhas)
+- `scripts/services/sinapse-mcp.py` é **stdio** (stdin.readline loop, JSON-RPC, 644 linhas)
 - `scripts/services/sinapse-api.py` é REST FastAPI :37702 (não é MCP Streamable HTTP)
 - Não existe `*mcp-http*` ou `aiohttp` em nenhum arquivo MCP
 
@@ -943,7 +943,7 @@ Cada fase, ao concluir, entrega:
 | P0 | `core/database.py` | `OllamaEmbedder` HTTP (linha 25-30) | ✅ |
 | P0 | `core/hnsw_index.py:25` | `HNSW_DIM=1024` | ✅ |
 | P0 | `core/umc_schema.sql:92` | `FLOAT[1024]` | ✅ |
-| P0 | `plugins/sqlite-vec-worker/worker.py:45` | `VEC_EMBED_DIM=1024` | ✅ |
+| P0 | `plugins/sqlite-vec-worker/worker.py:54` | `VEC_EMBED_DIM=1024` | ✅ |
 | P0 | `scripts/setup/migrate_embed_dim.py` | one-shot 384→1024 | ✅ |
 | P1 | `scripts/capture/parsers/screenpipe.py` | **NOVO** | ✅ |
 | P1 | `scripts/capture/capture_adapters.py` | `+screenpipe` | ✅ |
@@ -956,7 +956,7 @@ Cada fase, ao concluir, entrega:
 | P3 | `scripts/dream/dream_cycle.py:372-381` | `+index_memory()` | ✅ |
 | P4 | `scripts/services/sinapse-mcp.py` | `sinapse_query` orquestrador | ✅ |
 | P5 | `AGENTS.md`, `README.md`, `docs/01-architecture.md` | anatomia em 3 docs | ✅ |
-| (DuckDB) | `scripts/analytics/hive_analytics.py` | 9 queries OLAP | ✅ DONE (§3) |
+| (DuckDB) | `scripts/analytics/hive_analytics.py` | 4 queries OLAP | ✅ DONE (§3) |
 | (neural-memory) | `integrations/neural-memory/` | 7 projetos do 09 | ✅ DONE (§3) |
 | P6 | `core/database.py:93` | `+_init_lembed()` quando desbloqueado | ⏸ |
 | P6 | `core/indexing.py` | `+lembed()` SQL | ⏸ |

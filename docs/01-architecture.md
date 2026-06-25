@@ -166,17 +166,21 @@ Cada `neuronio-<hash>.md` tem frontmatter com `integrity_hash` (SHA-256 do conte
 
 ### 2.6 Ferramentas externas como órgãos do cérebro
 
-As 5 ferramentas que alimentam o cérebro **não são bancos paralelos**. São **órgãos do mesmo cérebro** que contribuem para uma única percepção (a resposta do `sinapse_query`).
+As 7 ferramentas que alimentam o cérebro **não são bancos paralelos**. São **órgãos do mesmo cérebro** que contribuem para uma única percepção (a resposta do `sinapse_query`).
 
 | Ferramenta | Órgão do cérebro | Função |
 |---|---|---|
-| **Graphify** | Córtex occipital (visão/grafo) | Indexa o `cerebro/` em `graph.json` com Leiden clustering |
-| **claude-mem** | Córtex temporal (memória de eventos) | Tracking temporal, FTS5, Chroma. Alimenta neurônios em `cortex/temporal/` |
-| **RTK** | Tronco (otimização) | Otimiza comandos shell — "sistema nervoso autônomo" que regula execução |
+| **UMC** (`hive_mind.db`) | Córtex (central) | Grafo + vetores + FTS5 + logs em um único SQLite |
 | **NeuralMemory** | Córtex (associação) | Spreading activation, memória associativa |
+| **sqlite-vec** | Córtex (vetorial) | Indexação HNSW nativa no SQLite |
+| **claude-mem** | Córtex temporal (memória de eventos) | Tracking temporal, FTS5, Chroma. Alimenta neurônios em `cortex/temporal/` |
+| **Graphify** | Córtex occipital (visão/grafo) | Indexa o `cerebro/` em `graph.json` com Leiden clustering |
+| **Graphiti** | Lóbulo temporal (causalidade) | Extrai edges com validade temporal (valid_at/invalid_at) |
 | **Filesystem scan** | Córtex parietal (sentido imediato) | Lê o vault direto, sem esperar reindexação |
 
-O `sinapse_query` é o ponto de entrada único do cérebro. Dispara os 5 órgãos, funde via Context Fusion e devolve **um único pacote de contexto**, não 5 respostas.
+> **Nota:** RTK não é um read-backend do `sinapse_query` — é otimização de shell, não participa do Context Fusion.
+
+O `sinapse_query` é o ponto de entrada único do cérebro. Dispara os 7 órgãos em paralelo (circuit breaker + timeout 8s por backend), funde via Context Fusion e devolve **um único pacote de contexto**, não 7 respostas.
 
 ### 2.7 Constantes canônicas de path
 
@@ -218,7 +222,7 @@ Qualquer novo código que criar/modificar arquivo no vault **deve usar essas con
                        ▼                         │             ▼
   ┌────────────────────────────────┐             │  ┌──────────────────────┐
   │  sinapse-mcp.py (MCP Server)  │             │  │ sinapse-memory.py    │
-  │  12 tools · stdio JSON-RPC     │             │  │ Plugin Hermes         │
+  │  13 tools · stdio JSON-RPC     │             │  │ Plugin Hermes         │
   │                               │             │  │ pre_gateway_dispatch │
   │  sinapse-write.py (CLI)        │             │  │ post_tool_call       │
   │  sinapse-api.py (REST :37702)  │             │  │ on_session_end       │
@@ -824,7 +828,7 @@ Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiL
 | E2E | `tests/e2e/` | Backends reais | Sessão completa, degradação graceful, concorrência, recovery, edge cases |
 | Síntese | `tests/test_synthesis.py` | **Sim** | `run_synthesis_cycle()` com modelo real do `.env` |
 
-**191 testes coletáveis** (2026-06-13). Regra: testes unitários nunca chamam LLM — testam a lógica ao redor do modelo, não o modelo.
+**534 funções em 89 arquivos** cobrindo todo o pipeline de sinapse (cognitivo, vetorial, grafo, FTS5, temporal). Regra: testes unitários nunca chamam LLM — testam a lógica ao redor do modelo, não o modelo.
 
 ---
 
