@@ -99,7 +99,7 @@ TOOLS = [
     },
     {
         "name": "sinapse_health",
-        "description": "Health check of all Sinapse read-backends (UMC, NeuralMemory, sqlite-vec, claude-mem, Graphify, Graphiti, filesystem — the 7 backends fused by sinapse_query) and vault status. RTK is NOT a read-backend (it's a shell optimizer); it appears in execution layer, not query layer. Returns node count and backend availability.",
+        "description": "Health check of all Sinapse read-backends (UMC, NeuralMemory, sqlite-vec, claude-mem, Graphify, Graphiti, filesystem — the 7 backends fused by sinapse_query) and vault status. RTK (rtk-ai/rtk) is a CLI proxy that reduces LLM token consumption by rewriting shell commands — it is NOT a read-backend and does NOT participate in sinapse_query. Returns node count and backend availability.",
         "inputSchema": {"type": "object", "properties": {}}
     },
     {
