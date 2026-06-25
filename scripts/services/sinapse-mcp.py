@@ -99,7 +99,7 @@ TOOLS = [
     },
     {
         "name": "sinapse_health",
-        "description": "Health check of all Sinapse backends (NeuralMemory, claude-mem, Graphify, RTK) and vault status. Returns node count and backend availability.",
+        "description": "Health check of all Sinapse read-backends (UMC, NeuralMemory, sqlite-vec, claude-mem, Graphify, Graphiti, filesystem — the 7 backends fused by sinapse_query) and vault status. RTK is NOT a read-backend (it's a shell optimizer); it appears in execution layer, not query layer. Returns node count and backend availability.",
         "inputSchema": {"type": "object", "properties": {}}
     },
     {

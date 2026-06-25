@@ -152,6 +152,41 @@ class TestSinapseMCP:
                         "Graphify", "Graphiti", "filesystem"):
             assert backend in desc, f"sinapse_query description missing: {backend}"
 
+    def test_sinapse_health_description_lists_seven_backends_and_excludes_rtk(self):
+        """A description da tool sinapse_health deve listar os 7 read-backends
+        E não mencionar RTK (RTK é otimizador de shell, não read-backend).
+
+        Guardrail para o acordo 9ea63d6: sinapse_health não pode herdar a
+        confusão antiga que listava só 4 backends e incluía RTK no path
+        de query. Se um backend for removido/adicionado, atualize esta lista.
+        """
+        req = {"jsonrpc": "2.0", "id": 101, "method": "tools/list", "params": {}}
+        resp = mcp.handle_request(req)
+        tools = {t["name"]: t for t in resp["result"]["tools"]}
+        desc = tools["sinapse_health"]["description"]
+        for backend in ("UMC", "NeuralMemory", "sqlite-vec", "claude-mem",
+                        "Graphify", "Graphiti", "filesystem"):
+            assert backend in desc, f"sinapse_health description missing: {backend}"
+        # RTK NÃO é read-backend — sua menção aqui era bug.
+        # Se RTK aparecer, DEVE estar num contexto que o exclua (NOT/NÃO/
+        # excluded/opt-in/camada de execução/etc.) — nunca como backend
+        # listado.
+        if "RTK" in desc:
+            rtk_idx = desc.find("RTK")
+            window = desc[max(0, rtk_idx - 30):rtk_idx + 50]
+            exclusion_markers = (
+                "NOT a read-backend", "NOT a backend", "not a read",
+                "shell optimizer", "execution layer", "execution",
+                "opt-in", "excluded", "NÃO é", "otimizador",
+                "camada de execução", "não é read-backend",
+            )
+            assert any(m in window for m in exclusion_markers), (
+                f"RTK aparece em sinapse_health sem contexto de exclusão: "
+                f"'...{window}...'. Se RTK for mencionado, deve estar "
+                "claramente marcado como não-read-backend (camada de "
+                "execução, otimizador de shell, etc.)."
+            )
+
     def test_sinapse_query_calls_query_vault_knowledge(self, monkeypatch):
         """_sinapse_query_with_diagnostics chama sm._query_vault_knowledge
         (orquestrador), nao sm._backend_umc (apenas UMC).
