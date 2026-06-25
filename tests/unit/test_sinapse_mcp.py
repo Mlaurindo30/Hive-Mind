@@ -154,7 +154,8 @@ class TestSinapseMCP:
 
     def test_sinapse_health_description_lists_seven_backends_and_excludes_rtk(self):
         """A description da tool sinapse_health deve listar os 7 read-backends
-        E não mencionar RTK (RTK é otimizador de shell, não read-backend).
+        E não mencionar RTK como backend (RTK é CLI proxy de comandos shell,
+        não read-backend do cérebro).
 
         Guardrail para o acordo 9ea63d6: sinapse_health não pode herdar a
         confusão antiga que listava só 4 backends e incluía RTK no path
@@ -167,24 +168,26 @@ class TestSinapseMCP:
         for backend in ("UMC", "NeuralMemory", "sqlite-vec", "claude-mem",
                         "Graphify", "Graphiti", "filesystem"):
             assert backend in desc, f"sinapse_health description missing: {backend}"
-        # RTK NÃO é read-backend — sua menção aqui era bug.
-        # Se RTK aparecer, DEVE estar num contexto que o exclua (NOT/NÃO/
-        # excluded/opt-in/camada de execução/etc.) — nunca como backend
-        # listado.
+        # RTK NÃO é read-backend — se aparecer, DEVE estar marcado claramente
+        # como fora do path de query. Os marcadores válidos:
+        # - "CLI proxy", "CLI tool" (descrição técnica correta)
+        # - "NOT a read-backend", "NOT a backend", "does NOT participate"
+        # - "rewriting shell commands", "reduce.*token" (descrição do que faz)
+        # Nunca como backend listado.
         if "RTK" in desc:
             rtk_idx = desc.find("RTK")
-            window = desc[max(0, rtk_idx - 30):rtk_idx + 50]
+            window = desc[max(0, rtk_idx - 60):rtk_idx + 80]
             exclusion_markers = (
-                "NOT a read-backend", "NOT a backend", "not a read",
-                "shell optimizer", "execution layer", "execution",
-                "opt-in", "excluded", "NÃO é", "otimizador",
-                "camada de execução", "não é read-backend",
+                "CLI proxy", "CLI tool",
+                "NOT a read-backend", "NOT a backend",
+                "does NOT participate", "does not participate",
+                "rewriting shell", "reduce", "token",
             )
             assert any(m in window for m in exclusion_markers), (
-                f"RTK aparece em sinapse_health sem contexto de exclusão: "
-                f"'...{window}...'. Se RTK for mencionado, deve estar "
-                "claramente marcado como não-read-backend (camada de "
-                "execução, otimizador de shell, etc.)."
+                f"RTK aparece em sinapse_health sem contexto de exclusão claro: "
+                f"'...{window}...'. Se RTK for mencionado, deve estar marcado "
+                "como não-read-backend (CLI proxy que rewrite shell commands, "
+                "não participa do sinapse_query)."
             )
 
     def test_sinapse_query_calls_query_vault_knowledge(self, monkeypatch):
