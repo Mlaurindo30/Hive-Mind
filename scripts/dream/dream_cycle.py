@@ -608,26 +608,29 @@ source: hive-dreamer
 
 def _run_dream_cycle_inner() -> Dict[str, int]:
     """Corpo do ciclo. Retorna contadores p/ a telemetria M9 (ver run_dream_cycle)."""
+    from core.telemetry import span
     print(f"=== Hive-Mind: Ciclo de Sonho V2 (Corporate Grade) ===")
     cycle_t0 = time.perf_counter()
     stage_metrics: Dict[str, float] = {}
 
     def mark_stage(stage_name: str, started_at: float) -> None:
         stage_metrics[stage_name] = round((time.perf_counter() - started_at) * 1000.0, 3)
-    
+
     # --- ESTÁGIO DE DOCUMENTOS (PDF/DOCX) ---
     doc_t0 = time.perf_counter()
-    try:
-        from scripts.knowledge.document_ingest import run_ingestion
-        run_ingestion()
-    except Exception as e:
-        print(f"  [Error] Falha no estágio de documentos: {e}")
-    finally:
-        mark_stage("document_ingest_ms", doc_t0)
+    with span("dream.document_ingest", {}):
+        try:
+            from scripts.knowledge.document_ingest import run_ingestion
+            run_ingestion()
+        except Exception as e:
+            print(f"  [Error] Falha no estágio de documentos: {e}")
+        finally:
+            mark_stage("document_ingest_ms", doc_t0)
 
     # --- ESTÁGIO VISUAL ---
     visual_t0 = time.perf_counter()
-    run_visual_dream_stage()
+    with span("dream.visual", {}):
+        run_visual_dream_stage()
     mark_stage("visual_dream_ms", visual_t0)
     
     # --- INGESTÃO ---
@@ -696,29 +699,30 @@ def _run_dream_cycle_inner() -> Dict[str, int]:
     distill_empties: List[str] = []
     project_errors: List[str] = []   # F4.0: projetos que ERRARAM (LLM/DB) — isolados
 
-    for proj, proj_obs in project_buckets.items():
-        proj_ids = [o["id"] for o in proj_obs]
-        try:
-            proj_logs = "\n".join(f"- [{o['type']}] {o['title']}: {o['content']}" for o in proj_obs)
-            print(f"  [Distiller] Projeto '{proj}': processando {len(proj_obs)} observações...")
-            distilled, distill_status = agent_distill_and_validate(proj_logs)
-            if distill_status == "failed":
-                _mark_observations(2, proj_ids)
-                distill_failures.append(proj)
-                print(f"  [Pipeline] Projeto '{proj}': {len(proj_ids)} obs em quarentena.")
-            elif distill_status == "empty" or not distilled or not distilled.facts:
-                _mark_observations(1, proj_ids)
-                distill_empties.append(proj)
-                print(f"  [Distiller] Projeto '{proj}': sem fatos extraídos.")
-            else:
-                distilled_by_project[proj] = distilled
-        except Exception as e:
-            # F4.0 resiliência: erro (LLM/`database is locked`/etc.) num projeto NÃO
-            # aborta o ciclo. Obs ficam archived=0 (reprocessa no próximo ciclo) —
-            # não quarentena, pois é erro transitório, não dado ruim.
-            project_errors.append(proj)
-            print(f"  [Resiliência] Projeto '{proj}' falhou no distill: {e}. Obs preservadas p/ reprocessar.")
-            continue
+    with span("dream.distill", {"obs_count": len(obs), "projects": len(project_buckets)}):
+        for proj, proj_obs in project_buckets.items():
+            proj_ids = [o["id"] for o in proj_obs]
+            try:
+                proj_logs = "\n".join(f"- [{o['type']}] {o['title']}: {o['content']}" for o in proj_obs)
+                print(f"  [Distiller] Projeto '{proj}': processando {len(proj_obs)} observações...")
+                distilled, distill_status = agent_distill_and_validate(proj_logs)
+                if distill_status == "failed":
+                    _mark_observations(2, proj_ids)
+                    distill_failures.append(proj)
+                    print(f"  [Pipeline] Projeto '{proj}': {len(proj_ids)} obs em quarentena.")
+                elif distill_status == "empty" or not distilled or not distilled.facts:
+                    _mark_observations(1, proj_ids)
+                    distill_empties.append(proj)
+                    print(f"  [Distiller] Projeto '{proj}': sem fatos extraídos.")
+                else:
+                    distilled_by_project[proj] = distilled
+            except Exception as e:
+                # F4.0 resiliência: erro (LLM/`database is locked`/etc.) num projeto NÃO
+                # aborta o ciclo. Obs ficam archived=0 (reprocessa no próximo ciclo) —
+                # não quarentena, pois é erro transitório, não dado ruim.
+                project_errors.append(proj)
+                print(f"  [Resiliência] Projeto '{proj}' falhou no distill: {e}. Obs preservadas p/ reprocessar.")
+                continue
     mark_stage("distill_validate_ms", distill_t0)
 
     if not distilled_by_project:
@@ -736,17 +740,20 @@ def _run_dream_cycle_inner() -> Dict[str, int]:
     storage_t0 = time.perf_counter()  # só vai ser usado se a fase de persistência rodar
     total_persisted = 0
     print("  [Storage] Persistindo neurônios no córtex temporal...")
-    for proj, distilled in distilled_by_project.items():
-        proj_obs_ids = [o["id"] for o in project_buckets[proj]]
-        try:
-            total_persisted += _route_and_persist_project(
-                conn, now, proj, distilled, proj_obs_ids, _mark_observations)
-        except Exception as e:
-            # F4.0: erro num projeto (LLM/`database is locked`/IO) não aborta o ciclo.
-            # Obs ficam archived=0 p/ reprocessar (não quarentena — erro transitório).
-            project_errors.append(proj)
-            print(f"  [Resiliência] Projeto '{proj}' falhou na persistência: {e}. Obs preservadas p/ reprocessar.")
-            continue
+    with span("dream.persist", {"projects": len(distilled_by_project)}) as _persist_span:
+        for proj, distilled in distilled_by_project.items():
+            proj_obs_ids = [o["id"] for o in project_buckets[proj]]
+            try:
+                total_persisted += _route_and_persist_project(
+                    conn, now, proj, distilled, proj_obs_ids, _mark_observations)
+            except Exception as e:
+                # F4.0: erro num projeto (LLM/`database is locked`/IO) não aborta o ciclo.
+                # Obs ficam archived=0 p/ reprocessar (não quarentena — erro transitório).
+                project_errors.append(proj)
+                print(f"  [Resiliência] Projeto '{proj}' falhou na persistência: {e}. Obs preservadas p/ reprocessar.")
+                continue
+        if _persist_span is not None:
+            _persist_span.set_attribute("persisted", str(total_persisted))
     # route_ms = duração do bloco inteiro (roteamento + persistência).
     # Para deitar decomposto, teríamos que medir `agent_route` e o loop
     # interno separadamente; por ora, mede-se o agregado.
@@ -756,7 +763,8 @@ def _run_dream_cycle_inner() -> Dict[str, int]:
     synth_t0 = time.perf_counter()
     # deadline = orçamento restante do ciclo (teto total MAX_CYCLE_SECONDS)
     _budget_left = MAX_CYCLE_SECONDS - (time.perf_counter() - cycle_t0)
-    run_synthesis_cycle(deadline=time.monotonic() + max(0.0, _budget_left))
+    with span("dream.synthesis", {"budget_left": _budget_left}):
+        run_synthesis_cycle(deadline=time.monotonic() + max(0.0, _budget_left))
     mark_stage("synthesis_ms", synth_t0)
 
     # --- CAMADA DE NAVEGAÇÃO (MOCs) — §7.6 ---
@@ -811,6 +819,8 @@ def run_dream_cycle() -> Dict[str, int]:
     Mantém a assinatura pública usada pelos timers/__main__ — o corpo real é
     `_run_dream_cycle_inner`. O `finally` garante 1 linha por ciclo mesmo se o
     inner levantar exceção (registrada como 'error')."""
+    from core.telemetry import init_telemetry, flush_telemetry
+    init_telemetry()
     started_iso = datetime.now().isoformat()
     t0 = time.perf_counter()
     obs_count = 0
@@ -834,6 +844,7 @@ def run_dream_cycle() -> Dict[str, int]:
         reason = "error"
         raise
     finally:
+        flush_telemetry()
         _log_dream_cycle(started_iso, t0, obs_count, reason)
 
 

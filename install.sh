@@ -821,6 +821,17 @@ else
     echo -e "           $CRSQLITE_DIR/README.md"
 fi
 
+# ── Langfuse / OpenTelemetry (P9) — opt-in ────────────────────────────────
+# Tracing distribuído opt-in para Dream Cycle, capture e MCP. Com keys vazias,
+# zero overhead (NoOp tracer). Para subir Langfuse local e instrumentar:
+echo -e "${BOLD}[14] Langfuse / OpenTelemetry (P9) - opt-in.${NC}"
+echo -e "         Para tracing distribuido dos scripts (Dream Cycle, capture, MCP):"
+echo -e "           1. Suba Langfuse:  ${BOLD}docker compose -f docker-compose.langfuse.yml up -d${NC}"
+echo -e "           2. Crie projeto + copie keys em http://localhost:3100"
+echo -e "           3. Adicione ao .env: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST"
+echo -e "         Sem keys: zero overhead (traces descartados). Veja:"
+echo -e "           docker-compose.langfuse.yml"
+
 echo ""
 
 # ── Configuração Interativa Pós-Instalação (Opcional) ───────────────────────

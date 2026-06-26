@@ -254,6 +254,8 @@ def ingest(platform: str, sess: dict, store: SeenStore) -> int:
     `sess` = {sid, prompt, turns:[{tool_name, tool_input:{prompt?}, tool_response}], last}.
     `store` = SeenStore compartilhado. Re-chamar com a mesma sessão N vezes
     (reparse / reescrita / 2 processos) → só conteúdo NOVO emite."""
+    from core.telemetry import init_telemetry, span
+    init_telemetry()
     sid = sess.get("sid")
     prompt = sess.get("prompt")
     prompts = sess.get("prompts") or []
@@ -263,6 +265,12 @@ def ingest(platform: str, sess: dict, store: SeenStore) -> int:
 
     store.touch(platform, sid)
 
+    with span("capture.ingest", {"platform": platform, "sid": sid, "turns_count": len(turns)}):
+        return _ingest_body(platform, sess, store, sid, prompt, prompts, turns, last_text)
+
+
+def _ingest_body(platform, sess, store, sid, prompt, prompts, turns, last_text) -> int:
+    """Corpo de ingest() extraído p/ permitir wrap por span de telemetria P9."""
     proj = sess.get("project") or PROJECT
     cwd = sess.get("cwd") or str(Path.cwd())
 

@@ -589,8 +589,10 @@ def handle_request(req: dict) -> dict | None:
         tool_args = params.get("arguments", {})
         handler = HANDLERS.get(tool_name)
         if handler:
+            from core.telemetry import span
             try:
-                result = handler(tool_args)
+                with span(f"mcp.{tool_name}", {"tool": tool_name}):
+                    result = handler(tool_args)
                 return {
                     "jsonrpc": "2.0",
                     "id": req_id,
@@ -624,20 +626,25 @@ def handle_request(req: dict) -> dict | None:
 
 
 def main():
-    while True:
-        try:
-            line = sys.stdin.readline()
-            if not line:
+    from core.telemetry import init_telemetry, flush_telemetry
+    init_telemetry()
+    try:
+        while True:
+            try:
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                req = json.loads(line.strip())
+                resp = handle_request(req)
+                if resp is not None:
+                    sys.stdout.write(json.dumps(resp) + "\n")
+                    sys.stdout.flush()
+            except json.JSONDecodeError:
+                continue
+            except KeyboardInterrupt:
                 break
-            req = json.loads(line.strip())
-            resp = handle_request(req)
-            if resp is not None:
-                sys.stdout.write(json.dumps(resp) + "\n")
-                sys.stdout.flush()
-        except json.JSONDecodeError:
-            continue
-        except KeyboardInterrupt:
-            break
+    finally:
+        flush_telemetry()
 
 
 if __name__ == "__main__":
