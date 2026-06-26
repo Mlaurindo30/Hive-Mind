@@ -727,6 +727,14 @@ def _run_dream_cycle_inner() -> Dict[str, int]:
 
     if not distilled_by_project:
         # Nenhum projeto produziu fatos: nada a rotear/persistir.
+        # P9 review: mesmo em ciclo empty, geramos spans `dream.persist` (zero
+        # projects) e `dream.synthesis` (skipped) para rastreabilidade no Langfuse.
+        with span("dream.persist", {"projects": 0}) as _persist_span:
+            if _persist_span is not None:
+                _persist_span.set_attribute("persisted", "0")
+        _budget_left = MAX_CYCLE_SECONDS - (time.perf_counter() - cycle_t0)
+        with span("dream.synthesis", {"budget_left": _budget_left, "skipped": "empty"}):
+            pass  # ciclo empty: nada a sintetizar
         stage_metrics["total_cycle_ms"] = round((time.perf_counter() - cycle_t0) * 1000.0, 3)
         if distill_failures and not distill_empties:
             _persist_cycle_metrics(stage_metrics, status="failed")
@@ -869,6 +877,15 @@ def _persist_cycle_metrics(metrics: Dict[str, float], status: str) -> None:
 
 
 if __name__ == "__main__":
+    # SIGTERM handler: systemd oneshot envia SIGTERM (não SIGINT) no stop manual.
+    # Default Python termina sem rodar `finally`/`atexit` — perderíamos o flush
+    # de spans e o log do ciclo. Convertemos SIGTERM em SystemExit para cair no
+    # `finally: flush_telemetry()` em run_dream_cycle().
+    import signal
+    try:
+        signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(0)))
+    except (ValueError, OSError):
+        pass  # SIGTERM só pode ser tratado no main thread
     if not LLM_PROVIDER or not LLM_MODEL:
         print("ERRO: Hive-Dreamer não configurado.")
         sys.exit(1)

@@ -83,39 +83,52 @@ def main() -> int:
 
     _lock = _acquire_lock()  # mantém o FD vivo enquanto o processo roda
 
-    cutoff = time.time() - args.since_hours * 3600
-    core.SESSION_CUTOFF_MS = int(cutoff * 1000)
-    # DONO ÚNICO: --all processa só owner=="timer". Realtime é do daemon.
-    platforms = list(adapters_by_owner("timer")) if args.all else [args.platform]
-    total = 0
-    store = core.SeenStore()
+    # Telemetry opt-in (P9): sem LANGFUSE keys, init é no-op.
+    from core.telemetry import init_telemetry, flush_telemetry
+    init_telemetry()
+    try:
+        cutoff = time.time() - args.since_hours * 3600
+        core.SESSION_CUTOFF_MS = int(cutoff * 1000)
+        # DONO ÚNICO: --all processa só owner=="timer". Realtime é do daemon.
+        platforms = list(adapters_by_owner("timer")) if args.all else [args.platform]
+        total = 0
+        store = core.SeenStore()
 
-    for plat in platforms:
-        adp = ADAPTERS[plat]
-        parser = adp["parser"]
-        if args.source and not args.all:
-            sources = [Path(args.source)]
-        else:
-            found = []
-            for pattern in adp["sources"]:
-                found.extend(glob.glob(pattern))
-            sources = [Path(p) for p in found
-                       if Path(p).is_file() and core._src_mtime(Path(p)) >= cutoff]
-        if not sources:
-            continue
-        for s in sources:
-            if not s.is_file():
+        for plat in platforms:
+            adp = ADAPTERS[plat]
+            parser = adp["parser"]
+            if args.source and not args.all:
+                sources = [Path(args.source)]
+            else:
+                found = []
+                for pattern in adp["sources"]:
+                    found.extend(glob.glob(pattern))
+                sources = [Path(p) for p in found
+                           if Path(p).is_file() and core._src_mtime(Path(p)) >= cutoff]
+            if not sources:
                 continue
-            try:
-                sessions = parser(s)
-            except Exception as exc:
-                print(f"  ⚠ {plat}:{s.name}: parse falhou ({exc})")
-                continue
-            for sess in sessions:
-                total += core.ingest(plat, sess, store)
-    print(f"total: {total}")
-    return 0
+            for s in sources:
+                if not s.is_file():
+                    continue
+                try:
+                    sessions = parser(s)
+                except Exception as exc:
+                    print(f"  ⚠ {plat}:{s.name}: parse falhou ({exc})")
+                    continue
+                for sess in sessions:
+                    total += core.ingest(plat, sess, store)
+        print(f"total: {total}")
+        return 0
+    finally:
+        flush_telemetry()
 
 
 if __name__ == "__main__":
+    # SIGTERM handler: timer systemd envia SIGTERM (não SIGINT) no TimeoutStopSec.
+    # Default Python termina sem rodar `finally`/`atexit` — perderíamos o flush.
+    import signal
+    try:
+        signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(0)))
+    except (ValueError, OSError):
+        pass
     raise SystemExit(main())

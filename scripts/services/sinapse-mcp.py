@@ -628,6 +628,17 @@ def handle_request(req: dict) -> dict | None:
 def main():
     from core.telemetry import init_telemetry, flush_telemetry
     init_telemetry()
+    # SIGTERM handler: em prod, MCP servers recebem SIGTERM (não KeyboardInterrupt)
+    # do systemd/agente. Default Python termina SEM rodar `finally` ou `atexit`,
+    # perdendo o flush de spans. Convertemos SIGTERM em KeyboardInterrupt para
+    # cair no `except KeyboardInterrupt: break` abaixo.
+    import signal
+    try:
+        signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(KeyboardInterrupt))
+    except (ValueError, OSError):
+        # SIGTERM só pode ser tratado no main thread; em testes/imports pode
+        # falhar silenciosamente.
+        pass
     try:
         while True:
             try:

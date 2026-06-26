@@ -263,6 +263,19 @@ def main() -> int:
                     help="Sync bidirecional (pull + push) com <URL>")
     args = ap.parse_args()
 
+    # Telemetry opt-in (P9): instrumenta export/import/push/pull/sync.
+    # Sem LANGFUSE keys no .env, é no-op (zero overhead).
+    from core.telemetry import init_telemetry, span, flush_telemetry
+    init_telemetry()
+
+    # SIGTERM handler: timer systemd envia SIGTERM (não SIGINT) no TimeoutStopSec.
+    # Default Python termina sem rodar `finally`/`atexit` — perderíamos o flush.
+    import signal
+    try:
+        signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(0)))
+    except (ValueError, OSError):
+        pass
+
     # Gate: toda ação real depende de schema CRR migrado. Sem HIVE_CRDT_SYNC=true
     # o DB nao tem crsql_changes e a falha seria um OperationalError cru lá no
     # fundo de get_changes_since. Falha cedo com mensagem acionável.
@@ -276,27 +289,35 @@ def main() -> int:
         )
         return 1
 
-    # Despacho
-    if args.sync:
-        result = _sync(args.sync, args.since)
-    elif args.push:
-        payload = _export(args.since)
-        result = _push(args.push, payload)
-        result["pushed_changes"] = len(payload.get("changes", []))
-        result["local_version"] = payload.get("version")
-    elif args.pull:
-        payload = _pull(args.pull, args.since)
-        result = _import_changes(payload)
-        result["remote_version"] = payload.get("version")
-    elif args.export:
-        result = _export(args.since)
-    elif args.import_file:
-        with open(args.import_file) as f:
-            payload = json.load(f)
-        result = _import_changes(payload)
-    else:
-        ap.print_help()
-        return 0
+    # Despacho (cada modo é wrappado em um span dedicado)
+    try:
+        if args.sync:
+            with span("sync.bidirectional", {"url": args.sync, "since": args.since}):
+                result = _sync(args.sync, args.since)
+        elif args.push:
+            with span("sync.push", {"url": args.push, "since": args.since}):
+                payload = _export(args.since)
+                result = _push(args.push, payload)
+                result["pushed_changes"] = len(payload.get("changes", []))
+                result["local_version"] = payload.get("version")
+        elif args.pull:
+            with span("sync.pull", {"url": args.pull, "since": args.since}):
+                payload = _pull(args.pull, args.since)
+                result = _import_changes(payload)
+                result["remote_version"] = payload.get("version")
+        elif args.export:
+            with span("sync.export", {"since": args.since}):
+                result = _export(args.since)
+        elif args.import_file:
+            with span("sync.import", {"file": args.import_file}):
+                with open(args.import_file) as f:
+                    payload = json.load(f)
+                result = _import_changes(payload)
+        else:
+            ap.print_help()
+            return 0
+    finally:
+        flush_telemetry()
 
     # Saida
     output = json.dumps(result, indent=2, default=str)

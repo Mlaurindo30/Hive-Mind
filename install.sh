@@ -826,11 +826,13 @@ fi
 # zero overhead (NoOp tracer). Para subir Langfuse local e instrumentar:
 echo -e "${BOLD}[14] Langfuse / OpenTelemetry (P9) - opt-in.${NC}"
 echo -e "         Para tracing distribuido dos scripts (Dream Cycle, capture, MCP):"
-echo -e "           1. Suba Langfuse:  ${BOLD}docker compose -f docker-compose.langfuse.yml up -d${NC}"
+echo -e "           1. Suba Langfuse:  ${BOLD}docker compose -f integrations/langfuse/docker-compose.yml up -d${NC}"
 echo -e "           2. Crie projeto + copie keys em http://localhost:3100"
 echo -e "           3. Adicione ao .env: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST"
+echo -e "         Em prod use HTTPS (basic auth vazaria keys em HTTP) + LANGFUSE_NEXTAUTH_SECRET/SALT fortes:"
+echo -e "           openssl rand -hex 32"
 echo -e "         Sem keys: zero overhead (traces descartados). Veja:"
-echo -e "           docker-compose.langfuse.yml"
+echo -e "           integrations/langfuse/README.md"
 
 echo ""
 

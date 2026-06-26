@@ -1,0 +1,15 @@
+version: "3"
+services:
+  langfuse:
+    image: langfuse/langfuse:latest
+    ports:
+      - "3100:3000"
+    environment:
+      DATABASE_URL: "file:/data/langfuse.db"
+      # Secrets via .env (NUNCA commitar valores reais). Veja integrations/langfuse/README.md.
+      # Em producao, gere valores fortes: openssl rand -hex 32
+      NEXTAUTH_SECRET: "${LANGFUSE_NEXTAUTH_SECRET:-local-dev-secret-change-me}"
+      NEXTAUTH_URL: "${LANGFUSE_NEXTAUTH_URL:-http://localhost:3100}"
+      SALT: "${LANGFUSE_SALT:-local-dev-salt-change-me}"
+    volumes:
+      - ../../claude-mem/data/langfuse:/data

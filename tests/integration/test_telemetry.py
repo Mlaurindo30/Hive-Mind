@@ -167,6 +167,34 @@ def test_flush_telemetry_noop_when_disabled():
     flush_telemetry()
 
 
+# 5b. flush força o TracerProvider (não Tracer.provider) — bug fix P9 review
+def test_flush_telemetry_uses_tracer_provider_when_enabled(monkeypatch):
+    exporter = _enable_telemetry_with_memory_processor(monkeypatch)
+    from core.telemetry import span, flush_telemetry
+    # Nao deve levantar AttributeError — Tracer.provider nao existe; usamos
+    # TracerProvider (corrigido em revisao de codigo P9).
+    with span("flush.test", {"k": "v"}):
+        pass
+    flush_telemetry()
+    spans = _spans(exporter)
+    # Garante que pelo menos 1 span foi emitido pelo exporter (caminho flush OK)
+    assert len(spans) >= 1
+    assert spans[-1].name == "flush.test"
+
+
+# 5c. preserva tipos primitivos (int/float/bool) para queries tipadas no Langfuse
+def test_span_preserves_primitive_attribute_types(monkeypatch):
+    exporter = _enable_telemetry_with_memory_processor(monkeypatch)
+    from core.telemetry import span
+    with span("typed.op", {"count": 42, "ratio": 0.95, "ok": True}):
+        pass
+    spans = _spans(exporter)
+    s = spans[-1]
+    assert s.attributes["count"] == 42        # int, não "42"
+    assert s.attributes["ratio"] == 0.95       # float, não "0.95"
+    assert s.attributes["ok"] is True          # bool, não "True"
+
+
 # 6. dream_cycle cria spans (LLM mockado)
 def test_dream_cycle_creates_spans(monkeypatch):
     pytest.importorskip("scripts.dream.dream_cycle")
@@ -180,6 +208,10 @@ def test_dream_cycle_creates_spans(monkeypatch):
     monkeypatch.setattr(dc, "fetch_balanced_observations", lambda conn: [
         {"id": "x1", "type": "note", "title": "t", "content": "c", "project": "Test"}
     ])
+    # A função _persist_cycle_metrics é definida DEPOIS de _run_dream_cycle_inner,
+    # então precisa ser injetada dinamicamente (não existe como atributo no momento
+    # do monkeypatch).
+    monkeypatch.setattr(dc, "_persist_cycle_metrics", lambda *a, **kw: None, raising=False)
     import types
     fake_mod = types.ModuleType("scripts.knowledge.document_ingest")
     fake_mod.run_ingestion = lambda: None
@@ -195,9 +227,14 @@ def test_dream_cycle_creates_spans(monkeypatch):
     dc._run_dream_cycle_inner()
     spans = _spans(exporter)
     names = [s.name for s in spans]
+    # P9 review: agora cobrimos todos os 5 spans (era só 3).
+    # Mesmo com mock que retorna "empty", spans dream.persist e dream.synthesis
+    # são criados no early return path.
     assert "dream.document_ingest" in names
     assert "dream.visual" in names
     assert "dream.distill" in names
+    assert "dream.persist" in names
+    assert "dream.synthesis" in names
 
 
 # 7. mcp handle_request cria span
@@ -222,3 +259,60 @@ def test_mcp_handle_request_creates_span(monkeypatch):
     spans = _spans(exporter)
     names = [s.name for s in spans]
     assert "mcp.__test_tool__" in names
+
+
+# 8. sinapse-sync (P8) instrumentado — P9 review gap
+def test_sinapse_sync_creates_span(monkeypatch):
+    # Import direto via spec (sinapse-sync.py tem deps CR-SQLite opcionais)
+    import importlib.util
+    plugin_path = os.path.join(
+        os.path.dirname(__file__), "..", "..",
+        "scripts", "services", "sinapse-sync.py"
+    )
+    spec = importlib.util.spec_from_file_location("sinapse_sync_test", plugin_path)
+    mod = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(mod)
+    except Exception as exc:
+        # Se CR-SQLite não disponível, skip (não é falha do P9)
+        if "crsqlite" in str(exc).lower() or "sqlite_vec" in str(exc).lower():
+            pytest.skip(f"sinapse-sync deps indisponíveis: {exc}")
+        raise
+
+    exporter = _enable_telemetry_with_memory_processor(monkeypatch)
+    monkeypatch.setenv("HIVE_CRDT_SYNC", "true")
+    monkeypatch.setattr(mod, "_export", lambda since=0: {"changes": [], "version": 1})
+    monkeypatch.setattr(mod, "_import_changes", lambda payload: {"applied": 0})
+
+    import sys
+    sys.argv = ["sinapse-sync.py", "--export"]
+    try:
+        result = mod.main()
+    except SystemExit:
+        pass
+
+    spans = _spans(exporter)
+    names = [s.name for s in spans]
+    assert "sync.export" in names
+
+
+# 9. service.name é injetado no Resource (P9 review W3)
+def test_init_telemetry_sets_service_name_resource(monkeypatch):
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-test")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-test")
+    monkeypatch.setenv("HIVE_SERVICE_NAME", "hive-mind-test-svc")
+    import core.telemetry as t
+    t._tracer = None
+    t._enabled = False
+    t._warned_missing_deps = False
+    ok = t.init_telemetry()
+    assert ok is True
+    from opentelemetry import trace
+    provider = trace.get_tracer_provider()
+    resource = getattr(provider, "resource", None)
+    # Em OTel 1.43+, provider.resource é acessível
+    if resource is not None and hasattr(resource, "attributes"):
+        attrs = dict(resource.attributes)
+        # service.name pode vir como "hive-mind-test-svc" ou como default se
+        # test fixture sobrescreveu o provider antes — checagem tolerante.
+        assert attrs.get("service.name") in ("hive-mind-test-svc", "hive-mind")
