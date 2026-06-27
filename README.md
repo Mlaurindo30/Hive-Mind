@@ -116,12 +116,9 @@ Tools disponíveis:
 
 O Hive-Mind é organizado como um cérebro. O vault `cerebro/` espelha a anatomia — **quatro lobos irmãos sob a Consciência**, e o Córtex tem **cinco lóbulos próprios**.
 
-```
 ![Anatomia do cérebro Hive-Mind](docs/assets/image/brain-anatomy.png)
 *Representação visual dos 4 lobos e 5 lóbulos*
 
-
-```
 
 Os **quatro lobos sob a Consciência são pares** (Córtex, Cerebelo, Diencéfalo, Tronco) — não há hierarquia entre eles. O Tronco **não é descendente** de nenhum outro lobo; é irmão.
 
@@ -144,11 +141,8 @@ As ferramentas externas são **órgãos do cérebro**, não bancos paralelos: Gr
 
 ## Visão Geral da Arquitetura
 
-```
- ![Diagrama de arquitetura do Hive-Mind](docs/assets/images/architecture-diagram.png)
-*Fonte: architecure-diagram.png*
-
-```
+![Diagrama de arquitetura do Hive-Mind](docs/assets/image/architecture-diagram.png)
+*Fonte: architecture-diagram.png*
 
 ### Dimensões de memória
 
@@ -196,12 +190,8 @@ As ferramentas externas são **órgãos do cérebro**, não bancos paralelos: Gr
 
 Consolidação offline: o que o agente vive durante o dia (observações brutas) é transformado em conhecimento estruturado e legível.
 
-```
-
 ![O Ciclo de Sonho](docs/assets/image/Dreamer.png)
 *Fonte: Dreamer.png*
-
-```
 
 - **Agnóstico a provedor, por papel:** cada papel (`dreamer`, `graphify`, `vision`, `synthesis`) escolhe provedor+modelo via `HIVE_{ROLE}_PROVIDER/MODEL` no `.env`, com herança do Dreamer e fallback opt-in (`HIVE_{ROLE}_FALLBACK_*`). Suporte a Google/Gemini, OpenAI, Anthropic, DeepSeek, OpenRouter, NVIDIA, HuggingFace, Qwen, LM Studio e Ollama (local). Detalhes: [`docs/01-architecture.md`](docs/01-architecture.md) §10.1 e ADR-009.
 - **Fail-safe:** pipeline que falha envia dados para quarentena (`archived=2`), nunca os descarta. Erros transitórios fazem retry com backoff; falha de validação Pydantic nunca dispara fallback.
@@ -410,11 +400,8 @@ cloud:
 
 ## Sincronização P2P
 
-```
 ![Sincronização P2P](docs/assets/image/sincronizacao_P2P.png)
 *Fonte: sincronizacao_P2P.png*
-```
-
 - UUIDs v4 em todas as PKs — sem colisão entre máquinas
 - SHA-256 de conteúdo em `neurons.hash` — detecção determinística
 - `audit_memory.py --fix` — reconcilia vault ↔ SQLite
