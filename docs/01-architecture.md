@@ -8,6 +8,7 @@
 ## Índice
 
 1. [Princípios de Design](#1-princípios-de-design)
+1.1. [Nomenclatura](#11-nomenclatura)
 2. [Anatomia do Cérebro](#2-anatomia-do-cérebro)
 3. [Visão Macro do Sistema](#3-visão-macro-do-sistema)
 4. [Unified Memory Core (UMC)](#4-unified-memory-core-umc)
@@ -38,6 +39,7 @@
 3. **Um banco, várias dimensões.** Em vez de JSON de grafo + SQLite do claude-mem + Chroma de vetores, o UMC centraliza tudo em um único `hive_mind.db`. Queries entre dimensões viram SQL simples.
 4. **Agnosticismo de agente e de LLM.** Qualquer agente se conecta via MCP/CLI/REST. Qualquer LLM serve o Dream Cycle via `HIVE_DREAMER_PROVIDER/MODEL`. Nenhum modelo é hardcoded.
 5. **Fail-safe, não fail-silent.** Pipeline que falha envia dados para quarentena (`archived=2`), nunca os descarta. API sem chave não inicia. Backend com 3+ falhas entra em circuit breaker (cooldown 30s).
+6. **Sem sufixos de versão em arquivos, código ou schema.** Não usar `v2`, `v3`, `v4` etc. em nomes de arquivos (`umc_schema_v2.sql`), classes, funções ou tabelas. Para evolução de schema, usar sufixo semântico que descreva a propriedade (`umc_schema_crr.sql` para o schema compatível com CRR; `setup_crdt.py` em vez de `migrate_to_v2.py`). Migrações viram scripts `setup_<feature>.py` ou `migrate_<feature>.py`. **Exceção**: referências a upstream (`OmniParser v2`, `MiniLM-L6-v2`, modelos HuggingFace) mantêm o nome que o upstream usa.
 
 ---
 
@@ -80,7 +82,7 @@ O Hive-Mind é organizado como um cérebro. O vault `cerebro/` espelha a anatomi
    ├── 📥 PARIETAL    — sensorial (inbox, referências)
    │       └── inbox/{visual,documents}/  referencias/  analises/
    ├── 👁 OCCIPITAL   — visão (capturas + grafo de conhecimento)
-   │       └── capturas-visuais/  grafo/  (graphify-out/)
+   │       └── capturas-visuais/  grafo/graph.json
    └── 💓 ÍNSULA      — interocepção, autoconsciência
            └── saude/  conflitos/
 ```
@@ -125,7 +127,7 @@ Cada `neuronio-<hash>.md` tem frontmatter com `integrity_hash` (SHA-256 do conte
    ├── diario/    → reflexões diárias (YYYY/MM/YYYY-MM-DD.md)
    ├── semanal/   → sínteses semanais
    └── padroes/   → padrões aprendidos (memória procedural)
-       + cerebro/brain/Patterns.md  (Padrões aprendidos — referência canônica)
+       + cerebro/cerebelo/padroes/Patterns.md  (Padrões aprendidos — referência canônica)
 ```
 
 ### 2.3 Diencéfalo — relay cross-projeto
@@ -157,10 +159,10 @@ Cada `neuronio-<hash>.md` tem frontmatter com `integrity_hash` (SHA-256 do conte
 |---|---|---|
 | **Córtex frontal** | Decisão, planejamento, trabalho | `core/`, `scripts/dream/dream_cycle.py` (síntese dialética), `cerebro/cortex/frontal/{decisoes,trabalho,brain,projetos,org}` |
 | **Córtex parietal** | Sensorial — inbox, referências | `scripts/capture/`, `cerebro/cortex/parietal/{inbox,referencias}` |
-| **Córtex occipital** | Visão — capturas + **grafo** | `scripts/capture/visual_capture.py` + `graphify-out/graph.json` (Graphify, em `cerebro/cortex/occipital/grafo/`) |
+| **Córtex occipital** | Visão — capturas + **grafo** | `scripts/capture/visual_capture.py` + `cerebro/cortex/occipital/grafo/graph.json` |
 | **Córtex temporal** | Memória de longo prazo por projeto | `cerebro/cortex/temporal/<projeto>/<topico>/neuronio-*.md` + UMC `hive_mind.db` (indexador) |
 | **Córtex ínsula** | Saúde, autoconsciência | `scripts/health/`, `cerebro/cortex/insula/{saude,conflitos}` |
-| **Cerebelo** | Ritmo — diário, semanal, sessões, padrões | `cerebelo/{sessoes,diario,semanal,padroes}/` + `cerebro/brain/Patterns.md` |
+| **Cerebelo** | Ritmo — diário, semanal, sessões, padrões | `cerebro/cerebelo/{sessoes,diario,semanal,padroes}/` + `cerebro/cerebelo/padroes/Patterns.md` |
 | **Diencéfalo** | Relay cross-projeto | `cerebro/diencefalo/setores/<setor>.md` |
 | **Tronco** | Infra vital | `cerebro/tronco/{modelos,paineis,infra,meta}/` — templates, bases, configuração, sub-vaults |
 
@@ -179,6 +181,8 @@ As 7 ferramentas que alimentam o cérebro **não são bancos paralelos**. São *
 | **Filesystem scan** | Córtex parietal (sentido imediato) | Lê o vault direto, sem esperar reindexação |
 
 > **Nota:** RTK não é um read-backend do `sinapse_query` — é otimização de shell, não participa do Context Fusion.
+> Ele é instalado por agente/CLI (`codex`, `claude`, `gemini`, `cursor`,
+> `hermes`, etc.) via `./scripts/services/start-rtk.sh --only <agente>`.
 
 O `sinapse_query` é o ponto de entrada único do cérebro. Dispara os 7 órgãos em paralelo (circuit breaker + timeout 8s por backend), funde via Context Fusion e devolve **um único pacote de contexto**, não 7 respostas.
 
@@ -222,7 +226,7 @@ Qualquer novo código que criar/modificar arquivo no vault **deve usar essas con
                        ▼                         │             ▼
   ┌────────────────────────────────┐             │  ┌──────────────────────┐
   │  sinapse-mcp.py (MCP Server)  │             │  │ sinapse-memory.py    │
-  │  13 tools · stdio JSON-RPC     │             │  │ Plugin Hermes         │
+  │  15 tools · stdio JSON-RPC     │             │  │ Plugin Hermes         │
   │                               │             │  │ pre_gateway_dispatch │
   │  sinapse-write.py (CLI)        │             │  │ post_tool_call       │
   │  sinapse-api.py (REST :37702)  │             │  │ on_session_end       │
@@ -258,8 +262,8 @@ Qualquer novo código que criar/modificar arquivo no vault **deve usar essas con
           ▼                               │              │ edição
   ┌───────────────────────────────────┐   │              │
   │  Vault Obsidian — cerebro/        │───┘──────────────┘
-  │  atlas/  brain/  work/            │
-  │  atoms/  org/  reference/         │ ◄─── Syncthing P2P (opcional)
+  │  cortex/  cerebelo/               │
+  │  diencefalo/  tronco/             │ ◄─── Syncthing P2P (opcional)
   │  portal.canvas  (fonte de verdade)│
   └───────────────────────────────────┘
 ```
@@ -272,7 +276,7 @@ Qualquer novo código que criar/modificar arquivo no vault **deve usar essas con
 | `core/` | Schema UMC, conexões, auth, schemas Pydantic | Agentes específicos |
 | `graphify/` | Indexação estrutural → neurons/synapses | claude-mem, RTK |
 | `~/.claude-mem` | Captura temporal global de eventos → observations | Graphify, RTK |
-| `rtk/` | Reescrita de comandos shell | Tudo (hook isolado) |
+| `integrations/rtk/` | Reescrita de comandos shell por agente/CLI | Tudo (hook isolado) |
 | `integrations/neural-memory/` | Recall associativo (spreading activation) | Camadas restantes |
 | `scripts/` | Pipeline, servidores, operação | — |
 | `plugins/hermes/` | Ponte bidirecional Hermes ↔ UMC ↔ vault | — |
@@ -363,7 +367,7 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
          ├─────────────────────────────────────────────┐
          │                                             │
          ▼                                             ▼
-  Busca paralela em 4 backends:              Filesystem scan (cerebro/*.md)
+  Busca paralela nos backends de leitura:    Filesystem scan (cerebro/*.md)
   ┌──────────────────────────────┐          cache TTL 30s
   │ UMC SQL                      │          busca direta, zero gap
   │  search_fts MATCH 'pricing'  │
@@ -386,7 +390,9 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
               do agente (pré-prompt)
 ```
 
-**Plugin Hermes:** o hook `pre_gateway_dispatch` faz tudo automaticamente a cada prompt. Limites: `MAX_CONTEXT_CHARS=3000`, `MAX_NODES=5`.
+**Acesso por agente:** agentes MCP chamam `sinapse_query` via tool; o plugin
+Hermes pode fazer injeção automática via `pre_gateway_dispatch`. Limites:
+`MAX_CONTEXT_CHARS=3000`, `MAX_NODES=5`.
 
 **Circuit breaker:** backend com 3+ falhas consecutivas entra em cooldown 30s. Apenas exceções e timeouts contam como falha (não resultados vazios).
 
@@ -405,7 +411,7 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
   tempfile.mkstemp() → write → os.replace()  (atômico no Linux)
          │
          ▼
-  cerebro/work/active/2026-06-10-migrar-vps.md
+  cerebro/cortex/frontal/trabalho/ativo/2026-06-10-migrar-vps.md
   ─────────────────────────────────────────────
   ---
   tags: [decision]
@@ -429,10 +435,10 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
   "aprendizado"|"learning"|"insight"|"padrão"|"pattern"|"lição"
          │
          ▼
-  append em brain/Patterns.md (com dedup por título)
+  append em cerebro/cerebelo/padroes/Patterns.md (com dedup por título)
 
   ao final da sessão:
-  sinapse_session_end() → brain/Current State.md atualizado
+  sinapse_session_end() → cerebro/cortex/frontal/brain/Current State.md atualizado
                         → observation de fechamento no UMC
 ```
 
@@ -472,15 +478,16 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
   │       │ aprovado           │ reprovado → feedback → Distiller  │
   │       ▼                    │                                   │
   │  Router  (RouterOutput Pydantic)                               │
-  │  "para qual tópico do Atlas cada fato pertence?"               │
+  │  "para qual projeto/tópico do lóbulo temporal cada fato vai?"   │
   │       │                                                        │
   │  falha de pipeline → archived=2 (quarentena, jamais perdido)   │
   └──────────────────────┬─────────────────────────────────────────┘
                          │ roteamento bem-sucedido
   ┌──────────────────────▼─────────────────────────────────────────┐
-  │                  ESTÁGIO 2 — PERSISTÊNCIA NO ATLAS             │
+  │              ESTÁGIO 2 — PERSISTÊNCIA NO CÓRTEX TEMPORAL       │
   │                                                                │
-  │  cerebro/atlas/<tópico>/<fato>.md  (atomic write)              │
+  │  cerebro/cortex/temporal/<projeto>/<topico>/neuronio-*.md      │
+  │  escrita atômica via arquivo temporário + os.replace()         │
   │  UPSERT neurons (hash SHA-256, embedding 384d)                 │
   │  archived=1 (consolidado)                                      │
   └──────────────────────┬─────────────────────────────────────────┘
@@ -605,11 +612,13 @@ stdio JSON-RPC, compatível com qualquer cliente MCP.
 | Tool | Assinatura | Função |
 |------|-----------|--------|
 | `sinapse_query` | `(query, limit?)` | Busca híbrida: FTS5 + vetores + grafo + filesystem |
-| `sinapse_save_decision` | `(title, content)` | Decisão → `work/active/YYYY-MM-DD-slug.md` |
-| `sinapse_save_learning` | `(title, content)` | Aprendizado → `brain/Patterns.md` |
+| `sinapse_save_decision` | `(title, content)` | Decisão → `cerebro/cortex/frontal/trabalho/ativo/YYYY-MM-DD-slug.md` |
+| `sinapse_save_learning` | `(title, content)` | Aprendizado → `cerebro/cerebelo/padroes/Patterns.md` |
 | `sinapse_health` | `()` | Status de todos os backends |
 | `sinapse_session_end` | `(summary?)` | Fecha sessão, atualiza Current State |
-| `sinapse_temporal_search` | `(query, limit?)` | Busca direta na camada temporal |
+| `sinapse_temporal_search` | `(query, limit?, project?)` | Etapa 1 claude-mem: índice compacto com IDs/títulos |
+| `sinapse_temporal_timeline` | `(anchor? ou query?, depth_before?, depth_after?, project?)` | Etapa 2 claude-mem: janela cronológica ao redor de um ID/query |
+| `sinapse_temporal_get_observations` | `(ids, orderBy?, limit?, project?)` | Etapa 3 claude-mem: detalhes completos só dos IDs filtrados |
 | `sinapse_temporal_save` | `(content, type?)` | Observação (fallback: vault) |
 | `sinapse_zettelkasten_split` | `(file_path)` | Nota monolítica → notas atômicas Zettelkasten |
 | `sinapse_capture_screen` | `(description?)` | Screenshot → `visual_memories` |
@@ -618,7 +627,7 @@ stdio JSON-RPC, compatível com qualquer cliente MCP.
 | `sinapse_rag_query` | `(question, mode?)` | Consulta híbrida no grafo LightRAG (entidades + relações) — multi-hop, alimentado pelo Dream Cycle (P4) |
 | `search_memories` | `(query, top_k?, project?, mode?)` | Busca HNSW/FTS sobre o vault |
 
-Total: **13 tools**. Registro/instructions automáticos via `register-mcp.sh`.
+Total: **15 tools**. Registro/instructions automáticos via `register-mcp.sh`.
 
 **Fonte única de instruções operacionais:** `config/sinapse-agent-prompt.md`.
 - Carregado por `scripts/services/sinapse-mcp.py:_load_instructions()` (L38–53) e exposto como `instructions` no `initialize` do MCP.
@@ -664,11 +673,14 @@ FastAPI, porta `HIVE_MIND_API_PORT` (default **37702**). Fail-closed sem `HIVE_M
 
 ## 11. Autenticação Multi-Provedor
 
-`PROVIDERS_CONFIG` em `core/auth.py` cobre 10 provedores:
+`PROVIDERS_CONFIG` em `core/auth.py` é o registro mestre de provedores. A lista ativa é definida no código e inclui provedores de API, provedores locais e pontes CLI/OpenAI-compatible.
 
 | Provedor | Auth | Env var |
 |----------|------|---------|
 | google | API key + OAuth loopback | `GOOGLE_API_KEY` / `GOOGLE_OAUTH_CLIENT_*` |
+| antigravity | CLI OAuth reaproveitado | `ANTIGRAVITY_UNUSED` |
+| gemini-cli | CLI OAuth reaproveitado | `GEMINI_CLI_UNUSED` |
+| omniroute | gateway local OpenAI-compatible | `OMNIROUTE_API_KEY` |
 | openai | API key + OAuth Codex-handshake | `OPENAI_API_KEY` |
 | anthropic | API key | `ANTHROPIC_API_KEY` |
 | deepseek | API key | `DEEPSEEK_API_KEY` |
@@ -681,9 +693,9 @@ FastAPI, porta `HIVE_MIND_API_PORT` (default **37702**). Fail-closed sem `HIVE_M
 
 **Capacidades comuns:** refresh automático de token OAuth, timeout de polling 300s, descoberta de modelos em tempo real (`discover_models_realtime()`), nenhuma credencial hardcoded.
 
-### 10.1 Resolução de LLM por papel (`get_role_config`)
+### 11.1 Resolução de LLM por papel (`get_role_config`)
 
-Cada estágio do sistema que chama LLM tem um **papel** com configuração própria. Papéis canônicos (constante `HIVE_LLM_ROLES` em `core/auth.py`): `dreamer`, `graphify`, `vision`, `synthesis`. A função aceita qualquer nome de papel (case-insensitive, `-` vira `_`); nome vazio ou não-string levanta `ValueError`.
+Cada estágio do sistema que chama LLM tem um **papel** com configuração própria. Papéis canônicos atuais (constante `HIVE_LLM_ROLES` em `core/auth.py`): `dreamer`, `graphify`, `vision`, `synthesis`, `claude_mem`, `session_summarizer`, `daily_writer`, `alias_miner`, `topic_router`, `sector_classifier`, `weekly_synthesizer`, `drift_detector`, `decision_promoter`, `project_synthesizer`, `pattern_distiller`, `conflict_detector`. A função aceita qualquer nome de papel (case-insensitive, `-` vira `_`); nome vazio ou não-string levanta `ValueError`.
 
 ```python
 get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]
@@ -699,6 +711,8 @@ get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]
 | Graphify | `HIVE_GRAPHIFY_PROVIDER` / `HIVE_GRAPHIFY_MODEL` | `HIVE_GRAPHIFY_FALLBACK_PROVIDER` / `HIVE_GRAPHIFY_FALLBACK_MODEL` |
 | Vision | `HIVE_VISION_PROVIDER` / `HIVE_VISION_MODEL` | `HIVE_VISION_FALLBACK_PROVIDER` / `HIVE_VISION_FALLBACK_MODEL` |
 | Síntese P2P | `HIVE_SYNTHESIS_PROVIDER` / `HIVE_SYNTHESIS_MODEL` | `HIVE_SYNTHESIS_FALLBACK_PROVIDER` / `HIVE_SYNTHESIS_FALLBACK_MODEL` |
+| Claude Mem | `HIVE_CLAUDE_MEM_PROVIDER` / `HIVE_CLAUDE_MEM_MODEL` | `HIVE_CLAUDE_MEM_FALLBACK_PROVIDER` / `HIVE_CLAUDE_MEM_FALLBACK_MODEL` |
+| Memória viva/inteligente | `HIVE_{ROLE}_PROVIDER` / `HIVE_{ROLE}_MODEL` | `HIVE_{ROLE}_FALLBACK_PROVIDER` / `HIVE_{ROLE}_FALLBACK_MODEL` |
 
 **Regras de resolução:**
 
@@ -718,7 +732,7 @@ get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]
 - O fallback só vale como **par completo** PROVIDER+MODEL; par incompleto é tratado como ausente (`None`).
 - **Chaves de API nunca são duplicadas por papel:** são sempre resolvidas via `PROVIDERS_CONFIG` pelo nome do provedor (`GOOGLE_API_KEY`, `DEEPSEEK_API_KEY`, ...).
 
-### 10.2 Cliente LLM unificado (`core/llm_client.py`)
+### 11.2 Cliente LLM unificado (`core/llm_client.py`)
 
 Módulo que centraliza as chamadas estruturadas (antes embutidas no `dream_cycle.py`):
 
@@ -737,30 +751,21 @@ Política de retry/fallback por classe de erro: ver tabela em [`02-ai-models.md`
 
 ```
   cerebro/
-  ├── atlas/           ← Fatos consolidados pelo Dream Cycle
-  │   └── <tópico>/   ←   uma pasta por tópico identificado
-  │       └── *.md    ←   um fato = um arquivo (com frontmatter)
-  ├── brain/           ← Conhecimento operacional
-  │   ├── Patterns.md  ←   aprendizados acumulados
-  │   ├── Consolidated.md ← síntese do Dreamer
-  │   └── Current State.md ← estado atual (atualizado a cada sessão)
-  ├── atoms/           ← Notas Zettelkasten (1 ideia = 1 nota)
-  ├── work/            ← Projetos e tarefas
-  │   ├── active/      ←   decisões ativas (YYYY-MM-DD-slug.md)
-  │   └── archive/     ←   decisões arquivadas
-  ├── org/             ← Pessoas e times
-  ├── reference/       ← Documentação atemporal
-  ├── templates/       ← Templates de notas
-  ├── inbox/           ← Entrada não triada
-  │   ├── visual/      ←   screenshots capturados
-  │   └── documents/   ←   PDFs e DOCXs
-  ├── conflicts/       ← Divergências P2P preservadas (branch)
-  ├── portal.canvas    ← Memória visual (Obsidian Canvas)
-  ├── AGENTS.md / CLAUDE.md / GEMINI.md  ← Manuais por agente
-  └── Home.md          ← Entry point com dashboards
+  ├── _Consciencia.md
+  ├── cortex/
+  │   ├── temporal/<projeto>/<topico>/neuronio-*.md
+  │   ├── frontal/{decisoes,projetos,trabalho,brain,org}/
+  │   ├── parietal/{inbox,referencias,analises}/
+  │   ├── occipital/{capturas-visuais,grafo}/
+  │   │   └── grafo/graph.json      ← Graphify canônico
+  │   └── insula/{saude,conflitos}/
+  ├── cerebelo/{sessoes,diario,semanal,padroes}/
+  │   └── padroes/Patterns.md
+  ├── diencefalo/{setores,roteamento}/
+  └── tronco/{modelos,paineis,infra,meta}/
 ```
 
-Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiLinks criam `synapses` no grafo; decisões nomeadas `YYYY-MM-DD-titulo.md`.
+Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiLinks criam `synapses` no grafo; decisões ficam em `cerebro/cortex/frontal/trabalho/ativo/`; padrões em `cerebro/cerebelo/padroes/`; capturas explícitas em `cerebro/cortex/parietal/inbox/visual/`. Diretórios de agente e lixeira migrada ficam sob `cerebro/tronco/infra/` e são excluídos da indexação por `.graphifyignore` e pelas exclusões compartilhadas em `core/vault_excludes.py`. Diretórios de UI/artefatos ainda permitidos no topo (`.obsidian/`, `.smart-env/`) também são excluídos da indexação.
 
 ---
 
@@ -863,11 +868,11 @@ Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiL
 ```yaml
 project:        # nome, versão, descrição
 vault:          # path (cerebro/), format (obsidian), language, indexer, watch
-graphify:       # package, install_method, extras, output_dir, mcp_port
+graphify:       # package, install_method, extras, output_dir=cerebro/cortex/occipital/grafo, mcp_port
 claude_mem:     # port (37700), install_method, worker_autostart
 neural_memory:  # package, src_dir, recall_timeout
-rtk:            # plugin_dir, install_path
-sinapse_mcp:    # command, transport (stdio), tools (lista de 9)
+rtk:            # source_dir, binary, wrapper, targets global/project
+sinapse_mcp:    # command, transport (stdio), tools (lista de 15)
 agents:         # supported[], integration_methods, install_methods
 mcp_servers:    # graphify, claude_mem, sinapse_memory
 cloud:          # enabled, url, api_key  ← chaveamento local→VPS
@@ -1072,7 +1077,7 @@ Violações desta regra foram a causa da divergência entre estado declarado e e
 
 ### Arquivos de Vault com Convenção Antiga
 
-Os seguintes arquivos em `cerebro/work/active/` usam a numeração antiga sem prefixo e devem ser
+Os seguintes arquivos em `cerebro/cortex/frontal/trabalho/ativo/` usam a numeração antiga sem prefixo e devem ser
 renomeados na próxima edição manual do vault (NÃO pelo git — o vault é sincronizado pelo Syncthing):
 
 - `2026-06-01-PHASE-33-TTS-Integration-Closeout-Final.md` (prefixo correto: TH-33)

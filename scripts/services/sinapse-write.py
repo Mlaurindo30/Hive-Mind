@@ -14,16 +14,15 @@ import json
 import os
 import sys
 from pathlib import Path
-import importlib.util
 
-if "sinapse_memory" not in sys.modules:
-    _plugin_path = Path(__file__).resolve().parent.parent.parent / "plugins" / "hermes" / "sinapse-memory.py"
-    spec = importlib.util.spec_from_file_location("sinapse_memory", _plugin_path)
-    sm = importlib.util.module_from_spec(spec)
-    sys.modules["sinapse_memory"] = sm
-    spec.loader.exec_module(sm)
-else:
-    import sinapse_memory as sm
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from core import paths as cp
+from plugins.hermes import sinapse_memory as _sinapse_memory_adapter  # noqa: F401
+from scripts.knowledge.sinapse_zettelkasten import split_monolithic_file
+import sinapse_memory as sm
+
+DEFAULT_ZETTEL_DIR = str(cp.TEMPORAL / "Hive-Mind" / "atoms")
 
 
 def main():
@@ -50,7 +49,7 @@ def main():
 
     zk = sub.add_parser("zettelkasten", help="Auto-partition monolithic file into atomic Zettelkasten notes")
     zk.add_argument("--source", required=True, help="Monolithic markdown file path")
-    zk.add_argument("--output-dir", default="cerebro/atoms", help="Target atoms directory")
+    zk.add_argument("--output-dir", default=DEFAULT_ZETTEL_DIR, help="Target atoms directory")
 
     obs = sub.add_parser("observation", help="Save a generic observation to the UMC")
     obs.add_argument("--title", required=True, help="Observation title")
@@ -86,12 +85,7 @@ def main():
         sm._update_current_state(decisions, learnings, args.summary)
         print(json.dumps({"updated": True}))
     elif args.command == "zettelkasten":
-        import importlib.util
-        zk_script = os.path.join(os.path.dirname(__file__), "sinapse-zettelkasten.py")
-        spec = importlib.util.spec_from_file_location("sinapse_zettelkasten", zk_script)
-        zk_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(zk_mod)
-        files = zk_mod.split_monolithic_file(args.source, args.output_dir)
+        files = split_monolithic_file(args.source, args.output_dir)
         print(json.dumps({"atoms_created": len(files), "files": files}, indent=2))
 
 

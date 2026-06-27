@@ -76,7 +76,8 @@ def save_decision(
     cloud_request_fn: Optional[Callable] = None,
 ) -> Optional[str]:
     """
-    Salva uma decisão no vault: work/active/YYYY-MM-DD-titulo.md
+    Salva uma decisão no diretório anatômico recebido pelo chamador
+    (normalmente cortex/frontal/trabalho/ativo/).
 
     Args:
         title: título da decisão.
@@ -146,7 +147,7 @@ def save_learning(
     cloud_request_fn: Optional[Callable] = None,
 ) -> Optional[str]:
     """
-    Salva um aprendizado em brain/Patterns.md com deduplicação.
+    Salva um aprendizado em cerebelo/padroes/Patterns.md com deduplicação.
     """
     if cloud_enabled and not api_server_mode and cloud_request_fn is not None:
         if log_fn:
@@ -212,7 +213,7 @@ def update_current_state(
     cloud_request_fn: Optional[Callable] = None,
 ) -> None:
     """
-    Atualiza brain/Current State.md com as decisões e aprendizados da sessão.
+    Atualiza cortex/frontal/brain/Current State.md com as decisões e aprendizados da sessão.
     """
     if cloud_enabled and not api_server_mode and cloud_request_fn is not None:
         if log_fn:

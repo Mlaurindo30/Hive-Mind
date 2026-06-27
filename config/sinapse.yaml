@@ -30,7 +30,7 @@ graphify:
   package: graphifyy                      # nome do pacote PyPI (double-y)
   install_method: uv                      # uv | pipx | pip
   extras: [all]                           # pdf, office, video, mcp, neo4j, ollama, etc
-  output_dir: cerebro/graphify-out/       # output do knowledge graph
+  output_dir: cerebro/cortex/occipital/grafo/  # output anatômico do knowledge graph
   mcp_port: 0                             # 0 = stdio, ou porta para HTTP
   watch: true                             # --watch flag
   obsidian_export: true                   # --obsidian flag
@@ -57,8 +57,30 @@ neural_memory:
 # RTK (camada 3 — execução: COMO otimizar)
 # =============================================================================
 rtk:
-  plugin_dir: integrations/rtk/hooks/hermes/rtk-rewrite/  # plugin Hermes
-  install_path: ~/.hermes/plugins/rtk-rewrite/  # destino no Hermes
+  source_dir: integrations/rtk/
+  binary: integrations/rtk/target/release/rtk
+  wrapper: scripts/services/start-rtk.sh
+  install_method: "rtk init <target>"
+  role: >
+    Otimizador transversal de comandos shell. Nao e backend de leitura,
+    nao participa do sinapse_query e deve ser configurado por agente/CLI.
+  targets:
+    global:
+      - claude
+      - codex
+      - gemini
+      - cursor
+      - windsurf
+      - copilot
+      - opencode
+      - pi
+    project:
+      - hermes
+      - cline
+      - roo
+      - kilocode
+      - kilo
+      - antigravity
 
 # =============================================================================
 # SINAPSE MCP (servidor universal de leitura + escrita)
@@ -69,16 +91,20 @@ sinapse_mcp:
   enabled: true
   config_template: mcp/sinapse-memory.json
   tools:
-    - sinapse_query          # busca unificada em todos os backends
+    - sinapse_query          # busca híbrida canônica em todos os backends
     - sinapse_save_decision   # salva decisão no vault
     - sinapse_save_learning   # salva aprendizado no Patterns.md
     - sinapse_health          # health check completo
     - sinapse_session_end     # finaliza sessão, atualiza Current State
-    - sinapse_temporal_search # busca direta no claude-mem (FTS5 + Chroma)
+    - sinapse_temporal_search # etapa 1 claude-mem: índice textual global
+    - sinapse_temporal_timeline # etapa 2 claude-mem: contexto cronológico por ID/query
+    - sinapse_temporal_get_observations # etapa 3 claude-mem: detalhes completos por IDs filtrados
     - sinapse_temporal_save   # salva observação no claude-mem ou fallback vault
     - sinapse_zettelkasten_split # particiona notas monolíticas em notas atômicas Zettelkasten
     - sinapse_capture_screen  # captura tela e salva memória visual
     - sinapse_plan_goal       # decompõe objetivo em passos atômicos
+    - sinapse_temporal_graph_search # compat Graphiti/FalkorDB; prefira sinapse_query
+    - sinapse_rag_query       # consulta LightRAG multi-hop sobre memórias consolidadas
     - search_memories         # busca HNSW/FTS sobre o vault
 
 # =============================================================================
@@ -104,7 +130,7 @@ agents:
     cli: [sinapse-write]
   install_methods:
     hermes: "graphify install --platform hermes"
-    claude-code: "configure MCP server sinapse-memory in ~/.claude/.mcp.json"
+    claude-code: "configure MCP server sinapse-memory in <project>/.mcp.json (project scope)"
     codex: "configure MCP server sinapse-memory in ~/.codex/mcp.json"
     kilocode: "configure MCP server sinapse-memory in kilo.json"
     openclaw: "configure MCP server sinapse-memory in ~/.openclaw/openclaw.json"
@@ -156,20 +182,22 @@ hybrid_search:
   backends:
     - graphify        # camada 1 — estrutural (indexado a cada 6h)
     - claude_mem      # camada 2 — temporal (eventos em tempo real)
-    - rtk             # camada 3 — execução (otimização de comandos)
     - neural_memory   # camada 4 — associativa (relacionamentos conceituais)
     - filesystem      # camada 5 — direta (leitura real-time dos .md)
+  components:
+    - rtk             # camada de execução: otimiza shell, nao retorna memoria
   filesystem:
     enabled: true
     categories:       # diretórios do vault escaneados em busca direta
-      - work
-      - work/active
-      - work/archive
-      - brain
-      - atoms
-      - org
-      - reference
-      - templates
+      - cortex/temporal
+      - cortex/frontal/decisoes
+      - cortex/frontal/trabalho
+      - cortex/frontal/brain
+      - cortex/frontal/org
+      - cortex/parietal/inbox
+      - cortex/parietal/referencias
+      - cerebelo/padroes
+      - tronco/modelos
     cache_ttl: 30     # segundos — TTL do cache do scan recursivo
     max_results: 15   # limit de observações retornadas por busca
   dedup:              # elimina duplicados cross-backend

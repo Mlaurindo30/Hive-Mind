@@ -50,20 +50,31 @@ def get_vector_similarity(text1: str, text2: str) -> float:
         print(f"[Diff] Erro ao gerar embeddings: {e}", file=sys.stderr)
         return 0.0
 
-def run_semantic_diff(text1: str, text2: str, threshold: float = 0.98) -> SemanticDiffResult:
-    """Executa a lógica de diff semântico."""
+def run_semantic_diff(text1: str, text2: str, threshold: Optional[float] = None) -> SemanticDiffResult:
+    """Executa a lógica de diff semântico com base nos thresholds definidos na especificação."""
+    threshold_identical = threshold if threshold is not None else 0.92
+    threshold_complementary = 0.70
+
     # 1. Check de Similaridade Vetorial (Deduplicação rápida)
     sim = get_vector_similarity(text1, text2)
     
-    if sim > threshold:
+    if sim > threshold_identical:
         return SemanticDiffResult(
             contradiction_score=0.0,
             category=DiffCategory.ADDITIVE,
-            reasoning=f"Similaridade vetorial muito alta ({sim:.4f}). Textos considerados semanticamente idênticos ou duplicados.",
+            reasoning=f"Similaridade vetorial alta ({sim:.4f} > {threshold_identical}). Textos considerados semanticamente idênticos ou duplicados.",
             suggested_resolution=text1
         )
     
-    # 2. Análise Profunda via LLM
+    if sim >= threshold_complementary:
+        return SemanticDiffResult(
+            contradiction_score=0.2,
+            category=DiffCategory.ADDITIVE,
+            reasoning=f"Similaridade vetorial média ({sim:.4f} entre {threshold_complementary} e {threshold_identical}). Textos complementares (merge candidato).",
+            suggested_resolution=f"{text1}\n\n{text2}"
+        )
+    
+    # 2. Análise Profunda via LLM (sim < 0.70)
     prompt = f"VERSÃO A:\n{text1}\n\nVERSÃO B:\n{text2}"
     
     try:

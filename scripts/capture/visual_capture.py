@@ -18,7 +18,7 @@ def is_wsl():
 
 def capture_screen(description=""):
     """
-    Captura a tela e salva em cerebro/inbox/visual/.
+    Captura a tela e salva em cerebro/cortex/parietal/inbox/visual/.
     Usa powershell.exe se estiver em WSL, mss como primário nativo e scrot como fallback.
     """
     # Configuração de caminhos (anatômico: cortex/parietal/inbox/visual)

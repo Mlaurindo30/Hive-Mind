@@ -37,6 +37,8 @@ DECISIONS_ROOT = FRONTAL / "decisoes"
 PROJECTS_ROOT = FRONTAL / "projetos"
 WORK_ROOT = FRONTAL / "trabalho"
 WORK_ACTIVE = WORK_ROOT / "ativo"
+FRONTAL_BRAIN = FRONTAL / "brain"
+CURRENT_STATE = FRONTAL_BRAIN / "Current State.md"
 #  Lobo Parietal — sensorial (entrada bruta)
 PARIETAL = CORTEX / "parietal"
 INBOX_ROOT = PARIETAL / "inbox"

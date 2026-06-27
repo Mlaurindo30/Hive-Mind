@@ -43,6 +43,7 @@ if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
 from core.memory.state import build_runtime_state, RuntimeState
+from core import paths as P
 
 # Importa o core do UMC (opcional)
 try:
@@ -55,12 +56,12 @@ except ImportError:
 # ---------------------------------------------------------------------------
 
 VAULT_DIR = os.path.join(SINAPSE_HOME, "cerebro")
-GRAPH_JSON = os.path.join(VAULT_DIR, "graphify-out", "graph.json")  # graphify ainda escreve aqui
+GRAPH_JSON = str(P.GRAPH_JSON)
 # Paths anatômicos (modelo cérebro — ver docs/08-memoria-viva-design.md):
-DECISIONS_DIR = os.path.join(VAULT_DIR, "cortex", "frontal", "trabalho", "ativo")
-MEMORY_FILE = os.path.join(VAULT_DIR, "cortex", "frontal", "brain", "Current State.md")
-PROJECTS_DIR = os.path.join(VAULT_DIR, "cortex", "frontal", "trabalho", "ativo")
-PATTERNS_FILE = os.path.join(VAULT_DIR, "cerebelo", "padroes", "Patterns.md")
+DECISIONS_DIR = str(P.WORK_ACTIVE)
+MEMORY_FILE = str(P.CURRENT_STATE)
+PROJECTS_DIR = str(P.WORK_ACTIVE)
+PATTERNS_FILE = str(P.PADROES_ROOT / "Patterns.md")
 
 CLAUDE_MEM_URL = "http://127.0.0.1:37700"
 CLAUDE_MEM_TIMEOUT = 3
@@ -502,8 +503,19 @@ from core.memory.health import health_check as _core_health_check
 
 def health_check() -> Dict[str, Any]:
     """Retorna status completo de todos os backends e componentes."""
+    try:
+        from integrations.graphiti import graphiti_available as _graphiti_available
+    except Exception:
+        _graphiti_available = None
     return _core_health_check(
-        NMEM_BIN, GRAPH_JSON, CLAUDE_MEM_URL, VAULT_DIR, len(_READ_BACKENDS),
+        NMEM_BIN,
+        GRAPH_JSON,
+        CLAUDE_MEM_URL,
+        VAULT_DIR,
+        len(_READ_BACKENDS),
+        umc_available=_umc_query_hybrid is not None,
+        vec_worker_url=VEC_WORKER_URL,
+        graphiti_available_fn=_graphiti_available,
     )
 
 

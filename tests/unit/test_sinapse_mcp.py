@@ -32,6 +32,8 @@ class TestSinapseMCP:
             "sinapse_health",
             "sinapse_session_end",
             "sinapse_temporal_search",
+            "sinapse_temporal_timeline",
+            "sinapse_temporal_get_observations",
             "sinapse_temporal_save",
             "sinapse_temporal_graph_search",
             "sinapse_zettelkasten_split",
@@ -53,9 +55,22 @@ class TestSinapseMCP:
         text = resp["result"]["content"][0]["text"]
         data = json.loads(text)
         assert "backends" in data
+        assert "read_backends" in data
+        assert "components" in data
         assert "vault" in data
         assert "plugin" in data
         assert "healthy" in data
+        assert set(data["read_backends"]) == {
+            "umc",
+            "neural_memory",
+            "sqlite_vec",
+            "claude_mem",
+            "graphify",
+            "graphiti",
+            "filesystem",
+        }
+        assert "rtk" not in data["read_backends"]
+        assert "rtk" in data["components"]
 
     def test_query_tool(self):
         req = {
@@ -151,6 +166,34 @@ class TestSinapseMCP:
         for backend in ("UMC", "NeuralMemory", "sqlite-vec", "claude-mem",
                         "Graphify", "Graphiti", "filesystem"):
             assert backend in desc, f"sinapse_query description missing: {backend}"
+
+    def test_temporal_workflow_tools_are_described_in_order(self):
+        """claude-mem temporal access must expose search -> timeline -> get_observations.
+
+        If only search is exposed, agents get a shallow index and miss the full
+        observation detail layer.
+        """
+        req = {"jsonrpc": "2.0", "id": 102, "method": "tools/list", "params": {}}
+        resp = mcp.handle_request(req)
+        tools = {t["name"]: t for t in resp["result"]["tools"]}
+        assert "Step 1" in tools["sinapse_temporal_search"]["description"]
+        assert "Step 2" in tools["sinapse_temporal_timeline"]["description"]
+        assert "Step 3" in tools["sinapse_temporal_get_observations"]["description"]
+
+    def test_temporal_get_observations_posts_batch(self, monkeypatch):
+        called = {}
+
+        def fake_post(path, payload, timeout=5):
+            called["path"] = path
+            called["payload"] = payload
+            called["timeout"] = timeout
+            return {"source": "claude-mem (temporal)", "results": [{"id": 13834}]}
+
+        monkeypatch.setattr(mcp, "_claude_mem_post", fake_post)
+        result = mcp._temporal_get_observations({"ids": [13834]})
+        assert called["path"] == "/api/observations/batch"
+        assert called["payload"] == {"ids": [13834]}
+        assert result["results"] == [{"id": 13834}]
 
     def test_sinapse_health_description_lists_seven_backends_and_excludes_rtk(self):
         """A description da tool sinapse_health deve listar os 7 read-backends

@@ -12,7 +12,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
-GRAPH_JSON="$PROJECT_ROOT/cerebro/graphify-out/graph.json"
+GRAPH_JSON="$PROJECT_ROOT/cerebro/cortex/occipital/grafo/graph.json"
 
 if [ ! -f "$GRAPH_JSON" ]; then
     echo "[sinapse] graph.json não encontrado. Execute ./scripts/graph/build-graph.sh primeiro."

@@ -29,6 +29,8 @@ CORE_SERVICES = (
     "sinapse-graphify-watch.service",
 )
 PORTS = (37700, 37701, 37702)
+SQLITE_BUSY_TIMEOUT_MS = 30_000
+SQLITE_RETRY_DELAYS = (0.25, 0.5, 1.0, 2.0, 4.0)
 
 
 def now() -> str:
@@ -123,6 +125,34 @@ def listening_ports(expected_ports: tuple[int, ...] = PORTS) -> dict[str, str]:
     return found
 
 
+def _connect_sqlite(path: Path, *, read_only: bool) -> sqlite3.Connection:
+    if read_only:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=SQLITE_BUSY_TIMEOUT_MS / 1000)
+        conn.execute("PRAGMA query_only=ON")
+    else:
+        conn = sqlite3.connect(path, timeout=SQLITE_BUSY_TIMEOUT_MS / 1000)
+    conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
+    return conn
+
+
+def _with_sqlite_retry(fn):
+    last_exc: sqlite3.OperationalError | None = None
+    for attempt, delay in enumerate((0.0,) + SQLITE_RETRY_DELAYS):
+        if delay:
+            time.sleep(delay)
+        try:
+            return fn()
+        except sqlite3.OperationalError as exc:
+            if "locked" not in str(exc).lower() and "busy" not in str(exc).lower():
+                raise
+            last_exc = exc
+            if attempt == len(SQLITE_RETRY_DELAYS):
+                raise
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("unreachable sqlite retry state")
+
+
 def _repair_fk_orphans(conn: sqlite3.Connection) -> int:
     """Create placeholder sdk_sessions rows for orphaned memory_session_ids.
 
@@ -170,41 +200,60 @@ def _repair_fk_orphans(conn: sqlite3.Connection) -> int:
     return len(orphans)
 
 
-def claude_mem_database() -> dict[str, int | str]:
-    import sqlite_vec
-
-    db_path = Path.home() / ".claude-mem" / "claude-mem.db"
-    conn = sqlite3.connect(db_path)
+def _claude_mem_counts(conn: sqlite3.Connection) -> dict[str, int | str]:
+    integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
+    foreign_keys = len(conn.execute("PRAGMA foreign_key_check").fetchall())
+    observations = conn.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
     try:
-        conn.enable_load_extension(True)
-        sqlite_vec.load(conn)
-        conn.enable_load_extension(False)
-        # Flush WAL frames before integrity check so a concurrent active writer
-        # doesn't leave the check seeing uncommitted pages.
-        conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
-        # The worker runs with foreign_keys=OFF and updates memory_session_id
-        # without CASCADE, leaving orphans.  Repair before checking.
-        repaired = _repair_fk_orphans(conn)
-        if repaired:
-            import logging
-            logging.getLogger(__name__).info(
-                "validate_after_reboot: repaired %d FK orphans in claude-mem.db", repaired
-            )
-        integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
-        foreign_keys = len(conn.execute("PRAGMA foreign_key_check").fetchall())
-        observations = conn.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
-        try:
-            vectors = conn.execute("SELECT COUNT(*) FROM vec_observations").fetchone()[0]
-        except sqlite3.OperationalError:
-            vectors = -1  # store de vetores indisponível neste runtime (não fatal)
-    finally:
-        conn.close()
+        vectors = conn.execute("SELECT COUNT(*) FROM vec_observations").fetchone()[0]
+    except sqlite3.OperationalError:
+        vectors = -1  # store de vetores indisponível neste runtime (não fatal)
     return {
-        "path": str(db_path),
         "integrity_check": integrity,
         "foreign_key_violations": foreign_keys,
         "observations": observations,
         "vectors": vectors,
+    }
+
+
+def claude_mem_database() -> dict[str, int | str]:
+    import sqlite_vec
+
+    db_path = Path.home() / ".claude-mem" / "claude-mem.db"
+    conn = _connect_sqlite(db_path, read_only=True)
+    try:
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        conn.enable_load_extension(False)
+        result = _claude_mem_counts(conn)
+    finally:
+        conn.close()
+
+    repaired = 0
+    repair_error = ""
+    if result["foreign_key_violations"]:
+        def _repair_and_recount() -> tuple[int, dict[str, int | str]]:
+            write_conn = _connect_sqlite(db_path, read_only=False)
+            try:
+                write_conn.enable_load_extension(True)
+                sqlite_vec.load(write_conn)
+                write_conn.enable_load_extension(False)
+                write_conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
+                n = _repair_fk_orphans(write_conn)
+                return n, _claude_mem_counts(write_conn)
+            finally:
+                write_conn.close()
+
+        try:
+            repaired, result = _with_sqlite_retry(_repair_and_recount)
+        except sqlite3.OperationalError as exc:
+            repair_error = str(exc)
+
+    return {
+        "path": str(db_path),
+        **result,
+        "fk_orphans_repaired": repaired,
+        "repair_error": repair_error,
     }
 
 
@@ -240,7 +289,8 @@ def validate() -> int:
         and umc["quick_check"] == "ok"
         and umc["foreign_key_violations"] == 0,
         "claude_mem_integrity": claude_mem["integrity_check"] == "ok"
-        and claude_mem["foreign_key_violations"] == 0,
+        and claude_mem["foreign_key_violations"] == 0
+        and not claude_mem.get("repair_error"),
         # Embedding é ASSÍNCRONO (o vec-worker sincroniza em lote) → tolera a
         # defasagem normal; exige ≥90% das observations vetorizadas (não 100%,
         # que falharia sempre que houvesse captura recente ainda não embedada).

@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS ambiguities (
     source_b_hash TEXT,
     content_a TEXT,
     content_b TEXT,
-    status TEXT DEFAULT 'pending'
+    status TEXT DEFAULT 'pending',
+    detected_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 """
 

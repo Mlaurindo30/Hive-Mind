@@ -9,9 +9,12 @@ import os
 import time
 from typing import Any, Callable, Dict, List, Optional
 
+from core.vault_excludes import filter_walk_dirs, is_excluded_vault_rel
+
 _FS_CATEGORIES = [
-    "work", "work/active", "work/archive", "brain",
-    "atoms", "org", "reference", "templates",
+    "cortex/temporal", "cortex/frontal", "cortex/parietal",
+    "cortex/occipital", "cortex/insula", "cerebelo",
+    "diencefalo", "tronco",
 ]
 
 
@@ -85,11 +88,15 @@ def backend_filesystem(
         if not os.path.isdir(cat_dir):
             continue
 
-        for root, _, files in os.walk(cat_dir):
+        for root, dirs, files in os.walk(cat_dir):
+            filter_walk_dirs(root, dirs, vault_dir)
             for fname in files:
                 if not fname.endswith(".md"):
                     continue
                 fpath = os.path.join(root, fname)
+                rel = os.path.relpath(fpath, vault_dir)
+                if is_excluded_vault_rel(rel):
+                    continue
                 try:
                     with open(fpath, "r", encoding="utf-8") as f:
                         content = f.read()
@@ -117,7 +124,7 @@ def backend_filesystem(
                 results.append({
                     "title": title,
                     "content": body[:observation_chars],
-                    "source_file": os.path.relpath(fpath, vault_dir),
+                    "source_file": rel,
                     "category": cat,
                 })
 

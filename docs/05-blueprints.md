@@ -48,8 +48,8 @@
   │                                                                   │
   │   hive_mind.db          cerebro/              backups/            │
   │   (UMC — SQLite +       (Vault Obsidian)      (daily cp)          │
-  │    sqlite-vec)          atlas/ brain/                             │
-  │   hnsw_neurons.idx      work/active/                              │
+  │    sqlite-vec)          cortex/ cerebelo/ tronco/                 │
+  │   hnsw_neurons.idx      cortex/frontal/trabalho/ativo/            │
   │   (HNSW incremental,    config/keys/                              │
   │    HM-11)               (Ed25519, gitignored)                     │
   └───────────────────────────────────────────────────────────────────┘
@@ -118,7 +118,7 @@
                 │     mkstemp() → write → os.replace()  ← atômico
                 │
                 └── Se LEARNING_SIGNALS no content:
-                      _save_learning() → brain/Patterns.md
+                      _save_learning() → cerebelo/padroes/Patterns.md
                       _dedup_check() → não duplica mesmo título
                                 │
                                 ▼ (~2 segundos)
@@ -453,8 +453,8 @@ Componentes envolvidos:
 | Graphify watcher | `graphify/` | base | Indexacao em tempo real |
 | Dream Cycle | `scripts/dream/dream_cycle.py` | base | Consolidacao offline |
 | sinapse-api | `scripts/services/sinapse-api.py` | base | REST :37702 |
-| sinapse-mcp | `scripts/services/sinapse-mcp.py` | base | MCP stdio (11 tools) |
-| sinapse-hook | `cerebro/.claude/scripts/sinapse-hook.py` | base | Hooks universais |
+| sinapse-mcp | `scripts/services/sinapse-mcp.py` | base | MCP stdio (15 tools) |
+| sinapse-hook | `cerebro/tronco/infra/agentes/.claude/scripts/sinapse-hook.py` | base | Hooks universais |
 | HNSW Index | `core/hnsw_index.py` | HM-11 | Indice incremental fastembed 384d |
 | Planner | `scripts/analytics/planner.py` | HM-11 | Decompositor de objetivos via LLM |
 | Signing | `core/signing.py` | HM-12 | Ed25519 assinatura/verificacao |

@@ -35,7 +35,7 @@ check "sqlite3" command -v sqlite3
 
 # S0.2 — graph.json existe e é válido
 echo "[S0.2] Knowledge Graph:"
-GRAPH="cerebro/graphify-out/graph.json"
+GRAPH="cerebro/cortex/occipital/grafo/graph.json"
 [ -f "$GRAPH" ] && echo "  ✓ graph.json exists ($(du -h "$GRAPH" | cut -f1))" && ((++PASS)) || { echo "  ✗ graph.json missing"; ((++FAIL)); }
 "$PYTHON" -c "
 import json

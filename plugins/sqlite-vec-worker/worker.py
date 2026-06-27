@@ -52,6 +52,9 @@ EMBED_BACKEND = os.environ.get("EMBED_BACKEND", "ollama")
 OLLAMA_BASE = os.environ.get("OLLAMA_BASE", "http://localhost:11434")
 OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "bge-m3:latest")
 DIMENSIONS = int(os.environ.get("VEC_EMBED_DIM", "1024"))
+# Max embeddings to sync at startup before the HTTP server comes up.
+# Remaining vectors are synced lazily on each /api/context/semantic request.
+STARTUP_SYNC_LIMIT = int(os.environ.get("VEC_STARTUP_SYNC_LIMIT", "500"))
 TOP_K = 10
 
 
@@ -212,7 +215,11 @@ def sync_vectors(conn: sqlite3.Connection, *, limit: int | None = None) -> int:
         if not content:
             continue
 
-        vec = embed(content)
+        try:
+            vec = embed(content)
+        except Exception as exc:
+            print(f"[vec-worker] WARNING: embed failed for observation {row_id}: {exc}", flush=True)
+            continue
         try:
             _upsert_vec_observation(conn, row_id, vec)
             count += 1
@@ -344,7 +351,7 @@ def main():
 
     # Verify DB
     db = get_db()
-    synced = sync_vectors(db)
+    synced = sync_vectors(db, limit=STARTUP_SYNC_LIMIT)
     count = _vector_count(db)
     if synced:
         print(f"[vec-worker] vec_observations synced at startup: {count} entries", flush=True)

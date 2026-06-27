@@ -191,7 +191,7 @@ scripts/
 │   ├── daily_writer.py            # nível 1 (diário) ✅
 │   └── weekly_synthesizer.py      # nível 2 (semanal) ✅ — FALTA mensal/anual (P10)
 ├── services/
-│   ├── sinapse-mcp.py             # MCP stdio (13 tools), sinapse_query orquestrador ✅P4
+│   ├── sinapse-mcp.py             # MCP stdio (15 tools), sinapse_query orquestrador ✅P4
 │   ├── sinapse-api.py             # REST API FastAPI :37702
 │   └── sinapse-write.py           # CLI: decision, learning, query, health, session-end
 ├── capture/

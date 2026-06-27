@@ -41,7 +41,7 @@ No Hermes, Claude Code, Codex ou OpenCode:
 cd ~/Documentos/Projects/sinapse_agent
 python3 -c "
 import json, sys
-graph = json.load(open('graphify/graphify-out/graph.json'))
+graph = json.load(open('cerebro/cortex/occipital/grafo/graph.json'))
 query = sys.argv[1].lower()
 
 # Busca em nodes

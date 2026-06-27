@@ -149,6 +149,28 @@ def test_capture_screenshot_sem_path(monkeypatch):
     assert "error" in result
 
 
+def test_capture_screenshot_inclui_monitor_no_payload(monkeypatch):
+    """capture_screenshot() aceita monitor para a tool MCP não cair no fallback."""
+    import urllib.request as _ur
+
+    captured = {}
+
+    class _FakeResp:
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def read(self): return b'{"path": "/tmp/cap.png"}'
+
+    def _fake_urlopen(req, timeout):
+        captured["payload"] = json.loads(req.data.decode())
+        captured["timeout"] = timeout
+        return _FakeResp()
+
+    monkeypatch.setattr(_ur, "urlopen", _fake_urlopen)
+    result = sp.capture_screenshot("desc", monitor=2)
+    assert result["path"] == "/tmp/cap.png"
+    assert captured["payload"] == {"description": "desc", "monitor": 2}
+
+
 # ---------------------------------------------------------------------------
 # Testes live (skip se Screenpipe não rodando)
 # ---------------------------------------------------------------------------

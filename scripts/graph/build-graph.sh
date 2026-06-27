@@ -6,11 +6,13 @@ set -euo pipefail
 
 SINAPSE_HOME="${SINAPSE_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 VAULT_DIR="$SINAPSE_HOME/cerebro"
-GRAPH_OUT="$VAULT_DIR/graphify-out"
+GRAPH_OUT="$VAULT_DIR/cortex/occipital/grafo"
 PYTHON="$SINAPSE_HOME/.venv/bin/python"
 export PATH="$SINAPSE_HOME/.venv/bin:$SINAPSE_HOME/integrations/rtk/target/release:/usr/local/bin:/usr/bin:/bin"
+export GRAPHIFY_OUT="$GRAPH_OUT"
 
 cd "$SINAPSE_HOME" || exit 1
+mkdir -p "$GRAPH_OUT"
 
 # Backup do graph atual
 if [ -f "$GRAPH_OUT/graph.json" ]; then

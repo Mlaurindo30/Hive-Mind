@@ -106,12 +106,15 @@ def fetch_recent_audio(since_minutes: int = 60, limit: int = 20) -> list[dict]:
     return sessions
 
 
-def capture_screenshot(description: str = "") -> dict:
+def capture_screenshot(description: str = "", monitor: int | None = None) -> dict:
     """Solicita captura de tela on-demand ao Screenpipe.
 
     Retorna {"path": str, "source": "screenpipe"} ou {"error": str}.
     """
-    payload = json.dumps({"description": description}).encode()
+    body = {"description": description}
+    if monitor is not None:
+        body["monitor"] = monitor
+    payload = json.dumps(body).encode()
     headers = {"Content-Type": "application/json"}
     if _API_KEY:
         headers["Authorization"] = f"Bearer {_API_KEY}"

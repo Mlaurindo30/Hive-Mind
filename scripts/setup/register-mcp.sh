@@ -130,7 +130,7 @@ with open(path, "w") as f:
 PYEOF
 }
 
-# Verifica se um arquivo já tem os três registros gerenciados pelo Hive-Mind.
+# Verifica se um arquivo já tem o registro gerenciado pelo Hive-Mind.
 has_registration() {
     local FILE="$1"
     local ROOT_KEY="${2:-mcpServers}"
@@ -244,7 +244,7 @@ except Exception as e:
 PYEOF
 )
         if [ "$result" = "OK" ]; then
-            echo -e "  ${GREEN}✓${NC} SwarmClaw — 3 servidores registrados ($SCLAW_DB)"
+            echo -e "  ${GREEN}✓${NC} SwarmClaw — sinapse-memory registrado ($SCLAW_DB)"
         else
             echo -e "  ${YELLOW}⊘${NC} SwarmClaw — detectado mas SEM registro completo ($result)"
         fi

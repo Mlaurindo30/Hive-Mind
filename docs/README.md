@@ -49,11 +49,11 @@
 Cérebro (UMC):       hive_mind.db — SQLite + sqlite-vec (384d) + FTS5 + grafo + multimodal
 Estrutural:          Graphify (Python) → neurons/synapses/communities
 Temporal:            claude-mem (TypeScript/Bun) → observations, worker HTTP :37700
-Execução:            RTK (Rust) → hook pre_tool_call no Hermes
+Execução:            RTK (Rust) → hooks/plugins/instruções por agente/CLI
 Associativa:         NeuralMemory (Python) → spreading activation
 Consolidação:        dream_cycle.py → Distiller→Validator→Router→Síntese (LLM multi-provedor)
 Tempo real:          Watcher (watchdog) → Obsidian→SQLite em ~2s
-Acesso:              MCP (10 tools) · plugin Hermes · CLI · REST FastAPI :37702
+Acesso:              MCP (15 tools) · plugin Hermes · CLI · REST FastAPI :37702
 Distribuição:        Syncthing (P2P) + UUID v4 + SHA-256 + Síntese Dialética
 Fonte de verdade:    cerebro/ (Obsidian) — frontmatter YAML + WikiLinks
 ```
