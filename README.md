@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/assets/image/hive_mind-logo_vertical.png" alt="Hive-Mind" width="420">
+  <img src="docs/assets/image/hive_mind-logo_vertical.png" alt="Hive-Mind" width="620">
 
   **Universal, persistent, local-first memory layer for swarms of AI agents.**
 
@@ -94,6 +94,23 @@ After registering, restart yourself and confirm with: "use the sinapse_health to
 
 ---
 
+## 🩻 Brain Anatomy
+
+Hive-Mind is organized like a brain. The `cerebro/` vault mirrors the anatomy —
+**four sibling lobes under Consciousness** (Cortex, Cerebellum, Diencephalon, Brainstem), and the
+Cortex has **five lobules of its own**. External tools are *organs* of the brain, not parallel
+databases: Graphify (occipital), claude-mem (temporal), NeuralMemory (association), filesystem scan
+(parietal).
+
+<div align="center">
+  <img src="docs/assets/image/brain-anatomy.png" alt="Hive-Mind brain anatomy" width="760">
+  <br><sub><i>Four sibling lobes under Consciousness; the Cortex holds five lobules</i></sub>
+</div>
+
+Canonical lobe → function → directory mapping: [`docs/01-architecture.md` §2](docs/01-architecture.md).
+
+---
+
 ## 🔌 Agent Integration
 
 | Method | Agents | Mechanism |
@@ -128,16 +145,19 @@ Codex → `~/.codex/mcp.json`, Cursor → `.cursor/mcp.json`, Gemini → `~/.gem
 
 ---
 
-## 🌙 How It Works
+## 🏗 How It Works
 
-Offline consolidation: what an agent experiences during the day (raw observations) is turned into
-structured, readable knowledge by the **Hive-Dreamer**.
+Agents read from and write to a single **Unified Memory Core** through MCP, native plugin, CLI or
+REST. The diagram below shows how the agents, the UMC and the federated organs fit together.
 
 <div align="center">
-  <img src="docs/assets/image/architecture-diagram-complet.png" alt="Hive-Mind architecture" width="760">
+  <img src="docs/assets/image/architecture-diagram.png" alt="Hive-Mind architecture" width="760">
+  <br><sub><i>End-to-end architecture: agents → MCP / CLI / REST → Unified Memory Core → federated organs</i></sub>
 </div>
 
 ### Memory dimensions
+
+One store, queried across seven dimensions:
 
 | Dimension | Question it answers | Implementation | Latency |
 |-----------|---------------------|----------------|---------|
@@ -149,8 +169,14 @@ structured, readable knowledge by the **Hive-Dreamer**.
 | **Documental** | What did the agent read? | `document_memories` (PDF/DOCX) | offline (Dreamer) |
 | **Execution** | How to optimize this shell command? | RTK (Rust), hooks/plugins per agent | < 2 s |
 
+### 🌙 The Dream Cycle (Hive-Dreamer)
+
+Offline consolidation: everything an agent experiences during the day (raw observations) is turned
+into structured, validated, human-readable knowledge — facts, semantic links and an Atlas in the vault.
+
 <div align="center">
-  <img src="docs/assets/image/Dreamer.png" alt="The Dream Cycle" width="760">
+  <img src="docs/assets/image/Dreamer.png" alt="The Dream Cycle pipeline" width="760">
+  <br><sub><i>Raw observations → distillation → validation → consolidated facts written back to the vault</i></sub>
 </div>
 
 - **Provider-agnostic, per role:** each role (`dreamer`, `graphify`, `vision`, `synthesis`) picks
@@ -234,22 +260,6 @@ python3 scripts/services/sinapse-api.py    # port 37702
 - Dialectic Synthesis in the Dream Cycle resolves conflicts via LLM
 
 Full setup: [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md).
-
----
-
-## 🩻 Brain Anatomy
-
-Hive-Mind is organized like a brain. The `cerebro/` vault mirrors the anatomy —
-**four sibling lobes under Consciousness** (Cortex, Cerebellum, Diencephalon, Brainstem), and the
-Cortex has **five lobules of its own**. External tools are *organs* of the brain, not parallel
-databases: Graphify (occipital), claude-mem (temporal), NeuralMemory (association), filesystem scan
-(parietal).
-
-<div align="center">
-  <img src="docs/assets/image/brain-anatomy.png" alt="Hive-Mind brain anatomy" width="760">
-</div>
-
-Canonical lobe → function → directory mapping: [`docs/01-architecture.md` §2](docs/01-architecture.md).
 
 ---
 
