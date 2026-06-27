@@ -96,18 +96,35 @@ After registering, restart yourself and confirm with: "use the sinapse_health to
 
 ## 🩻 Brain Anatomy
 
-Hive-Mind is organized like a brain. The `cerebro/` vault mirrors the anatomy —
-**four sibling lobes under Consciousness** (Cortex, Cerebellum, Diencephalon, Brainstem), and the
-Cortex has **five lobules of its own**. External tools are *organs* of the brain, not parallel
-databases: Graphify (occipital), claude-mem (temporal), NeuralMemory (association), filesystem scan
-(parietal).
+Hive-Mind is organized like a brain. The `cerebro/` vault mirrors the anatomy — **four sibling lobes
+under Consciousness** (Cortex, Cerebellum, Diencephalon, Brainstem), with no hierarchy between them.
 
 <div align="center">
   <img src="docs/assets/image/brain-anatomy.png" alt="Hive-Mind brain anatomy" width="760">
-  <br><sub><i>Four sibling lobes under Consciousness; the Cortex holds five lobules</i></sub>
+  <br><sub><i>Consciousness integrates four sibling lobes — the Cortex expands into its five lobules (the "cortex detail" below)</i></sub>
 </div>
 
-Canonical lobe → function → directory mapping: [`docs/01-architecture.md` §2](docs/01-architecture.md).
+The Cortex holds **five lobules of its own** — the *cortex detail* the diagram points to. Each lobe
+maps to a function and a concrete place in the code/vault:
+
+| Lobe | Function | Where it lives |
+|------|----------|----------------|
+| **Cortex · frontal** | Decision, planning, work | `core/`, `scripts/dream/dream_cycle.py`, `cortex/frontal/{decisoes,trabalho,brain,projetos,org}` |
+| **Cortex · parietal** | Sensory — inbox, references | `scripts/capture/`, `cortex/parietal/{inbox,referencias}` |
+| **Cortex · occipital** | Vision — captures + **graph** | `cerebro/cortex/occipital/grafo/graph.json` |
+| **Cortex · temporal** | Long-term memory per project (primary axis) | `cortex/temporal/<project>/<topic>/neuronio-*.md` + UMC `hive_mind.db` |
+| **Cortex · insula** | Health, self-awareness | `scripts/health/`, `cortex/insula/{saude,conflitos}` |
+| **Cerebellum** | Rhythm — daily, weekly, sessions, patterns | `cerebelo/{sessoes,diario,semanal,padroes}/`, `cerebelo/padroes/Patterns.md` |
+| **Diencephalon** | Cross-project relay | `diencefalo/setores/` (5 sectors) |
+| **Brainstem** | Vital infrastructure | `tronco/{modelos,paineis,infra,meta}/` |
+
+> The **Temporal lobule** is the primary axis — where per-project memory lives: one project-neuron per
+> project with one fact-neuron per file (`neuronio-<hash>.md`), plus `_global/` (project-less prefs),
+> `hipocampo/` (Dream Cycle consolidation) and `arquivo/` (cold memory > 90d).
+
+External tools are **organs** of the brain, not parallel databases: Graphify (occipital), claude-mem
+(temporal), NeuralMemory (association), filesystem scan (parietal). RTK lives in the Brainstem as a
+cross-cutting execution layer. Full anatomy: [`docs/01-architecture.md` §2](docs/01-architecture.md).
 
 ---
 
@@ -304,23 +321,6 @@ Full setup: [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md).
 | claude-mem worker stopped | `systemctl --user restart sinapse-claude-mem.service` |
 | Stale graph | `./scripts/graph/build-graph.sh` |
 | General recovery | `./scripts/utils/recover.sh` |
-
----
-
-## 🗺 Roadmap
-
-| Phase | Theme | Status |
-|-------|-------|--------|
-| 1–2 | Foundation + Unified Memory Core (unified SQLite, hybrid search) | ✅ Done |
-| 3 | Temporal unification (claude-mem → UMC) | ✅ Done |
-| 4–5 | Obsidian interface + semantic auto-link | ✅ Done |
-| 6 | Real-time Watcher (eliminates the 6h gap) | ✅ Done |
-| 7 | Dream Cycle — Hive-Dreamer | ✅ Done |
-| 8 | Multi-machine swarm (P2P / UUID v4 / Syncthing) | ✅ Done |
-| 9 | Semantic fusion and consensus (Dialectic Synthesis) | ✅ Done |
-| 10 | Deep Portal — visual and documental memory | ✅ Done |
-| HM-11 | Deep Reflection — Planner + intent memory + causality graph | ✅ Done |
-| HM-12 | Federated Swarm — selective cross-swarm sharing + privacy | ✅ Done |
 
 ---
 
