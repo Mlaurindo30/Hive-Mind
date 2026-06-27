@@ -1,498 +1,334 @@
-# Hive-Mind
+<div align="center">
+  <img src="docs/assets/image/hive_mind-logo_vertical.png" alt="Hive-Mind" width="420">
 
-![Logo Hive-Mind](docs/assets/image/hive_mind-logo_vertical.png)
+  **Universal, persistent, local-first memory layer for swarms of AI agents.**
 
-> **Camada de memória universal, persistente e local-first para enxames de agentes de IA.**
-
-[![Status](https://img.shields.io/badge/status-Fase%20HM--12%20(Federated%20Swarm)-blue)]()
-[![Python](https://img.shields.io/badge/python-3.12-green)]()
-[![License](https://img.shields.io/badge/license-Apache%202.0-lightgrey)]()
-[![Tests](https://img.shields.io/badge/tests-211%20unitários-brightgreen)]()
-
-O **Hive-Mind** resolve a amnésia entre sessões dos agentes de IA. Tudo o que os agentes **fazem** (logs), **veem** (capturas de tela), **leem** (PDF/DOCX) e **decidem** é consolidado em um único cérebro persistente — o **Unified Memory Core (UMC)** — e materializado em linguagem natural num vault Obsidian (`cerebro/`), a fonte única de verdade legível por humanos e agentes.
-
-Múltiplos agentes (Claude Code, Codex CLI, Cursor, Gemini CLI, Hermes, OpenClaw) compartilham esse cérebro via MCP, plugin nativo, CLI ou API REST — em uma ou em múltiplas máquinas sincronizadas por P2P.
+  [![Status](https://img.shields.io/badge/status-Phase%20HM--12%20(Federated%20Swarm)-blue)]()
+  [![Python](https://img.shields.io/badge/python-3.12-green)]()
+  [![License](https://img.shields.io/badge/license-Apache%202.0-lightgrey)]()
+  [![Tests](https://img.shields.io/badge/tests-211%20passing-brightgreen)]()
+</div>
 
 ---
 
-## Início Rápido — Configure com seu Agente de IA
+**Hive-Mind** solves cross-session amnesia for AI agents. Everything agents **do** (logs), **see**
+(screenshots), **read** (PDF/DOCX) and **decide** is consolidated into a single persistent brain —
+the **Unified Memory Core (UMC)** — and materialized in natural language inside an Obsidian vault
+(`cerebro/`), the single human- and agent-readable source of truth.
 
-Copie o prompt abaixo e cole no seu agente (Claude Code, Codex CLI, Gemini CLI, Cursor, etc.).
+Multiple agents (Claude Code, Codex CLI, Cursor, Gemini CLI, Hermes, OpenClaw) share that brain via
+MCP, native plugin, CLI or REST API — on one machine or across many, synced over P2P.
 
-### Prompt de Instalação Inicial
+---
+
+## ⚡ Quick Start — Configure With Your AI Agent
+
+Copy a prompt below and paste it into your agent (Claude Code, Codex CLI, Gemini CLI, Cursor, ...).
+
+### Initial Install Prompt
 
 ```
-Clone e instale o Hive-Mind nesta máquina.
+Clone and install Hive-Mind on this machine.
 
   git clone https://github.com/Mlaurindo30/sinapse_agent.git ~/hive-mind
   cd ~/hive-mind
   ./install.sh --with-tests
 
-Pré-requisitos: Linux com systemd de usuário, Git, curl, uv, Node 18+, Bun e
-acesso à internet. O instalador cria o Python 3.12 gerenciado por uv, `.venv`,
-Graphify, claude-mem, NeuralMemory, RTK, serviços, índices e registros MCP.
+Prerequisites: Linux with user systemd, Git, curl, uv, Node 18+, Bun and internet access.
+The installer provisions Python 3.12 (managed by uv), .venv, Graphify, claude-mem,
+NeuralMemory, RTK, services, indexes and MCP registrations.
 
-Ao terminar, o próprio instalador pergunta se deseja configurar o provedor LLM
-(Gemini, OpenAI, Anthropic, Ollama...) via setup-brain.sh. Responda S e siga
-o menu para escolher provedor, modelo e chaves de API.
+When it finishes, the installer asks whether to configure the LLM provider
+(Gemini, OpenAI, Anthropic, Ollama, ...) via setup-brain.sh. Answer Y and follow
+the menu to pick provider, model and API keys.
 
-Se estiver rodando em modo headless/CI (sem terminal interativo):
+Headless / CI (no interactive terminal):
   HIVE_DREAMER_PROVIDER=google HIVE_DREAMER_MODEL=gemini-2.0-flash \
-  GOOGLE_API_KEY=<sua_chave> ./install.sh --non-interactive
+  GOOGLE_API_KEY=<your_key> ./install.sh --non-interactive
 
-Após a instalação, reinicie este agente. No Codex será registrado apenas o
-MCP orquestrador `sinapse-memory`, que expõe as 15 tools unificadas do
-Hive-Mind e federa claude-mem global (`~/.claude-mem`), NeuralMemory,
-Graphify, Graphiti, UMC, sqlite-vec e filesystem por dentro.
+After install, restart this agent. Only the orchestrator MCP `sinapse-memory` is
+registered — it exposes Hive-Mind's 15 unified tools and federates global claude-mem
+(~/.claude-mem), NeuralMemory, Graphify, Graphiti, UMC, sqlite-vec and filesystem under the hood.
 ```
 
-### Prompt de Registro do MCP (projeto já instalado)
+### MCP Registration Prompt (project already installed)
 
 ```
-Configure o Hive-Mind como servidor MCP PARA VOCÊ MESMO — o agente que está
-lendo este prompt. Registre apenas a SUA configuração, não a dos outros.
+Register Hive-Mind as an MCP server FOR YOURSELF — the agent reading this prompt.
+Register only YOUR config, not anyone else's.
 
   cd ~/hive-mind
-  ./scripts/setup/register-mcp.sh --only <seu-agente>
+  ./scripts/setup/register-mcp.sh --only <your-agent>
 
-Substitua <seu-agente> pela sua identidade. Chaves válidas:
+Replace <your-agent> with your identity. Valid keys:
   claude codex gemini qwen kimi kiro kilo roo vscode cursor opencode openclaw
 
-Exemplos: Claude Code → `--only claude` · Codex CLI → `--only codex`
-          Gemini CLI → `--only gemini` · Cursor → `--only cursor`
+Examples: Claude Code → --only claude · Codex CLI → --only codex
+          Gemini CLI → --only gemini · Cursor → --only cursor
 
-Faz merge seguro do MCP `sinapse-memory` gerenciado pelo projeto na SUA config,
-remove apenas registros legados do próprio Hive-Mind (`claude-mem-local` e
-`neural-memory-local`) e nunca remove servidores alheios. Em dúvida sobre a
-chave: ./scripts/setup/register-mcp.sh --list
+It safely merges the project-managed `sinapse-memory` MCP into YOUR config, removes only
+Hive-Mind's own legacy entries (claude-mem-local, neural-memory-local) and never touches
+third-party servers. List keys: ./scripts/setup/register-mcp.sh --list
+Check status without changes: ./scripts/setup/register-mcp.sh --only <your-agent> --check
 
-Para verificar o seu status sem modificar nada:
-  ./scripts/setup/register-mcp.sh --only <seu-agente> --check
-
-(Avançado / administrador) Registrar TODOS os agentes detectados de uma vez —
-normalmente só o instalador faz isso:
-  ./scripts/setup/register-mcp.sh
-
-Após registrar, reinicie-se e confirme com: "use a tool sinapse_health"
-
-Tools disponíveis:
-  sinapse_query              — busca híbrida na memória (vetorial + FTS + grafo)
-  sinapse_save_decision      — salva decisão permanente no vault
-  sinapse_save_learning      — salva aprendizado/insight
-  sinapse_temporal_search    — claude-mem etapa 1: índice textual com IDs
-  sinapse_temporal_timeline  — claude-mem etapa 2: janela cronológica por ID/query
-  sinapse_temporal_get_observations — claude-mem etapa 3: detalhes por IDs filtrados
-  sinapse_temporal_save      — observação temporal bruta (server-beta ou fallback)
-  sinapse_health             — verifica saúde de todos os backends
-  sinapse_session_end        — consolida e encerra sessão
-  sinapse_zettelkasten_split — fragmenta nota longa em átomos linkados
-  sinapse_capture_screen     — captura screenshot e salva em visual_memories
-  sinapse_plan_goal          — decompõe objetivo em passos atômicos
-  sinapse_temporal_graph_search — consulta direta Graphiti/FalkorDB (compat)
-  sinapse_rag_query          — consulta LightRAG multi-hop
-  search_memories            — busca HNSW/texto nos neurônios consolidados
+After registering, restart yourself and confirm with: "use the sinapse_health tool"
 ```
 
----
-
-## Sumário
-
-- [Início Rápido — Configure com seu Agente de IA](#início-rápido--configure-com-seu-agente-de-ia)
-- [Visão Geral da Arquitetura](#visão-geral-da-arquitetura)
-- [Componentes](#componentes)
-- [O Ciclo de Sonho (Hive-Dreamer)](#o-ciclo-de-sonho-hive-dreamer)
-- [Instalação](#instalação)
-- [Configuração](#configuração)
-- [Operação](#operação)
-- [Integração com Agentes](#integração-com-agentes)
-- [Cloud Memory API](#cloud-memory-api)
-- [Sincronização P2P](#sincronização-p2p)
-- [Testes](#testes)
-- [Segurança](#segurança)
-- [Solução de Problemas](#solução-de-problemas)
-- [Roadmap](#roadmap)
+> 📦 **Manual install, Windows (WSL2), prerequisites and the 12-step breakdown:** see
+> [`docs/installation.md`](docs/installation.md).
 
 ---
 
-## Anatomia do Cérebro
+## 🧠 What You Get
 
-O Hive-Mind é organizado como um cérebro. O vault `cerebro/` espelha a anatomia — **quatro lobos irmãos sob a Consciência**, e o Córtex tem **cinco lóbulos próprios**.
-
-![Anatomia do cérebro Hive-Mind](docs/assets/image/brain-anatomy.png)
-*Representação visual dos 4 lobos e 5 lóbulos*
-
-
-Os **quatro lobos sob a Consciência são pares** (Córtex, Cerebelo, Diencéfalo, Tronco) — não há hierarquia entre eles. O Tronco **não é descendente** de nenhum outro lobo; é irmão.
-
-| Lobo | Função | Onde mora |
-|---|---|---|
-| Córtex frontal | Decisão, planejamento, trabalho | `core/`, `scripts/dream/dream_cycle.py`, `cortex/frontal/{decisoes,trabalho,brain,projetos,org}` |
-| Córtex parietal | Sensorial — inbox, referências | `scripts/capture/`, `cortex/parietal/{inbox,referencias}` |
-| Córtex occipital | Visão — capturas + **grafo** | `cerebro/cortex/occipital/grafo/graph.json` |
-| Córtex temporal | Memória de longo prazo por projeto (eixo primário) | `cortex/temporal/<projeto>/<topico>/neuronio-*.md` + UMC `hive_mind.db` |
-| Córtex ínsula | Saúde, autoconsciência | `scripts/health/`, `cortex/insula/{saude,conflitos}` |
-| Cerebelo | Ritmo — diário, semanal, sessões, padrões | `cerebelo/{sessoes,diario,semanal,padroes}/`, `cerebelo/padroes/Patterns.md` |
-| Diencéfalo | Relay cross-projeto | `diencefalo/setores/` (5 setores) |
-| Tronco | Infra vital | `tronco/{modelos,paineis,infra,meta}/` |
-
-**Lóbulo Temporal** (eixo primário — onde mora a memória por projeto): 1 neurônio-projeto por projeto (`cortex/temporal/<projeto>/`) com 1 neurônio-fato por arquivo (`neuronio-<hash>.md`) + `_global/` (preferências sem projeto) + `hipocampo/` (consolidação Dream Cycle) + `arquivo/` (memória fria >90d).
-
-As ferramentas externas são **órgãos do cérebro**, não bancos paralelos: Graphify (occipital), claude-mem (temporal), NeuralMemory (associação), filesystem scan (parietal). RTK fica no Tronco como camada transversal de execução: otimiza comandos shell por agente/CLI, mas não é backend de leitura do `sinapse_query`. Anatomia completa em [`AGENTS.md`](AGENTS.md) e [`docs/01-architecture.md`](docs/01-architecture.md).
+| | |
+|---|---|
+| 🧩 **Unified Memory Core** | One SQLite brain holding graph, logs, vectors, FTS, multimodal data and secrets — cross-dimension queries become plain SQL. |
+| 🔌 **Agent-agnostic** | Any agent connects via MCP, native plugin, CLI or REST. No model is hardcoded. |
+| 🌙 **Dream Cycle** | Offline consolidation turns raw observations into validated, human-readable knowledge. |
+| 🔍 **Hybrid search** | Structural, temporal, vector, full-text, visual and documental memory in a single query. |
+| 👁 **Multimodal** | Screenshots and PDFs/DOCX flow through the same pipeline as logs. |
+| 🔄 **Local-first & P2P** | Works fully offline; optional multi-machine sync via UUID v4 + Syncthing. |
+| 🔐 **Federated & private** | Ed25519-signed selective export with automatic PII redaction. |
+| 📓 **Obsidian vault** | `cerebro/` is the readable single source of truth for humans and agents. |
 
 ---
 
-## Visão Geral da Arquitetura
+## 🔌 Agent Integration
 
-![Diagrama de arquitetura do Hive-Mind](docs/assets/image/architecture-diagram.png)
-*Fonte: architecture-diagram.png*
+| Method | Agents | Mechanism |
+|--------|--------|-----------|
+| **Native plugin** | Hermes/Thoth | hooks `pre_gateway_dispatch`, `post_tool_call`, `on_session_end` |
+| **MCP server** | Claude Code, Codex CLI, Cursor, Gemini CLI, Kilo Code, OpenClaw, Copilot, ZooCode, Aider | `scripts/services/sinapse-mcp.py` via stdio JSON-RPC |
+| **Standalone CLI** | Any agent with a shell | `scripts/services/sinapse-write.py <subcommand>` |
+| **REST API** | Remote agents / VPS | `scripts/services/sinapse-api.py`, Bearer auth, port 37702 |
 
-### Dimensões de memória
+### MCP Tools
 
-| Dimensão | Pergunta que responde | Implementação | Latência |
-|----------|-----------------------|---------------|----------|
-| **Estrutural** | O que existe? Como se conecta? | `neurons`/`synapses` no UMC | < 5 ms |
-| **Temporal** | Quem fez o quê? Quando? | `observations` via claude-mem | < 500 ms |
-| **Vetorial** | O que é semanticamente parecido? | `sqlite-vec` (384d, fastembed) | < 100 ms |
-| **Textual** | Onde aparece esse termo? | FTS5 `unicode61` com triggers | < 50 ms |
-| **Visual** | O que o agente viu? | `visual_memories` + LLM Vision | offline (Dreamer) |
-| **Documental** | O que o agente leu? | `document_memories` (PDF/DOCX) | offline (Dreamer) |
-| **Execução** | Como otimizar este comando shell? | RTK (Rust), hooks/plugins/instruções por agente | < 2 s |
+| Tool | Purpose |
+|------|---------|
+| `sinapse_query` | Unified hybrid search across all backends |
+| `sinapse_save_decision` | Save a decision to the vault (`cortex/frontal/trabalho/ativo/`) |
+| `sinapse_save_learning` | Save a learning/insight to `cerebelo/padroes/Patterns.md` |
+| `sinapse_health` | Health of the 7 read-backends and auxiliary components |
+| `sinapse_session_end` | End the session, update Current State |
+| `sinapse_temporal_search` | claude-mem step 1: textual index with IDs |
+| `sinapse_temporal_timeline` | claude-mem step 2: chronological window by ID/query |
+| `sinapse_temporal_get_observations` | claude-mem step 3: full details by filtered IDs |
+| `sinapse_temporal_save` | Save a raw temporal observation (server-beta or fallback) |
+| `sinapse_zettelkasten_split` | Split monolithic notes into atomic notes |
+| `sinapse_capture_screen` | Capture screen → visual memory |
+| `sinapse_plan_goal` | Decompose a goal into steps and persist to UMC (HM-11) |
+| `sinapse_temporal_graph_search` | Direct Graphiti/FalkorDB query (compatibility) |
+| `sinapse_rag_query` | LightRAG multi-hop query |
+| `search_memories` | HNSW/text search over consolidated neurons |
 
----
-
-## Componentes
-
-| Componente | Caminho | Linguagem | Papel |
-|------------|---------|-----------|-------|
-| Unified Memory Core | `hive_mind.db` + `core/umc_schema.sql` | SQLite | Banco único: grafo, logs, vetores, FTS, multimodal, segredos |
-| Conexão/Schema | `core/database.py` | Python | Conexões com sqlite-vec, WAL, busy_timeout |
-| Autenticação LLM | `core/auth.py` | Python | 10 provedores (API key + OAuth), refresh, descoberta de modelos |
-| Schemas Pydantic | `core/schemas/` | Python | Saída estruturada: Distiller, Validator, Router, Synthesis, Vision |
-| Hive-Dreamer | `scripts/dream/dream_cycle.py` | Python | Consolidação: observações → fatos validados → Atlas |
-| Brain Selector | `scripts/setup/setup-brain.sh` | Python | UI terminal: configura provedor/modelo/auth de TODOS os papéis + fallback |
-| Watcher | `scripts/services/start-watcher.sh` | Python/watchdog | Sync em tempo real Obsidian → SQLite (~2s) |
-| Auditor P2P | `scripts/health/audit_memory.py` | Python | Integridade vault ↔ SQLite |
-| Diff Semântico | `scripts/dream/semantic_diff.py` | Python | Classifica conflitos P2P (vetorial + LLM) |
-| Ingestão de Docs | `scripts/knowledge/document_ingest.py` | Python | PDF/DOCX → fila de observações |
-| Captura Visual | `scripts/capture/visual_capture.py` | Python/mss | Screenshots → `visual_memories` |
-| Portal Visual | `scripts/knowledge/generate_portal.py` | Python | Gera `portal.canvas` (Obsidian Canvas) |
-| REST API | `scripts/services/sinapse-api.py` | FastAPI | Acesso remoto autenticado ao UMC (porta 37702) |
-| MCP Server | `scripts/services/sinapse-mcp.py` | Python | 15 tools via stdio JSON-RPC |
-| CLI | `scripts/services/sinapse-write.py` | Python | Subcomandos: decision, learning, query, health, session-end |
-| Graphify | `graphify/` | Python | Indexador estrutural do vault |
-| claude-mem | `~/.claude-mem` + plugin upstream | TypeScript/Bun | Tracking global multi-projeto de eventos (porta 37700) |
-| RTK | `integrations/rtk/` | Rust | Otimização transversal de comandos shell por agente/CLI |
-| NeuralMemory | `integrations/neural-memory/` | Python | Recall associativo (spreading activation) |
-| Plugin Hermes | `plugins/hermes/sinapse-memory.py` | Python | Leitura/escrita automática via hooks |
-| Vault | `cerebro/` | Markdown | Fonte única de verdade (Obsidian) |
+Per-agent MCP config templates live in `mcp/` (e.g. Claude Code → `<project>/.mcp.json`,
+Codex → `~/.codex/mcp.json`, Cursor → `.cursor/mcp.json`, Gemini → `~/.gemini/settings.json`).
 
 ---
 
-## O Ciclo de Sonho (Hive-Dreamer)
+## 🌙 How It Works
 
-Consolidação offline: o que o agente vive durante o dia (observações brutas) é transformado em conhecimento estruturado e legível.
+Offline consolidation: what an agent experiences during the day (raw observations) is turned into
+structured, readable knowledge by the **Hive-Dreamer**.
 
-![O Ciclo de Sonho](docs/assets/image/Dreamer.png)
-*Fonte: Dreamer.png*
+<div align="center">
+  <img src="docs/assets/image/architecture-diagram-complet.png" alt="Hive-Mind architecture" width="760">
+</div>
 
-- **Agnóstico a provedor, por papel:** cada papel (`dreamer`, `graphify`, `vision`, `synthesis`) escolhe provedor+modelo via `HIVE_{ROLE}_PROVIDER/MODEL` no `.env`, com herança do Dreamer e fallback opt-in (`HIVE_{ROLE}_FALLBACK_*`). Suporte a Google/Gemini, OpenAI, Anthropic, DeepSeek, OpenRouter, NVIDIA, HuggingFace, Qwen, LM Studio e Ollama (local). Detalhes: [`docs/01-architecture.md`](docs/01-architecture.md) §10.1 e ADR-009.
-- **Fail-safe:** pipeline que falha envia dados para quarentena (`archived=2`), nunca os descarta. Erros transitórios fazem retry com backoff; falha de validação Pydantic nunca dispara fallback.
-- **Multimodal:** screenshots e PDFs/DOCX entram no mesmo pipeline que os logs.
+### Memory dimensions
 
-### HM-11 — Deep Reflection
+| Dimension | Question it answers | Implementation | Latency |
+|-----------|---------------------|----------------|---------|
+| **Structural** | What exists? How is it connected? | `neurons`/`synapses` in UMC | < 5 ms |
+| **Temporal** | Who did what, and when? | `observations` via claude-mem | < 500 ms |
+| **Vector** | What is semantically similar? | `sqlite-vec` (384d, fastembed) | < 100 ms |
+| **Textual** | Where does this term appear? | FTS5 `unicode61` with triggers | < 50 ms |
+| **Visual** | What did the agent see? | `visual_memories` + LLM Vision | offline (Dreamer) |
+| **Documental** | What did the agent read? | `document_memories` (PDF/DOCX) | offline (Dreamer) |
+| **Execution** | How to optimize this shell command? | RTK (Rust), hooks/plugins per agent | < 2 s |
 
-- **`scripts/planner.py`** — decomposição de objetivos em etapas (`decompose_goal`, `save_goal`); exposto como MCP tool `sinapse_plan_goal`.
-- **`core/hnsw_index.py`** — índice vetorial incremental HNSW (hnswlib, espaço coseno); coluna `indexed_at` nas neurons atualizada a cada inserção.
-- **Grafo de causalidade** — tabela `causal_edges` no UMC + `get_causal_neighbors()` (BFS em `core/database.py`); campos `goal_id` e `why` em observations e `DistillerOutput`.
+<div align="center">
+  <img src="docs/assets/image/Dreamer.png" alt="The Dream Cycle" width="760">
+</div>
 
-### HM-12 — Federated Swarm
-
-- **`core/signing.py`** — geração de par Ed25519, `sign_neuron()` / `verify_neuron()`; chaves persistidas em `config/keys/` (gitignored).
-- **`core/redactor.py`** — `redact_for_export()` / `redact_neuron()`; cobre 8 categorias de PII antes de qualquer exportação.
-- **`POST /api/v1/neurons/export`** — exporta neurons por visibilidade (`private`/`shared`/`public`), com filtros de tipo/data, assinatura Ed25519 e redação automática de PII.
-- **`scripts/syncthing_watcher.py`** — detecção de conflitos Syncthing em tempo real via REST API (`.sync-conflict-*`).
-- **`scripts/hive_analytics.py`** — camada analítica DuckDB; queries `growth`, `top_topics`, `quarantine_rate`, `intent_by_goal`.
-- **`core/memory/`** — pacote de 13 módulos resultante do refactor do monólito `sinapse-memory.py`.
+- **Provider-agnostic, per role:** each role (`dreamer`, `graphify`, `vision`, `synthesis`) picks
+  provider+model via `HIVE_{ROLE}_PROVIDER/MODEL` in `.env`, inheriting from the Dreamer with opt-in
+  fallback. Supports Google/Gemini, OpenAI, Anthropic, DeepSeek, OpenRouter, NVIDIA, HuggingFace,
+  Qwen, LM Studio and Ollama.
+- **Fail-safe:** a failing pipeline sends data to quarantine (`archived=2`), never discards it.
+- **Multimodal:** screenshots and PDFs/DOCX enter the same pipeline as logs.
 
 ```bash
-./scripts/setup/setup-brain.sh        # configurar LLM por papel (+ fallback opcional)
-python3 scripts/dream/dream_cycle.py  # disparar consolidação
+./scripts/setup/setup-brain.sh        # configure LLM per role (+ optional fallback)
+python3 scripts/dream/dream_cycle.py  # trigger consolidation
 ```
+
+Deep dives: [`docs/01-architecture.md`](docs/01-architecture.md) ·
+[`docs/02-ai-models.md`](docs/02-ai-models.md).
 
 ---
 
-## Instalação
-
-### Pré-requisitos
-
-| Dependência | Obrigatório? | Usado por |
-|-------------|--------------|-----------|
-| Python 3.10+ | Sim | UMC, Dream Cycle, MCP, API |
-| SQLite 3 + sqlite-vec | Sim (instalado via pip) | UMC |
-| hnswlib | Sim (pip) | Índice HNSW incremental (HM-11) |
-| duckdb | Sim (pip) | Analytics layer (HM-12) |
-| Node.js 18+ / Bun 1.0+ | Para claude-mem | Camada temporal |
-| Rust (cargo) | Para RTK | Camada de execução |
-| Ollama | Opcional | LLM/embeddings locais |
-| Obsidian | Opcional | Interface visual do vault |
-| Syncthing | Opcional | Sincronização P2P |
-
-### Instalação rápida
-
-```bash
-git clone <repo-url> ~/Documentos/Projects/Hive-Mind
-cd ~/Documentos/Projects/Hive-Mind
-./install.sh
-```
-
-### Instalação no Windows (via WSL2)
-
-O **Hive-Mind** é totalmente suportado no Windows através do **WSL2** (Windows Subsystem for Linux). Isso garante que dependências nativas e compilações complexas de C e Rust (`sqlite-vec`, `RTK`) funcionem com máxima performance e sem atritos de compiladores.
-
-1. **Instale e inicie o WSL2** (preferencialmente Ubuntu 22.04 LTS ou superior).
-2. **Clone o repositório no sistema de arquivos do Windows** (para que você possa abrir o vault no Obsidian do Windows). No terminal do WSL2, navegue até a sua pasta de projetos e clone (exemplo):
-
-   ```bash
-   mkdir -p /mnt/c/Projects
-   cd /mnt/c/Projects
-   git clone <repo-url> Hive-Mind
-   cd Hive-Mind
-   ```
-3. **Execute o instalador**:
-   ```bash
-   ./install.sh
-   ```
-
-4. **Onboarding Multimodal (Visão/Captura de Tela)**: O utilitário de visão (`visual_capture.py`) detecta nativamente o ambiente WSL2 e invoca o `powershell.exe` do Windows host de forma transparente para realizar capturas de tela físicas do Windows, sem necessidade de servidores de imagem adicionais ou servidores X11.
-5. **Abertura do Vault**: Abra o Obsidian no seu Windows host e selecione a pasta física `C:\Projects\Hive-Mind\cerebro` como um novo vault. Qualquer edição feita no Obsidian do Windows é sincronizada em tempo real com o SQLite/UMC no WSL2 em menos de 2 segundos.
-
----
-
-O `install.sh` executa 12 etapas:
-
-```
-  [1/12] Pré-requisitos e Python 3.12 gerenciado por uv
-  [2/12] Ambiente Python reproduzível (.venv + uv.lock)
-  [3/12] Graphify local e índices FTS/sqlite-vec/HNSW
-  [4/12] Skills nos agentes detectados
-  [5/12] Claude-Mem global via npx/marketplace
-  [6/12] NeuralMemory local
-  [7/12] RTK fixado e compilado
-  [8/12] MCP do Hermes
-  [9/12] Cron único de sincronização
-  [10/12] Plugin sinapse-memory do Hermes
-  [11/12] Configuração de inteligência
-  [12/12] Três MCPs gerenciados nos agentes externos e serviços
-```
-
----
-
-## Configuração
-
-### Variáveis de ambiente (`.env`)
+## ⚙️ Configuration
 
 ```bash
 cp .env.example .env
 ```
 
-| Variável | Obrigatória? | Descrição |
-|----------|--------------|-----------|
-| `HIVE_DREAMER_PROVIDER` | Para o Dream Cycle | Provedor do LLM (`deepseek`, `google`, `ollama`...) |
-| `HIVE_DREAMER_MODEL` | Para o Dream Cycle | Modelo (`deepseek-chat`, `gemini-2.0-flash`...) |
-| `HIVE_{GRAPHIFY,VISION,SYNTHESIS}_PROVIDER/MODEL` | Não (herdam do Dreamer) | LLM próprio por papel |
-| `HIVE_{ROLE}_FALLBACK_PROVIDER/MODEL` | Não (opt-in) | Fallback explícito se o primário falhar |
-| `HIVE_MIND_API_KEY` | Para a REST API | Token Bearer — API não inicia sem ela (fail-closed) |
-| `HIVE_MIND_API_PORT` | Não (default 37702) | Porta da REST API |
-| `HIVE_MIND_MASTER_KEY` | Para vault de segredos | Chave de criptografia em nível de campo |
-| `GOOGLE_OAUTH_CLIENT_ID/SECRET` | Para OAuth Google | Credenciais OAuth (nunca hardcoded) |
-| `<PROVIDER>_API_KEY` | Por provedor | `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `NVIDIA_API_KEY`... |
+| Variable | Required? | Description |
+|----------|-----------|-------------|
+| `HIVE_DREAMER_PROVIDER` | For Dream Cycle | LLM provider (`deepseek`, `google`, `ollama`, ...) |
+| `HIVE_DREAMER_MODEL` | For Dream Cycle | Model (`deepseek-chat`, `gemini-2.0-flash`, ...) |
+| `HIVE_{GRAPHIFY,VISION,SYNTHESIS}_PROVIDER/MODEL` | No (inherit from Dreamer) | Per-role LLM |
+| `HIVE_{ROLE}_FALLBACK_PROVIDER/MODEL` | No (opt-in) | Explicit fallback if the primary fails |
+| `HIVE_MIND_API_KEY` | For REST API | Bearer token — API will not start without it (fail-closed) |
+| `HIVE_MIND_API_PORT` | No (default 37702) | REST API port |
+| `HIVE_MIND_MASTER_KEY` | For secret vault | Field-level encryption key |
+| `<PROVIDER>_API_KEY` | Per provider | `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `NVIDIA_API_KEY`, ... |
 
-> `.env` está no `.gitignore` e nunca deve ser commitado. Use `./scripts/setup/setup-brain.sh` para gerenciar credenciais interativamente.
+> `.env` is gitignored and must never be committed. Use `./scripts/setup/setup-brain.sh` to manage
+> credentials interactively.
 
----
-
-## Operação
+**Common operations:**
 
 ```bash
-./scripts/services/start-watcher.sh             # Sync em tempo real (Obsidian → SQLite)
-python3 scripts/dream/dream_cycle.py            # Ciclo de consolidação
-python3 scripts/health/audit_memory.py --fix    # Auditoria vault ↔ SQLite
-python3 scripts/knowledge/generate_portal.py    # Portal visual (Obsidian Canvas)
-./scripts/graph/build-graph.sh                  # Rebuild manual do grafo
-./scripts/utils/recover.sh                      # Disaster recovery
-python3 scripts/health/validate_hive_mind.py    # Validação geral do sistema
-```
-
-**Obsidian:**
-```bash
-flatpak run md.obsidian.Obsidian --vault ~/Documentos/Projects/Hive-Mind/cerebro
+./scripts/services/start-watcher.sh             # Real-time sync (Obsidian → SQLite)
+python3 scripts/dream/dream_cycle.py            # Consolidation cycle
+python3 scripts/health/audit_memory.py --fix    # Vault ↔ SQLite audit
+python3 scripts/health/validate_hive_mind.py    # System-wide validation
 ```
 
 ---
 
-## Integração com Agentes
+## ☁️ Cloud Memory API
 
-| Método | Agentes | Mecanismo |
-|--------|---------|-----------|
-| **Plugin nativo** | Hermes/Thoth | hooks `pre_gateway_dispatch`, `post_tool_call`, `on_session_end` |
-| **MCP server** | Claude Code, Codex CLI, Cursor, Gemini CLI, Kilo Code, OpenClaw, Copilot, ZooCode, Aider | `scripts/services/sinapse-mcp.py` via stdio JSON-RPC |
-| **CLI standalone** | Qualquer agente com shell | `scripts/services/sinapse-write.py <subcomando>` |
-| **REST API** | Agentes remotos / VPS | `scripts/services/sinapse-api.py` Bearer auth, porta 37702 |
-
-### Tools MCP
-
-| Tool | Função |
-|------|--------|
-| `sinapse_query` | Busca híbrida unificada em todos os backends |
-| `sinapse_save_decision` | Salva decisão no vault (`cortex/frontal/trabalho/ativo/`) |
-| `sinapse_save_learning` | Salva aprendizado no `cerebelo/padroes/Patterns.md` |
-| `sinapse_health` | Health dos 7 read-backends e componentes auxiliares |
-| `sinapse_session_end` | Finaliza sessão, atualiza Current State |
-| `sinapse_temporal_search` | claude-mem etapa 1: índice textual com IDs |
-| `sinapse_temporal_timeline` | claude-mem etapa 2: janela cronológica por ID/query |
-| `sinapse_temporal_get_observations` | claude-mem etapa 3: detalhes completos por IDs filtrados |
-| `sinapse_temporal_save` | Salva observação temporal bruta (server-beta ou fallback) |
-| `sinapse_zettelkasten_split` | Particiona notas monolíticas em notas atômicas |
-| `sinapse_capture_screen` | Captura tela → memória visual |
-| `sinapse_plan_goal` | Decompõe objetivo em etapas e persiste no UMC (HM-11) |
-| `sinapse_temporal_graph_search` | Consulta direta Graphiti/FalkorDB (compatibilidade) |
-| `search_memories` | Busca HNSW/texto nos neurônios consolidados |
-| `sinapse_rag_query` | Consulta LightRAG multi-hop |
-
-**Configuração MCP por agente** (templates em `mcp/`):
-
-| Agente | Arquivo de config |
-|--------|------------------|
-| Claude Code | `<projeto>/.mcp.json` (escopo project) |
-| Codex CLI | `~/.codex/mcp.json` |
-| Cursor | `.cursor/mcp.json` |
-| Gemini CLI | `~/.gemini/settings.json` |
-| Kilo Code | `kilo.json` |
-| OpenClaw | `~/.openclaw/openclaw.json` |
-
----
-
-## Cloud Memory API
-
-FastAPI para acesso remoto ao UMC (VPS), com Bearer auth obrigatório, comparação de token em tempo constante, rate limiting e CORS configurável.
+FastAPI for remote UMC access (VPS), with mandatory Bearer auth, constant-time token comparison,
+rate limiting and configurable CORS.
 
 ```bash
 export HIVE_MIND_API_KEY="<token>"
-python3 scripts/services/sinapse-api.py    # porta 37702
+python3 scripts/services/sinapse-api.py    # port 37702
 ```
 
-| Endpoint | Método | Rate | Descrição |
-|----------|--------|------|-----------|
-| `/api/v1/health` | GET | 60/min | Health check (sem auth) |
-| `/api/v1/observations` | POST | 20/min | Registra observação remota |
-| `/api/v1/query` | POST | 30/min | Busca híbrida remota |
-| `/api/v1/semantic/related` | GET | — | Vizinhos semânticos de um arquivo |
-| `/api/v1/vault/{secret_id}` | GET | 10/min | Recupera segredo cifrado |
-| `/api/v1/neurons/export` | POST | 20/min | Exporta neurons por visibilidade, com assinatura Ed25519 e redação de PII |
-
-Chaveamento local → cloud no `sinapse.yaml`:
-```yaml
-cloud:
-  enabled: true
-  url: "http://<sua-vps>:37702"
-  api_key: "${SINAPSE_API_KEY}"
-```
+| Endpoint | Method | Rate | Description |
+|----------|--------|------|-------------|
+| `/api/v1/health` | GET | 60/min | Health check (no auth) |
+| `/api/v1/observations` | POST | 20/min | Register a remote observation |
+| `/api/v1/query` | POST | 30/min | Remote hybrid search |
+| `/api/v1/semantic/related` | GET | — | Semantic neighbors of a file |
+| `/api/v1/vault/{secret_id}` | GET | 10/min | Retrieve an encrypted secret |
+| `/api/v1/neurons/export` | POST | 20/min | Export neurons by visibility, with Ed25519 signature and PII redaction |
 
 ---
 
-## Sincronização P2P
+## 🔄 P2P Sync
 
-![Sincronização P2P](docs/assets/image/sincronizacao_P2P.png)
-*Fonte: sincronizacao_P2P.png*
-- UUIDs v4 em todas as PKs — sem colisão entre máquinas
-- SHA-256 de conteúdo em `neurons.hash` — detecção determinística
-- `audit_memory.py --fix` — reconcilia vault ↔ SQLite
-- Síntese Dialética no Dream Cycle resolve conflitos via LLM
+<div align="center">
+  <img src="docs/assets/image/sincronizacao_P2P.png" alt="P2P synchronization" width="760">
+</div>
 
-Setup completo: [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md)
+- UUID v4 on every PK — no cross-machine collisions
+- SHA-256 content hash in `neurons.hash` — deterministic detection
+- `audit_memory.py --fix` — reconciles vault ↔ SQLite
+- Dialectic Synthesis in the Dream Cycle resolves conflicts via LLM
+
+Full setup: [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md).
 
 ---
 
-## Testes
+## 🩻 Brain Anatomy
+
+Hive-Mind is organized like a brain. The `cerebro/` vault mirrors the anatomy —
+**four sibling lobes under Consciousness** (Cortex, Cerebellum, Diencephalon, Brainstem), and the
+Cortex has **five lobules of its own**. External tools are *organs* of the brain, not parallel
+databases: Graphify (occipital), claude-mem (temporal), NeuralMemory (association), filesystem scan
+(parietal).
+
+<div align="center">
+  <img src="docs/assets/image/brain-anatomy.png" alt="Hive-Mind brain anatomy" width="760">
+</div>
+
+Canonical lobe → function → directory mapping: [`docs/01-architecture.md` §2](docs/01-architecture.md).
+
+---
+
+## ✅ Tests
 
 ```bash
 ./tests/run_all.sh    # Smoke → Unit → Integration → E2E
 ```
 
-| Suíte | Escopo | LLM real? |
-|-------|--------|-----------|
-| Smoke | Binários e saúde do sistema | Não |
-| Unit | Backends (mocks), helpers, fila do Dream Cycle, regressões de auditoria | **Não** |
-| Integration | Fluxos leitura/escrita, MCP, API, busca híbrida | Backends reais |
-| E2E | Sessão completa, degradação, concorrência, recovery | Backends reais |
-| Síntese (`test_synthesis.py`) | `run_synthesis_cycle()` ponta a ponta | **Sim** |
+| Suite | Scope | Real LLM? |
+|-------|-------|-----------|
+| Smoke | Binaries and system health | No |
+| Unit | Backends (mocks), helpers, Dream Cycle queue, audit regressions | **No** |
+| Integration | Read/write flows, MCP, API, hybrid search | Real backends |
+| E2E | Full session, degradation, concurrency, recovery | Real backends |
+| Synthesis (`test_synthesis.py`) | `run_synthesis_cycle()` end to end | **Yes** |
 
-**191 testes passando.** Testes unitários nunca chamam LLM — testam a lógica ao redor do modelo, não o modelo.
-
----
-
-## Segurança
-
-- **Fail-closed:** API recusa iniciar sem `HIVE_MIND_API_KEY`; comparação de token em tempo constante.
-- **Vault cifrado:** segredos detectados são criptografados em nível de campo (Fernet, tabela `vault`).
-- **Zero segredos no código:** toda credencial vive no `.env` (gitignored). Auditoria de 10/06 removeu o último resquício hardcoded.
-- **Rate limiting** em todos os endpoints sensíveis.
-- Bancos de memória pessoal e venvs protegidos no `.gitignore`.
+**211 tests passing.** Unit tests never call an LLM — they test the logic around the model, not the model.
 
 ---
 
-## Solução de Problemas
+## 🔒 Security
 
-| Problema | Solução |
-|----------|---------|
-| Dream Cycle não roda | `./scripts/setup/setup-brain.sh` → verificar provedor/modelo/saldo |
-| Watcher não sincroniza | `./scripts/services/start-watcher.sh`; checar `watcher.log` |
-| API não inicia | Definir `HIVE_MIND_API_KEY` no ambiente |
-| MCP não conecta | Verificar config do agente (Claude Code: `<projeto>/.mcp.json`; Codex: `~/.codex/config.toml`/`~/.codex/mcp.json`) e path do `scripts/services/sinapse-mcp.py` |
-| Observações sumiram da fila | `SELECT * FROM observations WHERE archived=2` (quarentena) |
-| Vault ↔ SQLite divergentes | `python3 scripts/health/audit_memory.py --fix` |
-| claude-mem worker parou | `systemctl --user restart sinapse-claude-mem.service` |
-| Grafo desatualizado | `./scripts/graph/build-graph.sh` |
-| Recovery geral | `./scripts/utils/recover.sh` |
+- **Fail-closed:** the API refuses to start without `HIVE_MIND_API_KEY`; constant-time token comparison.
+- **Encrypted vault:** detected secrets are field-level encrypted (Fernet, `vault` table).
+- **Zero secrets in code:** every credential lives in `.env` (gitignored).
+- **Rate limiting** on all sensitive endpoints.
+- Personal memory databases and venvs protected in `.gitignore`.
 
 ---
 
-## Roadmap
+## 🛠 Troubleshooting
 
-| Fase | Tema | Status |
-|------|------|--------|
-| 1–2 | Fundação + Unified Memory Core (SQLite unificado, busca híbrida) | ✅ Concluído |
-| 3 | Unificação temporal (claude-mem → UMC) | ✅ Concluído |
-| 4–5 | Interface Obsidian + Auto-Link semântico | ✅ Concluído |
-| 6 | Real-time Watcher (elimina gap de 6h) | ✅ Concluído |
-| 7 | Ciclo de Sonho — Hive-Dreamer | ✅ Concluído |
-| 8 | Enxame multi-máquina (P2P / UUID v4 / Syncthing) | ✅ Concluído |
-| 9 | Fusão semântica e consenso (Síntese Dialética) | ✅ Concluído |
-| 10 | Deep Portal — memória visual e documental | ✅ Concluído |
-| HM-11 | Deep Reflection — Planner + memória de intenção + grafo de causalidade | ✅ Concluído |
-| HM-12 | Federated Swarm — compartilhamento seletivo entre enxames + privacidade | ✅ Concluído |
-
-Detalhes: [`PROJECT_STATUS.md`](PROJECT_STATUS.md) · [`IMPLEMENTATION.md`](IMPLEMENTATION.md) · [`docs/01-architecture.md`](docs/01-architecture.md)
+| Problem | Fix |
+|---------|-----|
+| Dream Cycle won't run | `./scripts/setup/setup-brain.sh` → check provider/model/balance |
+| Watcher not syncing | `./scripts/services/start-watcher.sh`; inspect `watcher.log` |
+| API won't start | Set `HIVE_MIND_API_KEY` in the environment |
+| MCP won't connect | Check the agent config and the path to `scripts/services/sinapse-mcp.py` |
+| Observations vanished from queue | `SELECT * FROM observations WHERE archived=2` (quarantine) |
+| Vault ↔ SQLite diverged | `python3 scripts/health/audit_memory.py --fix` |
+| claude-mem worker stopped | `systemctl --user restart sinapse-claude-mem.service` |
+| Stale graph | `./scripts/graph/build-graph.sh` |
+| General recovery | `./scripts/utils/recover.sh` |
 
 ---
 
-## Documentação
+## 🗺 Roadmap
 
-| Documento | Conteúdo |
-|-----------|----------|
-| [`docs/01-architecture.md`](docs/01-architecture.md) | Referência canônica de arquitetura |
-| [`docs/README.md`](docs/README.md) | Índice completo da documentação técnica |
-| [`AGENTS.md`](AGENTS.md) | Guia para agentes de IA |
-| [`docs/01-architecture.md`](docs/01-architecture.md) | ADRs, fluxos, decisões de design |
-| [`docs/02-ai-models.md`](docs/02-ai-models.md) | LLMs, embeddings, provedores, fallback |
-| [`docs/03-data-pipeline.md`](docs/03-data-pipeline.md) | Pipeline completo de dados |
-| [`docs/04-infrastructure.md`](docs/04-infrastructure.md) | Infraestrutura, portas, serviços, segurança |
-| [`docs/05-blueprints.md`](docs/05-blueprints.md) | Diagramas ASCII de todos os fluxos |
-| [`docs/06-gap-analysis.md`](docs/06-gap-analysis.md) | Análise do install.sh |
-| [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md) | Setup de sincronização P2P |
+| Phase | Theme | Status |
+|-------|-------|--------|
+| 1–2 | Foundation + Unified Memory Core (unified SQLite, hybrid search) | ✅ Done |
+| 3 | Temporal unification (claude-mem → UMC) | ✅ Done |
+| 4–5 | Obsidian interface + semantic auto-link | ✅ Done |
+| 6 | Real-time Watcher (eliminates the 6h gap) | ✅ Done |
+| 7 | Dream Cycle — Hive-Dreamer | ✅ Done |
+| 8 | Multi-machine swarm (P2P / UUID v4 / Syncthing) | ✅ Done |
+| 9 | Semantic fusion and consensus (Dialectic Synthesis) | ✅ Done |
+| 10 | Deep Portal — visual and documental memory | ✅ Done |
+| HM-11 | Deep Reflection — Planner + intent memory + causality graph | ✅ Done |
+| HM-12 | Federated Swarm — selective cross-swarm sharing + privacy | ✅ Done |
 
 ---
 
-## Licença
+## 📚 Documentation
+
+| Document | Contents |
+|----------|----------|
+| [`docs/installation.md`](docs/installation.md) | Install reference (prerequisites, WSL2, 12 steps, components) |
+| [`docs/01-architecture.md`](docs/01-architecture.md) | Canonical architecture reference + brain anatomy + ADRs |
+| [`docs/02-ai-models.md`](docs/02-ai-models.md) | LLMs, embeddings, providers, fallback |
+| [`docs/03-data-pipeline.md`](docs/03-data-pipeline.md) | Full data pipeline |
+| [`docs/04-infrastructure.md`](docs/04-infrastructure.md) | Infrastructure, ports, services, security |
+| [`docs/05-blueprints.md`](docs/05-blueprints.md) | ASCII diagrams of every flow |
+| [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md) | P2P synchronization setup |
+| [`AGENTS.md`](AGENTS.md) | Guide for AI agents |
+
+---
+
+## License
 
 Apache 2.0
