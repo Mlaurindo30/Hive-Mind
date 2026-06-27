@@ -13,7 +13,9 @@ Config (env vars):
   FALKORDB_PASSWORD    — default: (empty)
   FALKORDB_DB          — default: sinapse
   GRAPHITI_LLM_BASE    — default: http://localhost:11434/v1
-  GRAPHITI_LLM_MODEL   — default: qwen2.5-coder:3b (deve existir no Ollama)
+  HIVE_GRAPHITI_MODEL  — modelo de extração (role no setupbrain). Default:
+                         qwen2.5:3b (prosa multilíngue, ~1.9GB, coexiste na GPU).
+                         GRAPHITI_LLM_MODEL é alias legado e tem precedência.
   GRAPHITI_EMBED_MODEL — default: bge-m3:latest (deve existir no Ollama)
   HIVE_GRAPHITI_RETRIES    — default: 3 (tentativas com backoff 1s, 2s, 4s)
   HIVE_GRAPHITI_CB_FAILS   — default: 3 (falhas consecutivas que abrem o circuit)
@@ -37,8 +39,28 @@ from pathlib import Path
 from typing import Any
 
 _graphiti: Any = None
+_event_loop: Any = None
 _circuit_open_until: float = 0.0
 _consecutive_failures: int = 0
+
+
+def _run_async(coro_factory):
+    """Roda uma corrotina num event loop dedicado e *persistente*.
+
+    Graphiti/FalkorDriver mantém conexões vinculadas ao event loop em que o
+    cliente foi criado. `asyncio.run()` cria E FECHA um loop a cada chamada —
+    então a partir da 2ª chamada no mesmo processo o driver cacheado aponta
+    para um loop fechado ("Event loop is closed"). Isso é exatamente o que
+    acontece quando o Dream Cycle empurra vários neurônios em sequência.
+
+    Mantemos um único loop reutilizado; se ele tiver sido fechado, recriamos e
+    invalidamos o cliente cacheado (que estava preso ao loop antigo).
+    """
+    global _event_loop, _graphiti
+    if _event_loop is None or _event_loop.is_closed():
+        _event_loop = asyncio.new_event_loop()
+        _graphiti = None  # cliente vinculado ao loop anterior é inválido
+    return _event_loop.run_until_complete(coro_factory())
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +93,20 @@ def _ollama_root() -> str:
 
 
 def _llm_model() -> str:
-    return os.environ.get("GRAPHITI_LLM_MODEL", "qwen2.5-coder:3b")
+    # Default: modelo de PROSA PEQUENO e MULTILÍNGUE (PT/EN). Dois critérios:
+    #   1) Prosa + multilíngue: qwen2.5:3b extrai entidades/relações de texto
+    #      natural muito melhor que granite3-dense:2b (que alucinava no gleaning)
+    #      e que qwen2.5-coder:3b (modelo de código, gerava entidades vazias/NaN).
+    #   2) Pequeno para COEXISTIR na GPU: no Dream Cycle, modelos locais (ex.
+    #      claude_mem 8b ~6GB) + bge-m3 (~1.2GB) já ocupam a GPU de 12GB; um 3º
+    #      modelo grande estoura → OOM → embeddings NaN. qwen2.5:3b (~1.9GB) cabe.
+    # Configurável via setupbrain (HIVE_GRAPHITI_MODEL) — ex.: qwen2.5:7b em
+    # máquinas com mais VRAM. GRAPHITI_LLM_MODEL é mantido como alias legado.
+    return (
+        os.environ.get("GRAPHITI_LLM_MODEL")
+        or os.environ.get("HIVE_GRAPHITI_MODEL")
+        or "qwen2.5:3b"
+    )
 
 
 def _embed_model() -> str:
@@ -220,10 +255,28 @@ def circuit_state() -> dict:
 # Retry com backoff
 # ---------------------------------------------------------------------------
 
+def _is_transient(error: Exception) -> bool:
+    """Decide se vale retentar. Erros DETERMINÍSTICOS (NaN no embed/LLM,
+    validação, schema) devolvem o mesmo resultado em cada tentativa — retentar
+    só desperdiça o backoff (1+2+4s por neurônio). Isso era a causa do Dream
+    Cycle levar ~25min: cada push que dava "json: unsupported value: NaN" do
+    Ollama gastava 7s antes de cair no fallback. Só retentamos falhas
+    plausivelmente transitórias (rede, timeout, conexão)."""
+    msg = str(error).lower()
+    nonretryable = (
+        "unsupported value: nan",
+        "json: unsupported value",
+        "validationerror",
+        "invalid schema",
+    )
+    return not any(s in msg for s in nonretryable)
+
+
 def _retry_with_backoff(fn, *args, **kwargs):
     """Roda `fn(*args, **kwargs)` com N tentativas e backoff 1s, 2s, 4s.
 
-    Retorna (success, result_or_none). Atualiza o circuit breaker.
+    Retorna (success, result_or_none). Atualiza o circuit breaker. Erros
+    não-transitórios (ver _is_transient) falham imediatamente, sem backoff.
     """
     retries = _cfg_int("HIVE_GRAPHITI_RETRIES", 3)
     last_error: Exception | None = None
@@ -234,6 +287,9 @@ def _retry_with_backoff(fn, *args, **kwargs):
             return True, result
         except Exception as e:
             last_error = e
+            if not _is_transient(e):
+                print(f"  [graphiti] erro não-transitório (sem retry): {e}")
+                break
             wait = 2 ** attempt  # 1s, 2s, 4s
             print(
                 f"  [graphiti] tentativa {attempt + 1}/{retries} falhou: {e} "
@@ -401,7 +457,7 @@ def push_neuron(neuron_id: str, content: str, source: str = "dream") -> bool:
             group_id="hive-mind",
         )
 
-    success, error = _retry_with_backoff(lambda: asyncio.run(_do_push()))
+    success, error = _retry_with_backoff(lambda: _run_async(_do_push))
     if not success:
         # FalkorDB disponível mas falhou — escreve no fallback
         # para não perder o neurônio.
@@ -441,7 +497,7 @@ def search_graph(query: str, num_results: int = 10) -> list[dict]:
             num_results=num_results,
         )
 
-    success, edges = _retry_with_backoff(lambda: asyncio.run(_do_search()))
+    success, edges = _retry_with_backoff(lambda: _run_async(_do_search))
     if not success or edges is None:
         return []
     return [

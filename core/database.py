@@ -42,14 +42,32 @@ class OllamaEmbedder:
         if isinstance(texts, str):
             texts = [texts]
         for text in texts:
-            payload = json.dumps({"model": self._model, "prompt": str(text)[:5000]}).encode()
-            req = self._ur.Request(
-                self._url, data=payload, method="POST",
-                headers={"Content-Type": "application/json"},
-            )
-            with self._ur.urlopen(req, timeout=30) as r:
-                data = json.loads(r.read())
-            yield data["embedding"]
+            prompt_text = str(text)[:5000]
+            # Ollama /api/embeddings devolve {"embedding": []} (dim-0) para prompt
+            # vazio/whitespace-only. Um vetor dim-0 quebra os vector stores
+            # (dim mismatch no nano-vectordb do LightRAG / sqlite-vec). Substitui
+            # por um placeholder mínimo para garantir vetor de dimensão fixa.
+            if not prompt_text.strip():
+                prompt_text = " "
+            payload = json.dumps({"model": self._model, "prompt": prompt_text}).encode()
+            last_exc = None
+            emb = None
+            for _attempt in range(2):  # 1 retry: tolera 500 transitório do Ollama
+                req = self._ur.Request(
+                    self._url, data=payload, method="POST",
+                    headers={"Content-Type": "application/json"},
+                )
+                try:
+                    with self._ur.urlopen(req, timeout=30) as r:
+                        data = json.loads(r.read())
+                    emb = data.get("embedding") or None
+                    if emb:
+                        break
+                except Exception as e:
+                    last_exc = e
+            if not emb:
+                raise last_exc or ValueError("Ollama retornou embedding vazio")
+            yield emb
 
 
 _embedder = None

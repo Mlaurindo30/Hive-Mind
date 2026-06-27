@@ -49,6 +49,15 @@ client = TestClient(app)
 _AUTH = {"Authorization": f"Bearer {API_KEY}"}
 
 
+@pytest.fixture(autouse=True)
+def _ensure_api_key(monkeypatch):
+    # Outro módulo (ex.: test_sync_endpoints) também seta HIVE_MIND_API_KEY no
+    # import com OUTRA chave; quem é importado por último vence. Como a API lê a
+    # chave por request, reafirmamos a chave DESTE módulo antes de cada teste
+    # (monkeypatch restaura ao final, evitando vazar para outros módulos).
+    monkeypatch.setenv("HIVE_MIND_API_KEY", API_KEY)
+
+
 def test_health_is_public():
     """GET /api/v1/health é público e responde online."""
     r = client.get("/api/v1/health")

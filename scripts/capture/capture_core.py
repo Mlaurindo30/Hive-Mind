@@ -19,9 +19,14 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import time
 import urllib.request
 from pathlib import Path
+
+# Bootstrap: adiciona project root ao sys.path para que `from core.X import ...`
+# funcione quando o script é executado via `python /path/script.py` (systemd).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 HOME = Path.home()
 ROOT = Path(__file__).resolve().parent.parent.parent

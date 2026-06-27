@@ -21,6 +21,11 @@ import sys
 import time
 from pathlib import Path
 
+# Bootstrap: adiciona project root ao sys.path para que `from core.X import ...`
+# funcione quando o script é executado via `python /path/script.py` (systemd,
+# onde Python adiciona apenas o diretório do script ao sys.path).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import capture_core as core                       # noqa: E402
 from capture_adapters import ADAPTERS, adapters_by_owner  # noqa: E402
@@ -106,9 +111,15 @@ def main() -> int:
                 sources = [Path(p) for p in found
                            if Path(p).is_file() and core._src_mtime(Path(p)) >= cutoff]
             if not sources:
-                continue
+                # Adapters "reparse" sem fontes de arquivo (ex.: screenpipe REST)
+                # buscam os próprios dados; processa uma vez com source=None em
+                # vez de pular — senão a captura via REST nunca roda pelo timer.
+                if adp.get("mode") == "reparse":
+                    sources = [None]
+                else:
+                    continue
             for s in sources:
-                if not s.is_file():
+                if s is not None and not s.is_file():
                     continue
                 try:
                     sessions = parser(s)

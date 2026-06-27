@@ -60,6 +60,22 @@ ROLES = [
     ("daily_writer",       "Daily Writer (diário)"),
 ]
 
+# Papéis de extração SEMPRE locais (Ollama): grafo temporal (Graphiti) e RAG
+# vetorial (LightRAG). Não passam pela máquina de providers/fallback — os
+# clientes leem só HIVE_{ROLE}_MODEL. Configurados no menu "Extração local".
+# (id, rótulo, env_var, default). Presets sugeridos em LOCAL_MODEL_PRESETS.
+LOCAL_EXTRACTION_ROLES = [
+    ("graphiti", "Graphiti (grafo temporal — entidades/relações)", "HIVE_GRAPHITI_MODEL", "qwen2.5:3b"),
+    ("lightrag", "LightRAG (RAG vetorial — extração)",             "HIVE_LIGHTRAG_MODEL", "qwen2.5:3b"),
+]
+
+# Modelos Ollama locais sugeridos para extração (ordem = preferência).
+LOCAL_MODEL_PRESETS = [
+    ("qwen2.5:3b", "padrão — multilíngue PT/EN, ~1.9GB, rápido, cabe na GPU c/ bge-m3"),
+    ("qwen2.5:7b", "alta qualidade — ~4.7GB, exige folga de VRAM (recomendado p/ Graphiti)"),
+    ("granite3-dense:2b", "legado — leve mas alucina entidades; evite"),
+]
+
 def clear(): os.system('clear' if os.name == 'posix' else 'cls')
 
 
@@ -185,6 +201,11 @@ def is_provider_configured(p_name: str, env: Dict[str, str]) -> bool:
     # antigravity / gemini-cli: configurado = existe o login OAuth do CLI no disco.
     if "gemini_cli_oauth" in cfg["auth_type"]:
         return gemini_cli_oauth_file() is not None
+    # antigravity-cli (`agy`): configurado = binário presente + mesmo OAuth de ~/.gemini.
+    if "agy_cli" in cfg["auth_type"]:
+        from pathlib import Path as _P
+        return _P(os.environ.get("AGY_BIN", str(_P.home() / ".local/bin/agy"))).exists() \
+            and gemini_cli_oauth_file() is not None
     if "oauth" in cfg["auth_type"]:
         if f"{p_name.upper()}_ACCESS_TOKEN" in env: return True
     if cfg['env_var'] in env or "local" in cfg['auth_type']:
@@ -205,12 +226,20 @@ def main_menu():
             primary, fb1, fb2 = role_config_parts(rid, env)
             print(f"{fit(str(i+1), 4)} {fit(label, 30)} {fit(primary, 34)} {fit(fb1, 28)} {fit(fb2, 28)}")
 
+        # Extração local (Ollama-only): Graphiti + LightRAG
+        print(line("-"))
+        print(f"{BOLD}Extração local (Ollama){NC}")
+        for rid, label, var, default in LOCAL_EXTRACTION_ROLES:
+            cur = env.get(var) or f"{default} {DIM}(default){NC}"
+            print(f"{fit('  ' + label, 50)} {GREEN}{cur}{NC}")
+
         print(line("-"))
         print(f"{fit('S', 4)} Saude dos providers")
         print(f"{fit('R', 4)} Resumo efetivo por papel")
+        print(f"{fit('G', 4)} Extração local (Graphiti/LightRAG)")
         print(f"{fit('0', 4)} Sair")
 
-        choice = input(f"\nSelecione um papel, S, R ou 0: ").strip()
+        choice = input(f"\nSelecione um papel, S, R, G ou 0: ").strip()
         if choice == "0": break
         if choice.lower() == "s":
             providers_health_screen()
@@ -218,12 +247,97 @@ def main_menu():
         if choice.lower() == "r":
             effective_summary_screen()
             continue
+        if choice.lower() == "g":
+            local_extraction_menu()
+            continue
 
         try:
             role = ROLES[int(choice)-1][0]
             provider_menu(role)
         except (ValueError, IndexError):
             pass
+
+
+def _ollama_installed_models() -> set[str]:
+    """Modelos atualmente baixados no Ollama local (vazio se Ollama off)."""
+    base = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    try:
+        resp = requests.get(f"{base}/api/tags", timeout=3)
+        resp.raise_for_status()
+        return {m.get("name", "") for m in resp.json().get("models", [])}
+    except Exception:
+        return set()
+
+
+def local_extraction_menu():
+    """Configura os modelos Ollama locais de extração (Graphiti / LightRAG).
+
+    Estes papéis não usam a máquina de providers: gravamos só HIVE_{ROLE}_MODEL,
+    que os clientes (integrations/graphiti/client.py, core/lightrag_index.py)
+    leem direto. Default qwen2.5:3b; opção qwen2.5:7b p/ Graphiti alta qualidade.
+    """
+    while True:
+        clear()
+        header("EXTRAÇÃO LOCAL (OLLAMA)", "Graphiti (grafo temporal) e LightRAG (RAG vetorial) — sempre local.")
+        env = load_env()
+        installed = _ollama_installed_models()
+
+        print(f"\n{BOLD}Papéis de extração local{NC}")
+        print(line("-"))
+        for i, (rid, label, var, default) in enumerate(LOCAL_EXTRACTION_ROLES):
+            cur = env.get(var)
+            shown = cur or f"{default} (default)"
+            mark = f"{GREEN}✓ baixado{NC}" if (cur or default) in installed else f"{YELLOW}⊘ não baixado{NC}"
+            print(f"{fit(str(i+1), 4)} {fit(label, 46)} {fit(shown, 22)} {mark}")
+        print(line("-"))
+        print(f"{fit('0', 4)} Voltar")
+
+        choice = input(f"\nSelecione um papel (1-{len(LOCAL_EXTRACTION_ROLES)}) ou 0: ").strip()
+        if choice == "0":
+            return
+        try:
+            rid, label, var, default = LOCAL_EXTRACTION_ROLES[int(choice) - 1]
+        except (ValueError, IndexError):
+            continue
+        _local_model_picker(rid, label, var, default, installed)
+
+
+def _local_model_picker(rid: str, label: str, var: str, default: str, installed: set[str]):
+    clear()
+    header(f"MODELO LOCAL: {label}", f"Grava {var} no .env (Ollama local).")
+    print(f"\n{BOLD}Presets sugeridos:{NC}")
+    print(line("-"))
+    for i, (model, note) in enumerate(LOCAL_MODEL_PRESETS):
+        mark = f"{GREEN}✓{NC}" if model in installed else f"{YELLOW}⊘{NC}"
+        print(f"{fit(str(i+1), 4)} {mark} {fit(model, 22)} {DIM}{note}{NC}")
+    print(line("-"))
+    print(f"{fit('C', 4)} Customizado (digitar nome do modelo)")
+    print(f"{fit('D', 4)} Restaurar default ({default})")
+    print(f"{fit('0', 4)} Voltar")
+
+    choice = input("\nEscolha: ").strip().lower()
+    if choice == "0":
+        return
+    if choice == "d":
+        save_env(var, default)
+        print(f"{GREEN}✓{NC} {var} = {default} (default)")
+    elif choice == "c":
+        model = input("Nome do modelo Ollama (ex.: qwen2.5:7b): ").strip()
+        if model:
+            save_env(var, model)
+            print(f"{GREEN}✓{NC} {var} = {model}")
+            if model not in installed:
+                print(f"{YELLOW}⚠{NC} {model} ainda não está baixado. Rode: ollama pull {model}")
+    else:
+        try:
+            model = LOCAL_MODEL_PRESETS[int(choice) - 1][0]
+        except (ValueError, IndexError):
+            return
+        save_env(var, model)
+        print(f"{GREEN}✓{NC} {var} = {model}")
+        if model not in installed:
+            print(f"{YELLOW}⚠{NC} {model} ainda não está baixado. Rode: ollama pull {model}")
+    input("\nEnter para continuar...")
 
 def provider_menu(role: str, level: int = 0):
     clear()
@@ -237,12 +351,21 @@ def provider_menu(role: str, level: int = 0):
         print(line("-"))
 
     print(f"\n{BOLD}Provedores Disponíveis:{NC}")
-    providers = list(PROVIDERS_CONFIG.keys())
+    # 'google' (API key/OAuth Generative Language) está aposentado: o token OAuth
+    # não renova mais de forma confiável e a key direta foi descontinuada no setup.
+    # O acesso Gemini é feito via gemini-cli/antigravity (CLI OAuth). Ocultado do
+    # menu para não ser oferecido/configurado; o code path permanece por compat.
+    _HIDDEN_PROVIDERS = {"google"}
+    providers = [p for p in PROVIDERS_CONFIG.keys() if p not in _HIDDEN_PROVIDERS]
     print(f"{BOLD}{fit('#', 4)} {fit('Provider', 16)} {fit('Auth', 18)} {fit('Status', 24)} {fit('Observacao', 36)}{NC}")
     print(line("-"))
     for i, p in enumerate(providers):
         cfg = PROVIDERS_CONFIG[p]
-        if "gemini_cli_oauth" in cfg["auth_type"]:
+        if "agy_cli" in cfg["auth_type"]:
+            auth = "agy CLI"
+            status = f"{GREEN}configurado{NC}" if is_provider_configured(p, env) else f"{YELLOW}pendente{NC}"
+            note = "subprocess agy (claude/gpt-oss)"
+        elif "gemini_cli_oauth" in cfg["auth_type"]:
             auth = "CLI OAuth"
             status = f"{GREEN}configurado{NC}" if is_provider_configured(p, env) else f"{YELLOW}pendente{NC}"
             note = "login externo"
@@ -322,6 +445,19 @@ def validate_provider_real(p_name: str, model: str | None = None) -> Dict[str, s
         return {"status": status, "detail": detail, "source": source, "elapsed": f"{elapsed_ms}ms"}
 
     try:
+        if "agy_cli" in cfg["auth_type"]:
+            from core.agy_client import call_agy_structured
+
+            test_model = model or (cfg.get("models_hint") or ["gemini-3.5-flash"])[0]
+            out = call_agy_structured(
+                "Responda apenas JSON valido: {\"ok\": true}",
+                "Validacao operacional minima do Hive-Mind.",
+                _SetupBrainPing,
+                model=test_model,
+                provider=p_name,
+            )
+            return done("OK" if out.ok else "ERRO", f"geracao real (agy) em {test_model}", provider_source_label(p_name, load_env()))
+
         if "gemini_cli_oauth" in cfg["auth_type"]:
             from core.gemini_cli_client import call_gemini_cli_structured
 
@@ -583,6 +719,61 @@ def manage_provider(p_name: str, role: str, level: int = 0):
 
     show_model_selection(p_name, role, level)
 
+
+def sync_claude_mem_provider(expected_provider: str, expected_model: str) -> bool:
+    """Aplica o papel claude_mem no worker real e confirma a config viva."""
+    import subprocess
+
+    cmd = (sys.executable, str(PROJECT_ROOT / "scripts" / "setup" / "sync-claude-mem-provider.py"))
+    proc = subprocess.run(cmd, text=True, capture_output=True, check=False)
+    if proc.stdout:
+        print(proc.stdout.rstrip())
+    if proc.stderr:
+        print(proc.stderr.rstrip())
+    if proc.returncode != 0:
+        print(f"{RED}✗ sync claude-mem falhou com exit {proc.returncode}.{NC}")
+        return False
+
+    try:
+        resp = requests.get("http://127.0.0.1:37700/api/settings", timeout=5)
+        resp.raise_for_status()
+        settings = resp.json()
+    except Exception as exc:
+        print(f"{YELLOW}⚠ não consegui confirmar /api/settings após sync: {exc}{NC}")
+        return False
+
+    provider = expected_provider.lower()
+    if provider in ("anthropic", "claude"):
+        ok = (
+            settings.get("CLAUDE_MEM_PROVIDER") == "claude"
+            and settings.get("CLAUDE_MEM_MODEL") == expected_model
+        )
+    elif provider in ("google", "gemini"):
+        ok = (
+            settings.get("CLAUDE_MEM_PROVIDER") == "gemini"
+            and settings.get("CLAUDE_MEM_GEMINI_MODEL") == expected_model
+        )
+    else:
+        ok = (
+            settings.get("CLAUDE_MEM_PROVIDER") == "openrouter"
+            and settings.get("CLAUDE_MEM_OPENROUTER_MODEL") == expected_model
+        )
+
+    if ok:
+        print(f"{GREEN}✓ claude-mem confirmado no worker: {expected_provider}/{expected_model}{NC}")
+        return True
+
+    live = {
+        "CLAUDE_MEM_PROVIDER": settings.get("CLAUDE_MEM_PROVIDER"),
+        "CLAUDE_MEM_MODEL": settings.get("CLAUDE_MEM_MODEL"),
+        "CLAUDE_MEM_GEMINI_MODEL": settings.get("CLAUDE_MEM_GEMINI_MODEL"),
+        "CLAUDE_MEM_OPENROUTER_MODEL": settings.get("CLAUDE_MEM_OPENROUTER_MODEL"),
+    }
+    print(f"{RED}✗ claude-mem não aplicou o modelo esperado.{NC}")
+    print(json.dumps(live, indent=2))
+    return False
+
+
 def show_model_selection(p_name: str, role: str, level: int = 0):
     clear()
     header(f"MODELOS: {p_name.upper()}", f"Alvo: {_LEVEL_LABEL[level]} {role.upper()}")
@@ -647,14 +838,7 @@ def show_model_selection(p_name: str, role: str, level: int = 0):
     # Papel claude_mem: aplica a escolha direto no claude-mem (settings.json) e
     # reinicia o worker, para o claude-mem passar a gerar com o modelo escolhido.
     if role == "claude_mem" and level == 0:
-        try:
-            import subprocess
-            subprocess.run(
-                (sys.executable, str(PROJECT_ROOT / "scripts" / "setup" / "sync-claude-mem-provider.py")),
-                check=False,
-            )
-        except Exception as exc:  # nunca quebra o menu
-            print(f"{YELLOW}⚠ sync claude-mem falhou: {exc}{NC}")
+        sync_claude_mem_provider(selected["provider"], selected["id"])
 
     if level < 2:
         prox = "FALLBACK" if level == 0 else "2º FALLBACK (rede final, ex.: OmniRoute)"

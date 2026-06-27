@@ -11,7 +11,8 @@
 > **3ª passada de validação (2026-06-25) + refinamento posterior (sessão #S2864):** cada afirmação abaixo foi verificada
 > contra código real (ver §0.6 "Metodologia de validação"). A 2ª passada listava 13
 > fases pendentes. Reduzimos para **6** (P7..P13; **gap em P12** — aposentado na §3.2
-> por já existir como DuckDB) por dois motivos:
+> por já existir como DuckDB) por dois motivos — mais **2 estruturas futuras**
+> (P14 Amígdala, P15 Gânglios da base) propostas no estudo de arquitetura de 2026-06-26:
 > - 7 projetos do `09` já estão implementados dentro de `integrations/neural-memory/`
 >   (Mem0, OpenMemory, Cognee, MemoryOS, MemOS, A-MEM, HippoRAG 2) — não são fases,
 >   são capacidades existentes (rastreabilidade em §3.1).
@@ -28,7 +29,7 @@
 - [§1 Estado atual do cérebro](#1-estado-atual-do-cérebro)
 - [§2 Fases concluídas (P0..P5)](#2-fases-concluídas-p0p5)
 - [§3 Já integrado no `integrations/neural-memory/` (rastreabilidade)](#3-já-integrado-no-integrationsneural-memory-rastreabilidade)
-- [§4 Fases pendentes (P7..P13)](#4-fases-pendentes-p7p13)
+- [§4 Fases pendentes (P7..P13) + estruturas futuras (P14 Amígdala, P15 Gânglios da base)](#4-fases-pendentes-p7p13)
 - [§5 Rejeitados com razão](#5-rejeitados-com-razão)
 - [§6 Critério geral de "pronto"](#6-critério-geral-de-pronto)
 - [§7 Sprints](#7-sprints)
@@ -370,9 +371,9 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
 
 ---
 
-## 4. Fases pendentes (P7..P13)
+## 4. Fases pendentes (P7..P13) + estruturas futuras (P14, P15)
 
-6 fases, cada uma com: origem no `09`, lobo do cérebro, estado atual verificado, arquivos a criar/modificar (linhas exatas quando aplicável), código de exemplo, env vars, comandos de instalação, testes, critério de pronto.
+6 fases pendentes (P7..P11, P13) + **2 estruturas futuras** (P14 Amígdala, P15 Gânglios da base — propostas no estudo de arquitetura de 2026-06-26, marcadas 🔮), cada uma com: origem, lobo/estrutura do cérebro, estado atual verificado, arquivos a criar/modificar (linhas exatas quando aplicável), código de exemplo, env vars, comandos de instalação, testes, critério de pronto.
 
 ### Fase P7 — MegaMem Streamable HTTP (MCP spec 2025-03-26) ✅ CONCLUÍDO
 
@@ -1041,6 +1042,171 @@ irreversível uma vez que triggers internos estão ativos.
 - Fallback funciona quando OmniParser offline (volta para LLM Vision puro)
 
 **Risco:** OmniParser tem 39.5% no ScreenSpot Pro — viável mas não perfeito. Avaliar qualidade real contra o corpus do Hive-Mind antes de adotar como padrão.
+
+### Fase P14 — Amígdala (saliência / prioridade emocional) 🔮
+
+**Origem:** Estudo de arquitetura 2026-06-26 — §6 "Estruturas que poderiam ser adicionadas (futuro)".
+**Lobo:** Sistema límbico (subcortical, adjacente ao hipocampo). Por consistência com o `hipocampo` (que o projeto aninhou em `cortex/temporal/`), a amígdala mora em `cortex/temporal/amigdala/`. Atravessa todos os lobos: marca *qualquer* neurônio com um peso de saliência.
+**ROI:** Alto (melhora ranqueamento de TODA consulta) | **Esforço:** Médio | **Status:** 🔮 Futuro
+
+**Função neuroanatômica:** a amígdala atribui *relevância emocional/urgência* a memórias — é por isso que lembramos vividamente do que foi marcante e esquecemos o trivial. No cérebro do projeto **não existe esse eixo**: hoje a recuperação é puramente por *similaridade semântica* (HNSW + FTS). Dois neurônios igualmente parecidos com a query são tratados como iguais, mesmo que um seja uma decisão crítica recorrente e o outro uma nota trivial vista uma vez.
+
+**Estado atual (verificado):**
+- Schema dos neurônios (`core/umc_schema.sql:4` / `core/umc_schema_crr.sql:32`): colunas `id, label, type, source_file, content, hash, community, metadata, updated_at, indexed_at` — **nenhum campo de saliência/prioridade/importância**.
+- `core/search.py` ranqueia só por distância vetorial + score FTS; não há sinal de recência-de-acesso, frequência, urgência ou marcação explícita.
+- As sinapses têm `weight` (`synapses.weight`), mas é peso de **aresta** (força da relação entre dois nós), não saliência de **nó**.
+- `grep -niE "salien|priorit|importan|urgen" core/*.py` → 0 ocorrências no caminho de recuperação.
+- **GAP REAL:** falta uma camada que (a) compute um score de saliência por neurônio a partir de múltiplos sinais e (b) injete esse score no ranqueamento e em alertas proativos.
+
+**Tarefas:**
+- [ ] **Migração de schema** — adicionar coluna `salience` (default 0.0) + colunas de sinais cru em `neurons`, num novo `scripts/setup/migrate_add_salience.py` (espelhar o padrão de `scripts/setup/migrate_to_uuid.py`):
+  ```sql
+  ALTER TABLE neurons ADD COLUMN salience      REAL    NOT NULL DEFAULT 0.0;  -- score final 0..1
+  ALTER TABLE neurons ADD COLUMN access_count  INTEGER NOT NULL DEFAULT 0;    -- frequência de recall
+  ALTER TABLE neurons ADD COLUMN last_access_at TEXT;                          -- recência de recall (ISO)
+  ALTER TABLE neurons ADD COLUMN pinned        INTEGER NOT NULL DEFAULT 0;    -- marcação explícita do usuário
+  CREATE INDEX IF NOT EXISTS idx_neurons_salience ON neurons(salience DESC);
+  ```
+  Aplicar também em `core/umc_schema.sql` e `core/umc_schema_crr.sql` (CR-SQLite: a coluna entra na replicação CRDT automaticamente após `enable_crdt`).
+- [ ] Criar `core/amygdala.py` — o "órgão" de saliência. Função pura testável que combina sinais ponderados:
+  ```python
+  #!/usr/bin/env python3
+  """Amígdala — atribui saliência (relevância/urgência) a neurônios.
+
+  Saliência NÃO substitui similaridade: ela a modula. O ranqueamento final é
+  `score_semântico * (1 + λ·salience)`, λ pequeno (~0.3) para não soterrar a
+  relevância textual. Recalculada periodicamente (sinapse-amygdala.timer) e
+  incrementalmente a cada recall (deccaimento + reforço, estilo Hebbian).
+  """
+  from __future__ import annotations
+  from datetime import datetime, timezone
+  import math
+
+  # Pesos dos sinais (somam 1.0). Calibrar contra o corpus real.
+  W_RECENCY, W_FREQUENCY, W_URGENCY, W_CONFLICT, W_PINNED = 0.25, 0.25, 0.20, 0.15, 0.15
+  _URGENCY_MARKERS = ("urgente", "crítico", "bloqueante", "deadline", "prazo", "segurança", "quebrou")
+
+  def _recency(last_access_at: str | None, *, half_life_days: float = 14.0) -> float:
+      if not last_access_at:
+          return 0.0
+      age_d = (datetime.now(timezone.utc) - datetime.fromisoformat(last_access_at)).days
+      return 0.5 ** (age_d / half_life_days)          # decaimento exponencial
+
+  def _frequency(access_count: int) -> float:
+      return 1.0 - math.exp(-access_count / 5.0)      # satura suave
+
+  def compute_salience(neuron: dict, *, in_conflict: bool = False) -> float:
+      """Score 0..1 a partir dos sinais do neurônio. Determinística e testável."""
+      blob = f"{neuron.get('label','')} {neuron.get('content','')}".lower()
+      urgency = 1.0 if any(m in blob for m in _URGENCY_MARKERS) else 0.0
+      s = (W_RECENCY  * _recency(neuron.get("last_access_at"))
+           + W_FREQUENCY * _frequency(neuron.get("access_count", 0))
+           + W_URGENCY   * urgency
+           + W_CONFLICT  * (1.0 if in_conflict else 0.0)
+           + W_PINNED    * (1.0 if neuron.get("pinned") else 0.0))
+      return max(0.0, min(1.0, s))
+  ```
+- [ ] **Reforço a cada recall** — em `core/search.py`, após retornar resultados, bump barato (`UPDATE neurons SET access_count = access_count + 1, last_access_at = ? WHERE id IN (...)`). Sinais de conflito vêm de `CONFLICTS_ROOT` (insula).
+- [ ] **Modular o ranqueamento** — em `core/search.py`, reordenar por `score_semântico * (1 + 0.3 * salience)` (atrás de uma flag `HIVE_AMYGDALA=1` para A/B contra o baseline puro-semântico).
+- [ ] Timer de recálculo em lote — `scripts/setup/install_services.py`:
+  ```python
+  "sinapse-amygdala.timer": """[Unit]
+  Description=Hive-Mind Amygdala (recálculo de saliência)
+  [Timer]
+  OnCalendar=*-*-* 03:30
+  Persistent=true
+  [Install]
+  WantedBy=default.target
+  """,
+  ```
+  worker `scripts/dream/amygdala_pass.py` que itera neurônios, chama `compute_salience` e grava `salience`.
+- [ ] **Tool MCP `sinapse_pin`** (`label|id`, `pinned: bool`) — marcação explícita de saliência pelo usuário. Registrar em `TOOLS` + `tools/list` do `sinapse-mcp.py`. **NÃO entra em `_READ_BACKENDS`** (é mutação pontual, não backend de fusão).
+- [ ] Expor `salience` no envelope de `sinapse_query` (campo por resultado) para o cérebro saber *por que* algo subiu.
+- [ ] `tests/unit/test_amygdala.py` — determinismo de `compute_salience`, decaimento por recência, saturação de frequência, detecção de urgência, clamp 0..1; `tests/integration/test_salience_ranking.py` — flag liga/desliga reordena.
+
+**Critério de pronto:**
+- Migração aplica em DB existente sem perda (idempotente; `ADD COLUMN` protegido).
+- Com `HIVE_AMYGDALA=1`, um neurônio "pinned" ou recém/muito-acessado sobe acima de um par de similaridade igual.
+- `sinapse_pin("decisão X", pinned=True)` persiste e afeta a próxima query.
+- Timer `sinapse-amygdala.timer` ativo; recálculo em lote completa < 30s no corpus atual.
+- 6+ testes passando; baseline puro-semântico inalterado quando a flag está off.
+
+**Risco:** ranquear por saliência pode criar *filtro-bolha* (sempre devolve o mesmo "favorito"). Mitigação: λ pequeno, saliência **modula** mas não substitui similaridade; manter A/B sob flag até validar precisão@k contra o baseline.
+
+### Fase P15 — Gânglios da base (memória procedural / seleção de ação / automação de hábitos) 🔮
+
+**Origem:** Estudo de arquitetura 2026-06-26 — §6 "Estruturas que poderiam ser adicionadas (futuro)".
+**Lobo:** Núcleos subcorticais (estrutura-irmã nova). Coopera com o cerebelo (ritmo/cadência) e o córtex frontal (decisão). Mora em `cerebro/ganglios-base/` — 5º irmão não-hierárquico ao lado de `cortex`, `cerebelo`, `diencefalo`, `tronco`.
+**ROI:** Alto (fecha o laço de "aprende → faz") | **Esforço:** Alto | **Status:** 🔮 Futuro
+
+**Função neuroanatômica:** os gânglios da base fazem **seleção de ação** e **automação de hábitos** — convertem comportamento deliberado e repetido em rotina automática ("aprender a andar de bicicleta"). No cérebro do projeto **a memória procedural já é DESCRITA, mas nunca EXECUTADA**: distila-se o padrão, e ele fica como texto para um humano ler. Falta o núcleo que *seleciona* o padrão certo para o contexto atual e *dispara* a ação correspondente.
+
+**Estado atual (verificado):**
+- `scripts/knowledge/pattern_distiller.py` — destila session-logs (`cerebelo/sessoes`) em padrões `cerebelo/padroes/{slug}.md` (memória procedural F4.3) ✅ existe.
+- `PADROES_ROOT = CEREBELO / "padroes"` (`core/paths.py`) é o repositório procedural ✅ existe.
+- **GAP REAL:** os padrões são **passivos** — descrevem "o que costuma funcionar" em prosa, sem campo de *gatilho* nem de *ação executável*. Não há (a) seletor que case contexto→padrão, (b) executor com guard-rails, nem (c) laço de reforço (o padrão que deu certo ganha prioridade; o que falhou, perde).
+- `grep -niE "trigger|gatilho|action|executa|runbook|playbook|habit" scripts/knowledge/pattern_distiller.py` → 0 — só escreve `.md` descritivo.
+
+**Tarefas:**
+- [ ] **Esquema de padrão executável** — estender o front-matter que `pattern_distiller.write_pattern` emite, de descritivo para acionável (campos opcionais, retrocompatível):
+  ```yaml
+  ---
+  slug: rodar-testes-apos-edit-core
+  trigger:                       # condição de seleção (casada pelo seletor)
+    on: post_edit
+    path_glob: "core/**/*.py"
+  action:                        # o que os gânglios disparam
+    kind: suggest                # suggest | run (run exige allowlist)
+    command: "uv run pytest tests/unit -q"
+  confidence: 0.0                # reforçado pelo laço (0..1); começa baixo
+  reward: {success: 0, failure: 0}
+  ---
+  ```
+- [ ] Criar `cerebro/ganglios-base/` com `playbooks/` (padrões acionáveis promovidos de `cerebelo/padroes/`) e `politica.md` (allowlist de comandos auto-executáveis). Adicionar constantes em `core/paths.py`:
+  ```python
+  GANGLIOS_BASE = VAULT_ROOT / "ganglios-base"
+  PLAYBOOKS_ROOT = GANGLIOS_BASE / "playbooks"   # padrões acionáveis
+  ```
+- [ ] Criar `core/action_selection.py` — o núcleo de seleção (o "striatum"):
+  ```python
+  #!/usr/bin/env python3
+  """Gânglios da base — seleciona o playbook certo para o contexto e decide
+  se sugere ou executa. Seleção = argmax(confidence) entre playbooks cujo
+  trigger casa o contexto. Execução só para kind='run' E comando na allowlist.
+  """
+  from __future__ import annotations
+  from dataclasses import dataclass
+
+  @dataclass
+  class Context:
+      event: str            # 'post_edit', 'session_start', 'pre_commit', ...
+      path: str | None = None
+
+  def select(ctx: Context, playbooks: list[dict]) -> dict | None:
+      """Retorna o playbook de maior confidence cujo trigger casa, ou None."""
+      cands = [p for p in playbooks if _matches(p.get("trigger", {}), ctx)]
+      return max(cands, key=lambda p: p.get("confidence", 0.0), default=None)
+
+  def gate(playbook: dict, allowlist: set[str]) -> str:
+      """'run' só se kind=='run' e comando na allowlist; senão 'suggest'."""
+      act = playbook.get("action", {})
+      if act.get("kind") == "run" and act.get("command") in allowlist:
+          return "run"
+      return "suggest"
+  ```
+- [ ] **Laço de reforço (dopamina)** — `core/action_selection.py::reinforce(slug, outcome)` ajusta `confidence` (sucesso ↑, falha ↓, ex.: `confidence = clamp(confidence + (0.1 if ok else -0.2))`). Promove `cerebelo/padroes/X.md` → `ganglios-base/playbooks/X.md` quando `confidence ≥ 0.7`.
+- [ ] **Hook de gatilho** — ligar ao sistema de hooks existente (RTK/hermes em `integrations/`): no `post_edit`/`session_start`, chamar `select(ctx, load_playbooks())` e, conforme `gate()`, **sugerir** (default seguro) ou **executar** (só allowlist).
+- [ ] **Tool MCP `sinapse_suggest_action`** (`event`, `path?`) → devolve o playbook selecionado (sem executar) — o cérebro pede "o que eu costumo fazer aqui?". Registrar em `TOOLS` + `tools/list`. **NÃO entra em `_READ_BACKENDS`**.
+- [ ] `tests/unit/test_action_selection.py` — match de trigger por glob/evento, argmax por confidence, gate suggest-vs-run respeita allowlist, reforço move confidence nos dois sentidos + clamp; `tests/integration/test_habit_loop.py` — distila → promove (confidence≥0.7) → seleciona → reforça.
+
+**Critério de pronto:**
+- Padrão recorrente vira playbook acionável com `trigger`/`action`; promoção a `ganglios-base/playbooks/` ocorre só com `confidence ≥ 0.7`.
+- `select()` devolve o playbook certo para um contexto e `None` quando nenhum trigger casa.
+- **Por padrão NÃO auto-executa**: `kind='run'` exige comando explicitamente na allowlist (`politica.md`); todo o resto é `suggest`.
+- Laço de reforço sobe/desce `confidence` conforme outcome; padrão que falha repetidamente cai abaixo do limiar e deixa de ser selecionado.
+- 7+ testes passando.
+
+**Risco:** automação de ação é a feature mais perigosa do roadmap (efeitos colaterais reais). Mitigação inegociável: **suggest-by-default**, allowlist explícita para `run`, nada destrutivo jamais auto-executável, e laço de reforço auditável (todo disparo logado no UMC via telemetria P9).
 
 ---
 

@@ -2,12 +2,9 @@ import json
 import sys
 import pytest
 from pathlib import Path
-import importlib.util
 
-_mcp_path = Path(__file__).parent.parent.parent / "scripts" / "services" / "sinapse-mcp.py"
-spec = importlib.util.spec_from_file_location("sinapse_mcp", _mcp_path)
-mcp = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mcp)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from scripts.services import sinapse_mcp as mcp
 
 
 class TestSinapseMCP:

@@ -48,6 +48,9 @@ PROMPTS_DIR = SCHEMAS_DIR / "prompts"
 MAX_CYCLE_SECONDS = int(os.environ.get("HIVE_MAX_CYCLE_SECONDS", "600"))
 MAX_AMBIGUITIES = int(os.environ.get("HIVE_MAX_AMBIGUITIES", "50"))
 MAX_OBS_PER_CYCLE = int(os.environ.get("HIVE_MAX_OBS_PER_CYCLE", "30"))
+# Distiller+Validator de cada projeto são independentes e I/O-bound (HTTP ao LLM),
+# então rodamos os projetos em paralelo. 1 desabilita (volta ao modo série).
+DISTILL_WORKERS = int(os.environ.get("HIVE_DREAM_DISTILL_WORKERS", "4"))
 
 
 def fetch_balanced_observations(conn, limit: int = MAX_OBS_PER_CYCLE) -> list:
@@ -377,11 +380,11 @@ def run_synthesis_cycle(deadline: Optional[float] = None):
                 # P4: index synthesized neuron into LightRAG knowledge graph (best-effort).
                 # Alimenta o sinapse_rag_query via MCP. Falha nunca aborta a síntese.
                 try:
-                    from core.lightrag_index import index_memory
-                    asyncio.run(index_memory(
+                    from core.lightrag_index import index_memory_sync
+                    index_memory_sync(
                         synthesis.final_content,
                         metadata={"neuron_id": neuron_id, "source": "dream_cycle"},
-                    ))
+                    )
                 except ImportError:
                     pass
                 except Exception as e:
@@ -512,6 +515,41 @@ source_image: {img_path.name}
 # Fluxo Principal (Main Loop)
 # ---------------------------------------------------------------------------
 
+def _push_neurons_to_graphs(neurons: "list[tuple[str, str]]") -> None:
+    """Estágio 3.5 (P2+P4): empurra neurônios persistidos para os grafos de
+    conhecimento — Graphiti (temporal/causal) e LightRAG (entidades/relações).
+
+    Best-effort: qualquer falha é engolida e nunca aborta o Dream Cycle. Antes,
+    este push só ocorria para ambiguidades sintetizadas (raras em uso
+    single-machine), deixando ambos os grafos permanentemente vazios e as tools
+    sinapse_rag_query / sinapse_temporal_graph_search sem dados.
+    """
+    if not neurons:
+        return
+    # Graphiti: 1 episódio por neurônio (escrita leve no FalkorDB).
+    try:
+        from integrations.graphiti import push_neuron
+        for nid, content in neurons:
+            try:
+                push_neuron(nid, content, source="dream")
+            except Exception:
+                pass
+    except ImportError:
+        pass
+    # LightRAG: extração de entidades/relações (chamada LLM). index_memory_sync
+    # roda no event loop dedicado e persistente do LightRAG — evita os bugs de
+    # "bound to a different event loop" do singleton entre chamadas.
+    try:
+        from core.lightrag_index import index_memory_sync
+
+        for nid, content in neurons:
+            index_memory_sync(content, metadata={"neuron_id": nid, "source": "dream_cycle"})
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"  [LightRAG] index em lote ignorado (best-effort): {e}")
+
+
 def _route_and_persist_project(conn, now, proj, distilled, proj_obs_ids, mark_obs) -> int:
     """Roteia + persiste os fatos de UM projeto (neurônios .md + tabela neurons).
 
@@ -527,6 +565,7 @@ def _route_and_persist_project(conn, now, proj, distilled, proj_obs_ids, mark_ob
 
     persisted = 0
     first_nid: str | None = None
+    pushed: "list[tuple[str, str]]" = []
     fact_map = {f.id: f for f in distilled.facts}
     for r in routed.routed_facts:
         fact = fact_map.get(r.fact_id)
@@ -588,6 +627,7 @@ source: hive-dreamer
 
         print(f"  [+] Neurônio {r.action}: {proj}/{safe_topic}/{nid}.md")
         persisted += 1
+        pushed.append((nid, fact.content))
         if first_nid is None:
             first_nid = nid
 
@@ -603,6 +643,11 @@ source: hive-dreamer
 
     # Obs do projeto consolidadas só após persistência bem-sucedida.
     mark_obs(1, proj_obs_ids)
+
+    # Estágio 3.5 (P2+P4): empurra os neurônios persistidos para os grafos de
+    # conhecimento. Antes só ocorria na síntese de ambiguidades (raras), o que
+    # mantinha LightRAG/Graphiti vazios. Best-effort — nunca aborta o ciclo.
+    _push_neurons_to_graphs(pushed)
     return persisted
 
 
@@ -700,29 +745,55 @@ def _run_dream_cycle_inner() -> Dict[str, int]:
     project_errors: List[str] = []   # F4.0: projetos que ERRARAM (LLM/DB) — isolados
 
     with span("dream.distill", {"obs_count": len(obs), "projects": len(project_buckets)}):
-        for proj, proj_obs in project_buckets.items():
-            proj_ids = [o["id"] for o in proj_obs]
+        # Cada projeto é independente e o distill+validate é I/O-bound (HTTP ao
+        # LLM), então rodamos os projetos EM PARALELO — antes era série: 2 chamadas
+        # LLM × N projetos somavam latência (o gargalo do ciclo). As chamadas LLM
+        # ficam nas threads; TODA escrita no SQLite (`_mark_observations`, que usa
+        # a `conn` compartilhada NÃO thread-safe) acontece depois, na thread main.
+        def _distill_one(proj: str, proj_obs: list) -> tuple:
+            """Puro: só LLM + hashing, sem tocar no DB. Nunca levanta."""
             try:
-                proj_logs = "\n".join(f"- [{o['type']}] {o['title']}: {o['content']}" for o in proj_obs)
+                proj_logs = "\n".join(
+                    f"- [{o['type']}] {o['title']}: {o['content']}" for o in proj_obs)
                 print(f"  [Distiller] Projeto '{proj}': processando {len(proj_obs)} observações...")
                 distilled, distill_status = agent_distill_and_validate(proj_logs)
-                if distill_status == "failed":
-                    _mark_observations(2, proj_ids)
-                    distill_failures.append(proj)
-                    print(f"  [Pipeline] Projeto '{proj}': {len(proj_ids)} obs em quarentena.")
-                elif distill_status == "empty" or not distilled or not distilled.facts:
-                    _mark_observations(1, proj_ids)
-                    distill_empties.append(proj)
-                    print(f"  [Distiller] Projeto '{proj}': sem fatos extraídos.")
-                else:
-                    distilled_by_project[proj] = distilled
-            except Exception as e:
-                # F4.0 resiliência: erro (LLM/`database is locked`/etc.) num projeto NÃO
-                # aborta o ciclo. Obs ficam archived=0 (reprocessa no próximo ciclo) —
-                # não quarentena, pois é erro transitório, não dado ruim.
+                return (distilled, distill_status, None)
+            except Exception as e:  # noqa: BLE001 — isolamento por projeto (F4.0)
+                return (None, "error", e)
+
+        results: Dict[str, tuple] = {}
+        if len(project_buckets) <= 1 or DISTILL_WORKERS <= 1:
+            for proj, proj_obs in project_buckets.items():
+                results[proj] = _distill_one(proj, proj_obs)
+        else:
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            workers = min(DISTILL_WORKERS, len(project_buckets))
+            with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="distill") as pool:
+                futs = {pool.submit(_distill_one, proj, proj_obs): proj
+                        for proj, proj_obs in project_buckets.items()}
+                for fut in as_completed(futs):
+                    results[futs[fut]] = fut.result()
+
+        # Efeitos colaterais no DB: sequenciais, na thread main (conn não-threadsafe).
+        for proj, proj_obs in project_buckets.items():
+            proj_ids = [o["id"] for o in proj_obs]
+            distilled, distill_status, err = results[proj]
+            if distill_status == "error":
+                # F4.0 resiliência: erro (LLM/`database is locked`/etc.) num projeto
+                # NÃO aborta o ciclo. Obs ficam archived=0 (reprocessa no próximo
+                # ciclo) — não quarentena, pois é erro transitório, não dado ruim.
                 project_errors.append(proj)
-                print(f"  [Resiliência] Projeto '{proj}' falhou no distill: {e}. Obs preservadas p/ reprocessar.")
-                continue
+                print(f"  [Resiliência] Projeto '{proj}' falhou no distill: {err}. Obs preservadas p/ reprocessar.")
+            elif distill_status == "failed":
+                _mark_observations(2, proj_ids)
+                distill_failures.append(proj)
+                print(f"  [Pipeline] Projeto '{proj}': {len(proj_ids)} obs em quarentena.")
+            elif distill_status == "empty" or not distilled or not distilled.facts:
+                _mark_observations(1, proj_ids)
+                distill_empties.append(proj)
+                print(f"  [Distiller] Projeto '{proj}': sem fatos extraídos.")
+            else:
+                distilled_by_project[proj] = distilled
     mark_stage("distill_validate_ms", distill_t0)
 
     if not distilled_by_project:

@@ -50,6 +50,22 @@ def _looks_red(r: VisionResponse) -> bool:
     return ("vermelho" in blob) or ("red" in blob) or ("rgb" in blob and "220" in blob)
 
 
+def _is_quota_error(exc: Exception) -> bool:
+    """True se a falha foi rate limit / cota esgotada (429), não defeito de código."""
+    blob = str(exc).lower()
+    return "429" in blob or "usage limit" in blob or "rate limit" in blob or "quota" in blob
+
+
+def _vision_call_or_skip(**kwargs) -> VisionResponse:
+    """Executa a chamada de visão; pula o teste se o provedor estiver sem cota (429)."""
+    try:
+        return call_llm_with_fallback(**kwargs)
+    except LLMChainFailure as exc:
+        if _is_quota_error(exc):
+            pytest.skip(f"ollama-cloud sem cota (429) — limite externo, não regressão: {exc}")
+        raise
+
+
 def test_v1_primary_breaks_fallback_ollama_cloud_vision(saved_env, requires_ollama_cloud, vision_png):
     """V1: PRIMARY google-fake-404 → FALLBACK ollama-cloud/gemma3:4b com imagem."""
     load_env()
@@ -60,7 +76,7 @@ def test_v1_primary_breaks_fallback_ollama_cloud_vision(saved_env, requires_olla
     )
 
     t0 = time.time()
-    r = call_llm_with_fallback(
+    r = _vision_call_or_skip(
         role="vision", prompt=PROMPT, system_prompt=SYSTEM,
         response_model=VisionResponse, image_path=str(vision_png), max_retries=1,
     )
@@ -76,7 +92,7 @@ def test_v2_ollama_cloud_vision_direct(saved_env, requires_ollama_cloud, vision_
     _set_vision(saved_env, prov="ollama-cloud", mod="gemma3:4b")
 
     t0 = time.time()
-    r = call_llm_with_fallback(
+    r = _vision_call_or_skip(
         role="vision", prompt=PROMPT, system_prompt=SYSTEM,
         response_model=VisionResponse, image_path=str(vision_png), max_retries=1,
     )

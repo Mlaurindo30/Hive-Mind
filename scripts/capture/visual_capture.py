@@ -16,10 +16,14 @@ def is_wsl():
     except Exception:
         return False
 
-def capture_screen(description=""):
+def capture_screen(description="", monitor=None):
     """
     Captura a tela e salva em cerebro/cortex/parietal/inbox/visual/.
     Usa powershell.exe se estiver em WSL, mss como primário nativo e scrot como fallback.
+
+    Em setups multi-monitor (mais de um monitor real), ``monitor`` é obrigatório:
+    informe o índice mss (1 = primário, 2 = segundo, ...). Sem ele, levanta erro
+    explicativo em vez de capturar o monitor errado silenciosamente.
     """
     # Configuração de caminhos (anatômico: cortex/parietal/inbox/visual)
     project_root = Path(__file__).resolve().parent.parent.parent
@@ -82,11 +86,21 @@ def capture_screen(description=""):
     if not success:
         try:
             with mss.mss() as sct:
-                # Captura todos os monitores em uma imagem ou apenas o monitor 1
-                # sct.shot salva o monitor 1 por padrão
-                sct.shot(output=str(filepath))
+                # sct.monitors[0] é o "monitor virtual" (todos juntos); os reais
+                # começam no índice 1. >1 real = setup multi-monitor.
+                real_count = max(len(sct.monitors) - 1, 0)
+                if monitor is None and real_count > 1:
+                    raise ValueError(
+                        f"Setup multi-monitor detectado ({real_count} monitores). "
+                        f"Informe monitor=N (1..{real_count}) para escolher qual capturar."
+                    )
+                mon_index = monitor if monitor is not None else 1
+                sct.shot(mon=mon_index, output=str(filepath))
                 if filepath.exists():
                     success = True
+        except ValueError:
+            # Guarda multi-monitor deve propagar (não virar "failed to capture").
+            raise
         except Exception as e:
             error_log.append(f"mss error: {e}")
 
@@ -107,8 +121,17 @@ def capture_screen(description=""):
 
 if __name__ == "__main__":
     try:
-        desc = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else ""
-        path = capture_screen(desc)
+        args = sys.argv[1:]
+        monitor = None
+        if "--monitor" in args:
+            i = args.index("--monitor")
+            try:
+                monitor = int(args[i + 1])
+                del args[i:i + 2]
+            except (IndexError, ValueError):
+                del args[i:i + 1]
+        desc = " ".join(args)
+        path = capture_screen(desc, monitor=monitor)
         print(path)
         sys.exit(0)
     except Exception as e:

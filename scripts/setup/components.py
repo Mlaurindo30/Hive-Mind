@@ -63,6 +63,15 @@ def head(path: Path) -> str:
     return run("git", "rev-parse", "HEAD", cwd=path, capture=True)
 
 
+def component_target(name: str, spec: dict) -> Path:
+    """Resolve a component's checkout directory.
+
+    Components may declare an explicit ``path`` (e.g. ``integrations/graphify``);
+    when absent the component name doubles as the directory under the repo root.
+    """
+    return ROOT / spec.get("path", name)
+
+
 def component_patch(spec: dict) -> Path | None:
     value = spec.get("patch")
     return ROOT / value if value else None
@@ -81,7 +90,7 @@ def apply_component_patch(name: str, spec: dict) -> None:
         return
     if not patch.is_file():
         raise SystemExit(f"{name}: component patch missing: {patch}")
-    target = ROOT / name
+    target = component_target(name, spec)
     if patch_is_applied(target, patch):
         return
     if not succeeds(
@@ -98,14 +107,14 @@ def remove_component_patch(name: str, spec: dict) -> None:
     patch = component_patch(spec)
     if patch is None:
         return
-    target = ROOT / name
+    target = component_target(name, spec)
     if not patch_is_applied(target, patch):
         raise SystemExit(f"{name}: expected pinned patch is not applied")
     run("git", "apply", "--unidiff-zero", "--reverse", str(patch), cwd=target)
 
 
 def clone_pinned(name: str, spec: dict) -> None:
-    target = ROOT / name
+    target = component_target(name, spec)
     if target.exists():
         if not (target / ".git").exists():
             raise SystemExit(f"{target} exists but is not a Git checkout")
@@ -125,7 +134,7 @@ def bootstrap(args: argparse.Namespace) -> int:
     data = load_lock()
     for name, spec in data["components"].items():
         clone_pinned(name, spec)
-        actual = head(ROOT / name)
+        actual = head(component_target(name, spec))
         if actual != spec["commit"]:
             message = f"{name}: expected {spec['commit']}, found {actual}"
             if args.strict:
@@ -140,7 +149,7 @@ def verify(_: argparse.Namespace) -> int:
     data = load_lock()
     failed = False
     for name, spec in data["components"].items():
-        target = ROOT / name
+        target = component_target(name, spec)
         if not (target / ".git").exists():
             print(f"FAIL {name}: checkout missing")
             failed = True
@@ -177,7 +186,7 @@ def update(args: argparse.Namespace) -> int:
         raise SystemExit(f"unknown component: {', '.join(unknown)}")
 
     for name in names:
-        target = ROOT / name
+        target = component_target(name, data["components"][name])
         if not (target / ".git").exists():
             raise SystemExit(f"{name}: checkout missing; run bootstrap first")
         patch = component_patch(data["components"][name])
@@ -192,8 +201,8 @@ def update(args: argparse.Namespace) -> int:
     backup = snapshot_lock()
     print(f"[components] manifest backup: {backup}")
     for name in names:
-        target = ROOT / name
         spec = data["components"][name]
+        target = component_target(name, spec)
         old_commit = spec["commit"]
         if component_patch(spec) is not None:
             remove_component_patch(name, spec)
@@ -222,7 +231,7 @@ def rollback(args: argparse.Namespace) -> int:
     current = load_lock()
     data = load_lock(source)
     for name, spec in data["components"].items():
-        target = ROOT / name
+        target = component_target(name, spec)
         if name in current["components"] and component_patch(current["components"][name]):
             remove_component_patch(name, current["components"][name])
         if is_dirty(target):

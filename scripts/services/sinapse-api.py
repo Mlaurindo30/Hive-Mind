@@ -5,7 +5,6 @@ Expõe endpoints seguros para Dashboard, Auto-Link e Sincronização Remota.
 Implementa Criptografia Automática de Segredos (Vault) e Rate Limiting.
 """
 
-import importlib.util
 import json
 import os
 import re
@@ -161,22 +160,13 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
 
 
 # ---------------------------------------------------------------------------
-# Sync CRDT (P8) — reusa a lógica de scripts/services/sinapse-sync.py
-# (nome com hífen → carregado via importlib). Mantém uma única fonte de
-# verdade para export/import de crsql_changes; a API só expõe via HTTP.
+# Sync CRDT (P8) — reusa a lógica do módulo importável scripts.services.sinapse_sync.
+# Mantém uma única fonte de verdade para export/import de crsql_changes;
+# a API só expõe via HTTP.
 # ---------------------------------------------------------------------------
-_SYNC_MODULE = None
-
 def _get_sync_module():
-    global _SYNC_MODULE
-    if _SYNC_MODULE is None:
-        spec = importlib.util.spec_from_file_location(
-            "sinapse_sync", Path(__file__).resolve().parent / "sinapse-sync.py"
-        )
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        _SYNC_MODULE = mod
-    return _SYNC_MODULE
+    from scripts.services import sinapse_sync
+    return sinapse_sync
 
 def _require_crdt_enabled():
     """Fail-fast: os endpoints de sync só fazem sentido com CRDT habilitado."""

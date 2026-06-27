@@ -16,8 +16,8 @@ Design (ver docs/10-implementation-roadmap.md §P7):
       * GET  /mcp  -> 405 (servidor nao oferece stream SSE; a spec permite).
       * DELETE /mcp-> encerra a sessao (200).
       * GET  /health -> {"status":"ok"} para readiness/systemd.
-  - Reusa handle_request/TOOLS de sinapse-mcp.py (carregado via importlib
-    porque o nome tem hifen) — fonte unica da logica das tools.
+  - Reusa handle_request/TOOLS do modulo importavel scripts.services.sinapse_mcp
+    — fonte unica da logica das tools.
 
 Uso:
     python sinapse-mcp-http.py --port 37703
@@ -28,7 +28,6 @@ Env:
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import os
 import sys
 import uuid
@@ -41,23 +40,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+from scripts.services import sinapse_mcp as _MCP
 
-def _load_mcp_module():
-    """Carrega scripts/services/sinapse-mcp.py (nome com hifen) via importlib."""
-    spec = importlib.util.spec_from_file_location(
-        "sinapse_mcp", Path(__file__).resolve().parent / "sinapse-mcp.py"
-    )
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-_MCP = None
 
 def _mcp():
-    global _MCP
-    if _MCP is None:
-        _MCP = _load_mcp_module()
+    # Indireção mantida para os testes injetarem um fake via monkeypatch(_MCP).
     return _MCP
 
 
@@ -78,10 +65,21 @@ def _error(req_id: Any, code: int, message: str) -> dict:
 def _process_one(message: dict) -> dict | None:
     """Despacha uma mensagem JSON-RPC para handle_request. Retorna None para
     notificacoes (sem id) ou quando handle_request nao produz resposta."""
-    try:
-        return _mcp().handle_request(message)
-    except Exception as exc:  # nunca derruba o server por causa de uma request
-        return _error(message.get("id"), _JSONRPC_INTERNAL_ERROR, f"{type(exc).__name__}: {exc}")
+    from core.telemetry import span
+    method = message.get("method", "unknown")
+    tool_name = "unknown"
+    if method == "tools/call":
+        tool_name = message.get("params", {}).get("name", "unknown")
+    elif method == "initialize":
+        tool_name = "initialize"
+
+    span_name = f"mcp_http.{tool_name}" if method == "tools/call" else f"mcp_http.{method}"
+
+    with span(span_name, {"method": method, "tool": tool_name}):
+        try:
+            return _mcp().handle_request(message)
+        except Exception as exc:  # nunca derruba o server por causa de uma request
+            return _error(message.get("id"), _JSONRPC_INTERNAL_ERROR, f"{type(exc).__name__}: {exc}")
 
 
 async def handle_mcp_post(request: web.Request) -> web.Response:
@@ -160,8 +158,15 @@ def main() -> int:
     ap.add_argument("--host",
                     default=os.environ.get("SINAPSE_MCP_HTTP_HOST", "127.0.0.1"))
     args = ap.parse_args()
+    
+    from core.telemetry import init_telemetry, flush_telemetry
+    init_telemetry()
+    
     print(f"MCP Streamable HTTP em http://{args.host}:{args.port}/mcp", file=sys.stderr)
-    web.run_app(build_app(), host=args.host, port=args.port)
+    try:
+        web.run_app(build_app(), host=args.host, port=args.port)
+    finally:
+        flush_telemetry()
     return 0
 
 

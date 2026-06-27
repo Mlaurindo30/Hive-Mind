@@ -15,18 +15,18 @@ _rag = None
 _rag_lock = threading.Lock()
 _rag_ready = False
 _rag_ready_lock = threading.Lock()
+_lightrag_loop = None  # event loop dedicado e persistente (ver _run_on_lightrag_loop)
 
 _WORKING_DIR = str(
     Path(os.environ.get("SINAPSE_HOME", ".")) / "claude-mem" / "data" / "lightrag"
 )
 
 # Modelo de chat local padrão para o LightRAG (não depende de Gemini/quota remota).
-# Pode ser sobrescrito por HIVE_LIGHTRAG_MODEL no .env.
-# Modelo de chat do LightRAG. Fixo em granite3-dense:2b por design:
-# roda em qualquer máquina (≤2GB RAM) e é especializado em RAG/extração de
-# entidades. Não há fallback nem UI para trocar —.env continua sobrescrevendo
-# apenas para debug/dev. O download está no install.sh.
-_LIGHTRAG_CHAT_MODEL = os.environ.get("HIVE_LIGHTRAG_MODEL", "granite3-dense:2b")
+# Configurável via setupbrain (role "lightrag" → HIVE_LIGHTRAG_MODEL).
+# Default qwen2.5:3b: prosa multilíngue (PT/EN), extrai entidades/relações bem
+# melhor que granite3-dense:2b (que alucinava), pequeno (~1.9GB) p/ coexistir na
+# GPU com bge-m3 e os demais modelos locais. Download no install.sh.
+_LIGHTRAG_CHAT_MODEL = os.environ.get("HIVE_LIGHTRAG_MODEL", "qwen2.5:3b")
 _LIGHTRAG_CHAT_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1/chat/completions")
 
 
@@ -66,8 +66,12 @@ def get_rag():
                 vectors = await loop.run_in_executor(None, lambda: list(_embedder.embed(texts)))
                 return np.array(vectors, dtype=np.float32)
 
-            # Schema estruturado compatível com LightRAG v1.5.4.
-            # Modelos locais menores via Ollama OpenAI endpoint.
+            # Schema estruturado compatível com LightRAG v1.5.4. Os NOMES DE
+            # CAMPO precisam casar com o parser do LightRAG (operate.py): ele lê
+            # entity_data.get("name"/"type"/"description") e rel_data.get(
+            # "source"/"target"/"keywords"/"description"). Usar entity_name/
+            # entity_type/etc. fazia o parser ler "" → "Empty entity name after
+            # sanitization" → descartava TODAS as entidades (0 persistidas).
             _EXTRACTION_JSON_SCHEMA = {
                 "type": "object",
                 "properties": {
@@ -76,11 +80,11 @@ def get_rag():
                         "items": {
                             "type": "object",
                             "properties": {
-                                "entity_name": {"type": "string"},
-                                "entity_type": {"type": "string"},
-                                "entity_description": {"type": "string"},
+                                "name": {"type": "string"},
+                                "type": {"type": "string"},
+                                "description": {"type": "string"},
                             },
-                            "required": ["entity_name", "entity_type", "entity_description"],
+                            "required": ["name", "type", "description"],
                         },
                     },
                     "relationships": {
@@ -88,16 +92,16 @@ def get_rag():
                         "items": {
                             "type": "object",
                             "properties": {
-                                "source_entity": {"type": "string"},
-                                "target_entity": {"type": "string"},
-                                "relationship_keywords": {"type": "string"},
-                                "relationship_description": {"type": "string"},
+                                "source": {"type": "string"},
+                                "target": {"type": "string"},
+                                "keywords": {"type": "string"},
+                                "description": {"type": "string"},
                             },
                             "required": [
-                                "source_entity",
-                                "target_entity",
-                                "relationship_keywords",
-                                "relationship_description",
+                                "source",
+                                "target",
+                                "keywords",
+                                "description",
                             ],
                         },
                     },
@@ -113,7 +117,7 @@ def get_rag():
                 """
                 import json as _json
                 messages = [
-                    {"role": "system", "content": "You are a Knowledge Graph Specialist responsible for extracting entities and relationships from the input text. For each entity, extract: entity_name, entity_type (category like Technology, Organization, Concept, Person, or Other), and entity_description. For each relationship, extract: source_entity, target_entity, relationship_keywords (comma-separated), and relationship_description. Always include all fields."},
+                    {"role": "system", "content": "You are a Knowledge Graph Specialist responsible for extracting entities and relationships from the input text. For each entity, extract: name, type (category like Technology, Organization, Concept, Person, or Other), and description. For each relationship, extract: source, target, keywords (comma-separated), and description. Use exactly these field names. Always include all fields. Only extract entities and relationships explicitly present in the input text; never invent unrelated examples."},
                     {"role": "user", "content": prompt},
                 ]
                 payload: dict = {
@@ -166,12 +170,31 @@ def get_rag():
 
 
 async def _ensure_initialized(rag):
-    """Garante storages inicializados (v1.5.4 requer chamada explícita)."""
+    """Garante storages + pipeline status inicializados (v1.5.4 requer ambos).
+
+    Sem initialize_pipeline_status(), o ainsert apenas ENFILEIRA o documento e o
+    pipeline de processamento não roda ("pipeline stopped") — nenhuma entidade é
+    extraída e os vdb_entities/relationships ficam vazios. Esta era a causa de
+    sinapse_rag_query retornar sempre [no-context].
+    """
     try:
         await rag.initialize_storages()
-    except Exception as e:
+    except Exception:
         # Já inicializado ou função não-existente em versões antigas
         pass
+    try:
+        from lightrag.kg.shared_storage import initialize_pipeline_status
+        await initialize_pipeline_status()
+    except Exception:
+        pass
+
+
+def _reset_rag() -> None:
+    """Invalida o singleton para que o próximo get_rag reconstrua e recarregue
+    o estado persistido do disco."""
+    global _rag, _rag_ready
+    _rag = None
+    _rag_ready = False
 
 
 async def index_memory(text: str, metadata: dict | None = None) -> bool:
@@ -182,6 +205,13 @@ async def index_memory(text: str, metadata: dict | None = None) -> bool:
     try:
         await _ensure_initialized(rag)
         await rag.ainsert(text)
+        # Persiste em disco: o nano-vectordb mantém entidades/relações apenas em
+        # memória e só grava nos vdb_*.json ao finalizar os storages. Sem isto, a
+        # extração roda (LLM é chamado) mas vdb_entities/relationships ficam em
+        # 49B e sinapse_rag_query retorna sempre [no-context]. Após fechar os
+        # storages, invalidamos o singleton para recarregar do disco na próxima.
+        await rag.finalize_storages()
+        _reset_rag()
         return True
     except Exception as e:
         print(f"  ⚠ LightRAG index falhou: {e}")
@@ -201,9 +231,34 @@ async def query_rag(question: str, mode: str = "hybrid") -> str:
     except Exception as e:
         print(f"  ⚠ LightRAG query falhou: {e}")
         return ""
-    finally:
-        if rag is not None:
-            try:
-                await rag.finalize()
-            except Exception:
-                pass
+    # NÃO finalizar aqui: o singleton _rag é reutilizado por todo o processo no
+    # loop dedicado. Finalizar por chamada destruía os storages inicializados,
+    # forçando re-init e quebrando filas de concorrência entre chamadas.
+
+
+def _run_on_lightrag_loop(coro_factory):
+    """Roda corrotinas LightRAG num event loop dedicado e *persistente*.
+
+    LightRAG cria filas de concorrência (asyncio) na construção/inicialização,
+    presas ao loop ativo nesse momento. asyncio.run() — ou loops efêmeros —
+    criam um loop novo a cada chamada, então o singleton _rag e suas filas
+    passam a apontar para um loop morto → "bound to a different event loop".
+    Um único loop reutilizado, definido como corrente, mantém tudo coerente.
+    """
+    global _lightrag_loop, _rag, _rag_ready
+    if _lightrag_loop is None or _lightrag_loop.is_closed():
+        _lightrag_loop = asyncio.new_event_loop()
+        _rag = None
+        _rag_ready = False
+    asyncio.set_event_loop(_lightrag_loop)
+    return _lightrag_loop.run_until_complete(coro_factory())
+
+
+def index_memory_sync(text: str, metadata: dict | None = None) -> bool:
+    """Wrapper síncrono de index_memory no loop dedicado (ver _run_on_lightrag_loop)."""
+    return _run_on_lightrag_loop(lambda: index_memory(text, metadata))
+
+
+def query_rag_sync(question: str, mode: str = "hybrid") -> str:
+    """Wrapper síncrono de query_rag no loop dedicado (ver _run_on_lightrag_loop)."""
+    return _run_on_lightrag_loop(lambda: query_rag(question, mode=mode))
