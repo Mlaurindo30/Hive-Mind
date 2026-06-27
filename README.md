@@ -1,5 +1,6 @@
-![Anatomia do cérebro Hive-Mind](docs/assets/image/hive_mind-logo_vertical.png)
+# Hive-Mind
 
+![Logo Hive-Mind](docs/assets/image/hive_mind-logo_vertical.png)
 
 > **Camada de memória universal, persistente e local-first para enxames de agentes de IA.**
 
