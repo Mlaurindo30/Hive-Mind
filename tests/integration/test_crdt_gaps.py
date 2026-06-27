@@ -109,12 +109,10 @@ def _reopen(path: str) -> sqlite3.Connection:
 
 
 def _load_sync_module():
-    """Carrega scripts/services/sinapse-sync.py via importlib (nome com hifen)."""
-    path = PROJECT_ROOT / "scripts" / "services" / "sinapse-sync.py"
-    spec = importlib.util.spec_from_file_location("sinapse_sync", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    """Módulo importável scripts.services.sinapse_sync (fonte única da CLI de sync)."""
+    sys.path.insert(0, str(PROJECT_ROOT))
+    from scripts.services import sinapse_sync
+    return sinapse_sync
 
 
 # ---------------------------------------------------------------------------

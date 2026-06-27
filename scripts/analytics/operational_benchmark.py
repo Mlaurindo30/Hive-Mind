@@ -10,7 +10,6 @@ SLOs tracked:
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import sqlite3
 import sys
@@ -21,6 +20,9 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+# Bootstrap: raiz no sys.path para `from plugins.hermes ...` quando rodado direto.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 DB_PATH = ROOT / "hive_mind.db"
 VAULT_DIR = ROOT / "cerebro"
 METRICS_DIR = ROOT / "logs" / "metrics"
@@ -159,18 +161,9 @@ def evaluate_slos(metrics: Dict[str, object], thresholds: Dict[str, float]) -> D
 
 
 def load_query_backend():
-    try:
-        from sinapse_memory import _query_vault_knowledge
-        return _query_vault_knowledge
-    except ModuleNotFoundError:
-        plugin_path = ROOT / "plugins" / "hermes" / "sinapse-memory.py"
-        spec = importlib.util.spec_from_file_location("sinapse_memory", plugin_path)
-        if spec is None or spec.loader is None:
-            raise
-        module = importlib.util.module_from_spec(spec)
-        sys.modules["sinapse_memory"] = module
-        spec.loader.exec_module(module)
-        return module._query_vault_knowledge
+    # Adapter import-safe do plugin Hermes (registra sys.modules["sinapse_memory"]).
+    from plugins.hermes import sinapse_memory as sm
+    return sm._query_vault_knowledge
 
 
 def persist_report(payload: Dict[str, object]) -> None:

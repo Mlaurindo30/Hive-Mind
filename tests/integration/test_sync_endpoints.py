@@ -52,6 +52,15 @@ except ImportError as exc:
 client = TestClient(api_mod.app)
 _AUTH = {"Authorization": f"Bearer {API_KEY}"}
 
+
+@pytest.fixture(autouse=True)
+def _ensure_api_key(monkeypatch):
+    # test_sinapse_api também seta HIVE_MIND_API_KEY no import com OUTRA chave;
+    # a API lê a chave por request, então reafirmamos a chave DESTE módulo antes
+    # de cada teste (monkeypatch restaura ao final).
+    monkeypatch.setenv("HIVE_MIND_API_KEY", API_KEY)
+
+
 SCHEMA = """
 CREATE TABLE neurons (
     id TEXT PRIMARY KEY NOT NULL DEFAULT '',

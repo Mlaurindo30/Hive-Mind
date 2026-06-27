@@ -3,7 +3,6 @@ import sys
 import os
 import json
 import sqlite3
-import importlib.util
 from pathlib import Path
 
 # Configura paths
@@ -72,12 +71,9 @@ def test_3_hybrid_search_mcp():
 def test_4_persistence_dashboard():
     print("Test 4: Persistence & Dashboard Integration...")
     try:
-        # Carrega o plugin do Hermes dinamicamente (devido ao hífen no nome do arquivo)
-        plugin_path = os.path.join(SINAPSE_HOME, "plugins", "hermes", "sinapse-memory.py")
-        spec = importlib.util.spec_from_file_location("sinapse_memory", plugin_path)
-        sm = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(sm)
-        
+        # Adapter import-safe do plugin Hermes (registra sys.modules["sinapse_memory"]).
+        from plugins.hermes import sinapse_memory as sm
+
         test_title = "Test Decision 2026"
         test_content = "Verification of Phase 4 Dashboard integration."
         success = sm._umc_save_observation(test_title, test_content, obs_type="decision")

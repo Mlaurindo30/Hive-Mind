@@ -3,14 +3,10 @@ import sys
 import pytest
 from pathlib import Path
 
-# Adiciona scripts/ ao path para importar o módulo diretamente
-scripts_path = Path(__file__).resolve().parent.parent.parent / "scripts"
-sys.path.insert(0, str(scripts_path))
+# Módulo importável (a lógica vive no nome underscore; o hifenizado é só shim).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-import importlib.util
-spec = importlib.util.spec_from_file_location("sinapse_zettelkasten", str(scripts_path / "knowledge" / "sinapse-zettelkasten.py"))
-zk = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(zk)
+from scripts.knowledge import sinapse_zettelkasten as zk
 
 
 class TestSinapseZettelkasten:

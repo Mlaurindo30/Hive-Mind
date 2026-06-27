@@ -240,14 +240,8 @@ def test_dream_cycle_creates_spans(monkeypatch):
 # 7. mcp handle_request cria span
 def test_mcp_handle_request_creates_span(monkeypatch):
     exporter = _enable_telemetry_with_memory_processor(monkeypatch)
-    import importlib.util
-    plugin_path = os.path.join(
-        os.path.dirname(__file__), "..", "..",
-        "scripts", "services", "sinapse-mcp.py"
-    )
-    spec = importlib.util.spec_from_file_location("sinapse_mcp_test", plugin_path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+    from scripts.services import sinapse_mcp as mod
 
     mod.HANDLERS["__test_tool__"] = lambda args: {"ok": True}
     req = {
@@ -263,20 +257,14 @@ def test_mcp_handle_request_creates_span(monkeypatch):
 
 # 8. sinapse-sync (P8) instrumentado — P9 review gap
 def test_sinapse_sync_creates_span(monkeypatch):
-    # Import direto via spec (sinapse-sync.py tem deps CR-SQLite opcionais)
-    import importlib.util
-    plugin_path = os.path.join(
-        os.path.dirname(__file__), "..", "..",
-        "scripts", "services", "sinapse-sync.py"
-    )
-    spec = importlib.util.spec_from_file_location("sinapse_sync_test", plugin_path)
-    mod = importlib.util.module_from_spec(spec)
+    # Módulo importável (sinapse_sync tem deps CR-SQLite opcionais)
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
     try:
-        spec.loader.exec_module(mod)
+        from scripts.services import sinapse_sync as mod
     except Exception as exc:
         # Se CR-SQLite não disponível, skip (não é falha do P9)
         if "crsqlite" in str(exc).lower() or "sqlite_vec" in str(exc).lower():
-            pytest.skip(f"sinapse-sync deps indisponíveis: {exc}")
+            pytest.skip(f"sinapse_sync deps indisponíveis: {exc}")
         raise
 
     exporter = _enable_telemetry_with_memory_processor(monkeypatch)
@@ -284,7 +272,6 @@ def test_sinapse_sync_creates_span(monkeypatch):
     monkeypatch.setattr(mod, "_export", lambda since=0: {"changes": [], "version": 1})
     monkeypatch.setattr(mod, "_import_changes", lambda payload: {"applied": 0})
 
-    import sys
     sys.argv = ["sinapse-sync.py", "--export"]
     try:
         result = mod.main()

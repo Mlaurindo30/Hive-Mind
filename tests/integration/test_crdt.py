@@ -173,13 +173,10 @@ def test_db_version_monotonic():
 
 
 def _load_sync_module():
-    """Carrega scripts/services/sinapse-sync.py (nome com hifen) via importlib."""
-    import importlib.util
-    path = Path(__file__).resolve().parents[2] / "scripts" / "services" / "sinapse-sync.py"
-    spec = importlib.util.spec_from_file_location("sinapse_sync", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    """Módulo importável scripts.services.sinapse_sync (fonte única da CLI de sync)."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from scripts.services import sinapse_sync
+    return sinapse_sync
 
 
 def _make_file_db(path: str) -> None:

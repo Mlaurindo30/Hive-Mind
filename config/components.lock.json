@@ -1,27 +1,26 @@
 {
   "schema_version": 1,
   "components": {
-    "claude-mem": {
-      "repository": "https://github.com/thedotmack/claude-mem.git",
-      "commit": "e9ca97021475f94c468e2f9064504817856adae4",
-      "version": "13.6.0"
-    },
     "graphify": {
       "repository": "https://github.com/safishamsi/graphify.git",
-      "commit": "990ac706d823bf92275333433fde4ef4782a9139",
-      "version": "0.8.16",
+      "path": "integrations/graphify",
+      "commit": "905e0a7a2e6a17e6e65d5906883c5689eac3635e",
+      "version": "0.8.49",
       "patch": "integrations/patches/graphify-hive-mind.patch"
     },
     "neural-memory": {
       "repository": "https://github.com/nhadaututtheky/neural-memory.git",
-      "commit": "ca6df1008e34e8af6978fd646f9b692640b4738f",
-      "version": "4.58.0",
+      "path": "integrations/neural-memory",
+      "commit": "ec19d29eefcac390cce819afb0e6880bee03b3d2",
+      "version": "4.59.0",
       "patch": "integrations/patches/neural-memory-event-loop.patch"
     },
     "rtk": {
       "repository": "https://github.com/rtk-ai/rtk.git",
-      "commit": "805caf7d069e93370a316682b36aad59d562de2e",
-      "version": "0.40.0"
+      "path": "integrations/rtk",
+      "commit": "9a52647f6529120723a04e5323f2b38be5b22655",
+      "version": "0.42.4",
+      "patch": "integrations/patches/rtk-umc-logging.patch"
     }
   }
 }

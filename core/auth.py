@@ -70,17 +70,29 @@ PROVIDERS_CONFIG = {
     # Tratados direto em core.llm_client (não passam por get_credentials).
     "antigravity": {
         "env_var": "ANTIGRAVITY_UNUSED",
-        "base_url": "https://daily-cloudcode-pa.googleapis.com",
-        "auth_type": ["gemini_cli_oauth"],
-        "doc": "Login do Antigravity CLI (`agy`) — tier Antigravity, acesso a gemini-3-*.",
-        "models_hint": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-pro-preview", "gemini-3-flash-preview"],
+        "base_url": "cli://agy",
+        "auth_type": ["agy_cli"],
+        "doc": "Antigravity via CLI nativo `agy` (subprocess isolado, sem skills). "
+               "Catálogo rico: gemini-3.5-flash, gemini-3.1-pro, claude-sonnet-4-6, "
+               "claude-opus-4-6, gpt-oss-120b-maas. Credencial = mesmo OAuth de ~/.gemini. "
+               "(O Code Assist daily-cloudcode-pa só servia gemini-3.1-flash-lite e foi "
+               "aposentado em favor deste caminho.)",
+        "models_hint": [
+            "gemini-3.5-flash", "gemini-3.1-pro",
+            "claude-sonnet-4-6", "claude-opus-4-6", "gpt-oss-120b-maas",
+        ],
     },
     "gemini-cli": {
         "env_var": "GEMINI_CLI_UNUSED",
         "base_url": "https://cloudcode-pa.googleapis.com",
         "auth_type": ["gemini_cli_oauth"],
-        "doc": "Login do Gemini CLI (`gemini`) — Code Assist estável (pool separado do antigravity).",
-        "models_hint": ["gemini-2.5-flash", "gemini-2.5-pro"],
+        "doc": "Login do Gemini CLI (`gemini`) — Code Assist estável. ATENÇÃO: aqui o "
+               "Gemini 3.x usa a forma '-preview' (gemini-3.1-pro-preview); a forma sem "
+               "-preview e o gemini-3.5-flash só existem no provider 'antigravity' (agy).",
+        "models_hint": [
+            "gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-3-flash-preview",
+            "gemini-3.1-pro-preview", "gemini-3-pro-preview", "gemini-2.5-pro",
+        ],
     },
     # OmniRoute — gateway local OpenAI-compatible (226 providers, auto-fallback interno).
     # Ótimo como ÚLTIMO fallback: se os pools Google esgotarem, ele roteia p/ 50+ free.
@@ -413,6 +425,13 @@ HIVE_LLM_ROLES = (
     # são file-based (sem LLM hoje), mas reservados; pattern_distiller e
     # conflict_detector usam LLM (herdam do dreamer = gemini-cli por default).
     "decision_promoter", "project_synthesizer", "pattern_distiller", "conflict_detector",
+    # Fase 4 (grafo temporal + RAG): extração de entidades/relações. São
+    # SEMPRE Ollama local (sem provider/fallback remoto): os clientes leem
+    # apenas HIVE_GRAPHITI_MODEL / HIVE_LIGHTRAG_MODEL (default qwen2.5:3b).
+    # Configurados pelo setup-brain no menu "Extração local", não pela
+    # máquina de providers. Listados aqui só para serem canônicos (sem aviso
+    # de typo em get_role_config) e documentados.
+    "graphiti", "lightrag",
 )
 
 def get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]:
@@ -541,6 +560,20 @@ def discover_models_realtime(only_provider: str = None):
             continue
         if "gemini_cli_oauth" in cfg["auth_type"]:
             if gemini_cli_oauth_file():
+                for m_id in cfg.get("models_hint", []):
+                    all_discovered.append({
+                        "id": m_id,
+                        "provider": name,
+                        "display": f"[{name}] {m_id}",
+                        "source": "gemini_cli_oauth_models_hint",
+                    })
+            continue
+        # antigravity (`agy`): catálogo via subprocess. Lista models_hint quando o
+        # binário existe e há o OAuth compartilhado de ~/.gemini.
+        if "agy_cli" in cfg["auth_type"]:
+            from pathlib import Path as _P
+            agy_ok = _P(os.environ.get("AGY_BIN", str(_P.home() / ".local/bin/agy"))).exists()
+            if agy_ok and gemini_cli_oauth_file():
                 for m_id in cfg.get("models_hint", []):
                     all_discovered.append({
                         "id": m_id,

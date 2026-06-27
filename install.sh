@@ -35,9 +35,10 @@ BOLD='\033[1m'; NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 VAULT_DIR="$PROJECT_ROOT/cerebro"
-GRAPHIFY_OUT="$VAULT_DIR/graphify-out"
+GRAPHIFY_OUT="$VAULT_DIR/cortex/occipital/grafo"
 TOOLS_DIR="$PROJECT_ROOT/.tools/bin"
 export SINAPSE_HOME="$PROJECT_ROOT"
+export GRAPHIFY_OUT
 
 # ── Flags ───────────────────────────────────────────────────────────────────
 FORCE=false
@@ -119,6 +120,33 @@ if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
     OLLAMA_OK=true
 else
     echo -e "  ${YELLOW}⊘${NC}  Ollama não detectado (opcional para extração semântica local). Instale: curl -fsSL https://ollama.com/install.sh | sh"
+fi
+
+# Baixa os modelos locais que o Hive-Mind precisa (idempotente: pula os já presentes).
+# - bge-m3            embeddings 1024d (core/database.py, LightRAG)
+# - qwen2.5:3b        extração de entidades Graphiti + LightRAG (default novo)
+# - qwen2.5-coder:3b  extração semântica do Graphify
+# Opcional (gate SINAPSE_PULL_QWEN7B=1): qwen2.5:7b para o Graphiti local de
+# alta qualidade (HIVE_GRAPHITI_MODEL=qwen2.5:7b). ~4.7GB, exige folga de VRAM.
+if $OLLAMA_OK; then
+    ollama_pull_if_missing() {
+        local model="$1"; local note="$2"
+        if curl -s http://localhost:11434/api/tags 2>/dev/null | grep -q "\"$model\""; then
+            echo -e "  ${GREEN}✓${NC} $model já presente ${note:+($note)}"
+        else
+            echo -e "  ${BLUE}↓${NC} baixando $model ${note:+($note)}..."
+            ollama pull "$model" 2>&1 | tail -1 || echo -e "  ${YELLOW}⊘${NC} falha ao baixar $model (siga manualmente: ollama pull $model)"
+        fi
+    }
+    echo -e "  ${BOLD}Modelos locais do Hive-Mind:${NC}"
+    ollama_pull_if_missing "bge-m3"           "embeddings 1024d"
+    ollama_pull_if_missing "qwen2.5:3b"       "extração Graphiti/LightRAG"
+    ollama_pull_if_missing "qwen2.5-coder:3b" "extração Graphify"
+    if [ "${SINAPSE_PULL_QWEN7B:-0}" = "1" ] || [ "${HIVE_GRAPHITI_MODEL:-}" = "qwen2.5:7b" ]; then
+        ollama_pull_if_missing "qwen2.5:7b"   "Graphiti local alta qualidade"
+    else
+        echo -e "  ${YELLOW}⊘${NC}  qwen2.5:7b pulado (opcional). Para o Graphiti local de alta qualidade: SINAPSE_PULL_QWEN7B=1 ./install.sh"
+    fi
 fi
 
 echo ""
@@ -564,7 +592,7 @@ config:
       timeout: 3
     graphify:
       enabled: true
-      graph_json: "$PROJECT_ROOT/cerebro/graphify-out/graph.json"
+      graph_json: "$PROJECT_ROOT/cerebro/cortex/occipital/grafo/graph.json"
   limits:
     max_context_chars: 3000
     max_nodes: 5
@@ -619,7 +647,7 @@ echo -e "${BOLD}[12/12] Configurando agentes externos (MCP + CLI)...${NC}"
 # Garantir permissões de execução em todos os scripts e hooks
 chmod +x $(find "$PROJECT_ROOT/scripts" -name "*.sh") 2>/dev/null || true
 chmod +x $(find "$PROJECT_ROOT/scripts" -name "*.py") 2>/dev/null || true
-chmod +x "$PROJECT_ROOT/cerebro/.claude/scripts/"*.py 2>/dev/null || true
+chmod +x "$PROJECT_ROOT/cerebro/tronco/infra/agentes/.claude/scripts/"*.py 2>/dev/null || true
 
 # Registro MCP delegado ao script standalone (idempotente, merge seguro).
 # Pode ser re-executado a qualquer momento: ./scripts/setup/register-mcp.sh
@@ -627,9 +655,10 @@ if ! PROJECT_ROOT="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/setup/register-mcp
     echo -e "  ${YELLOW}⊘${NC} Nenhum agente externo detectado. Use scripts/services/sinapse-write.py via CLI."
 fi
 
-# Template AGENTS.md no vault (Codex)
-if command -v codex &>/dev/null && [ -f "$PROJECT_ROOT/cerebro/.codex/AGENTS.md" ]; then
-    cp "$PROJECT_ROOT/cerebro/.codex/AGENTS.md" "$VAULT_DIR/.codex/AGENTS.md" 2>/dev/null || true
+# Template AGENTS.md do vault para Codex fica no Tronco, sem criar .codex no topo.
+if command -v codex &>/dev/null && [ -f "$PROJECT_ROOT/cerebro/tronco/infra/agentes/.codex/AGENTS.md" ]; then
+    mkdir -p "$VAULT_DIR/tronco/infra/agentes/.codex"
+    cp "$PROJECT_ROOT/cerebro/tronco/infra/agentes/.codex/AGENTS.md" "$VAULT_DIR/tronco/infra/agentes/.codex/AGENTS.md" 2>/dev/null || true
 fi
 
 echo ""
@@ -706,11 +735,12 @@ echo -e "  ${BOLD}Obsidian:${NC} Abra a pasta cerebro/ como vault no Obsidian."
 echo -e "         Flatpak: flatpak run md.obsidian.Obsidian --vault \"$VAULT_DIR\""
 echo -e "         Em Configurações > Arquivos e links, ative 'Mostrar arquivos ocultos'."
 echo ""
-echo -e "  ${BOLD}Ollama (modelos recomendados):${NC}"
-echo -e "         ollama pull qwen2.5-coder:3b    # Extração semântica local (rápido)"
-echo -e "         ollama pull bge-m3               # Embeddings de alta qualidade"
-echo -e "         ollama pull granite3-dense:2b    # LLM do LightRAG (RAG, fixo, ~1.5GB)"
-echo -e "         ollama pull nomic-embed-text     # Embeddings leve"
+echo -e "  ${BOLD}Ollama (modelos — baixados automaticamente acima quando detectado):${NC}"
+echo -e "         ollama pull bge-m3               # Embeddings 1024d (core/LightRAG)"
+echo -e "         ollama pull qwen2.5:3b           # Extração Graphiti + LightRAG (~1.9GB)"
+echo -e "         ollama pull qwen2.5-coder:3b     # Extração semântica do Graphify"
+echo -e "         ollama pull qwen2.5:7b           # Graphiti local alta qualidade (opcional, ~4.7GB)"
+echo -e "         ollama pull nomic-embed-text     # Embeddings leve (alternativo)"
 echo ""
 echo -e "  ${BOLD}Disaster Recovery:${NC}"
 echo -e "         ${BOLD}./scripts/utils/recover.sh${NC} — Verifica/Rebuilda graph.json, reinicia worker, health check"

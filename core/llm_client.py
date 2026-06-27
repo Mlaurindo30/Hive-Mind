@@ -143,10 +143,18 @@ def call_llm_structured(prompt: str, system_prompt: str, response_model: Any,
     # Provider 'gemini-cli': usa o OAuth do Gemini CLI via Code Assist (cloudcode-pa),
     # quota "Unlimited". Credenciais vêm de ~/.gemini (não de env) → tratado aqui,
     # antes do get_credentials padrão. Participa do fallback do papel normalmente.
-    if provider in ("gemini-cli", "code-assist", "antigravity"):
+    if provider in ("gemini-cli", "code-assist"):
         from core.gemini_cli_client import call_gemini_cli_structured
         return call_gemini_cli_structured(prompt, system_prompt, response_model, model,
                                           image_path, provider=provider)
+
+    # Provider 'antigravity': catálogo rico (gemini-3.5-flash, gemini-3.1-pro,
+    # claude-*, gpt-oss) via shell-out ao binário `agy` em HOME isolado (sem skills).
+    # Credenciais vêm de ~/.gemini (não de env). Participa do fallback do papel.
+    if provider == "antigravity":
+        from core.agy_client import call_agy_structured
+        return call_agy_structured(prompt, system_prompt, response_model, model,
+                                   image_path, provider=provider)
 
     creds = get_credentials(provider)
     if not creds:

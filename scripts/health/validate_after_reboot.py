@@ -154,13 +154,25 @@ def _with_sqlite_retry(fn):
 
 
 def _repair_fk_orphans(conn: sqlite3.Connection) -> int:
-    """Create placeholder sdk_sessions rows for orphaned memory_session_ids.
+    """Create placeholder sdk_sessions rows for ANY orphaned FK that points at it.
 
-    The claude-mem worker runs with PRAGMA foreign_keys=0 and updates
-    sdk_sessions.memory_session_id when it starts a new LLM session, but the
-    ON UPDATE CASCADE never fires.  Observations written before the update keep
-    the old memory_session_id as an orphan.  We insert lightweight placeholder
-    rows so that foreign_key_check passes without losing any data.
+    The claude-mem worker runs with PRAGMA foreign_keys=0, so child rows can end
+    up referencing sdk_sessions keys that never materialized.  Three distinct FK
+    paths into sdk_sessions can go orphan, and the previous implementation only
+    covered the first one:
+
+      * observations / session_summaries -> memory_session_id (UNIQUE).  The
+        worker updates sdk_sessions.memory_session_id without the ON UPDATE
+        CASCADE firing, so rows written before the update keep the old id.
+      * user_prompts -> content_session_id (UNIQUE).  Stray/debug prompt rows
+        whose session was never persisted.
+      * pending_messages -> id (PK).  Queue rows whose session row is gone.
+
+    Instead of hard-coding the two memory_session_id tables, we drive the repair
+    off ``PRAGMA foreign_key_check``: every violation pointing at sdk_sessions is
+    grouped by the parent column it references, and we insert one lightweight
+    placeholder per missing key so foreign_key_check passes without dropping any
+    child data.
     """
     tables = {
         row[0]
@@ -168,36 +180,66 @@ def _repair_fk_orphans(conn: sqlite3.Connection) -> int:
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).fetchall()
     }
-    required = {"observations", "session_summaries", "sdk_sessions"}
-    if not required.issubset(tables):
+    if "sdk_sessions" not in tables:
         return 0
 
-    orphan_sql = """
-        SELECT DISTINCT o.memory_session_id
-        FROM observations o
-        LEFT JOIN sdk_sessions s ON s.memory_session_id = o.memory_session_id
-        WHERE s.id IS NULL
-        UNION
-        SELECT DISTINCT ss.memory_session_id
-        FROM session_summaries ss
-        LEFT JOIN sdk_sessions s ON s.memory_session_id = ss.memory_session_id
-        WHERE s.id IS NULL
-    """
-    orphans = [row[0] for row in conn.execute(orphan_sql).fetchall() if row[0]]
-    if not orphans:
-        return 0
-    now_epoch = int(time.time() * 1000)
-    conn.execute("BEGIN")
-    for msid in orphans:
-        conn.execute(
-            """INSERT OR IGNORE INTO sdk_sessions
-               (content_session_id, memory_session_id, project,
-                platform_source, started_at, started_at_epoch, status)
-               VALUES (?, ?, 'unknown', 'recovered', datetime('now'), ?, 'completed')""",
-            (f"recovered-orphan:{msid}", msid, now_epoch),
+    # Group the missing keys by the sdk_sessions column they reference.
+    needed: dict[str, set] = {}
+    for child, rowid, parent, fkid in conn.execute("PRAGMA foreign_key_check").fetchall():
+        if parent != "sdk_sessions" or rowid is None:
+            continue
+        # Resolve which child column / parent column this violation's FK uses.
+        # foreign_key_list row: (id, seq, table, from, to, on_update, on_delete, match)
+        fk = next(
+            (r for r in conn.execute(f"PRAGMA foreign_key_list({child})").fetchall()
+             if r[0] == fkid and r[2] == "sdk_sessions"),
+            None,
         )
+        if fk is None:
+            continue
+        from_col, to_col = fk[3], (fk[4] or "id")
+        key = conn.execute(
+            f"SELECT {from_col} FROM {child} WHERE rowid = ?", (rowid,)
+        ).fetchone()[0]
+        if key is None or key == "":
+            continue  # NULL/empty FK can't be satisfied by a placeholder
+        needed.setdefault(to_col, set()).add(key)
+
+    if not needed:
+        return 0
+
+    now_epoch = int(time.time() * 1000)
+    now_iso = datetime.now(timezone.utc).isoformat()
+    repaired = 0
+    conn.execute("BEGIN")
+    for to_col, keys in needed.items():
+        for key in keys:
+            row = {
+                "project": "unknown",
+                "platform_source": "recovered",
+                "started_at": now_iso,
+                "started_at_epoch": now_epoch,
+                "status": "completed",
+            }
+            # Set the referenced column to the orphan key; synthesize a unique
+            # content_session_id (NOT NULL UNIQUE) when it isn't the key itself.
+            if to_col == "content_session_id":
+                row["content_session_id"] = key
+            elif to_col == "id":
+                row["id"] = key
+                row["content_session_id"] = f"recovered-orphan-id:{key}"
+            else:  # memory_session_id (or any other UNIQUE column)
+                row["content_session_id"] = f"recovered-orphan:{key}"
+                row[to_col] = key
+            cols = list(row)
+            conn.execute(
+                f"INSERT OR IGNORE INTO sdk_sessions ({','.join(cols)}) "
+                f"VALUES ({','.join('?' * len(cols))})",
+                [row[c] for c in cols],
+            )
+            repaired += conn.execute("SELECT changes()").fetchone()[0]
     conn.execute("COMMIT")
-    return len(orphans)
+    return repaired
 
 
 def _claude_mem_counts(conn: sqlite3.Connection) -> dict[str, int | str]:

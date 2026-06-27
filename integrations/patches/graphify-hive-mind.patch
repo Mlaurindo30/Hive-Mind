@@ -1,33 +1,32 @@
 diff --git a/graphify/__main__.py b/graphify/__main__.py
-index fb27cfb..2daf752 100644
+index 157a48a..597baab 100644
 --- a/graphify/__main__.py
 +++ b/graphify/__main__.py
-@@ -2168,0 +2169 @@ def main() -> None:
+@@ -3390 +3390 @@ def main() -> None:
+-
 +        from graphify.sqlite_export import to_sqlite
-@@ -2201,0 +2203,6 @@ def main() -> None:
+@@ -3466,0 +3467,6 @@ def main() -> None:
 +        try:
 +            sinapse_home = os.environ.get("SINAPSE_HOME", str(watch_path.parent if watch_path.name == "cerebro" else watch_path))
 +            db_path = os.path.join(sinapse_home, "hive_mind.db")
 +            to_sqlite(G, communities, db_path)
 +        except Exception as e:
 +            print(f"[umc] Warning: failed to export to SQLite: {e}")
-@@ -3216,0 +3224 @@ def main() -> None:
+@@ -4699,0 +4706 @@ def main() -> None:
 +        from graphify.sqlite_export import to_sqlite as _to_sqlite
-@@ -3252,0 +3261,4 @@ def main() -> None:
+@@ -4735,0 +4743,4 @@ def main() -> None:
 +        try:
 +            _to_sqlite(G, communities, str(target / "hive_mind.db"))
 +        except Exception as e:
 +            print(f"[umc] Warning: failed to export to SQLite: {e}")
 diff --git a/graphify/extract.py b/graphify/extract.py
-index 33184f5..e5cf80b 100644
+index a618e68..90a0a90 100644
 --- a/graphify/extract.py
 +++ b/graphify/extract.py
-@@ -5947,0 +5948,3 @@ def extract_markdown(path: Path) -> dict:
+@@ -9670,0 +9671,3 @@ def extract_markdown(path: Path) -> dict:
 +    # Hive-Mind: Store raw content in the file node for SQLite/VEC export
 +    if nodes and nodes[0]["id"] == file_nid:
 +        nodes[0]["content"] = source
-@@ -5949 +5951,0 @@ def extract_markdown(path: Path) -> dict:
--    # Track heading stack for nesting: [(level, nid), ...]
 diff --git a/graphify/sqlite_export.py b/graphify/sqlite_export.py
 new file mode 100644
 index 0000000..5cbf65e
@@ -162,15 +161,15 @@ index 0000000..5cbf65e
 +    conn.close()
 +    print("[umc] Sincronização estrutural e vetorial concluída.")
 diff --git a/graphify/watch.py b/graphify/watch.py
-index 71907a3..ff91750 100644
+index 046857b..d10430a 100644
 --- a/graphify/watch.py
 +++ b/graphify/watch.py
 @@ -6,0 +7 @@ import re
 +import subprocess
-@@ -121 +122 @@ from graphify.detect import (
+@@ -199 +200 @@ from graphify.detect import (
 -_WATCHED_EXTENSIONS = CODE_EXTENSIONS | DOC_EXTENSIONS | PAPER_EXTENSIONS | IMAGE_EXTENSIONS
 +_WATCHED_EXTENSIONS = CODE_EXTENSIONS | DOC_EXTENSIONS | PAPER_EXTENSIONS | IMAGE_EXTENSIONS | {".docx"}
-@@ -123,0 +125,41 @@ _CODE_EXTENSIONS = CODE_EXTENSIONS
+@@ -201,0 +203,41 @@ _CODE_EXTENSIONS = CODE_EXTENSIONS
 +# Extensions that trigger Hive-Mind media/document capture pipelines
 +_HIVE_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif"}
 +_HIVE_DOC_EXTENSIONS = {".pdf", ".docx"}
@@ -212,9 +211,9 @@ index 71907a3..ff91750 100644
 +            file=sys.stderr,
 +        )
 +
-@@ -333,0 +376 @@ def _rebuild_code(
+@@ -512,0 +555 @@ def _rebuild_code(
 +        from graphify.sqlite_export import to_sqlite
-@@ -497 +540,16 @@ def _rebuild_code(
+@@ -758 +801,16 @@ def _rebuild_code(
 -                print("[graphify watch] No code-graph topology changes detected; outputs left untouched.")
 +
 +                # Hive-Mind: Sync to SQLite even if topology is same (content might have changed)
@@ -232,21 +231,22 @@ index 71907a3..ff91750 100644
 +                    print(f"[umc] Warning: failed to incremental export to SQLite: {e}")
 +
 +                print("[graphify watch] No code-graph topology changes detected; outputs left untouched (UMC synced).")
-@@ -524,0 +583,6 @@ def _rebuild_code(
+@@ -785,0 +844,6 @@ def _rebuild_code(
 +        try:
 +            sinapse_home = os.environ.get("SINAPSE_HOME", str(watch_root.parent if watch_root.name == "cerebro" else watch_root))
 +            db_path = os.path.join(sinapse_home, "hive_mind.db")
 +            to_sqlite(G, communities, db_path)
 +        except Exception as e:
 +            print(f"[umc] Warning: failed to export to SQLite: {e}")
-@@ -677 +741,5 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
--            path = Path(event.src_path)
+@@ -943 +1007,6 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
+-            path = Path(os.fsdecode(event.src_path))
 +            # Filter out read/access events (opened, closed_no_write, etc.)
 +            if event.event_type not in ("modified", "created", "deleted", "moved"):
 +                return
 +            # Handle atomic save renames correctly
-+            path = Path(event.dest_path) if event.event_type == "moved" else Path(event.src_path)
-@@ -713,0 +782,14 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
++            raw = event.dest_path if event.event_type == "moved" else event.src_path
++            path = Path(os.fsdecode(raw))
+@@ -983,0 +1053,14 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
 +
 +                # Hive-Mind: trigger media/document capture pipelines for files inside cerebro/
 +                # visual_capture.py is a screen-capture tool (takes screenshots, not file paths)
@@ -261,25 +261,25 @@ index 71907a3..ff91750 100644
 +                    if ext in _HIVE_DOC_EXTENSIONS and p.exists():
 +                        _trigger_document_ingest(p)
 +
-@@ -714,0 +797 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
+@@ -984,0 +1068 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
 +                # Hive-Mind: treat docs with extractors (like .md) as code for real-time sync
-@@ -715,0 +799,4 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
+@@ -985,0 +1070,4 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
 +                if not has_code:
 +                    from graphify.extract import _get_extractor
 +                    has_code = any(_get_extractor(p) is not None for p in batch)
 +
-@@ -717,2 +804,2 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
+@@ -987,2 +1075,2 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
 -                    _rebuild_code(watch_path)
 -                if has_non_code:
 +                    _rebuild_code(watch_path, changed_paths=batch, force=True)
 +                elif has_non_code:
 diff --git a/tests/test_watch.py b/tests/test_watch.py
-index f5b332f..ba3ed50 100644
+index f1b8451..86760f9 100644
 --- a/tests/test_watch.py
 +++ b/tests/test_watch.py
-@@ -4,0 +5 @@ import time
+@@ -6,0 +7 @@ import time
 +import json
-@@ -212,0 +214,26 @@ def test_rebuild_code_skips_cluster_when_topology_unchanged(tmp_path, monkeypatc
+@@ -409,0 +411,26 @@ def test_rebuild_code_skips_cluster_when_topology_unchanged(tmp_path, monkeypatc
 +def test_incremental_rebuild_removes_deleted_extractor_nodes(tmp_path):
 +    from graphify.watch import _rebuild_code
 +

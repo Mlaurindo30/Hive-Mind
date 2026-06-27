@@ -123,11 +123,14 @@ def test_to_gemini_schema_inline_refs_e_remove_defs():
 
 
 def test_endpoint_por_provider(monkeypatch):
+    # antigravity deixou de ser provider Code Assist aqui (migrou p/ core.agy_client);
+    # este cliente só fala cloudcode-pa (gemini-cli / code-assist). O default também
+    # é cloudcode-pa (não mais o daily- do antigravity).
     monkeypatch.delenv("GEMINI_CLI_ENDPOINT", raising=False)
-    assert "daily-cloudcode-pa" in gc._endpoint_for("antigravity")
     assert gc._endpoint_for("gemini-cli").endswith("cloudcode-pa.googleapis.com")
+    assert gc._endpoint_for("code-assist").endswith("cloudcode-pa.googleapis.com")
     assert "daily-cloudcode-pa" not in gc._endpoint_for("gemini-cli")
-    assert "daily-cloudcode-pa" in gc._endpoint_for(None)   # default antigravity
+    assert "daily-cloudcode-pa" not in gc._endpoint_for(None)   # default = cloudcode-pa
 
 
 def test_env_override_endpoint(monkeypatch):
@@ -149,9 +152,9 @@ def test_call_usa_endpoint_do_provider(monkeypatch):
 
 
 def test_model_chain_rotaciona():
-    chain = gc._model_chain("antigravity", "gemini-2.5-flash")
+    chain = gc._model_chain("gemini-cli", "gemini-2.5-flash")
     assert chain[0] == "gemini-2.5-flash"           # pedido primeiro
-    assert "gemini-3-pro-preview" in chain          # demais do provider
+    assert "gemini-3.1-pro-preview" in chain        # demais do provider (3.x -preview)
     assert chain.count("gemini-2.5-flash") == 1     # sem duplicar
 
 
@@ -166,9 +169,10 @@ def test_429_rotaciona_para_proximo_modelo(monkeypatch):
         text = '{"resumo":"ok","confianca":1.0}'
         return _Resp(200, {"response": {"candidates": [{"content": {"parts": [{"text": text}]}}]}})
     monkeypatch.setattr(gc.requests, "post", fake_post)
-    out = gc.call_gemini_cli_structured("p", "s", Fato, model="gemini-2.5-flash", provider="antigravity")
+    out = gc.call_gemini_cli_structured("p", "s", Fato, model="gemini-2.5-flash", provider="gemini-cli")
     assert out.resumo == "ok"
-    assert calls[0] == "gemini-2.5-flash" and calls[1] == "gemini-2.5-pro"  # rotacionou
+    # rotaciona p/ o próximo da cadeia gemini-cli (gemini-3.1-flash-lite)
+    assert calls[0] == "gemini-2.5-flash" and calls[1] == "gemini-3.1-flash-lite"
 
 
 def test_todos_modelos_429_levanta_transient(monkeypatch):

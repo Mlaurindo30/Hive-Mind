@@ -46,6 +46,34 @@ GEMINI_PROVIDERS = {"google", "gemini"}
 CLAUDE_PROVIDERS = {"anthropic", "claude"}
 
 
+def _openai_compatible(cfg: dict) -> bool:
+    """True se o provider serve um endpoint OpenAI-compatible por HTTP + chave.
+
+    É o requisito do slot 'openrouter' do claude-mem (cliente OpenAI que faz
+    POST /chat/completions com Bearer key). Providers CLI/OAuth NÃO atendem:
+      - antigravity → base_url 'cli://agy' (shell-out, só o core fala isso)
+      - gemini-cli / code-assist → base_url Code Assist (generateContent) + OAuth
+    Mapear esses para o slot openrouter gera o erro fatal do worker
+    "protocol must be http:, https: or s3:" (cli://) ou 404/envelope inválido.
+    """
+    base = cfg.get("base_url") or ""
+    auth = cfg.get("auth_type") or []
+    return base.startswith(("http://", "https://")) and any(
+        a in ("api_key", "local") for a in auth
+    )
+
+
+def _usable_by_claude_mem(provider: str, cfg: dict) -> bool:
+    """O claude-mem só consome 3 dialetos: Anthropic API key, Gemini API key, ou
+    OpenAI-compatible HTTP+key. Providers CLI/OAuth (agy_cli, gemini_cli_oauth)
+    são arquiteturalmente incompatíveis com o worker."""
+    p = (provider or "").lower()
+    auth = cfg.get("auth_type") or []
+    if p in CLAUDE_PROVIDERS or p in GEMINI_PROVIDERS:
+        return "api_key" in auth  # slots nativos usam SDK + API key, não OAuth
+    return _openai_compatible(cfg)
+
+
 def _key_for(provider: str, env: dict) -> str:
     """Resolve a credencial do provider a partir do .env (api key ou token OAuth)."""
     cfg = PROVIDERS_CONFIG.get(provider, {})
@@ -107,10 +135,19 @@ def build_updates(provider: str, model: str, env: dict) -> dict:
             "ANTHROPIC_API_KEY": key if key and key != "local" else "",
         }
     # qualquer outro = slot OpenAI-compatible (base_url do provider)
+    base_url = cfg.get("base_url", "")
+    if not base_url.startswith(("http://", "https://")):
+        # Defesa: o worker é um cliente HTTP; um base_url 'cli://' (antigravity) ou
+        # vazio causa "protocol must be http:, https: or s3:" e zera a geração.
+        raise ValueError(
+            f"provider '{provider}' não é OpenAI-compatible para o claude-mem "
+            f"(base_url={base_url!r}). Use um provider HTTP+chave (nvidia, ollama, "
+            f"openrouter, deepseek…) ou os slots nativos gemini/claude."
+        )
     return {
         **runtime_updates(),
         "CLAUDE_MEM_PROVIDER": "openrouter",
-        "CLAUDE_MEM_OPENROUTER_BASE_URL": cfg.get("base_url", ""),
+        "CLAUDE_MEM_OPENROUTER_BASE_URL": base_url,
         "CLAUDE_MEM_OPENROUTER_API_KEY": key,
         "CLAUDE_MEM_OPENROUTER_MODEL": model,
     }
@@ -220,6 +257,25 @@ def main() -> int:
             provider, model = fb_p, fb_m
         elif force_fallback:
             print(f"  ⚠ --fallback solicitado mas HIVE_CLAUDE_MEM_FALLBACK_PROVIDER/MODEL não configurados.")
+
+    # Guard de compatibilidade: se o provider escolhido (ou o fallback de quota)
+    # for CLI/OAuth (antigravity, gemini-cli, code-assist), o worker não consegue
+    # usá-lo. Tenta o fallback configurado; se também for incompatível, aborta SEM
+    # sobrescrever a config viva (não troca um setup que funciona por um quebrado).
+    if not _usable_by_claude_mem(provider, PROVIDERS_CONFIG.get(provider, {})):
+        print(f"  ⚠ provider '{provider}' é CLI/OAuth — incompatível com o worker "
+              f"do claude-mem (que fala Anthropic/Gemini API-key ou OpenAI-compat HTTP).")
+        fb_p = env.get("HIVE_CLAUDE_MEM_FALLBACK_PROVIDER", "").strip()
+        fb_m = env.get("HIVE_CLAUDE_MEM_FALLBACK_MODEL", "").strip()
+        if fb_p and fb_m and _usable_by_claude_mem(fb_p, PROVIDERS_CONFIG.get(fb_p.lower(), {})):
+            print(f"  ↩ usando fallback compatível '{fb_p}/{fb_m}'")
+            provider, model = fb_p, fb_m
+        else:
+            print("✗ Nenhum provider compatível disponível para o claude-mem. "
+                  "Configure HIVE_CLAUDE_MEM_PROVIDER/MODEL (ou FALLBACK) com um "
+                  "provider HTTP+chave (nvidia, ollama, openrouter, deepseek…) ou "
+                  "os slots nativos gemini/claude (API key). Config viva preservada.")
+            return 1
 
     updates = build_updates(provider, model, env)
     safe = {k: ("***" if "KEY" in k or "TOKEN" in k else v) for k, v in updates.items()}

@@ -1,0 +1,15 @@
+# =============================================================================
+# Crontab — Hive-Mind Integrations Auto-Update
+#
+# Instalação:
+#   crontab -l | cat - scripts/maintenance/integrations-update.crontab | crontab -
+#
+# Desinstalação:
+#   crontab -l | grep -v 'integrations-update' | crontab -
+#
+# Agenda: 2x por semana (terça e sexta às 10:00)
+# Log:     logs/integrations-update.log (dentro do projeto)
+# =============================================================================
+
+# Hive-Mind: atualização de integrações (neural-memory, rtk, graphify, claude-mem)
+0 10 * * 2,5 cd /home/michel/Documentos/Projects/Hive-Mind && ./scripts/maintenance/integrations-update.sh >> logs/integrations-update.log 2>&1

@@ -33,27 +33,35 @@ GOOGLE_VSCODE_ADC_PATH = Path.home() / ".cache/google-vscode-extension/auth/appl
 API_VERSION = "v1internal"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 
-# Dois endpoints Code Assist, MESMA OAuth, porém POOLS DE
-# QUOTA SEPARADOS — por isso vale ter os dois (um vira fallback do outro):
-#   antigravity → daily-cloudcode-pa (tier Antigravity, acesso a gemini-3-*)
-#   gemini-cli  → cloudcode-pa       (Code Assist estável)
-# Escolha por nome de provider; GEMINI_CLI_ENDPOINT força um host p/ todos (override).
+# Endpoint Code Assist (cloudcode-pa) — pool estável do Gemini CLI. O antigo pool
+# 'antigravity' (daily-cloudcode-pa) só servia gemini-3.1-flash-lite via
+# generateContent e foi aposentado: o catálogo rico do antigravity agora vem do
+# provider 'antigravity' roteado para core/agy_client.py (CLI nativo).
+# GEMINI_CLI_ENDPOINT força um host p/ todos (override).
 _ENDPOINTS = {
-    "antigravity": "https://daily-cloudcode-pa.googleapis.com",
     "gemini-cli": "https://cloudcode-pa.googleapis.com",
     "code-assist": "https://cloudcode-pa.googleapis.com",
 }
-DEFAULT_ENDPOINT = "https://daily-cloudcode-pa.googleapis.com"   # antigravity
+DEFAULT_ENDPOINT = "https://cloudcode-pa.googleapis.com"   # gemini-cli (Code Assist estável)
 # Compat: alguns lugares/imports antigos referenciam CODE_ASSIST_ENDPOINT.
 CODE_ASSIST_ENDPOINT = os.environ.get("GEMINI_CLI_ENDPOINT", DEFAULT_ENDPOINT)
 
 # A cota do 429 é POR MODELO ("exhausted capacity on THIS MODEL"). Logo, quando um
 # modelo esgota, tentar OUTRO modelo do mesmo provider (quota independente) resolve
 # ANTES de trocar de provider. Ordem: barato/rápido → mais capaz.
+# Modelos que a superfície Code Assist (cloudcode-pa, v1internal:generateContent)
+# REALMENTE aceita — validado por chamada real em 2026-06-26 (200/429 = existe;
+# 404 = não existe), em 2 passagens p/ filtrar transitórios. Ordem: rápido → capaz.
+# IMPORTANTE: aqui o Gemini 3.x usa a forma '-preview' (gemini-3.1-pro-preview).
+# gemini-3.5-flash e gemini-3.1-pro (sem -preview) dão 404 aqui — esses só via o
+# provider 'antigravity' (core/agy_client.py / CLI nativo). Não adicione sem validar.
+_GEMINI_CLI_MODELS = [
+    "gemini-2.5-flash", "gemini-3.1-flash-lite", "gemini-3-flash-preview",
+    "gemini-3.1-pro-preview", "gemini-3-pro-preview", "gemini-2.5-pro",
+]
 _MODEL_ROTATION = {
-    "antigravity": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-flash-preview", "gemini-3-pro-preview"],
-    "gemini-cli": ["gemini-2.5-flash", "gemini-2.5-pro"],
-    "code-assist": ["gemini-2.5-flash", "gemini-2.5-pro"],
+    "gemini-cli": _GEMINI_CLI_MODELS,
+    "code-assist": _GEMINI_CLI_MODELS,
 }
 
 

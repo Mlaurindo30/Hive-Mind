@@ -70,6 +70,79 @@ def test_claude_mem_database_loads_sqlite_vec(monkeypatch, tmp_path):
 
 
 
+def _build_claude_mem_like(db_path):
+    """Cria um claude-mem.db mínimo com as 3 FKs reais para sdk_sessions."""
+    conn = MODULE.sqlite3.connect(db_path)
+    conn.executescript(
+        """
+        CREATE TABLE sdk_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            content_session_id TEXT UNIQUE NOT NULL,
+            memory_session_id TEXT UNIQUE,
+            project TEXT NOT NULL,
+            platform_source TEXT NOT NULL DEFAULT 'claude',
+            started_at TEXT NOT NULL,
+            started_at_epoch INTEGER NOT NULL,
+            status TEXT CHECK(status IN ('active','completed','failed')) NOT NULL DEFAULT 'active'
+        );
+        CREATE TABLE observations (
+            id INTEGER PRIMARY KEY,
+            memory_session_id TEXT NOT NULL,
+            FOREIGN KEY(memory_session_id) REFERENCES sdk_sessions(memory_session_id)
+                ON DELETE CASCADE ON UPDATE CASCADE
+        );
+        CREATE TABLE session_summaries (
+            id INTEGER PRIMARY KEY,
+            memory_session_id TEXT NOT NULL,
+            FOREIGN KEY(memory_session_id) REFERENCES sdk_sessions(memory_session_id)
+                ON DELETE CASCADE ON UPDATE CASCADE
+        );
+        CREATE TABLE user_prompts (
+            id INTEGER PRIMARY KEY,
+            content_session_id TEXT NOT NULL,
+            FOREIGN KEY(content_session_id) REFERENCES sdk_sessions(content_session_id)
+                ON DELETE CASCADE
+        );
+        CREATE TABLE pending_messages (
+            id INTEGER PRIMARY KEY,
+            session_db_id INTEGER NOT NULL,
+            FOREIGN KEY(session_db_id) REFERENCES sdk_sessions(id) ON DELETE CASCADE
+        );
+        """
+    )
+    # Órfãos nos 3 caminhos de FK (sem nenhuma sdk_session existente):
+    conn.execute("INSERT INTO observations(id, memory_session_id) VALUES (1,'msid-orphan')")
+    conn.execute("INSERT INTO session_summaries(id, memory_session_id) VALUES (1,'msid-orphan')")  # mesma chave
+    conn.execute("INSERT INTO session_summaries(id, memory_session_id) VALUES (2,'msid-other')")
+    conn.execute("INSERT INTO user_prompts(id, content_session_id) VALUES (1,'csid-orphan')")
+    conn.execute("INSERT INTO pending_messages(id, session_db_id) VALUES (1, 999)")
+    # Um órfão com chave vazia (não reparável — deve ser pulado sem quebrar):
+    conn.execute("INSERT INTO observations(id, memory_session_id) VALUES (2,'')")
+    conn.commit()
+    return conn
+
+
+def test_repair_fk_orphans_covers_all_three_fk_paths(tmp_path):
+    db_path = tmp_path / "claude-mem.db"
+    conn = _build_claude_mem_like(db_path)
+    before = len(conn.execute("PRAGMA foreign_key_check").fetchall())
+    assert before > 0
+
+    repaired = MODULE._repair_fk_orphans(conn)
+    # 3 chaves materializáveis (msid-orphan, msid-other, csid-orphan) + id=999.
+    # A chave vazia '' é pulada de propósito → continua órfã (1 violação restante).
+    assert repaired == 4
+
+    remaining = conn.execute("PRAGMA foreign_key_check").fetchall()
+    # Só a observação de chave vazia segue órfã; os 3 caminhos reais foram sanados.
+    assert all(row[0] == "observations" for row in remaining)
+    assert len(remaining) == 1
+
+    # Idempotência: nada novo na 2ª passada.
+    assert MODULE._repair_fk_orphans(conn) == 0
+    conn.close()
+
+
 def test_validate_fails_without_real_reboot(monkeypatch, tmp_path):
     marker = tmp_path / "pre-reboot.json"
     marker.write_text('{"boot_id": "same-boot", "require_api": false}')
