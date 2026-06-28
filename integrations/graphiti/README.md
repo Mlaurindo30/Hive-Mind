@@ -31,7 +31,7 @@ de validade temporal (`valid_from`, `valid_until`).
 | `FALKORDB_DB` | `sinapse` | Nome do database |
 | `GRAPHITI_LLM_BASE` | `http://localhost:11434/v1` | Ollama base URL |
 | `GRAPHITI_LLM_MODEL` | `qwen2.5-coder:3b` | LLM para extração de entidades |
-| `GRAPHITI_EMBED_MODEL` | `bge-m3:latest` | Embeddings (consistente com resto do cérebro) |
+| `GRAPHITI_EMBED_MODEL` | `snowflake-arctic-embed2:latest` | Embeddings (consistente com resto do cérebro) |
 | `HIVE_GRAPHITI_RETRIES` | `3` | Tentativas com backoff 1s, 2s, 4s |
 | `HIVE_GRAPHITI_CB_FAILS` | `3` | Falhas consecutivas que abrem o circuit |
 | `HIVE_GRAPHITI_CB_COOLDOWN` | `30` | Segundos de pausa do circuit |
@@ -53,7 +53,7 @@ de validade temporal (`valid_from`, `valid_until`).
 
 # Modelos Ollama:
 ollama pull qwen2.5-coder:3b
-ollama pull bge-m3:latest
+ollama pull snowflake-arctic-embed2:latest
 
 # FalkorDB (Docker):
 docker run -d --name sinapse-falkordb -p 6379:6379 \

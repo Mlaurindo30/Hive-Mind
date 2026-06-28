@@ -998,3 +998,232 @@ RTK (rtk-ai/rtk) funciona como proxy/filtro de comandos shell: `rtk rewrite` dec
 ## RTK no Hive-Mind e transversal por agente, nao backend de memoria (2026-06-27)
 
 RTK (rtk-ai/rtk) deve ser documentado e configurado como camada transversal de execucao shell por agente/CLI via rtk init/start-rtk.sh. Hermes e apenas um alvo. RTK nao deve aparecer em hybrid_search.backends nem ser tratado como backend do sinapse_query; pode aparecer como component/camada de execucao.
+
+
+---
+
+## Como buscar no claude-mem sem se perder (sinapse_temporal_search) (2026-06-27)
+
+Lição de método de busca temporal, validada em 2026-06-27 ao recuperar o trabalho do Codex sobre RTK.
+
+PROBLEMA: `sinapse_temporal_search` retornou vazio e concluí erradamente que o claude-mem "não rastreou" a sessão do Codex. Na verdade rastreou tudo em detalhe (#14212 start-rtk.sh, #14213 sinapse.yaml backends→components, #14214 docs RTK). A falha foi minha query.
+
+CAUSA: usei frases longas com termos misturados, ex.: "RTK start-rtk.sh rtk init --only agente" e "sinapse.yaml backends components" → 0 resultados. Isso viola a regra 4 do sinapse-agent-prompt.md: `sinapse_temporal_search` é ÍNDICE TEXTUAL do claude-mem, não orquestrador híbrido.
+
+REGRA: 
+1. Use 2–5 termos EXATOS que provavelmente estão no texto real. Comparação real: "hybrid_search components" ACHOU o #14213; "sinapse.yaml backends components" NÃO achou. "RTK sinapse_query" e "start-rtk.sh" funcionaram.
+2. Fluxo nativo: search (acha IDs/títulos) → timeline(anchor=<id>) (janela cronológica) → get_observations(ids=[...]) (hidrata só os filtrados). Nunca hidrate antes de filtrar.
+3. Resultado vazio NÃO prova ausência (regra 3): reduza a query, tente o título retornado por sinapse_query, ou volte ao sinapse_query para contexto consolidado.
+4. Para "o que aconteceu no projeto" comece SEMPRE por sinapse_query (híbrido, tolerante a linguagem natural); use temporal_search só para achar a sessão/prompt bruto que originou aquilo.
+
+BÔNUS: o hook PreToolUse ao ler um arquivo já injeta IDs de observações recentes daquele arquivo — atalho para pegar o anchor sem nem buscar.
+
+
+
+
+---
+
+## Embedding default Hive-Mind migrado para snowflake-arctic-embed2 (2026-06-27)
+
+Decisao de 2026-06-27: Hive-Mind deve usar snowflake-arctic-embed2:latest como default de embeddings 1024d em core/database.py, LightRAG, Graphiti e NeuralMemory. A decisao veio de avaliacao no claude-mem: snowflake-arctic-embed2 teve 0 NaNs nos triggers testados e melhor separacao PT/EN vs conteudo nao relacionado que bge-m3/qwen3-embedding:0.6b. install.sh deve baixar snowflake-arctic-embed2. Ao migrar search_vec, pausar graphify watch para evitar database locked e religar depois.
+
+
+---
+
+## Desenho alvo do fluxo de preenchimento do cerebro Hive-Mind (2026-06-27)
+
+Desenho alvo: captura bruta -> caixa de entrada sensorial -> triagem -> consolidacao -> memoria atomica -> indices especializados -> busca federada -> feedback. Cada camada deve ter contrato de escrita: observacao bruta, resumo de sessao, fato, decisao, aprendizado, preferencia, rationale, operational_fact, code_symbol, document_chunk. Vector search deve separar memoria consolidada, documentos, codigo e observacoes temporais para evitar mistura de granularidades.
+
+
+---
+
+## Hive-Mind deve nascer born-large na arquitetura de conhecimento (2026-06-27)
+
+Decisao: nao tratar Milvus/RAGFlow/LlamaIndex como futuro distante. A arquitetura de conhecimento do Hive-Mind deve nascer local-first por operacao e born-large por arquitetura: VectorBackend com sqlite-vec local e Milvus producao, DocumentPipeline inspirado/compativel com RAGFlow, RetrievalRouter inspirado em LlamaIndex, Promotion Layer para discoveries/session summaries do claude-mem virarem neuronios atomicos. Documento criado em docs/11-knowledge-promotion-architecture.md e referenciado em docs/README.md e docs/01-architecture.md.
+
+
+---
+
+## Cadencia hierarquica de escrita do Hive-Mind (2026-06-27)
+
+A arquitetura de conhecimento do Hive-Mind deve tratar session summaries, diario, semanal, mensal e anual como camadas hierarquicas. Sessao e diario podem usar modelos pequenos para compressao local; semanal deve usar modelo medio/forte para padroes; mensal/anual devem usar modelo forte ou batch offline para sintese estrategica. Nem todo resumo vira neuronio: promocao exige fonte, tipo canonico, parent_id/hash e regra explicita de decisao, learning, project_status, goal/task ou rationale.
+
+
+---
+
+## Plano K0-K10 para implementar arquitetura de conhecimento (2026-06-27)
+
+O plano operacional da arquitetura de conhecimento do Hive-Mind foi documentado em docs/12-knowledge-implementation-plan.md. Ele define fases K0-K10, clones obrigatorios em integrations/ para RAGFlow/Milvus/LlamaIndex, embeddings locais snowflake-arctic-embed2:latest 1024d, modelos locais pequenos por papel, perfis local-min/local-full/prod-local e aceite com testes reais sem mocks para cada fase.
+
+
+---
+
+## RAGFlow Milvus LlamaIndex entram no fluxo de install e update (2026-06-27)
+
+Para a arquitetura de conhecimento born-large, RAGFlow, Milvus e LlamaIndex precisam existir em duas camadas: pacotes Python na .venv (`ragflow-sdk`, `pymilvus`, `llama-index`) e vendors git em `integrations/` registrados no `config/components.lock.json`. O script `scripts/maintenance/integrations-update.sh` deve rodar `components.py bootstrap/update` para esses vendors e `uv lock --upgrade && uv sync --all-groups` para manter a .venv alinhada.
+
+
+---
+
+## Hive-Mind já tem merge/dedup e redação de PII; gaps reais são reranker, forget e eval (2026-06-27)
+
+Verificado em código (2026-06-27) ao revisar docs/11 (arquitetura de conhecimento). NÃO reimplementar:
+
+JÁ EXISTE — merge/dedup de memória:
+- Dream Cycle Router decide append|create_new|merge por fato (core/schemas/dream_models.py:84, router_prompt.yaml/synthesis_prompt.yaml)
+- Tabela `ambiguities` (umc_schema.sql:63 "Semantic Merge") + core/database.py:216 register_ambiguity + loop de síntese em dream_cycle.py:282-370 (status pending→synthesized). Disparado por conflitos sync-conflict do Syncthing e mismatch de hash (audit_memory.py:181)
+- Dedup de learning por título exato em core/memory/writers.py:168
+- Dedup cross-backend na query em core/memory/context_fusion.py:164 (_fuse_contexts)
+
+JÁ EXISTE — PII/segredo:
+- core/redactor.py redige token (sk-/ghp_/JWT/Bearer/GOCSPX), email, IP, path, chave, CPF/CNPJ, telefone. Chamado no EXPORT federado (sinapse-api.py:376 redact_neuron). Filosofia: neurônio local nunca é modificado; redação só ao sair pra federação. `vault.encrypted_secret` para segredos.
+- IMPORTANTE: promoção pra vetor NÃO redige (raw local por design). Só o export.
+
+GAPS REAIS (viraram contrato em docs/11 §17, ligados a docs/12 K7/K8/K9):
+1. Reranker (§17.1): context_fusion dedupa e TRUNCA por ordem de backend, não reordena por relevância à query. Falta cross-encoder pequeno opcional entre fusão e retorno do RetrievalRouter (K7 task 8).
+2. Esquecimento intencional (§17.2): regra é "nunca deletar"; falta forget()/tombstone CRDT-safe + poda de orphan_vectors (hoje só medido). K8 task 6.
+3. Eval de recuperação (§17.3): mede cobertura, não qualidade. Falta golden set tests/real/golden_retrieval.jsonl + precision/recall@k como gate. K9 task 7.
+
+Refinamento (não subsistema faltando): dedup hoje é por chave exata (título/hash/id); duplicata semântica por similaridade de embedding seria refinamento do que já existe.
+
+
+---
+
+## Mapa real ferramenta→área do cérebro: escrita cobre 8 áreas; leitura (router) não roteia ínsula/tronco/diencéfalo (2026-06-28)
+
+Verificado em código (2026-06-28). Correção: eu havia dito que "ínsula não é preenchida" — ERRADO, era só ausência no docs/11 §3. O sistema preenche as 8 áreas.
+
+MAPA ESCRITA (ferramenta→área, código real):
+- Temporal (neuronios): dream_cycle (Distiller→Validator→Router) ← claude_mem_bridge; drift_detector(→arquivo); topic_consolidator; alias_miner. Índices: UMC vec/fts, Graphiti, LightRAG.
+- Frontal: decision_promoter, work_tracker, decision_staleness, MCP save_decision/plan_goal (goals).
+- Parietal: capture/*, document_ingest.
+- Occipital: visual_capture, Graphify, dream estágio visual.
+- Ínsula: health_dashboard, alert_dispatcher, review_writer (→saude); conflict_detector, topic_consolidator (→conflitos); ambiguities (síntese dialética).
+- Cerebelo: session_consolidator, daily_writer, weekly_synthesizer, pattern_distiller.
+- Diencéfalo: sector_classifier, generate_mocs (→setores).
+- Tronco: modelos/ (templates), meta/ — mais estático que promovido.
+
+CLAUDE-MEM FLOW: scripts/services/claude_mem_bridge.py lê claude-mem.db read-only, preserva project, idempotente cm-{content_hash}+INSERT OR IGNORE → hive_mind.observations(archived=0) → dream_cycle promove → neurons + ambiguities + push Graphiti/LightRAG. Importa tabela `observations` (com type/narrative); discoveries/session_summaries separados é o que K4 deve estender.
+
+GAP REAL (leitura, não escrita): RetrievalRouter §11/K7 NÃO tem intent para ínsula (saúde/autoconsciência), tronco (config/operacional) nem diencéfalo (setor). Áreas escritas mas não roteáveis. Adicionados intents self_state/operational/sector no docs/11 §11 + docs/12 K7.
+
+DRIFTS corrigidos nesta sessão: docs/11 §3 (sem ínsula→adicionada + ferramentas reais), §8 (faltava summary_vectors), docs/12 K4 (mandava "criar" o bridge que já existe), K10 (mandava clonar wrapper).
+
+
+---
+
+## Auditoria frente-K (2026-06-28): substrato verde (457 unit), frente K 0% implementada, 8 omissões técnicas no plano (2026-06-28)
+
+Auditoria técnica de docs/11+12 cruzada com código e testes (2026-06-28).
+
+CONFORMIDADE VERIFICADA:
+- tests/unit: 457 passed, 3 skipped (56s) → substrato existente sólido.
+- tests/integration: 101 skipped (Ollama/FalkorDB/Milvus offline no ambiente).
+- Frente K = 0% implementada: 15/15 arquivos-alvo FALTAM (vector_backend, knowledge/*, retrieval/*, document_pipeline, knowledge_health, monthly/yearly, integrations/milvus|ragflow). tests/real/ não existe. workspace_id ausente no schema. Coleções §8 = 2/7 reais (search_vec + vec_observations; este vive em claude-mem.db via worker). deps pinadas OK.
+
+8 OMISSÕES adicionadas ao docs/12:
+- B1 (ALTO): ensure_migrations faz ALTER puro (database.py:318-393); tabela CRR exige crsql_begin_alter/commit_alter (zero ocorrências no código). → helper alter_table_crr_safe() em K0 task7.
+- B2 (ALTO): VectorBackend "único" cruza 2 bancos — observation_vectors=vec_observations vive em claude-mem.db (worker), não hive_mind.db. → K2 task7 mapear coleção→(DB,processo).
+- B3 (ALTO): tests/real (K9) é gate de TODAS as fases mas estava por último → esqueleto K9 vira pré-requisito de K0 (§6/§10).
+- B4 (MÉDIO): K3 são N refactors dos promotores existentes (decision_promoter etc. escrevem MD direto), não 2 arquivos → K3 task8.
+- B5 (MÉDIO): backfill das 5 coleções novas sem fase + métrica *_vectorized_pct por coleção → K2 task8 + K8 metric.
+- B6 (MÉDIO): colunas origin_instance/origin_signature (§18.3) e embedding_model/dim (§18.4) não nascem no schema → mesma migração CRR-safe (K0 task7).
+- B7 (MÉDIO): RetrievalRouter sem mecanismo de classificação de intent → K7 task9 (topic_router local + fallback hybrid).
+- B8 (MÉDIO): migração sem backup obrigatório → backup hive_mind.db.pre-workspace no K0 task7.
+
+Sequenciamento corrigido: esqueleto K9 + migração CRR-safe (backup) ANTES de qualquer fase. B1/B2/B3 travam a 1ª fase se ignorados.
+
+
+---
+
+## Frente K iniciada (2026-06-28): K9-esqueleto + K0 migração CRR-safe entregues e verdes (2026-06-28)
+
+Primeiro corte de implementação da frente de conhecimento (docs/12), iniciado em 2026-06-28.
+
+ENTREGUE E VERDE:
+K9-esqueleto (gate B3):
+- pytest.ini: markers `real` + `requires_service`.
+- tests/real/: __init__.py, conftest.py (fixtures real_db = init_db em tmp + ensure_migrations; ollama_or_skip = pula se Ollama offline), README.md.
+- tests/run_real_knowledge.sh (executável, -m real, pula requires_service offline).
+- tests/real/test_embedding_stack.py: dim 1024 (Ollama up confirmou), modelo unificado (worker source check), colunas da migração. 3 passed.
+
+K0 migração CRR-safe (B1/B6):
+- core/database.py: helpers _table_is_crr (detecta shadow __crsql_clock), alter_table_crr_safe (envolve em crsql_begin_alter/commit_alter se CRR, senão ALTER puro), migrate_workspace_and_federation (workspace_id NOT NULL DEFAULT 'default' nas 9 tabelas _WORKSPACE_TABLES + origin_instance/origin_signature/embedding_model/embedding_dim em neurons + índices idx_<t>_workspace). Chamada dentro de ensure_migrations antes do commit, try/except OperationalError.
+- umc_schema.sql + umc_schema_crr.sql: 5 colunas novas no CREATE de neurons (neurons agora 17 colunas).
+- tests/unit/test_workspace_migration.py: 7 testes (colunas, default, federação, idempotência, tabela ausente, alter plain, índice).
+
+VERIFICAÇÃO: unit 464 passed/3 skipped; real 3 passed; schemas parseiam (neurons 17 cols). Nada quebrou.
+
+DECISÃO de arquitetura: migração (ensure_migrations) é a fonte única para as 8 tabelas além de neurons — mesmo padrão que archived/uuid/visibility já seguem — evita drift de schema duplicado em 9 CREATEs. Só neurons ganhou colunas no schema-file (tabela quente + federação/embedding só aplicam a ela).
+
+PENDENTE no corte: K0 tasks 2-6, backup explícito B8 (hive_mind.db.pre-workspace antes da migração), K9 tasks 3/6/7 (fixtures Milvus/claude-mem, golden set §17.3). Próximo: K2 VectorBackend.
+
+
+---
+
+## Frente K docs/12: wrappers nao entram em components.lock (2026-06-28)
+
+Revisao 2026-06-28: a decisao atual para a frente de conhecimento substitui a ideia anterior de clonar RAGFlow/Milvus/LlamaIndex como vendors git. Contrato correto: components.lock.json fica apenas para componentes source-built/patchados pelo instalador (graphify, neural-memory, rtk). Milvus e RAGFlow entram como wrappers/compose+SDK em integrations/; LlamaIndex entra como dependencia pip. Docs e scripts devem tratar components.lock como contrato negativo para esses wrappers, para impedir agentes futuros de reintroduzirem clones.
+
+
+---
+
+## Frente K docs alinhados aos testes reais K0/K9 (2026-06-28)
+
+Em 2026-06-28, docs/11 e docs/12 foram ajustados para refletir os testes reais atuais da Frente K: embedding snowflake-arctic-embed2 1024d validado, migração workspace/federação com backup coberta por unit 9 passed e suíte real 3 passed. O plano agora registra três gates pendentes antes de K1/K2: modo --no-components/--wrappers-only no integrations-update, skip requires_service por registry/fixture de serviço, e strict/health fail-closed para falha estrutural de migração em install/CI/maquina zerada.
+
+
+---
+
+## Frente K K0-K1-K9 gates implementados e run_all verde (2026-06-28)
+
+Em 2026-06-28, a Frente K avançou no recorte base: K9 ganhou service registry em tests/real/service_registry.py para requires_service nomeado (ollama, milvus, falkordb, claude_mem, ragflow), K1 ganhou --no-components e --wrappers-only em scripts/maintenance/integrations-update.sh para evitar repin acidental de components.lock, e K0 ganhou HIVE_STRICT_MIGRATIONS=1 para falhar fechado em migrate_workspace_and_federation. Também foram corrigidos testes de integração Graphiti/hybrid para contratos atuais. Validação final: ./tests/run_all.sh verde com Smoke 19 passed, Unit 473 passed/3 skipped, Integration 104 passed/4 skipped, E2E 22 passed.
+
+
+---
+
+## Frente K K0 migracao estrutural falha fechado por padrao (2026-06-28)
+
+Correcao 2026-06-28: K0 nao usa mais HIVE_STRICT_MIGRATIONS como opt-in. A migracao workspace/federacao em core/database.py falha fechado por padrao se migrate_workspace_and_federation falhar. O unico bypass e HIVE_ALLOW_DEFERRED_MIGRATIONS=1, apenas para diagnostico de DB legado, com log visivel. Docs/11 e docs/12 foram atualizados. Validado com tests/unit/test_workspace_migration.py + tests/unit/test_database.py: 31 passed.
+
+
+---
+
+## Frente K auditoria CRR-safe e run_all verde (2026-06-28) (2026-06-28)
+
+Auditoria da implementação K0/K1/K9 encontrou divergência real: ensure_migrations ainda tinha ADD COLUMN legado direto, incompatível com tabelas CRR. Correção: centralizar todos ADD COLUMN em add_column_if_missing -> alter_table_crr_safe, exigir DEFAULT NULL explícito em opcionais, manter migração workspace/federação fail-closed por padrão e bypass apenas via HIVE_ALLOW_DEFERRED_MIGRATIONS=1. Validação: ./tests/run_all.sh verde (Smoke 19, Unit 474/3 skipped, Integration 104/4 skipped, E2E 22), testes reais 3 passed e registry 5 passed.
+
+
+---
+
+## Frente K1 K2 imports wrappers e VectorBackend Milvus E2E (2026-06-28) (2026-06-28)
+
+K1: wrappers integrations/milvus e integrations/ragflow criados sem clone de monorepo, com client.py, README, docker-compose.yml pinado por digest e assert_health(strict=...). pyproject/uv.lock contem pymilvus, ragflow-sdk e llama-index; imports reais no .venv passaram. K2: SQLiteVecBackend real para memory_vectors e MilvusBackend real com pymilvus.MilvusClient, schema explícito, metadados canonicos obrigatorios, filtro workspace_id e E2E contra Milvus Docker. Validação: tests/real 13 passed; K2 sqlite+Milvus 6 passed; ./tests/run_all.sh verde (Smoke 19, Unit 474/3 skipped, Integration 104/4 skipped, E2E 22). Pendentes K2: sync local->Milvus e backfill por coleção.
+
+
+---
+
+## K2 sync/backfill memory_vectors para Milvus com idempotencia (2026-06-28) (2026-06-28)
+
+Implementado core/vector_sync.py para sincronizar a coleção viva memory_vectors de hive_mind.db/search_vec para Milvus via MilvusBackend. O sync hidrata metadados canônicos de neurons, decodifica vetores 1024d, usa idempotência por (id, hash, workspace_id), reporta scanned/upserted/skipped/failed/errors e não oculta falhas por linha. Teste real tests/real/test_vector_sync_milvus.py cobre primeira carga, reexecução idempotente, update por hash e falha real rejeitada pelo Milvus. Validação: ./tests/run_real_knowledge.sh 15 passed; ./tests/run_all.sh verde (Smoke 19, Unit 474/3 skipped, Integration 104/4 skipped, E2E 22). Pendentes: sync/backfill de observation/document/code/visual/graph/summary vectors.
+
+
+---
+
+## K2 observation_vectors usa claude-mem read-only local e sync Milvus (2026-06-28)
+
+No Hive-Mind K2, observation_vectors nao vive em hive_mind.db: a rota local correta consulta claude-mem.db/vec_observations com sqlite-vec carregado e trata a colecao como read-only, porque a escrita canonica pertence ao sqlite-vec-worker. Para producao, core/vector_sync.py exporta vec_observations para Milvus usando ids obs-<id>, metadados canonicos parent_id/parent_type/brain_lobe/knowledge_type/project/source_uri/hash/valid_at/workspace_id e idempotencia por (id, hash, workspace_id). Aceite real em 2026-06-28: tests/real/test_observation_vectors.py 2 passed, run_real_knowledge 17 passed, run_all verde.
+
+
+---
+
+## K2 E2E live bounded para sync vetorial (2026-06-28)
+
+Para validar K2 com dados reais sem risco operacional, o teste E2E deve ler hive_mind.db e ~/.claude-mem/claude-mem.db em modo read-only, usar limit de lote nos syncs vetoriais e escrever apenas em colecoes Milvus temporarias com prefixo randomico. Em 2026-06-28, core/vector_sync.py ganhou limit opcional em sync_memory_vectors_to_milvus e sync_observation_vectors_to_milvus, preservando default full backfill. tests/real/test_vector_sync_live_e2e.py validou importacoes/sync E2E com bancos reais, Milvus real e idempotencia; run_real_knowledge fechou 18 passed e run_all fechou verde.
+
+
+---
+
+## K1 wrappers validam compose e digest no install/update (2026-06-28)
+
+No Hive-Mind K1, Milvus e RAGFlow sao wrappers Docker/SDK, nao clones git. Para evitar regressao de supply chain e setup em maquina nova, scripts/setup/verify_wrappers.py valida os docker-compose.yml reais via docker compose config --quiet e exige imagem pinada por digest @sha256:<64 hex>. install.sh chama esse gate apos uv sync/imports, e scripts/maintenance/integrations-update.sh chama o mesmo gate no fluxo --wrappers-only/normal. Aceite real em 2026-06-28: tests/real/test_integration_wrappers.py 7 passed, verify_wrappers.py OK para Milvus/RAGFlow, integrations-update.sh --wrappers-only --no-pip OK, run_real_knowledge 21 passed, run_all verde.

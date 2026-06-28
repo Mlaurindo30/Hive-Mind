@@ -90,12 +90,10 @@ def test_push_neuron_swallows_errors(monkeypatch):
     """push_neuron() retorna False (nunca lança) mesmo com erro inesperado."""
     monkeypatch.setattr(gc.client, "graphiti_available", lambda: True)
 
-    async def _raise(*_a, **_kw):
+    def _raise(*_a, **_kw):
         raise RuntimeError("boom")
 
-    mock_client = MagicMock()
-    mock_client.add_episode = _raise
-    monkeypatch.setattr(gc.client, "_graphiti", mock_client)
+    monkeypatch.setattr(gc.client, "_run_async", _raise)
     result = gc.push_neuron("n002", "content", source="test")
     assert result is False
 

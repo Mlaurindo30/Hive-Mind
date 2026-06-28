@@ -162,7 +162,7 @@
 - **Diferencial vs Hive-Mind**: O Dream Cycle usa LLM para destilação mas sem estrutura de grafo explícita para o resultado. LightRAG gera automaticamente entidades/relações do corpus consolidado com eficiência 100x vs GraphRAG.
 - **Status**: ✅ **Integrado e operacional** (commit `56f1e98` P4 inicial, `dee365b` fix de modelo para `granite3-dense:2b`, hoje também alimentado pelo Dream Cycle Estágio 3.5).
 - **Como foi integrado**:
-  - `core/lightrag_index.py` — wrapper do `lightrag-hku>=1.5.4` com Ollama bge-m3 (1024d embeddings) + `granite3-dense:2b` (LLM, fixo, 1.5GB).
+  - `core/lightrag_index.py` — wrapper do `lightrag-hku>=1.5.4` com Ollama snowflake-arctic-embed2 (1024d embeddings) + `granite3-dense:2b` (LLM, fixo, 1.5GB).
   - `scripts/dream/dream_cycle.py:372-381` — após síntese dialética, chama `index_memory()` best-effort (try/except, nunca aborta síntese).
   - `scripts/services/sinapse-mcp.py:340` — expõe `sinapse_rag_query(question, mode)` com modos `naive|local|global|hybrid`.
   - Storage: `claude-mem/data/lightrag/` (graph.npz + 3 vdb JSON).

@@ -215,9 +215,9 @@ O cron de rebuild a cada 6h da v1.x foi **removido** — o Watcher cobre a atual
   ├── hive_mind.db                   Unified Memory Core (SQLite + sqlite-vec) — v3: causal_edges, goals, visibility
   ├── claude-mem/data/lightrag/      Grafo de conhecimento LightRAG (P4) — entidades/relacionamentos/vdb
   │   ├── graph.npz                  NetworkX pickle (entidades + arestas)
-  │   ├── vdb_chunks.json            Embeddings de chunks de texto (bge-m3 1024d)
-  │   ├── vdb_entities.json          Embeddings de entidades extraídas (bge-m3 1024d)
-  │   └── vdb_relationships.json     Embeddings de relações extraídas (bge-m3 1024d)
+  │   ├── vdb_chunks.json            Embeddings de chunks de texto (snowflake-arctic-embed2 1024d)
+  │   ├── vdb_entities.json          Embeddings de entidades extraídas (snowflake-arctic-embed2 1024d)
+  │   └── vdb_relationships.json     Embeddings de relações extraídas (snowflake-arctic-embed2 1024d)
   ├── sinapse.yaml                   Configuração central
   ├── .env                           Segredos locais (gitignored)
   ├── .env.example                   Template de variáveis (commitado)

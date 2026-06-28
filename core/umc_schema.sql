@@ -13,7 +13,12 @@ CREATE TABLE IF NOT EXISTS neurons (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     visibility TEXT DEFAULT 'private',
-    indexed_at TIMESTAMP
+    indexed_at TIMESTAMP,
+    workspace_id TEXT NOT NULL DEFAULT 'default', -- frente K §18.1 (isolamento)
+    origin_instance TEXT,                          -- federação §18.3
+    origin_signature TEXT,                         -- federação §18.3
+    embedding_model TEXT,                          -- proveniência de embedding §18.4
+    embedding_dim INTEGER                          -- proveniência de embedding §18.4
 );
 
 -- Structural Layer (Synapses)
@@ -89,7 +94,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
 -- Note: vec0 tables are created dynamically or defined here if supported by the loader
 CREATE VIRTUAL TABLE IF NOT EXISTS search_vec USING vec0(
     neuron_id TEXT PRIMARY KEY,
-    embedding FLOAT[1024] -- bge-m3:latest (Ollama) size
+    embedding FLOAT[1024] -- snowflake-arctic-embed2:latest (Ollama) size
 );
 
 -- Triggers for FTS sync

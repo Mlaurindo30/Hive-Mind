@@ -7,13 +7,14 @@ topic: infrastructure
 # infrastructure — Hive-Mind
 
 <!-- auto:gerado por generate_mocs.py — não editar à mão -->
-> MOC do tópico · 30 neurônio(s).
+> MOC do tópico · 31 neurônio(s).
 
 ## Neurônios
 - [[neuronio-ai-models-infra-docs-updated-528b6f1a|AI Models & Infra Docs Updated]]
 - [[neuronio-cerebro-active-work-dir-bc4c9f40|Cerebro Active Work Dir]]
 - [[neuronio-core-python-modules-67d65d48|Core Python Modules]]
 - [[neuronio-essential-scripts-f7544976|Essential Scripts]]
+- [[neuronio-google-api-key-loading-issue-d62612e5|GOOGLE_API_KEY Loading Issue]]
 - [[neuronio-graphify-backend-selection-9e58fa8e|Graphify Backend Selection]]
 - [[neuronio-hive-mind-architecture-layers-b397f69e|Hive-Mind Architecture Layers]]
 - [[neuronio-hive-mind-layered-architecture-2e0f50d8|Hive-Mind Layered Architecture]]

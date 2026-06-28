@@ -1,666 +1,666 @@
 {
   "vault-manifest.json": {
-    "mtime": 1782005162.4112818,
+    "mtime": 1782589124.1457613,
     "ast_hash": "da1cc57209366598e39ee3c7922954a6",
     "semantic_hash": ""
   },
   "AGENTS.md": {
-    "mtime": 1782588105.559394,
+    "mtime": 1782589124.2142937,
     "ast_hash": "d39879d2ea2f22fffbcddf94d84e667c",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1782005162.363353,
+    "mtime": 1782589124.1373217,
     "ast_hash": "535b95b51baa6949961bb29075e59e7c",
     "semantic_hash": ""
   },
   "Cloud-Security.md": {
-    "mtime": 1782322991.437494,
+    "mtime": 1782589124.1374102,
     "ast_hash": "ba9fa0346dc1ef4a75ecdd8d082f0c78",
     "semantic_hash": ""
   },
   "Consciencia.md": {
-    "mtime": 1782302191.3130462,
+    "mtime": 1782589124.4034247,
     "ast_hash": "093bddc3da93c7f91394a373b6577f54",
     "semantic_hash": ""
   },
   "GEMINI.md": {
-    "mtime": 1782588105.5594308,
+    "mtime": 1782589124.214379,
     "ast_hash": "4bdd1770132e44a269c0ccaadcbb51db",
     "semantic_hash": ""
   },
   "Hive-Mind Dashboard.md": {
-    "mtime": 1782322991.4375646,
+    "mtime": 1782589124.1375458,
     "ast_hash": "22b2d193f4074a47f0e7b6a4caab8c5c",
     "semantic_hash": ""
   },
   "Home.md": {
-    "mtime": 1782322991.4376886,
+    "mtime": 1782589124.1376307,
     "ast_hash": "b0bd95199adb490c9e7341af9c9db3bb",
     "semantic_hash": ""
   },
   "_Consciencia.md": {
-    "mtime": 1782588105.5594308,
-    "ast_hash": "a1f110733214802e38321cf7d562e6d5",
+    "mtime": 1782626694.8216043,
+    "ast_hash": "d7c36b8d97839786b2be2b0856477ee9",
     "semantic_hash": ""
   },
   "cerebelo/cerebelo.md": {
-    "mtime": 1782245815.0423584,
+    "mtime": 1782589124.4034247,
     "ast_hash": "79ee0a8b6f7f58683fbba33a364c1bbb",
     "semantic_hash": ""
   },
   "cerebelo/cerebelo_.md": {
-    "mtime": 1782245815.042407,
+    "mtime": 1782589124.4035766,
     "ast_hash": "ff71ca0874da83d0ba9846f2de70a977",
     "semantic_hash": ""
   },
   "cerebelo/diario/2026/06/06_3.md": {
-    "mtime": 1782245815.0424752,
+    "mtime": 1782589124.4035766,
     "ast_hash": "be6150f9c3b6679e6e54b92320f8a9eb",
     "semantic_hash": ""
   },
   "cerebelo/diario/2026/06/2026-06-17.md": {
-    "mtime": 1782322991.4378736,
+    "mtime": 1782589124.137862,
     "ast_hash": "d905e919c9126709dfa8483355e4ad3a",
     "semantic_hash": ""
   },
   "cerebelo/diario/2026/06/2026-06-18.md": {
-    "mtime": 1782250984.6273885,
+    "mtime": 1782589124.4037266,
     "ast_hash": "37daa1a1fe2c3042677b7bd48a61b019",
     "semantic_hash": ""
   },
   "cerebelo/diario/2026/06/2026-06-19.md": {
-    "mtime": 1782250984.8514485,
+    "mtime": 1782589124.4037926,
     "ast_hash": "ce6c2675966a1c2440dd3475ffb390a9",
     "semantic_hash": ""
   },
   "cerebelo/diario/2026/06/2026-06-20.md": {
-    "mtime": 1782322991.4379687,
+    "mtime": 1782589124.1379654,
     "ast_hash": "79a604e1acaf622aae4136401ad9013b",
     "semantic_hash": ""
   },
   "cerebelo/diario/2026/06/2026-06-21.md": {
-    "mtime": 1782245815.0425415,
+    "mtime": 1782589124.4038622,
     "ast_hash": "466158a88c6ecd9540cf843db0d187c8",
     "semantic_hash": ""
   },
   "cerebelo/diario/2026/06/2026-06-22.md": {
-    "mtime": 1782250972.964579,
+    "mtime": 1782589124.448129,
     "ast_hash": "38411abbc386c69dcf1a168feb41d0c9",
     "semantic_hash": ""
   },
   "cerebelo/diario/2026/06/2026-06-23.md": {
-    "mtime": 1782250985.0836697,
+    "mtime": 1782589124.448228,
     "ast_hash": "c84d81a8e2ab0efa888b93802d1dd45f",
     "semantic_hash": ""
   },
   "cerebelo/diario/2026/06/2026-06-24.md": {
-    "mtime": 1782356135.5097618,
+    "mtime": 1782589124.4483235,
     "ast_hash": "219cd489214dc7ddc8814af892bff7da",
     "semantic_hash": ""
   },
   "cerebelo/diario/2026/2026_3.md": {
-    "mtime": 1782245815.0425975,
+    "mtime": 1782589124.4483945,
     "ast_hash": "337c5153af957f6a1f11eb88208d220f",
     "semantic_hash": ""
   },
   "cerebelo/diario/diario_.md": {
-    "mtime": 1782245815.0426466,
+    "mtime": 1782589124.4483945,
     "ast_hash": "789e0e1b898ab153bb8d37ff7aa249f4",
     "semantic_hash": ""
   },
   "cerebelo/padroes/Patterns.md": {
-    "mtime": 1782588105.5594308,
-    "ast_hash": "b4420abcad0e456fa6b3f1ba25276305",
+    "mtime": 1782677311.7577953,
+    "ast_hash": "9e33262ce9e66fa8ac776822cfb30994",
     "semantic_hash": ""
   },
   "cerebelo/padroes/padroes_.md": {
-    "mtime": 1782245815.0426998,
+    "mtime": 1782589124.4483945,
     "ast_hash": "789e0e1b898ab153bb8d37ff7aa249f4",
     "semantic_hash": ""
   },
   "cerebelo/semanal/2026-W24.md": {
-    "mtime": 1782322991.4383092,
+    "mtime": 1782589124.1384504,
     "ast_hash": "f853f776a9ea32f3520fb534b353328d",
     "semantic_hash": ""
   },
   "cerebelo/semanal/semanal_.md": {
-    "mtime": 1782245815.0427635,
+    "mtime": 1782589124.4483945,
     "ast_hash": "789e0e1b898ab153bb8d37ff7aa249f4",
     "semantic_hash": ""
   },
   "cortex/cortex.md": {
-    "mtime": 1782245815.0437965,
+    "mtime": 1782589124.4487054,
     "ast_hash": "7e65032debaa4e3e2a8ae981234e3c5a",
     "semantic_hash": ""
   },
   "cortex/cortex_.md": {
-    "mtime": 1782245815.0438428,
+    "mtime": 1782589124.4487054,
     "ast_hash": "ff71ca0874da83d0ba9846f2de70a977",
     "semantic_hash": ""
   },
   "cortex/frontal/brain/Agent Loop Protocol.md": {
-    "mtime": 1782322991.4384232,
+    "mtime": 1782589124.1385605,
     "ast_hash": "e19eaa563eb3d12ede7ec1632a6b9750",
     "semantic_hash": ""
   },
   "cortex/frontal/brain/Consolidated.md": {
-    "mtime": 1782322991.4385054,
+    "mtime": 1782589124.1386397,
     "ast_hash": "cae694dfff4d5e12ce60b9758fdfa252",
     "semantic_hash": ""
   },
   "cortex/frontal/brain/Current State.md": {
-    "mtime": 1782588105.560431,
-    "ast_hash": "3a33d1cc4a7b568ddd3a75213cea5212",
+    "mtime": 1782677317.4962187,
+    "ast_hash": "92dde6be752c74cfd19dfd2870fe44dc",
     "semantic_hash": ""
   },
   "cortex/frontal/brain/Gotchas.md": {
-    "mtime": 1782322991.4387581,
+    "mtime": 1782589124.1388433,
     "ast_hash": "622da9e945ecf6b653cee845d04df173",
     "semantic_hash": ""
   },
   "cortex/frontal/brain/Key Decisions.md": {
-    "mtime": 1782322991.4388294,
+    "mtime": 1782589124.1389124,
     "ast_hash": "f7f1bc211d90ef16e4b2a6744d3c0363",
     "semantic_hash": ""
   },
   "cortex/frontal/brain/North Star.md": {
-    "mtime": 1782322991.43893,
+    "mtime": 1782589124.1390138,
     "ast_hash": "24ff54de711e4dc4301b8e524380f7cb",
     "semantic_hash": ""
   },
   "cortex/frontal/brain/Skills.md": {
-    "mtime": 1782322991.439049,
+    "mtime": 1782589124.1391106,
     "ast_hash": "e2e5df8e6dec1d023c4f7b5817bd027d",
     "semantic_hash": ""
   },
   "cortex/frontal/brain/brain_.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.4487054,
     "ast_hash": "98bd66483deb014522359025f790b0f8",
     "semantic_hash": ""
   },
   "cortex/frontal/cortex-frontal.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.4488814,
     "ast_hash": "d40b380af55547f2cd0f53baa40e599e",
     "semantic_hash": ""
   },
   "cortex/frontal/frontal_.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.4488814,
     "ast_hash": "25576db55bd6e996c53383fb900261d1",
     "semantic_hash": ""
   },
   "cortex/frontal/org/People & Context.md": {
-    "mtime": 1782322991.4391365,
+    "mtime": 1782589124.1391897,
     "ast_hash": "8be3a8c33598938c6f3386bf5adb2dc2",
     "semantic_hash": ""
   },
   "cortex/frontal/org/org_.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.4488814,
     "ast_hash": "98bd66483deb014522359025f790b0f8",
     "semantic_hash": ""
   },
   "cortex/frontal/org/people/people_.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.4490697,
     "ast_hash": "e46b03cf3f21ed5f161292bab04d021b",
     "semantic_hash": ""
   },
   "cortex/frontal/org/teams/teams_.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.4490697,
     "ast_hash": "e46b03cf3f21ed5f161292bab04d021b",
     "semantic_hash": ""
   },
   "cortex/frontal/rascunhos/README.md": {
-    "mtime": 1782322991.439254,
+    "mtime": 1782589124.1393676,
     "ast_hash": "ca15e2e48e7c8b0bd1de63be0a141895",
     "semantic_hash": ""
   },
   "cortex/frontal/rascunhos/rascunhos_.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.4490697,
     "ast_hash": "98bd66483deb014522359025f790b0f8",
     "semantic_hash": ""
   },
   "cortex/occipital/capturas-visuais/cap-20260610-195656-test-capture.md": {
-    "mtime": 1782322991.4393756,
+    "mtime": 1782589124.1394563,
     "ast_hash": "cfa411fc030a9f528663f406be76e3c8",
     "semantic_hash": ""
   },
   "cortex/occipital/capturas-visuais/cap-20260610-195934-mcp-test-capture.md": {
-    "mtime": 1782322991.439495,
+    "mtime": 1782589124.1395192,
     "ast_hash": "cf50935811d6f5a5c467262a7442cc90",
     "semantic_hash": ""
   },
   "cortex/occipital/capturas-visuais/cap-20260624-130750-teste-mcp-stdio.md": {
-    "mtime": 1782367519.435966,
+    "mtime": 1782589124.449266,
     "ast_hash": "c896fd24f72f578e98c4bf5b362a2796",
     "semantic_hash": ""
   },
   "cortex/occipital/capturas-visuais/cap-20260624-131322-teste-mcp-stdio.md": {
-    "mtime": 1782367726.1545975,
+    "mtime": 1782589124.449266,
     "ast_hash": "06845a54a956a886d9d59f3fab08c97d",
     "semantic_hash": ""
   },
   "cortex/occipital/capturas-visuais/capturas-visuais_.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.4493766,
     "ast_hash": "f6a844ad5033caffcc695e038cb82021",
     "semantic_hash": ""
   },
   "cortex/occipital/cortex-occipital.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.4494388,
     "ast_hash": "81504c68f5d8fd4454045cd8b96a332e",
     "semantic_hash": ""
   },
   "cortex/occipital/occipital_.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.464371,
     "ast_hash": "25576db55bd6e996c53383fb900261d1",
     "semantic_hash": ""
   },
   "cortex/parietal/cortex-parietal.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.4645357,
     "ast_hash": "cc02abc98ba8c09701824f6b0760c57f",
     "semantic_hash": ""
   },
   "cortex/parietal/parietal_.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.4645357,
     "ast_hash": "25576db55bd6e996c53383fb900261d1",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/README.md": {
-    "mtime": 1782322991.4396088,
+    "mtime": 1782589124.140168,
     "ast_hash": "ef91fa0456784081b014a703202b6627",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/analises/Bitwarden Secrets Manager.md": {
-    "mtime": 1782322991.4397278,
+    "mtime": 1782589124.1407204,
     "ast_hash": "c6666906e7938bcdc5dfc65982fe0ad8",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/analises/Context Mode.md": {
-    "mtime": 1782322991.4398344,
+    "mtime": 1782589124.1408074,
     "ast_hash": "d7ab51f5f0a6119fe84f1591ddfafe18",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/analises/EvoNexus.md": {
-    "mtime": 1782322991.439939,
+    "mtime": 1782589124.1408935,
     "ast_hash": "a8d93c27c3281039a650ab81810d837b",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/analises/GitNexus.md": {
-    "mtime": 1782322991.440039,
+    "mtime": 1782589124.1409876,
     "ast_hash": "473edb22641f2c6137c701b13ef1f043",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/analises/Manus Agent.md": {
-    "mtime": 1782322991.440145,
+    "mtime": 1782589124.141082,
     "ast_hash": "4c35d6fc6cd6b31947abb9355dddae37",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/analises/OmniRoute.md": {
-    "mtime": 1782322991.440247,
+    "mtime": 1782589124.1411726,
     "ast_hash": "ef444f44def3553cef716c2c02285720",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/analises/Synapse Layer.md": {
-    "mtime": 1782322991.4403477,
+    "mtime": 1782589124.141276,
     "ast_hash": "ef46e3cad80c18c70edbe384f284d0bd",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/analises/analises_.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.4645357,
     "ast_hash": "fa475928ab326af5662232df146d69b3",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/business-icp.md": {
-    "mtime": 1782322991.440425,
+    "mtime": 1782589124.1413698,
     "ast_hash": "54d526596dba1f00be5d595467313939",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/business-positioning.md": {
-    "mtime": 1782322991.440494,
+    "mtime": 1782589124.1414573,
     "ast_hash": "16f831011645c4f163d2594026f64849",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/business-pricing.md": {
-    "mtime": 1782322991.4405673,
+    "mtime": 1782589124.14154,
     "ast_hash": "74b9e2f938886af98f46334cde5c9615",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/business-services.md": {
-    "mtime": 1782322991.4406621,
+    "mtime": 1782589124.141622,
     "ast_hash": "641f015a675d8c9b5366c8a22ddf6eda",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/business-tone-of-voice.md": {
-    "mtime": 1782322991.440728,
+    "mtime": 1782589124.1417143,
     "ast_hash": "b5d3e882fac2c9716a1ab5438ab8e9f9",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/referencias_.md": {
-    "mtime": 1782245815.0439198,
+    "mtime": 1782589124.4647393,
     "ast_hash": "9bc46859c1c8b33d6ad77d0ee4262e93",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/Hive-Mind.md": {
-    "mtime": 1782302191.3121948,
+    "mtime": 1782589124.4648278,
     "ast_hash": "cc781d7226f6518602c45c1d1d948c0e",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/Hive-Mind_1.md": {
-    "mtime": 1782245815.0442204,
+    "mtime": 1782589124.464905,
     "ast_hash": "f2910ac29bfeea6f4c00301d54a4dd4c",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/_Hive-Mind.md": {
-    "mtime": 1782588105.560431,
-    "ast_hash": "cf2b374324837a6df926492862a2f253",
+    "mtime": 1782626694.8205516,
+    "ast_hash": "5cac65a26e5bbc9c88e230bb00ce8b5f",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/agent_skills/_agent_skills.md": {
-    "mtime": 1782571803.2163024,
-    "ast_hash": "a2548e4f20d0737c5afe6546e602de54",
+    "mtime": 1782626694.8165972,
+    "ast_hash": "5db34db24f4ff2f72ec29217ec085e38",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/agent_skills/agent_skills.md": {
-    "mtime": 1782302191.3089333,
+    "mtime": 1782589124.465085,
     "ast_hash": "e3c8683411ce2ad145b99e6635206715",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atlas/_atlas.md": {
-    "mtime": 1782571803.2174926,
+    "mtime": 1782626694.81784,
     "ast_hash": "0b374c7b4103974c8e85d9728b857a8f",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atlas/atlas.md": {
-    "mtime": 1782302191.309562,
+    "mtime": 1782589124.4651535,
     "ast_hash": "0b374c7b4103974c8e85d9728b857a8f",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atlas/atlas_1.md": {
-    "mtime": 1782245815.0442204,
+    "mtime": 1782589124.4651535,
     "ast_hash": "8887ac4c29aec5724335800a8edcf796",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atlas/hive-mind-atlas-taxonomy.md": {
-    "mtime": 1782322991.4409454,
+    "mtime": 1782589124.141991,
     "ast_hash": "82c2a015a866c4c4e304bfe0bd0cc262",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atoms/2026-05-24-exemplo-de-uso-do-sinapse-mcp-para-uma-consulta-de-codigo.md": {
-    "mtime": 1782322991.4410422,
+    "mtime": 1782589124.1420825,
     "ast_hash": "7cf31e1d3e779d4a673cbdf66ac87699",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atoms/Agent-Loop-Protocol.md": {
-    "mtime": 1782322991.4411237,
+    "mtime": 1782589124.1421652,
     "ast_hash": "728f2587fc842f51ea90d27ee6116ea5",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atoms/Gotchas-Failure-Modes.md": {
-    "mtime": 1782322991.4412014,
+    "mtime": 1782589124.1421652,
     "ast_hash": "acf67a9c606cf2d0b6cda8e47e0bce85",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atoms/Key-Decision-Rename-to-Thoth.md": {
-    "mtime": 1782322991.4412775,
+    "mtime": 1782589124.1423228,
     "ast_hash": "e4429227562b0bd0c3a2d4f4904126e0",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atoms/README.md": {
-    "mtime": 1782322991.4413507,
+    "mtime": 1782589124.1424136,
     "ast_hash": "84aff0df0c314139eabf164bea649b9b",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atoms/RESOLVER-Skill-Dispatcher.md": {
-    "mtime": 1782322991.441424,
+    "mtime": 1782589124.142512,
     "ast_hash": "6b9e58dc1c1e81a6e9c63fa136e04865",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atoms/_atoms.md": {
-    "mtime": 1782571803.2170336,
+    "mtime": 1782626694.8175244,
     "ast_hash": "a30b9277d43a31fb5c144409a0859a23",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atoms/agents/agents_.md": {
-    "mtime": 1782245815.0442204,
+    "mtime": 1782589124.4651535,
     "ast_hash": "d987c4ee6abe09d5661b2144fe5ad9eb",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atoms/agents/council-skill-backup.md": {
-    "mtime": 1782322991.4416275,
+    "mtime": 1782589124.1427476,
     "ast_hash": "c05df9c0f7559795a2a10369b3c5bf5f",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atoms/atoms.md": {
-    "mtime": 1782302191.3092868,
+    "mtime": 1782589124.4653468,
     "ast_hash": "a30b9277d43a31fb5c144409a0859a23",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atoms/atoms_.md": {
-    "mtime": 1782245815.0442204,
+    "mtime": 1782589124.4653468,
     "ast_hash": "8887ac4c29aec5724335800a8edcf796",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/error_handling/_error_handling.md": {
-    "mtime": 1782588105.560431,
-    "ast_hash": "7c47598023fe23da9c2b03b606806fe0",
+    "mtime": 1782626694.8164775,
+    "ast_hash": "cbcbec3f04aa3477cc5e632e5942259f",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/error_handling/error_handling.md": {
-    "mtime": 1782302191.3088412,
+    "mtime": 1782589124.4654748,
     "ast_hash": "50f3cacd3c9347fa5ab730540e12f967",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/error_handling/error_handling_1.md": {
-    "mtime": 1782245815.0442204,
+    "mtime": 1782589124.4654748,
     "ast_hash": "8887ac4c29aec5724335800a8edcf796",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/error_handling/openai-polling-error-handling.md": {
-    "mtime": 1782322991.441785,
+    "mtime": 1782589124.1429653,
     "ast_hash": "7cab7383c2b0b589ec8b6e74a37f32a3",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/infrastructure/_infrastructure.md": {
-    "mtime": 1782588105.560431,
-    "ast_hash": "6f9022008e1cd9abd0037fb94b01c7c5",
+    "mtime": 1782626694.81774,
+    "ast_hash": "076c254f8a429242c58de5d93245b1bd",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/infrastructure/infrastructure.md": {
-    "mtime": 1782302191.3094714,
+    "mtime": 1782589124.4656081,
     "ast_hash": "cc1126eb56be6efe0c18794fe86e9a65",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/infrastructure/infrastructure_1.md": {
-    "mtime": 1782245815.0442204,
+    "mtime": 1782589124.4656627,
     "ast_hash": "8887ac4c29aec5724335800a8edcf796",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/preferences/_preferences.md": {
-    "mtime": 1782588105.561431,
+    "mtime": 1782626694.8167956,
     "ast_hash": "9bc12afb3dfc5817211add4e21d07b09",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/preferences/preferences.md": {
-    "mtime": 1782302191.3091033,
+    "mtime": 1782589124.4657362,
     "ast_hash": "9dc7f09b28e9e5e1354b153d9d24ae25",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/preferences/preferences_1.md": {
-    "mtime": 1782245815.0442204,
+    "mtime": 1782589124.4657362,
     "ast_hash": "8887ac4c29aec5724335800a8edcf796",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/project_management/_project_management.md": {
-    "mtime": 1782571803.2159767,
+    "mtime": 1782626694.816077,
     "ast_hash": "ea51c07f2fee71f00d554664ed9e8f24",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/project_management/project_management.md": {
-    "mtime": 1782302191.308601,
+    "mtime": 1782589124.465935,
     "ast_hash": "1232ccdf16102970e2075afbe5f0786f",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/security/_security.md": {
-    "mtime": 1782588105.561431,
+    "mtime": 1782626694.8166986,
     "ast_hash": "4fbc2b06232d48f08af0cd70ce0f2b8f",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/security/llm-security-audit.md": {
-    "mtime": 1782322991.442083,
+    "mtime": 1782589124.1433122,
     "ast_hash": "04453fab94ac92eb1623c15af24c0a16",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/security/security.md": {
-    "mtime": 1782302191.309009,
+    "mtime": 1782589124.465935,
     "ast_hash": "527307e27347946b634ec98259c4255d",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/security/security_1.md": {
-    "mtime": 1782245815.0442204,
+    "mtime": 1782589124.465935,
     "ast_hash": "8887ac4c29aec5724335800a8edcf796",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/test_swarm/_test_swarm.md": {
-    "mtime": 1782571803.2167237,
+    "mtime": 1782626694.817314,
     "ast_hash": "4dbae6a44c6830078e89bd53c9a3ed56",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/test_topic/_test_topic.md": {
-    "mtime": 1782571803.2168708,
+    "mtime": 1782626694.8174176,
     "ast_hash": "b4854de0aaf4f32b9edb8149c90685cd",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/test_topic/test-fact.md": {
-    "mtime": 1782322991.44225,
+    "mtime": 1782589124.1434817,
     "ast_hash": "f455db7667a4c229d13dabad60b323e3",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/test_topic/test_topic.md": {
-    "mtime": 1782302191.3091924,
+    "mtime": 1782589124.465935,
     "ast_hash": "b4854de0aaf4f32b9edb8149c90685cd",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/test_topic/test_topic_.md": {
-    "mtime": 1782245815.0442204,
+    "mtime": 1782589124.465935,
     "ast_hash": "8887ac4c29aec5724335800a8edcf796",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/testing/_testing.md": {
-    "mtime": 1782571803.2171957,
+    "mtime": 1782626694.817626,
     "ast_hash": "3cf8a4d6eff31b3e32413f38a6eb9a86",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/testing/testing.md": {
-    "mtime": 1782302191.3093784,
+    "mtime": 1782589124.5127203,
     "ast_hash": "3cf8a4d6eff31b3e32413f38a6eb9a86",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/testing/testing_.md": {
-    "mtime": 1782245815.0442204,
+    "mtime": 1782589124.5127943,
     "ast_hash": "8887ac4c29aec5724335800a8edcf796",
     "semantic_hash": ""
   },
   "cortex/temporal/_global/_global_.md": {
-    "mtime": 1782245815.0452204,
+    "mtime": 1782589124.5127943,
     "ast_hash": "f2910ac29bfeea6f4c00301d54a4dd4c",
     "semantic_hash": ""
   },
   "cortex/temporal/arquivo/arquivo_.md": {
-    "mtime": 1782245815.0452204,
+    "mtime": 1782589124.5129771,
     "ast_hash": "f2910ac29bfeea6f4c00301d54a4dd4c",
     "semantic_hash": ""
   },
   "cortex/temporal/cortex-temporal.md": {
-    "mtime": 1782245815.0452204,
+    "mtime": 1782589124.5129771,
     "ast_hash": "1cdb3d62b50bd2a35ffd2f29ad6b6550",
     "semantic_hash": ""
   },
   "cortex/temporal/hipocampo/hipocampo_.md": {
-    "mtime": 1782245815.0452204,
+    "mtime": 1782589124.5129771,
     "ast_hash": "f2910ac29bfeea6f4c00301d54a4dd4c",
     "semantic_hash": ""
   },
   "cortex/temporal/temporal_.md": {
-    "mtime": 1782245815.0452204,
+    "mtime": 1782589124.5132759,
     "ast_hash": "25576db55bd6e996c53383fb900261d1",
     "semantic_hash": ""
   },
   "diencefalo/diencefalo.md": {
-    "mtime": 1782245815.0452204,
+    "mtime": 1782589124.513361,
     "ast_hash": "f7b52fcd92626bca02a3417868462466",
     "semantic_hash": ""
   },
   "diencefalo/diencefalo_.md": {
-    "mtime": 1782245815.046218,
+    "mtime": 1782589124.513429,
     "ast_hash": "ff71ca0874da83d0ba9846f2de70a977",
     "semantic_hash": ""
   },
   "diencefalo/roteamento/roteamento_.md": {
-    "mtime": 1782245815.046218,
+    "mtime": 1782589124.513429,
     "ast_hash": "51a3b99a5db32ea81d903eef5ead35a0",
     "semantic_hash": ""
   },
   "diencefalo/setores/_ai-infra.md": {
-    "mtime": 1782571803.2219794,
+    "mtime": 1782626694.8213174,
     "ast_hash": "e8daf80b73a24d338a24bd1ceb176eb6",
     "semantic_hash": ""
   },
   "diencefalo/setores/_dev-tools.md": {
-    "mtime": 1782571803.2223217,
+    "mtime": 1782626694.8214154,
     "ast_hash": "8af3864c51596dd85259c8c036875f07",
     "semantic_hash": ""
   },
   "diencefalo/setores/_finance.md": {
-    "mtime": 1782322991.44225,
+    "mtime": 1782589124.1439106,
     "ast_hash": "f22848346b6536108b13c1c1f817ac43",
     "semantic_hash": ""
   },
   "diencefalo/setores/_infra.md": {
-    "mtime": 1782571803.2224417,
+    "mtime": 1782626694.8215036,
     "ast_hash": "164fb23e6a020d998bf1e481e49e5aca",
     "semantic_hash": ""
   },
   "diencefalo/setores/_pkm.md": {
-    "mtime": 1782322991.44225,
+    "mtime": 1782589124.1440547,
     "ast_hash": "5dc7f946c0ad0cc9df559bb91ed8bc9a",
     "semantic_hash": ""
   },
   "diencefalo/setores/ai-infra.md": {
-    "mtime": 1782245815.046218,
+    "mtime": 1782589124.5136034,
     "ast_hash": "94ae0ae9f75492eadb8563f6a2e29de7",
     "semantic_hash": ""
   },
   "diencefalo/setores/dev-tools.md": {
-    "mtime": 1782245815.046469,
+    "mtime": 1782589124.513684,
     "ast_hash": "617a6940a2d740eaf5d4accefdae89cf",
     "semantic_hash": ""
   },
   "diencefalo/setores/finance.md": {
-    "mtime": 1782245815.046469,
+    "mtime": 1782589124.5137575,
     "ast_hash": "9c0151609e143919238441f2a2330bb1",
     "semantic_hash": ""
   },
   "diencefalo/setores/infra.md": {
-    "mtime": 1782245815.046469,
+    "mtime": 1782589124.5138197,
     "ast_hash": "0ce3ee1df4886bbea2faca4a389965c9",
     "semantic_hash": ""
   },
   "diencefalo/setores/pkm.md": {
-    "mtime": 1782245815.046469,
+    "mtime": 1782589124.5138197,
     "ast_hash": "648148b98f0bba4391f806c991726a9c",
     "semantic_hash": ""
   },
   "diencefalo/setores/setores_.md": {
-    "mtime": 1782245815.046469,
+    "mtime": 1782589124.5138197,
     "ast_hash": "51a3b99a5db32ea81d903eef5ead35a0",
     "semantic_hash": ""
   },
   "tronco/infra/cloud-security.md": {
-    "mtime": 1782245815.046469,
+    "mtime": 1782589124.5144622,
     "ast_hash": "342260525219582bfd47911d8be29b5d",
     "semantic_hash": ""
   },
   "tronco/infra/infra_.md": {
-    "mtime": 1782245815.0468433,
+    "mtime": 1782589124.5144622,
     "ast_hash": "385c2e34147e93119d9df10cf4ed16f2",
     "semantic_hash": ""
   },
@@ -675,123 +675,148 @@
     "semantic_hash": ""
   },
   "tronco/meta/Hive-Mind-subvault/Bem-vindo.md": {
-    "mtime": 1782322991.44225,
+    "mtime": 1782589124.144132,
     "ast_hash": "a9098abd6c694b4a73b060c28c6f9f1c",
     "semantic_hash": ""
   },
   "tronco/meta/Hive-Mind-subvault/Hive-Mind-subvault_.md": {
-    "mtime": 1782245815.0468433,
+    "mtime": 1782589124.5144622,
     "ast_hash": "bf5190429a995918640fc1b6a4632dc5",
     "semantic_hash": ""
   },
   "tronco/meta/Hive-mind-subvault2/Bem-vindo.md": {
-    "mtime": 1782322991.44225,
+    "mtime": 1782589124.144549,
     "ast_hash": "9c8ca885c6e166286675d0d5a3b372d3",
     "semantic_hash": ""
   },
   "tronco/meta/Hive-mind-subvault2/Hive-mind-subvault2_.md": {
-    "mtime": 1782245815.0468433,
+    "mtime": 1782589124.5144622,
     "ast_hash": "bf5190429a995918640fc1b6a4632dc5",
     "semantic_hash": ""
   },
   "tronco/meta/hive-mind/Bem-vindo.md": {
-    "mtime": 1782322991.44225,
+    "mtime": 1782589124.144549,
     "ast_hash": "a9098abd6c694b4a73b060c28c6f9f1c",
     "semantic_hash": ""
   },
   "tronco/meta/hive-mind/hive-mind_.md": {
-    "mtime": 1782245815.0468433,
+    "mtime": 1782589124.5144622,
     "ast_hash": "bf5190429a995918640fc1b6a4632dc5",
     "semantic_hash": ""
   },
   "tronco/meta/meta_.md": {
-    "mtime": 1782245815.0468433,
+    "mtime": 1782589124.5144622,
     "ast_hash": "385c2e34147e93119d9df10cf4ed16f2",
     "semantic_hash": ""
   },
   "tronco/modelos/Analise Fria.md": {
-    "mtime": 1782322991.44225,
+    "mtime": 1782589124.1446898,
     "ast_hash": "151d53473c83a0fa2de862b8e447edaf",
     "semantic_hash": ""
   },
   "tronco/modelos/Atom Note.md": {
-    "mtime": 1782322991.4429307,
+    "mtime": 1782589124.1447513,
     "ast_hash": "a319e4adde23857d1744effcc4cf1ac5",
     "semantic_hash": ""
   },
   "tronco/modelos/Competency Note.md": {
-    "mtime": 1782322991.4429307,
+    "mtime": 1782589124.1448133,
     "ast_hash": "5a4476cc540e7274ecdd516255c0b626",
     "semantic_hash": ""
   },
   "tronco/modelos/Decision Record.md": {
-    "mtime": 1782322991.4429307,
+    "mtime": 1782589124.1448739,
     "ast_hash": "30ea0a95b38f55c2bfba7b2e964e2d59",
     "semantic_hash": ""
   },
   "tronco/modelos/Review Template.md": {
-    "mtime": 1782322991.4429307,
+    "mtime": 1782589124.1449788,
     "ast_hash": "8b4cf6dc3df4b013e1514278cfab7a68",
     "semantic_hash": ""
   },
   "tronco/modelos/Semantic Links.md": {
-    "mtime": 1782322991.4429307,
+    "mtime": 1782589124.1450427,
     "ast_hash": "f514484256ae2a422705d4086644d719",
     "semantic_hash": ""
   },
   "tronco/modelos/Thinking Note.md": {
-    "mtime": 1782322991.4429307,
+    "mtime": 1782589124.145101,
     "ast_hash": "e2dfbf1b3c2d191ab7d2415f22696066",
     "semantic_hash": ""
   },
   "tronco/modelos/Work Note.md": {
-    "mtime": 1782322991.4429307,
+    "mtime": 1782589124.1451676,
     "ast_hash": "7a3a8357ff0a8a53d4115105f454e1c1",
     "semantic_hash": ""
   },
   "tronco/modelos/daily-log.md": {
-    "mtime": 1782322991.4429307,
+    "mtime": 1782589124.1452262,
     "ast_hash": "e5e529955aff292130042a39e9da4fdf",
     "semantic_hash": ""
   },
   "tronco/modelos/modelos_.md": {
-    "mtime": 1782245815.0468433,
+    "mtime": 1782589124.5144622,
     "ast_hash": "385c2e34147e93119d9df10cf4ed16f2",
     "semantic_hash": ""
   },
   "tronco/modelos/session-log.md": {
-    "mtime": 1782322991.4429307,
+    "mtime": 1782589124.1452837,
     "ast_hash": "f694528d9fd30185b60ad4cda86312cc",
     "semantic_hash": ""
   },
   "tronco/paineis/paineis_.md": {
-    "mtime": 1782245815.0468433,
+    "mtime": 1782589124.5144622,
     "ast_hash": "385c2e34147e93119d9df10cf4ed16f2",
     "semantic_hash": ""
   },
   "tronco/tronco.md": {
-    "mtime": 1782245815.0468433,
+    "mtime": 1782589124.5150263,
     "ast_hash": "65fff823f8423e684e0f0c04acd30421",
     "semantic_hash": ""
   },
   "tronco/tronco_.md": {
-    "mtime": 1782245815.0468433,
+    "mtime": 1782589124.5150263,
     "ast_hash": "ff71ca0874da83d0ba9846f2de70a977",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/analises/An\u00e1lise EvoNexus.pdf": {
-    "mtime": 1782005162.3759408,
+    "mtime": 1782589124.1404254,
     "ast_hash": "769490278e15e1a2a6dd730393423e37",
     "semantic_hash": ""
   },
   "cortex/parietal/referencias/analises/An\u00e1lise GitNexus.pdf": {
-    "mtime": 1782005162.376129,
+    "mtime": 1782589124.1406095,
     "ast_hash": "7ea96aa2e104b30f8d5eb8e149a51026",
     "semantic_hash": ""
   },
   "cerebelo/diario/2026/06/2026-06-26.md": {
-    "mtime": 1782529126.194156,
+    "mtime": 1782589124.4483945,
     "ast_hash": "da7a835e1609b397469a91cd7bf2da55",
+    "semantic_hash": ""
+  },
+  "cerebelo/diario/2026/06/2026-06-27.md": {
+    "mtime": 1782615309.1081843,
+    "ast_hash": "28067976a62bcc648428cf990546103d",
+    "semantic_hash": ""
+  },
+  "cerebelo/semanal/2026-W25.md": {
+    "mtime": 1782630028.068096,
+    "ast_hash": "a4187896d7bdd879667a91773b8dcefd",
+    "semantic_hash": ""
+  },
+  "cerebelo/padroes/leitura-previa-antes-de-editar.md": {
+    "mtime": 1782633904.7380962,
+    "ast_hash": "5895b3c3e6cc71f916a8a7aa2326ef0b",
+    "semantic_hash": ""
+  },
+  "cerebelo/padroes/remover-index-lock-stale-git.md": {
+    "mtime": 1782633904.738289,
+    "ast_hash": "8f36823eb3a46bd53d483a9597c2ec9b",
+    "semantic_hash": ""
+  },
+  "cerebelo/padroes/renomeacao-e-shim-scripts-hifenizados.md": {
+    "mtime": 1782633904.7384243,
+    "ast_hash": "37235bb1a8f0d2732bdaffdf08a1725a",
     "semantic_hash": ""
   }
 }

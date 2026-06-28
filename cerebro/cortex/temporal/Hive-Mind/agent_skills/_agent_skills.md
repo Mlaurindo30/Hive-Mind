@@ -7,9 +7,10 @@ topic: agent_skills
 # agent_skills — Hive-Mind
 
 <!-- auto:gerado por generate_mocs.py — não editar à mão -->
-> MOC do tópico · 10 neurônio(s).
+> MOC do tópico · 11 neurônio(s).
 
 ## Neurônios
+- [[neuronio-backup-planner-dreamer-fallback-4a0bf678|Backup Planner Dreamer Fallback]]
 - [[neuronio-graphify-backend-priority-9e58fa8e|Graphify Backend Priority]]
 - [[neuronio-hive-mind-mcp-tools-d2727ce4|Hive-Mind MCP Tools]]
 - [[neuronio-ide-integration-assessment-0aee1f96|IDE Integration Assessment]]

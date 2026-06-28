@@ -321,7 +321,7 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
   search_vec (vec0)              ────────────────────
   ──────────────────             id             PK
   neuron_id   PK                 cause_neuron_id FK→neurons
-  embedding   FLOAT[384]         effect_neuron_id FK→neurons
+  embedding   FLOAT[1024]        effect_neuron_id FK→neurons
                                  label, confidence, source
                                  (índices em causa e efeito)
 
@@ -380,8 +380,9 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
          └──────────────┬───────────────┘
                         │
                         ▼
-              merge + dedup + ranking
+              merge + dedup + corte top-N
               (chave: source_file + title + content)
+              (rerank por relevância é contrato pendente — docs/11 §17.1)
                         │
                         ▼
               top-N resultados ≤ 3000 chars
@@ -997,7 +998,7 @@ Registro das decisões arquiteturais que moldaram o design atual. Cada ADR docum
 
 ### ADR-002 — Busca híbrida paralela
 
-**Decisão:** busca paralela em 4 backends (UMC SQL, claude-mem, NeuralMemory, filesystem) com fusão e deduplicação cross-backend.
+**Decisão:** busca paralela em 7 backends/órgãos (UMC, NeuralMemory, sqlite-vec, claude-mem, Graphify, Graphiti, filesystem — ver §2.6) com fusão e deduplicação cross-backend.
 **Rationale:** FTS5 encontra termos exatos; vetores encontram conceitos similares; grafo encontra conexões; filesystem garante dados recém-escritos (zero gap). Nenhum backend sozinho cobre todos os casos.
 **Trade-off:** ligeiramente maior consumo de I/O; mitigado por circuit breaker (cooldown 30s após 3+ falhas).
 

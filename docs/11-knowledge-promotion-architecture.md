@@ -34,6 +34,25 @@ Ferramentas externas entram como padrões/backends oficiais:
 | Graphiti | Causalidade e validade temporal | obrigatório |
 | LightRAG/GraphRAG | Relações multi-hop e perguntas globais | obrigatório/expandível |
 
+### 1.1 Vendor: clone vs wrapper
+
+- **Clone** (`integrations/<nome>/` via `components.lock.json`): só o que o
+  `install.sh` builda/patcha do source — `graphify`, `neural-memory`, `rtk`,
+  `omniparser`, binário `crsqlite`.
+- **Wrapper** (`client.py` + `docker-compose.yml` com imagem pinada por digest):
+  serviço rodado via container/SDK — `graphiti`, **Milvus** (`pymilvus`),
+  **RAGFlow** (`ragflow-sdk`, headless).
+- **Pip**: **LlamaIndex** (`llama-index` em `pyproject.toml`).
+
+Milvus e RAGFlow **não são clonados**. RAGFlow roda headless: resultado flui
+para `document_vectors`+UMC; o store dele é cache de ingestão, não fonte de
+verdade (§16). Fork da UI do RAGFlow = trilha futura separada
+(`docs/12` §3.4): só então migra para clone+patch.
+
+`components.lock.json` também é um **contrato negativo**: se Milvus, RAGFlow ou
+LlamaIndex aparecerem ali nesta frente, a implementação está errada. Eles entram
+respectivamente por wrapper/compose+SDK e pip.
+
 ---
 
 ## 2. Fluxo Completo
@@ -94,19 +113,37 @@ Agente / Humano / Sistema
 
 ## 3. Preenchimento Por Parte Do Cerebro
 
-| Parte | O que recebe | Unidade atomica | Escrita primaria | Indices |
+| Parte | O que recebe | Unidade atomica | Ferramentas que escrevem (real) | Indices |
 |---|---|---|---|---|
-| Cortex temporal | fatos, preferencias, aprendizados, lore | `neuronio-*.md` | Dream Cycle / Promotion Layer | memory vector, FTS, Graphiti |
-| Cortex frontal | decisoes, planos, trabalho ativo, objetivos | decision/task/goal | MCP/CLI/Dream Cycle | FTS, goals, memory vector |
-| Cortex parietal | documentos, referencias, inbox, inputs sensoriais | document/chunk/input | DocumentPipeline | doc vector, FTS, parent context |
-| Cortex occipital | screenshots, visao, grafo estrutural | visual memory / graph node | capture + Graphify | visual index, graph |
-| Cerebelo | sessoes, rotinas, padroes aprendidos | session summary / learning atomico | claude-mem + Dream Cycle | memory vector, FTS |
-| Diencefalo | conhecimento cross-projeto/setorial | sector relation | sector classifier | graph, metadata filter |
-| Tronco | modelos, configs, infra, agentes | operational fact/config | setup/runtime/audit | FTS, operational graph |
+| Cortex temporal | fatos, preferencias, aprendizados | `neuronio-*.md` | `dream_cycle` (Distiller→Validator→Router) ← `claude_mem_bridge`; `drift_detector`(→arquivo); `topic_consolidator`; `alias_miner` | memory vector, FTS, Graphiti, LightRAG |
+| Cortex frontal | decisoes, planos, trabalho, objetivos | decision/task/goal | `decision_promoter`, `work_tracker`, `decision_staleness`, MCP `save_decision`/`plan_goal` | FTS, goals, memory vector |
+| Cortex parietal | documentos, referencias, inbox | document/chunk/input | `capture/*`, `document_ingest` (→DocumentPipeline) | doc vector, FTS, parent |
+| Cortex occipital | screenshots, visao, grafo estrutural | visual memory / graph node | `visual_capture`, Graphify, dream estagio visual | visual index, graph |
+| Cortex insula | saude, autoconsciencia, conflitos | operational_fact / conflito | `health_dashboard`, `alert_dispatcher`, `review_writer`(→saude); `conflict_detector`, `topic_consolidator`(→conflitos); `ambiguities`(sintese) | FTS, ambiguities |
+| Cerebelo | sessoes, diario, semanal, padroes | session/summary / learning atomico | `session_consolidator`, `daily_writer`, `weekly_synthesizer`, `pattern_distiller` | summary vector, FTS |
+| Diencefalo | conhecimento cross-projeto/setorial | sector relation / MOC | `sector_classifier`, `generate_mocs` | graph, metadata filter |
+| Tronco | modelos, configs, infra, agentes | operational fact/config/template | `setup-brain`, templates `modelos/`, `meta/` (mais estatico que promovido) | FTS |
 
 Regra: arquivo grande pode existir para leitura humana, mas a unidade de busca
 deve ser atomica. `Patterns.md` nao pode ser o unico neuronio de aprendizado;
 cada aprendizado precisa virar `type=learning` individual.
+
+### 3.1 Quem preenche cada area — estado atual (codigo real)
+
+A tabela acima e o contrato; esta e a verdade em codigo hoje (arquivos reais que
+escrevem em cada area). Toda nova ferramenta de promocao deve se encaixar aqui,
+nao reinventar.
+
+| Area | Ferramentas que escrevem (arquivo real) | Indice |
+|---|---|---|
+| Cortex temporal (neuronios) | `claude_mem_bridge.py` (claude-mem→observations, preserva `project`) → `dream_cycle.py` (Distiller→Validator→Router→`neuronio-*.md` + UPSERT) · `drift_detector.py` (→`arquivo/` frio >90d) · `topic_consolidator.py` · `alias_miner.py` · `generate_mocs.py` | UMC vec/fts + Graphiti `push_neuron` + LightRAG `index_memory` |
+| Cortex frontal (decisao/trabalho) | `decision_promoter.py` (→`decisoes/`) · `work_tracker.py` (→`trabalho/ativo/`) · `decision_staleness.py` · `sinapse_mcp` `save_decision`/`plan_goal` (goals) · Current State (`session_end`) | UMC fts/vec, `goals` |
+| Cortex parietal (sensorial) | `capture/` (screenpipe+parsers→`inbox/`) · `document_ingest.py` (→`document_memories`+`inbox/documents/`) | document index, fts |
+| Cortex occipital (visao/grafo) | `visual_capture.py`/`sinapse_capture_screen` (→`visual_memories`,`capturas-visuais/`) · Graphify (→`graph.json`) · `dream_cycle` estagio visual | grafo Leiden, visual |
+| Cortex insula (autoconsciencia) | `health_dashboard.py` · `alert_dispatcher.py` · `review_writer.py` (→`saude/`) · `conflict_detector.py` · `topic_consolidator.py` (→`conflitos/`) · `ambiguities` (sintese dialetica estagio 3) | UMC, `ambiguities` |
+| Cerebelo (cadencia) | `session_consolidator` · `daily_writer.py` · `weekly_synthesizer.py` · `pattern_distiller.py` (→`padroes/`) · (mensal/anual = K5/P10 pendente) | summary, fts |
+| Diencefalo (relay) | `sector_classifier.py` (→`setores/` MOCs) · `generate_mocs.py` · `roteamento/` | grafo |
+| Tronco (infra) | `modelos/` (templates) · `paineis/` (.base) · `meta/` — mais estatico que promovido | — |
 
 ---
 
@@ -264,9 +301,16 @@ O Hive-Mind deve suportar colecoes separadas. Nao colocar tudo no mesmo ranking.
 | `code_vectors` | code symbols/files | sqlite-vec/Graphify | Milvus |
 | `visual_vectors` | screenshots/visual descriptions | LanceDB/sqlite-vec | Milvus |
 | `graph_vectors` | entity/relation summaries | LightRAG local | Milvus + graph |
+| `summary_vectors` | resumos de cadencia (sessao→anual) | sqlite-vec | Milvus |
 
 `sqlite-vec` continua obrigatorio para local-first/offline. Milvus e backend
 de producao, nao substitui a fonte de verdade.
+
+Cada item vetorial precisa carregar no metadata: `workspace_id`, `project`,
+`knowledge_type`, `source_uri`, `hash`, `embedding_model`, `embedding_dim`,
+`created_at` e, quando aplicavel, `valid_at`. `workspace_id` e
+`embedding_model/dim` nao sao opcionais: sem eles nao ha isolamento nem migracao
+de embedding segura.
 
 ---
 
@@ -343,6 +387,9 @@ query
   +-- codigo                            -> code_vectors + Graphify
   +-- causalidade / quando era verdade  -> Graphiti
   +-- pergunta global / multi-hop       -> LightRAG/GraphRAG
+  +-- saude / autoconsciencia           -> insula (saude/conflitos)
+  +-- config / operacional / modelo     -> tronco (operational_fact)
+  +-- setor / cross-projeto             -> diencefalo + Graphiti
   +-- ambigua                           -> hybrid + reranker
 ```
 
@@ -577,3 +624,154 @@ auditable por evidencia
 
 Nenhum backend externo pode substituir o cerebro. Backends externos aceleram,
 escalam ou especializam indices. A verdade continua no vault anatomico e no UMC.
+
+---
+
+## 17. Contratos Pendentes (lacunas verificadas)
+
+Capacidades **ja existentes** (nao reimplementar): merge/dedup na promocao
+(Dream Cycle Router `append|create_new|merge` + tabela `ambiguities` +
+`register_ambiguity` + dedup de learning por titulo + dedup cross-backend em
+`context_fusion`); redacao de PII/segredo (`core/redactor.py`, no export federado).
+
+As lacunas abaixo nao tem implementacao hoje e nascem como contrato.
+
+### 17.1 Reranker (reordenacao por relevancia)
+
+Hoje `context_fusion._fuse_contexts` dedupa e **trunca** por ordem de backend —
+nao reordena pelo que responde a query. Contrato:
+
+```text
+rerank(query, candidates[]) -> candidates[] reordenados
+  entra: top-N bruto da fusao (ex.: 30)
+  modelo: cross-encoder pequeno local (env HIVE_RERANKER_PROVIDER/MODEL); papel opcional
+  sai: top-K (ex.: 5) ordenado por score de relevancia
+  fail-open: sem modelo/erro -> ordem atual (dedup+truncate), sem quebrar
+```
+
+Plugar entre a fusao e o retorno do `RetrievalRouter` (§11). Off por padrao em
+`local-min`.
+
+### 17.2 Esquecimento intencional (forget / retention)
+
+A regra "nunca deletar por falha" (§5) cobre falha, nao esquecimento deliberado.
+Falta apagar segredo vazado, expirar efemero e podar orfao. Contrato:
+
+```text
+forget(target, reason) -> tombstone auditavel (nunca delete fisico silencioso)
+  motivos: secret_leak | expired | superseded | user_request | orphan_vector
+  CRDT-safe: delete em CR-SQLite e tombstone; vetor correspondente removido no backend
+  audita: registra em insula (motivo, quem, quando); raw preservado so se nao for segredo
+```
+
+Casa com a metrica `orphan_vectors` (§13) — orfao podado, nao so medido. Segredo
+em sync/Milvus-remoto deve reusar `core/redactor.py` antes de cruzar maquina.
+
+### 17.3 Avaliacao de recuperacao (eval)
+
+§13 mede **cobertura** (plumbing), nao **qualidade** da resposta. Contrato:
+
+```text
+golden set: tests/real/golden_retrieval.jsonl
+  cada caso: {query, expected_source_ids[], expected_intent}
+metricas: precision@k, recall@k, citation_correctness, intent_accuracy
+gate: regressao acima de limiar reprova a frente (junto do harness real K9)
+```
+
+Pequeno e curado a mao; cresce a cada bug de recuperacao reproduzido como caso.
+
+### 17.4 Harness real e skip de servicos
+
+O aceite de fase da frente de conhecimento usa `tests/real/` e nao conta mock
+como fechamento. O contrato do marker `requires_service` e:
+
+```text
+se o servico real exigido estiver online: roda e falha se o comportamento falhar
+se o servico real estiver offline: skip explicito com motivo e servico nomeado
+se o teste nao depende de servico externo: roda sempre
+```
+
+O skip precisa ser implementado por fixture/hook de servico, nao apenas por
+comentario no `pytest.ini`. Cada novo backend real (Milvus, FalkorDB, claude-mem,
+RAGFlow) deve registrar sua propria fixture ou service registry antes de virar
+gate de fase.
+
+Implementação atual: `tests/real/service_registry.py` + hook em
+`tests/real/conftest.py`. Serviços conhecidos: `ollama`, `milvus`, `falkordb`,
+`claude_mem`, `ragflow`. Serviço desconhecido é erro de teste; serviço offline é
+skip explícito com nome e motivo.
+
+---
+
+## 18. Escala e Isolamento (born-large, open-source)
+
+Hive-Mind e produto open-source que nasce com escala. Nao e SaaS B2B: o eixo de
+escala e (a) **per-install** (um usuario acumula anos de corpus), (b)
+**multi-usuario por instancia** (um time self-hosta), (c) **federacao** entre
+instancias. O isolamento abaixo nasce no schema — nao se enxerta depois — e o
+single-user local-first nao percebe (default workspace unico).
+
+### 18.1 Workspace (fronteira de isolamento)
+
+```text
+coluna workspace_id em: neurons, observations, synapses, goals, document_memories,
+                        visual_memories, ambiguities, causal_edges, vault
+  default: 'default'  (single-user nao precisa setar; born-large sem custo local)
+indice: (workspace_id, ...) nas queries quentes
+filtro: TODA leitura/escrita do RetrievalRouter e da promocao carrega workspace_id
+vault: cerebro/ pode ser subtree por workspace quando multi-usuario
+```
+
+Regra: nenhum neuronio/vetor/edge cruza `workspace_id` sem passar pela camada de
+federacao (§18.3). Vazamento cross-workspace e bug de seguranca, nao de ranking.
+
+Migrações que criam essa fronteira sao estruturais. Falha de migração deve ser
+fail-closed por padrão: seguir com schema parcial é bug de instalação, não modo
+operacional. O único bypass permitido é diagnóstico explícito de DB legado via
+`HIVE_ALLOW_DEFERRED_MIGRATIONS=1`, com log visível e sem marcar a instalação
+como saudável.
+
+### 18.2 Particao das colecoes vetoriais
+
+```text
+sqlite-vec (local/dev): filtro por workspace_id no metadata (§7)
+Milvus (producao):      partition-key = workspace_id (isolamento + poda por particao)
+```
+
+A identidade da colecao inclui `(name, embedding_model, dim)` — ver §18.4.
+
+### 18.3 Federacao entre instancias (reusa HM-12)
+
+Ja existe e nao se reimplementa: `visibility` (private|shared|public),
+assinatura Ed25519 (`core/signing.py`), redacao de PII no export
+(`core/redactor.py`). Contrato born-large:
+
+```text
+export inter-instancia: so visibility in (shared, public) + redact + sign
+import: verifica assinatura; neuronio importado entra com workspace_id do destino
+        e proveniencia (origin_instance, origin_signature) preservada
+nunca: importar raw cross-instancia sem redact; sobrescrever local sem invalid_at
+```
+
+### 18.4 Migracao de embedding versionada
+
+Trocar modelo de embedding em escala nao e script one-shot. Espaco vetorial e
+versionado:
+
+```text
+colecao carrega (embedding_model, dim) na identidade
+upsert de modelo divergente: rejeitado ou vai pra colecao nova (nunca mistura)
+migracao: reembed online por workspace, dual-write (modelo antigo+novo) ate cutover
+metrica: vectors_model_mismatch (§13) = 0 dentro de uma colecao
+```
+
+### 18.5 Custo/throughput da promocao por workspace
+
+Cada observacao promovida = 1 LLM (classifica) + 1 embedding. Em escala isso e
+fila com backpressure e teto de custo por workspace:
+
+```text
+promocao em batch (nao 1-a-1), fila com prioridade
+teto por workspace (env HIVE_PROMOTION_BUDGET_*), excedente fica archived=0 (retry)
+metrica: promotion_lag e promotion_cost por workspace
+```

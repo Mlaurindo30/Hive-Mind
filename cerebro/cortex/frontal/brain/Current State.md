@@ -1,4 +1,4 @@
-## Last Update: 2026-06-27 15:03
+## Last Update: 2026-06-28 17:08
 
 ---
 tags: [memory, current-state]
@@ -408,3 +408,115 @@ Entendido RTK: proxy/filtro hook-based de comandos shell, nao read-backend. Corr
 - Nenhuma decisão registrada### Learnings
 - Nenhum aprendizado registrado### Summary
 Corrigi RTK para ser transversal por agente/CLI: start-rtk.sh delega para rtk init por alvo, config remove RTK de hybrid_search.backends e docs/prompt explicam que nao e backend do sinapse_query; validado com dry-run Codex/Hermes e YAML.
+
+
+## Session: 2026-06-27 21:12
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+Apliquei snowflake-arctic-embed2:latest como default de embeddings em core, LightRAG, Graphiti e NeuralMemory; install/docs/migrador atualizados; reembed real da search_vec concluido 5404/5404 sem erros; watcher graphify religado.
+
+
+## Session: 2026-06-27 22:19
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+Documentada a cadencia hierarquica de escrita em docs/11; adicionados roles monthly/yearly no setup-brain/auth, paths canonicos mensal/anual e testes focados passaram.
+
+
+## Session: 2026-06-27 22:30
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+Criado docs/12 com plano K0-K10 de implementacao da arquitetura de conhecimento; linkado em docs/11/docs README/docs01 e corrigidas refs 384d para snowflake 1024d.
+
+
+## Session: 2026-06-27 22:41
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+Atualizei pyproject/uv.lock com ragflow-sdk, pymilvus, llama-index; registrei ragflow/milvus/llama_index no components.lock e no integrations-update; docs/12 ajustado.
+
+
+## Session: 2026-06-28 09:52
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+Revisao docs/11+docs/12 Frente K: concordei com correcoes do Claude (clone vs wrapper vs pip, K9 antes de fases, migracao CRR-safe). Testes locais passaram. Pontos pendentes: K1 aceite muito amplo via integrations-update, skip requires_service ainda nao generico, ensure_migrations engole erro estrutural, components.lock deve ser contrato negativo para Milvus/RAGFlow/LlamaIndex.
+
+
+## Session: 2026-06-28 10:00
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+Aplicados ajustes em docs/11 e docs/12: components.lock como contrato negativo, metadata vetorial obrigatoria, K1 com --no-components/wrappers-only, K9 skip por servico pendente, K0 strict migration health, auditoria final de alinhamento. Validado: workspace migration 9 passed, real knowledge 3 passed, json/bash/py_compile OK.
+
+
+## Session: 2026-06-28 10:28
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+Implementado recorte Frente K: service registry requires_service, --no-components/--wrappers-only no integrations-update, HIVE_STRICT_MIGRATIONS=1, docs/11/12 atualizados, testes Graphiti/hybrid ajustados. Validacao final: tests/run_all.sh verde (Smoke 19, Unit 473/3 skipped, Integration 104/4 skipped, E2E 22).
+
+
+## Session: 2026-06-28 10:33
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+Corrigido contrato K0: migracao workspace/federacao agora falha fechado por padrao; removido HIVE_STRICT_MIGRATIONS. Bypass somente HIVE_ALLOW_DEFERRED_MIGRATIONS=1 para diagnostico legado. Docs atualizados. Validacao: workspace_migration + database 31 passed.
+
+
+## Session: 2026-06-28 10:41
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+Auditoria final K0/K1/K9: ADD COLUMN legado tornado CRR-safe, docs 11/12 alinhados, update flags validados e run_all verde.
+
+
+## Session: 2026-06-28 11:09
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+K1 importações/wrappers e K2 VectorBackend sqlite+Milvus implementados e verificados com testes reais; sync/backfill K2 ainda pendentes.
+
+
+## Session: 2026-06-28 16:27
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+K2 avançou: sync/backfill memory_vectors SQLite->Milvus com idempotência/hash, falha por linha reportada, testes reais 15 passed e run_all verde.
+
+
+## Session: 2026-06-28 16:44
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+K2 alinhado para observation_vectors: SQLiteVecBackend consulta claude-mem.db read-only, sync_observation_vectors_to_milvus exporta para Milvus com idempotencia. Testes: observation 2 passed, K1/K2 14 passed, run_real_knowledge 17 passed, run_all verde.
+
+
+## Session: 2026-06-28 16:58
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+Continuacao K1/K2: adicionado E2E live bounded para sync memory/observation vectors com bancos reais read-only e Milvus temporario. core/vector_sync limit opcional. Testes: K1/K2 15 passed, run_real_knowledge 18 passed, run_all verde.
+
+
+## Session: 2026-06-28 17:08
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+K1 reforcado: verify_wrappers.py valida compose/digest Milvus/RAGFlow; install.sh e integrations-update.sh chamam o gate. Testes: K1 wrappers 7 passed, run_real_knowledge 21 passed, run_all verde.

@@ -1,1 +1,0 @@
-{"nodes": [{"id": "home_michel_documentos_projects_hive_mind_cerebro_tronco_modelos_semantic_links_md", "label": "Semantic Links.md", "file_type": "document", "source_file": "tronco/modelos/Semantic Links.md", "source_location": "L1", "content": "```dataviewjs\ndv.view(\".obsidian/scripts/semantic_links\")\n```\n"}], "edges": [], "input_tokens": 0, "output_tokens": 0}

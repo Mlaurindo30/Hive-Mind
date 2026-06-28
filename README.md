@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/assets/image/hive_mind-logo_vertical.png" alt="Hive-Mind" width="620">
+  <img src="docs/assets/image/hive_mind-logo_vertical.png" alt="Hive-Mind" width="820">
 
   **Universal, persistent, local-first memory layer for swarms of AI agents.**
 

@@ -323,7 +323,7 @@ def _query_vault_knowledge(query: str, timeout=8.0) -> Optional[str]:
     results = []
 
     # Backend 1: UMC SQL (FTS5 + KNN)
-    results += umc_search(query)        # FTS5 MATCH + vec KNN (bge-m3 1024d)
+    results += umc_search(query)        # FTS5 MATCH + vec KNN (snowflake-arctic-embed2 1024d)
 
     # Backend 2: claude-mem
     results += claude_mem_search(query) # HTTP :37700, timeout 3s
@@ -355,7 +355,7 @@ ORDER BY distance
 LIMIT 5
 ```
 
-`query_vec` = `bge-m3.encode(query)` via Ollama local — vetor **1024d** gerado no momento da query. Tabela virtual `search_vec` (vec0, 1024d). Migração do antigo 384d → 1024d aconteceu na P0 (commit `56f1e98`, 2026-06-21).
+`query_vec` = `snowflake-arctic-embed2.encode(query)` via Ollama local — vetor **1024d** gerado no momento da query. Tabela virtual `search_vec` (vec0, 1024d). Migração do antigo 384d → 1024d aconteceu na P0 (commit `56f1e98`, 2026-06-21).
 
 ### 7.3 Circuit Breaker
 

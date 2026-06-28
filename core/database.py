@@ -22,52 +22,77 @@ SINAPSE_HOME = os.environ.get("SINAPSE_HOME", str(Path(__file__).resolve().paren
 DB_PATH = os.path.join(SINAPSE_HOME, "hive_mind.db")
 SCHEMA_PATH = os.path.join(SINAPSE_HOME, "core", "umc_schema.sql")
 
-# Backend de embedding: "ollama" (padrão, bge-m3 1024d) ou "fastembed" (legado, MiniLM 384d)
+# Backend de embedding: "ollama" (padrao, snowflake-arctic-embed2 1024d) ou
+# "fastembed" (legado, MiniLM 384d)
 EMBED_BACKEND = os.environ.get("EMBED_BACKEND", "ollama")
 OLLAMA_BASE = os.environ.get("OLLAMA_BASE", "http://localhost:11434")
-OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "bge-m3:latest")
+# Decisao 2026-06-27: snowflake-arctic-embed2 substitui bge-m3 como default
+# global de embeddings. Mantem 1024d, e nos testes locais teve 0 NaNs nos
+# triggers problemáticos e melhor separacao PT/EN vs. conteudo nao relacionado.
+OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "snowflake-arctic-embed2:latest")
 
 
 class OllamaEmbedder:
-    """Wraps Ollama /api/embeddings to match the fastembed embed() interface."""
+    """Wraps Ollama /api/embed (batch, L2-normalized) to match the fastembed embed() interface.
+
+    Endpoint moderno /api/embed (campo `input`, resposta `embeddings`), batch-capable.
+    Retry com backoff p/ 500 transitório; em batch, isola item-a-item se algo falhar.
+    Se um texto falhar de forma persistente, levanta erro claro (visível) em vez de
+    mascarar o problema com vetor zero ou troca silenciosa de modelo.
+    """
 
     def __init__(self, base_url: str, model: str) -> None:
         import urllib.request as _ur
-        self._url = base_url.rstrip("/") + "/api/embeddings"
+        self._url = base_url.rstrip("/") + "/api/embed"
         self._model = model
         self._ur = _ur
+
+    def _post(self, inputs):
+        """POST /api/embed com retry+backoff. Retorna list[list[float]] ou None."""
+        import time
+        payload = json.dumps({"model": self._model, "input": inputs}).encode()
+        for attempt in range(3):  # tolera 500 transitório
+            req = self._ur.Request(
+                self._url, data=payload, method="POST",
+                headers={"Content-Type": "application/json"},
+            )
+            try:
+                with self._ur.urlopen(req, timeout=60) as r:
+                    data = json.loads(r.read())
+                embs = data.get("embeddings")
+                if embs:
+                    return embs
+            except Exception:  # noqa — retry no backoff abaixo
+                pass
+            time.sleep(0.4 * (attempt + 1))  # backoff: 0.4s, 0.8s, 1.2s
+        return None
+
+    @staticmethod
+    def _finite(vec) -> bool:
+        """Vetor não-vazio e sem NaN/Inf (NaN != NaN; Inf cai no teste de range)."""
+        return bool(vec) and all((v == v) and (-1e30 < v < 1e30) for v in vec)
 
     def embed(self, texts):
         """Yields embedding vectors; accepts str or list[str]."""
         if isinstance(texts, str):
             texts = [texts]
-        for text in texts:
-            prompt_text = str(text)[:5000]
-            # Ollama /api/embeddings devolve {"embedding": []} (dim-0) para prompt
-            # vazio/whitespace-only. Um vetor dim-0 quebra os vector stores
-            # (dim mismatch no nano-vectordb do LightRAG / sqlite-vec). Substitui
-            # por um placeholder mínimo para garantir vetor de dimensão fixa.
-            if not prompt_text.strip():
-                prompt_text = " "
-            payload = json.dumps({"model": self._model, "prompt": prompt_text}).encode()
-            last_exc = None
-            emb = None
-            for _attempt in range(2):  # 1 retry: tolera 500 transitório do Ollama
-                req = self._ur.Request(
-                    self._url, data=payload, method="POST",
-                    headers={"Content-Type": "application/json"},
+        # Guarda vazio/whitespace: alguns modelos devolvem dim-0 → quebra os vector stores.
+        cleaned = [(str(t)[:5000] if str(t)[:5000].strip() else " ") for t in texts]
+
+        embs = self._post(cleaned)  # tenta o batch inteiro primeiro (rápido)
+        if embs and len(embs) == len(cleaned) and all(self._finite(v) for v in embs):
+            yield from embs
+            return
+
+        # Batch falhou: reprocessa item-a-item p/ isolar o problemático.
+        for text in cleaned:
+            one = self._post([text])
+            if one and self._finite(one[0]):
+                yield one[0]
+            else:
+                raise ValueError(
+                    f"Ollama embedding falhou/NaN (modelo {self._model}) para input: {text[:80]!r}"
                 )
-                try:
-                    with self._ur.urlopen(req, timeout=30) as r:
-                        data = json.loads(r.read())
-                    emb = data.get("embedding") or None
-                    if emb:
-                        break
-                except Exception as e:
-                    last_exc = e
-            if not emb:
-                raise last_exc or ValueError("Ollama retornou embedding vazio")
-            yield emb
 
 
 _embedder = None
@@ -280,6 +305,136 @@ def add_visual_memory(image_path, description=None, ocr_text=None, neuron_id=Non
     finally:
         conn.close()
 
+# ===== B1: Migração CRR-safe (workspace_id + federação + embedding-provenance) =====
+# Tabelas que recebem workspace_id (docs/11 §18.1) = CRDT_TABLES + goals.
+_WORKSPACE_TABLES = [
+    "neurons", "observations", "synapses", "goals", "document_memories",
+    "visual_memories", "ambiguities", "causal_edges", "vault",
+]
+
+
+def _table_exists(conn, table) -> bool:
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+    ).fetchone() is not None
+
+
+def _table_is_crr(conn, table) -> bool:
+    """True se a tabela foi convertida com crsql_as_crr (shadow clock existe)."""
+    return conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        (f"{table}__crsql_clock",),
+    ).fetchone() is not None
+
+
+def _has_column(conn, table, col) -> bool:
+    return any(r[1] == col for r in conn.execute(f"PRAGMA table_info({table})"))
+
+
+def alter_table_crr_safe(conn, table: str, coldef: str) -> None:
+    """ADD COLUMN respeitando CR-SQLite (B1).
+
+    Em tabela CRR, `ALTER` puro quebra a replicação — precisa ser envolvido em
+    `crsql_begin_alter`/`crsql_commit_alter`. Em tabela normal, ALTER direto.
+    Idempotência é responsabilidade do caller (checar a coluna antes). Colunas
+    CRR exigem DEFAULT (P8.3): passe sempre `... DEFAULT <x>`.
+    """
+    sql = f"ALTER TABLE {table} ADD COLUMN {coldef}"
+    if _table_is_crr(conn, table):
+        conn.execute("SELECT crsql_begin_alter(?)", (table,))
+        try:
+            conn.execute(sql)
+        finally:
+            conn.execute("SELECT crsql_commit_alter(?)", (table,))
+    else:
+        conn.execute(sql)
+
+
+def add_column_if_missing(conn, table: str, coldef: str) -> bool:
+    """Adiciona coluna de forma idempotente e CRR-safe.
+
+    Retorna True quando a coluna foi adicionada nesta chamada.
+    """
+    if not _table_exists(conn, table):
+        return False
+    col = coldef.split()[0]
+    if _has_column(conn, table, col):
+        return False
+    alter_table_crr_safe(conn, table, coldef)
+    return True
+
+
+def _db_file_of(conn) -> str:
+    """Caminho do arquivo do banco 'main' (vazio para :memory:/temp)."""
+    row = conn.execute("PRAGMA database_list").fetchone()
+    return row[2] if row and row[2] else ""
+
+
+def _backup_db_once(conn, suffix: str) -> None:
+    """B8: backup consistente (API `backup()`) antes de migração irreversível.
+
+    Roda só 1x (se o `.<suffix>` ainda não existe) e só para DB em arquivo real
+    (pula `:memory:`/temp). `crsql_as_crr` é irreversível — este é o ponto de
+    retorno.
+    """
+    db_file = _db_file_of(conn)
+    if not db_file:
+        return
+    bak = f"{db_file}.{suffix}"
+    if os.path.exists(bak):
+        return
+    try:
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    except sqlite3.OperationalError:
+        pass
+    bak_conn = sqlite3.connect(bak)
+    try:
+        conn.backup(bak_conn)
+    finally:
+        bak_conn.close()
+    import sys
+    print(f"[hive-mind] backup pré-migração: {bak}", file=sys.stderr)
+
+
+def migrate_workspace_and_federation(conn) -> None:
+    """B1/B6: `workspace_id` nas 9 tabelas + federação/embedding-provenance em
+    `neurons`. CRR-safe e idempotente. Single-user fica com `workspace_id='default'`.
+    """
+    # B8: backup antes da 1ª aplicação real (quando ha coluna a adicionar).
+    if _table_exists(conn, "neurons") and not _has_column(conn, "neurons", "workspace_id"):
+        _backup_db_once(conn, "pre-workspace")
+
+    for table in _WORKSPACE_TABLES:
+        if not _table_exists(conn, table):
+            continue
+        if not _has_column(conn, table, "workspace_id"):
+            alter_table_crr_safe(conn, table, "workspace_id TEXT NOT NULL DEFAULT 'default'")
+        conn.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{table}_workspace ON {table}(workspace_id)"
+        )
+    # Federação (docs/11 §18.3) + proveniência de embedding (§18.4) — em neurons.
+    if _table_exists(conn, "neurons"):
+        for coldef in (
+            "origin_instance TEXT DEFAULT NULL",
+            "origin_signature TEXT DEFAULT NULL",
+            "embedding_model TEXT DEFAULT NULL",
+            "embedding_dim INTEGER DEFAULT NULL",
+        ):
+            if not _has_column(conn, "neurons", coldef.split()[0]):
+                alter_table_crr_safe(conn, "neurons", coldef)
+
+
+def allow_deferred_migrations() -> bool:
+    """Escape hatch explícito para abrir banco legado com migração quebrada.
+
+    Migração estrutural da Frente K falha fechado por padrão. Se isso quebrar,
+    o correto é consertar a migração. Este bypass existe só para diagnóstico de
+    banco legado e deve deixar log visível.
+    """
+    value = os.environ.get("HIVE_ALLOW_DEFERRED_MIGRATIONS", "").strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
 def ensure_migrations(conn):
     """
     Aplica migrações idempotentes em bancos existentes:
@@ -289,10 +444,7 @@ def ensure_migrations(conn):
     - Backfill do formato legado ("archived": true no metadata)
     - Colunas 'uuid' e 'source_machine' (Phase 8: P2P/Syncthing sync)
     """
-    try:
-        conn.execute("ALTER TABLE observations ADD COLUMN archived INTEGER DEFAULT 0")
-    except sqlite3.OperationalError:
-        pass  # Coluna já existe
+    add_column_if_missing(conn, "observations", "archived INTEGER DEFAULT 0")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_observations_archived ON observations(archived)")
     # Phase HM: project plumbing — segregação do dream_cycle por projeto.
     # Envelopado em try/except porque bancos muito legados (sem coluna `project`)
@@ -307,27 +459,21 @@ def ensure_migrations(conn):
     conn.execute("""UPDATE observations SET archived = 1 WHERE metadata LIKE '%"archived": true%' AND archived = 0""")
 
     # Phase 8: P2P/Syncthing sync columns
-    existing_cols = [r[1] for r in conn.execute("PRAGMA table_info(observations)")]
-    if "uuid" not in existing_cols:
-        conn.execute("ALTER TABLE observations ADD COLUMN uuid TEXT")
-    if "source_machine" not in existing_cols:
+    add_column_if_missing(conn, "observations", "uuid TEXT DEFAULT NULL")
+    if add_column_if_missing(conn, "observations", "source_machine TEXT DEFAULT NULL"):
         import socket
         hostname = socket.gethostname()
         # ALTER nao aceita placeholder no DEFAULT; cria a coluna sem default e
         # popula via UPDATE parametrizado (hostname pode conter aspas/';' — POSIX).
-        conn.execute("ALTER TABLE observations ADD COLUMN source_machine TEXT")
         conn.execute(
             "UPDATE observations SET source_machine = ? WHERE source_machine IS NULL",
             (hostname,),
         )
 
     # Phase HM-11: Intent Memory columns
-    if "goal_id" not in existing_cols:
-        conn.execute("ALTER TABLE observations ADD COLUMN goal_id TEXT")
-    if "why" not in existing_cols:
-        conn.execute("ALTER TABLE observations ADD COLUMN why TEXT")
-    if "intent_source" not in existing_cols:
-        conn.execute("ALTER TABLE observations ADD COLUMN intent_source TEXT")
+    add_column_if_missing(conn, "observations", "goal_id TEXT DEFAULT NULL")
+    add_column_if_missing(conn, "observations", "why TEXT DEFAULT NULL")
+    add_column_if_missing(conn, "observations", "intent_source TEXT DEFAULT NULL")
 
     conn.execute("""
         CREATE TABLE IF NOT EXISTS goals (
@@ -356,16 +502,16 @@ def ensure_migrations(conn):
 
     # Phase B4: HNSW indexed_at tracking
     neuron_cols = {r[1] for r in conn.execute("PRAGMA table_info(neurons)").fetchall()}
-    if neuron_cols and "indexed_at" not in neuron_cols:
-        conn.execute("ALTER TABLE neurons ADD COLUMN indexed_at TIMESTAMP")
+    if neuron_cols:
+        add_column_if_missing(conn, "neurons", "indexed_at TIMESTAMP DEFAULT NULL")
 
     # Phase HM-12: Federated Swarm — selective sharing
-    if neuron_cols and "visibility" not in neuron_cols:
-        conn.execute("ALTER TABLE neurons ADD COLUMN visibility TEXT DEFAULT 'private'")
+    if neuron_cols:
+        add_column_if_missing(conn, "neurons", "visibility TEXT DEFAULT 'private'")
 
     # Phase HM-12: Router Sliding Window topic tracking
-    if neuron_cols and "topic" not in neuron_cols:
-        conn.execute("ALTER TABLE neurons ADD COLUMN topic TEXT")
+    if neuron_cols:
+        add_column_if_missing(conn, "neurons", "topic TEXT DEFAULT NULL")
 
     # Índice exige a tabela neurons E a coluna updated_at. `topic` é garantido
     # pelo ALTER acima; updated_at precisa pré-existir (tabelas mínimas/legadas
@@ -388,6 +534,27 @@ def ensure_migrations(conn):
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_dream_cycle_started ON dream_cycle_log(started_at)")
+
+    # B1/B6 (frente K, K0): workspace_id + federação + embedding-provenance.
+    # CRR-safe e idempotente. Falha fechado por padrão: schema parcial não é
+    # modo operacional; o bypass explícito abaixo é só para diagnóstico legado.
+    try:
+        migrate_workspace_and_federation(conn)
+    except sqlite3.OperationalError as e:
+        import sys
+        if allow_deferred_migrations():
+            print(
+                "[hive-mind] migrate_workspace_and_federation adiada por "
+                f"HIVE_ALLOW_DEFERRED_MIGRATIONS=1: {e}",
+                file=sys.stderr,
+            )
+        else:
+            raise RuntimeError(
+                "migrate_workspace_and_federation falhou; corrija a migração "
+                "workspace/federação em vez de seguir com schema parcial. "
+                "Para diagnóstico de DB legado, use "
+                "HIVE_ALLOW_DEFERRED_MIGRATIONS=1."
+            ) from e
 
     conn.commit()
 

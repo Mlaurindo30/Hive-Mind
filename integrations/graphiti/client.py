@@ -16,7 +16,7 @@ Config (env vars):
   HIVE_GRAPHITI_MODEL  — modelo de extração (role no setupbrain). Default:
                          qwen2.5:3b (prosa multilíngue, ~1.9GB, coexiste na GPU).
                          GRAPHITI_LLM_MODEL é alias legado e tem precedência.
-  GRAPHITI_EMBED_MODEL — default: bge-m3:latest (deve existir no Ollama)
+  GRAPHITI_EMBED_MODEL — default: snowflake-arctic-embed2:latest (deve existir no Ollama)
   HIVE_GRAPHITI_RETRIES    — default: 3 (tentativas com backoff 1s, 2s, 4s)
   HIVE_GRAPHITI_CB_FAILS   — default: 3 (falhas consecutivas que abrem o circuit)
   HIVE_GRAPHITI_CB_COOLDOWN — default: 30s
@@ -98,7 +98,7 @@ def _llm_model() -> str:
     #      natural muito melhor que granite3-dense:2b (que alucinava no gleaning)
     #      e que qwen2.5-coder:3b (modelo de código, gerava entidades vazias/NaN).
     #   2) Pequeno para COEXISTIR na GPU: no Dream Cycle, modelos locais (ex.
-    #      claude_mem 8b ~6GB) + bge-m3 (~1.2GB) já ocupam a GPU de 12GB; um 3º
+    #      claude_mem 8b ~6GB) + embedder 1024d já ocupam a GPU de 12GB; um 3º
     #      modelo grande estoura → OOM → embeddings NaN. qwen2.5:3b (~1.9GB) cabe.
     # Configurável via setupbrain (HIVE_GRAPHITI_MODEL) — ex.: qwen2.5:7b em
     # máquinas com mais VRAM. GRAPHITI_LLM_MODEL é mantido como alias legado.
@@ -110,7 +110,7 @@ def _llm_model() -> str:
 
 
 def _embed_model() -> str:
-    return os.environ.get("GRAPHITI_EMBED_MODEL", "bge-m3:latest")
+    return os.environ.get("GRAPHITI_EMBED_MODEL", "snowflake-arctic-embed2:latest")
 
 
 # ---------------------------------------------------------------------------

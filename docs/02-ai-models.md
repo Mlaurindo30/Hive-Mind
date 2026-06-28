@@ -1,7 +1,7 @@
 # 02 — Modelos de IA e Provedores
 
 > **Hive-Mind v3.0.0** — Modelos, embeddings, provedores do Hive-Dreamer e cadeia de fallback.
-> Última revisão: 2026-06-24 · Embeddings 1024d bge-m3 (P0) · LightRAG granite3-dense:2b (P4)
+> Última revisão: 2026-06-27 · Embeddings 1024d snowflake-arctic-embed2 · LightRAG granite3-dense:2b (P4)
 
 ---
 
@@ -124,23 +124,23 @@ HIVE_GRAPHIFY_* (ou herdado do Dreamer) definido?
               (sempre funciona, sem dependência externa)
 ```
 
-### 3.2 Embeddings (sqlite-vec, 1024 dimensões — Ollama bge-m3)
+### 3.2 Embeddings (sqlite-vec, 1024 dimensões — Ollama snowflake-arctic-embed2)
 
 | Modelo | Dimensões | Uso | Onde |
 |--------|-----------|-----|------|
-| `bge-m3:latest` | 1024 | Busca semântica KNN no UMC | sqlite-vec HNSW (env `HNSW_DIM=1024`) |
-| `bge-m3:latest` | 1024 | Busca semântica de observações | sqlite-vec HNSW |
-| `bge-m3:latest` | 1024 | Embeddings de memória para LightRAG | `core/lightrag_index.py` (P4) |
+| `snowflake-arctic-embed2:latest` | 1024 | Busca semântica KNN no UMC | sqlite-vec HNSW (env `HNSW_DIM=1024`) |
+| `snowflake-arctic-embed2:latest` | 1024 | Busca semântica de observações | sqlite-vec HNSW |
+| `snowflake-arctic-embed2:latest` | 1024 | Embeddings de memória para LightRAG | `core/lightrag_index.py` (P4) |
 
-O modelo é carregado via **Ollama local** (`OLLAMA_EMBED_MODEL=bge-m3:latest`, 1.2 GB), exposto por `OllamaEmbedder` em `core/database.py:get_embedder()`. Não requer API key. Os vetores são persistidos na tabela virtual `search_vec` (vec0, 1024d) dentro do `hive_mind.db`. Migração do antigo 384d para 1024d foi feita na P0 (commit `56f1e98`, 2026-06-21) via `scripts/setup/migrate_embed_dim.py`.
+O modelo é carregado via **Ollama local** (`OLLAMA_EMBED_MODEL=snowflake-arctic-embed2:latest`), exposto por `OllamaEmbedder` em `core/database.py:get_embedder()`. Não requer API key. Os vetores são persistidos na tabela virtual `search_vec` (vec0, 1024d) dentro do `hive_mind.db`. A migração do antigo 384d para 1024d aconteceu na P0; a troca de `bge-m3` para `snowflake-arctic-embed2` mantém a dimensão 1024d e exige apenas re-embedding/rebuild dos índices.
 
 O módulo `core/hnsw_index.py` mantém um índice HNSW incremental (via `hnswlib`) sobre os mesmos vetores 1024d. O índice é atualizado a cada ingestão sem reconstrução completa.
 
-**Por que bge-m3 (1024d) em vez de all-MiniLM-L6-v2 (384d)?**
-- bge-m3 é multilingual (PT/EN) com qualidade superior para frases técnicas
-- 1024d dá ganho real de recall em queries multi-hop (que LightRAG e FTS5 juntos usam)
-- Ollama local elimina dependência de API cloud para embeddings
-- Migração uma-vez (P0) absorveu o custo de re-indexação; o ganho composto (KNN melhor + LightRAG funcional) compensa o espaço 4x maior em disco
+**Por que snowflake-arctic-embed2 (1024d)?**
+- Mantém a dimensão 1024d já usada pelo sqlite-vec, HNSW, LightRAG e Graphiti.
+- Nos testes locais de 2026-06-27, teve 0 NaNs nos triggers problemáticos.
+- Teve melhor separação PT↔EN vs. conteúdo não relacionado que `bge-m3` e `qwen3-embedding:0.6b`.
+- Ollama local elimina dependência de API cloud para embeddings.
 
 ---
 
@@ -157,7 +157,7 @@ LightRAG (HKUDS/EMNLP 2025) é o **segundo extrator** ao lado do Graphify: enqua
        │
        ├──> LightRAG working_dir: claude-mem/data/lightrag/
        │    ├── graph.npz (NetworkX)         — entidades + arestas
-       │    ├── vdb_chunks.json              — embeddings de chunks (bge-m3)
+       │    ├── vdb_chunks.json              — embeddings de chunks (snowflake-arctic-embed2)
        │    ├── vdb_entities.json            — embeddings de entidades
        │    └── vdb_relationships.json       — embeddings de relações
        ▼
@@ -223,9 +223,9 @@ Os pesos das arestas (24 tipos de relações) foram definidos baseados em psicol
 | GPT-4 / Claude Opus | Overkill para extração de entidades; custo proibitivo para indexação diária |
 | BERT multilíngue | Mais pesado que Qwen 2.5 Coder 3B para o mesmo resultado em NER |
 | Fine-tuned próprios | Complexidade de manutenção incompatível com o princípio de soberania de modelos |
-| OpenAI Embeddings (text-embedding-3) | Dependência de API; bge-m3 local via Ollama é suficiente |
-| ChromaDB + all-MiniLM-L6-v2 | Substituído por sqlite-vec + bge-m3 (1024d) embutidos no UMC (elimina processo separado) |
-| all-MiniLM-L6-v2 (384d) | Substituído por bge-m3 (1024d) na P0 (commit `56f1e98`, 2026-06-21) — multilingual e melhor recall |
+| OpenAI Embeddings (text-embedding-3) | Dependência de API; snowflake-arctic-embed2 local via Ollama é suficiente |
+| ChromaDB + all-MiniLM-L6-v2 | Substituído por sqlite-vec + snowflake-arctic-embed2 (1024d) embutidos no UMC (elimina processo separado) |
+| all-MiniLM-L6-v2 (384d) | Substituído por embedding local 1024d no Ollama — multilingual e melhor recall |
 
 ---
 
@@ -233,8 +233,8 @@ Os pesos das arestas (24 tipos de relações) foram definidos baseados em psicol
 
 | Cenário | Graphify (código) | LightRAG (texto) | Embeddings | Dream Cycle | Recall |
 |---------|-------------------|------------------|-----------|-----------|--------|
-| Cloud (API keys) | Gemini 2.5 Flash | Granite 3 Dense 2b (local) | bge-m3 (local) | Provider configurado | Spreading Activation |
-| Local (Ollama) | Qwen 2.5 Coder 3B | Granite 3 Dense 2b (local) | bge-m3 (local) | Ollama configurado | Spreading Activation |
+| Cloud (API keys) | Gemini 2.5 Flash | Granite 3 Dense 2b (local) | snowflake-arctic-embed2 (local) | Provider configurado | Spreading Activation |
+| Local (Ollama) | Qwen 2.5 Coder 3B | Granite 3 Dense 2b (local) | snowflake-arctic-embed2 (local) | Ollama configurado | Spreading Activation |
 | Offline (sem Ollama) | tree-sitter + regex | Indisponível (best-effort) | Indisponível | Indisponível | Spreading Activation |
 | Mínimo (sem Python) | Indisponível | Indisponível | Indisponível | Indisponível | Indisponível |
 
