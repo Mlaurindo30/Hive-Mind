@@ -28,8 +28,8 @@ class TestHybridSearch(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.mkdtemp()
         self.vault_dir = os.path.join(self.tmpdir, "cerebro")
-        os.makedirs(os.path.join(self.vault_dir, "work"), exist_ok=True)
-        os.makedirs(os.path.join(self.vault_dir, "brain"), exist_ok=True)
+        self.notes_dir = os.path.join(self.vault_dir, "cortex", "frontal", "brain")
+        os.makedirs(self.notes_dir, exist_ok=True)
 
         # Backup config original
         self._orig_vault = sm.VAULT_DIR
@@ -58,7 +58,7 @@ class TestHybridSearch(unittest.TestCase):
 
     def test_newly_written_note_found(self):
         """Nota escrita agora é encontrada pelo filesystem (gap de 6h eliminado)."""
-        note_path = os.path.join(self.vault_dir, "brain", "2026-01-01-test-hybrid.md")
+        note_path = os.path.join(self.notes_dir, "2026-01-01-test-hybrid.md")
         with open(note_path, "w", encoding="utf-8") as f:
             f.write("---\ntags: [teste]\n---\n\n## Teste\n\nBusca sobre filesystem hybrid search de teste.\n")
 
@@ -72,7 +72,7 @@ class TestHybridSearch(unittest.TestCase):
 
     def test_no_graph_json_still_works(self):
         """Filesystem funciona como fallback independente do graph.json."""
-        note_path = os.path.join(self.vault_dir, "brain", "go-performa.md")
+        note_path = os.path.join(self.notes_dir, "go-performa.md")
         with open(note_path, "w", encoding="utf-8") as f:
             f.write("# Decisao X\n\nDecidimos usar Go desempenho.\n")
 
@@ -84,7 +84,7 @@ class TestHybridSearch(unittest.TestCase):
     def test_deduplication_cross_backend(self):
         """Nota que aparece em graphify + filesystem aparece só uma vez no hybrid."""
         # Criar uma nota com frontmatter YAML
-        note_path = os.path.join(self.vault_dir, "brain", "padrao-auth.md")
+        note_path = os.path.join(self.notes_dir, "padrao-auth.md")
         with open(note_path, "w", encoding="utf-8") as f:
             f.write("\u2014\u2014\ntags: [auth]\n\u2014\u2014\n\n# Auth Pattern\n\nUsar JWT com refresh tokens.\n")
 

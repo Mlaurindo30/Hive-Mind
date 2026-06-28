@@ -1,0 +1,20 @@
+services:
+  ragflow:
+    image: infiniflow/ragflow:v0.26.1@sha256:1281817d496e25d3d9fca55df8a6b195e056fd467a2030ec950bbb654df0f362
+    container_name: hive-mind-ragflow
+    ports:
+      - "${RAGFLOW_PORT:-9380}:9380"
+    environment:
+      RAGFLOW_HOST: "0.0.0.0"
+      RAGFLOW_PORT: "9380"
+    volumes:
+      - ragflow-data:/ragflow
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9380/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+
+volumes:
+  ragflow-data:

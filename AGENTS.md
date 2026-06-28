@@ -414,6 +414,9 @@ consultado antes.
 - **Use SOMENTE as tools `sinapse_*` e `search_memories`.** Nunca chame
   `nmem`, `claude-mem`, `graphify` ou `falkordb` diretamente — o sinapse
   já os federa e deduplica via Context Fusion.
+- RTK não é ferramenta de memória nem backend do `sinapse_query`; é apenas a
+  camada de otimização de comandos shell. Quando precisar configurar RTK, use
+  `./scripts/services/start-rtk.sh --only <agente>` para o agente/CLI correto.
 - `sinapse_query` é o orquestrador canônico (7 backends). Use-o em vez de
   tools específicas de um backend sempre que possível.
 - `sinapse_temporal_graph_search` está deprecated: mantido para não

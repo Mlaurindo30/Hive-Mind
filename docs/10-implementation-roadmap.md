@@ -148,7 +148,7 @@ Resultados:
 
 ```
 core/                              ← código do cérebro central
-├── database.py                    # OllamaEmbedder (bge-m3 1024d) ✅P0
+├── database.py                    # OllamaEmbedder (snowflake-arctic-embed2 1024d) ✅P0
 │   # get_connection():93 carrega sqlite-vec (extensão)
 │   # add_visual_memory():221 (visual_memories table, só texto — sem embedding CLIP)
 ├── indexing.py                    # index_neuron_ids() ✅P0
@@ -213,12 +213,12 @@ cerebro/cerebelo/padroes/          # Patterns.md + pattern_models.py (procedural
 
 ## 2. Fases concluídas (P0..P5)
 
-### Fase P0 — Embeddings 100% Local (Ollama bge-m3) ✅ CONCLUÍDO
+### Fase P0 — Embeddings 100% Local (Ollama snowflake-arctic-embed2) ✅ CONCLUÍDO
 
 **Objetivo:** eliminar `fastembed + all-MiniLM-L6-v2 (384d)` e usar modelo multilingual PT+EN 1024d local.
 **Status:** ✅ | **Commits:** `93db445`, `f087279` | **Data:** 2026-06-21
 
-**Modelo:** `bge-m3:latest` (1024d, MTEB multilingual #1 2024, 91ms warm, EXCELENTE PT-BR)
+**Modelo:** `snowflake-arctic-embed2:latest` (1024d, MTEB multilingual #1 2024, 91ms warm, EXCELENTE PT-BR)
 
 **Arquivos modificados:**
 
@@ -374,6 +374,8 @@ A 2ª passada deste roadmap listava 13 fases pendentes (P6..P18). Esta 3ª passa
 ## 4. Fases pendentes (P7..P13) + estruturas futuras (P14, P15)
 
 6 fases pendentes (P7..P11, P13) + **2 estruturas futuras** (P14 Amígdala, P15 Gânglios da base — propostas no estudo de arquitetura de 2026-06-26, marcadas 🔮), cada uma com: origem, lobo/estrutura do cérebro, estado atual verificado, arquivos a criar/modificar (linhas exatas quando aplicável), código de exemplo, env vars, comandos de instalação, testes, critério de pronto.
+
+> **Eixo de conhecimento (K0–K10):** `VectorBackend`/Milvus, promotion pipeline, DocumentPipeline e RetrievalRouter vivem em `docs/12` (frente de conhecimento), não como fases P. Mapa P↔K em `docs/12` §4.4. P10 (RAPTOR) ≡ K5 (mensal/anual).
 
 ### Fase P7 — MegaMem Streamable HTTP (MCP spec 2025-03-26) ✅ CONCLUÍDO
 
@@ -975,7 +977,7 @@ irreversível uma vez que triggers internos estão ativos.
 
 **Tier de máquina (§0.3.1):** CLIP só roda em `HIVE_VISION_TIER=lite|full`. Em `none` (máquina simples) a busca visual cai no Vision LLM Ollama (descrição) + `bge-m3` no store atual — **sem CLIP, sem torch**. Modelo dedicado é opt-in por capacidade de hardware.
 
-**Nota de dimensão:** embeddings visuais CLIP são **512d** e vivem num store LanceDB **separado** — **NÃO** usam o índice HNSW 1024d (bge-m3) do cérebro. Sem conflito de dimensão.
+**Nota de dimensão:** embeddings visuais CLIP são **512d** e vivem num store LanceDB **separado** — **NÃO** usam o índice HNSW 1024d (snowflake-arctic-embed2) do cérebro. Sem conflito de dimensão.
 
 ### Fase P13 — OmniParser v2 (UI screenshot parsing, pré-processador) 🔜
 

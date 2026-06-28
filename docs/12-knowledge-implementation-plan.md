@@ -35,58 +35,63 @@ engenharia.
    containers reais quando o backend exigir. Se dependencia real estiver
    ausente, o teste deve falhar no perfil `--real` ou ser separado em um perfil
    explicitamente marcado como `requires-service`.
-4. **Vendors externos em `integrations/`:** todo projeto externo usado como
-   referencia, adapter ou backend deve ser clonado em `integrations/<nome>`.
-   Runtime pode usar Docker/pip quando fizer sentido, mas o source upstream
-   fica versionado localmente como vendor auditavel.
+4. **Vendor por tipo (clone vs wrapper vs pip):** clone so o que se builda/patcha
+   do source; servico via container/SDK e wrapper; lib e pip (regra §3.1).
 5. **Nada hardcoded em `core/`:** modelos, portas, endpoints, colecoes e
    backends devem ter default local e override por `.env`.
 6. **Fonte de verdade anatomica:** nenhum backend externo substitui `cerebro/`
    e UMC. Milvus, RAGFlow e LlamaIndex sao orgaos/adapters, nao cerebro.
+7. **Isolamento por workspace nasce no schema:** `workspace_id` (default
+   `'default'`) em neurons/observations/synapses/goals/document_memories/
+   visual_memories/ambiguities/causal_edges/vault; particao por workspace nas
+   colecoes vetoriais; toda leitura/escrita do router e da promocao filtra por
+   `workspace_id` (contrato `docs/11` §18). Single-user nao seta nada.
 
 ---
 
 ## 3. Integracoes Externas
 
-### 3.1 Politica De Clone
+### 3.1 Vendor: clone vs wrapper
 
-Cada integracao nova deve seguir este contrato:
+- **Clone** (`config/components.lock.json`): só o que o `install.sh` builda/patcha
+  do source — `graphify`, `neural-memory`, `rtk`.
+- **Wrapper** (`integrations/<nome>/client.py` + `docker-compose.yml`, imagem
+  pinada por digest): serviço via container/SDK — `graphiti`, Milvus, RAGFlow.
+- **Pip** (`pyproject.toml`): LlamaIndex.
 
-```text
-integrations/<nome>/
-  upstream/ ou repo source clonado
-  README.md do Hive-Mind explicando papel, comandos e env
-  client.py ou adapter local quando aplicavel
-  health.py ou assert_health()
-  tests reais de conectividade/contrato
-```
+`install.sh` não usa `git clone` fora de `integrations/`. Para esta frente,
+`components.lock.json` é contrato negativo para Milvus, RAGFlow e LlamaIndex:
+se algum deles aparecer no lock, a implementação regrediu para clone indevido.
 
-`install.sh` deve criar ou atualizar os clones de forma idempotente. Nao usar
-`git clone` fora de `integrations/`.
+### 3.2 Vendors Desta Frente
 
-### 3.2 Clones Obrigatorios Para Esta Frente
-
-| Integracao | Clone em | Upstream | Uso no Hive-Mind | Runtime esperado |
+| Integracao | Tipo | Em | SDK (pip) | Uso |
 |---|---|---|---|---|
-| RAGFlow | `integrations/ragflow/` | `https://github.com/infiniflow/ragflow.git` | referencia/adapter de ingestao documental, parsing e citacoes | adapter local primeiro; servico opcional |
-| Milvus | `integrations/milvus/` | `https://github.com/milvus-io/milvus.git` | backend vetorial de producao via `VectorBackend` | Docker Compose local para testes reais |
-| LlamaIndex | `integrations/llama_index/` | `https://github.com/run-llama/llama_index.git` | referencia/adapter para retrievers compostos/workflows | pacote Python + source auditavel |
+| Milvus | wrapper | `integrations/milvus/{client.py,docker-compose.yml}` | `pymilvus` | backend vetorial de producao (`VectorBackend`) |
+| RAGFlow | wrapper (headless) | `integrations/ragflow/{client.py,docker-compose.yml}` | `ragflow-sdk` | parsing/chunking/citacoes → `document_vectors`+UMC |
+| LlamaIndex | pip | `pyproject.toml` | `llama-index` | adapter p/ retrievers compostos |
 
-### 3.3 Comandos Esperados No Instalador
+RAGFlow roda headless: o store dele é cache de ingestão; `cerebro/`+UMC continuam
+fonte de verdade (`docs/11` §16).
+
+### 3.3 Bootstrap No Instalador
 
 ```bash
-git clone --depth 1 https://github.com/infiniflow/ragflow.git integrations/ragflow
-git clone --depth 1 https://github.com/milvus-io/milvus.git integrations/milvus
-git clone --depth 1 https://github.com/run-llama/llama_index.git integrations/llama_index
+docker compose -f integrations/milvus/docker-compose.yml up -d    # imagem pinada por digest
+docker compose -f integrations/ragflow/docker-compose.yml up -d   # imagem pinada por digest
+uv sync                                                            # pymilvus, ragflow-sdk, llama-index
 ```
 
-O instalador deve:
+Instalador: validar digest das imagens contra o pinado no compose; Milvus/RAGFlow
+não sobem em `local-min`.
 
-1. nao apagar alteracoes locais sem confirmacao;
-2. validar remotes corretos;
-3. registrar commit upstream atual em `integrations/<nome>/README.md`;
-4. instalar apenas o runtime necessario para o perfil escolhido;
-5. executar health real apos install.
+### 3.4 Trilha futura — fork de UI do RAGFlow
+
+Se o frontend do RAGFlow for customizado para virar a UI do Hive-Mind, ele migra
+para **clone+patch** (`integrations/patches/`). Decisão separada, não desta frente.
+A UI do RAGFlow é acoplada ao store dele (ES/Infinity+MySQL+MinIO) — não pode
+virar fonte de verdade acima do UMC. UI do cérebro (grafo/neurônios) =
+`integrations/neural-memory/dashboard/`.
 
 ---
 
@@ -145,6 +150,27 @@ ollama pull qwen2.5:7b
 | `prod-local` | VPS/desktop sempre ligado | local-full | Milvus Docker, API REST, watcher, metrics |
 | `cloud-optional` | qualidade maior sob escolha | qualquer provider configurado | nunca obrigatorio |
 
+### 4.4 Reconciliacao com o roadmap P (`docs/10`)
+
+`docs/10` numera por **anatomia** (P0–P15); esta frente numera por **camada de
+conhecimento** (K0–K10). Mapa para evitar dois backlogs divergentes:
+
+| K (conhecimento) | P (anatomia, docs/10) | Relacao |
+|---|---|---|
+| K0 auditoria/embedding 1024d | P0 (embeddings local) | K0 estende P0: unifica modelo em todos os pontos |
+| K1 vendors (Milvus/RAGFlow/LlamaIndex) | — | **eixo novo**, sem P equivalente |
+| K2 VectorBackend + Milvus | — | **eixo novo** (hoje sqlite-vec direto, sem contrato) |
+| K3 Promotion pipeline | — | **eixo novo** (hoje so `archived` no schema) |
+| K4 Claude-mem bridge | P (claude-mem ja integrado) | formaliza promocao do que hoje so e lido |
+| K5 cadencia mensal/anual | **P10 (RAPTOR)** | mesma entrega sob dois nomes |
+| K6 DocumentPipeline | — | **eixo novo** (RAGFlow headless) |
+| K7 RetrievalRouter | — | **eixo novo** (hoje `sinapse_query` funde 7, sem router) |
+| K8 knowledge health | P (insula/health existe) | adiciona metricas de cobertura |
+| K9/K10 test harness + installer | P (criterio geral) | transversal |
+
+Visual (P11 LanceDB / P13 OmniParser / P14 Amigdala / P15 Ganglios) seguem so no
+`docs/10` — nao fazem parte desta frente de conhecimento.
+
 ---
 
 ## 5. Fases De Implementacao
@@ -152,6 +178,41 @@ ollama pull qwen2.5:7b
 ### K0 — Auditoria E Normalizacao De Base
 
 **Objetivo:** eliminar contradicoes antes de implementar camadas novas.
+
+> **Entregue (2026-06-28):**
+> - [x] task 1 — embedding unificado: `worker.py` defaulta `snowflake-arctic-embed2`
+>   (era `bge-m3`); igual a `core/database.py`. Teste: `tests/real/test_embedding_stack.py::test_default_embedding_model_unified`.
+> - [x] task 7 — migração CRR-safe: `alter_table_crr_safe()` +
+>   `migrate_workspace_and_federation()` em `core/database.py` (chamada em
+>   `ensure_migrations`); `workspace_id` nas 9 tabelas + `origin_instance`/
+>   `origin_signature`/`embedding_model`/`embedding_dim` em `neurons`; colunas no
+>   `umc_schema.sql` e `umc_schema_crr.sql` (neurons). Idempotente, CRR-safe.
+>   Testes: `tests/unit/test_workspace_migration.py` (7) + `tests/real/...::test_real_db_has_workspace_and_federation`.
+> - [x] auditoria pós-implementação — todos os `ADD COLUMN` legados dentro de
+>   `ensure_migrations()` agora passam por `add_column_if_missing()` →
+>   `alter_table_crr_safe()`; colunas opcionais usam `DEFAULT NULL` explícito
+>   para manter compatibilidade com CRR.
+> - [x] task 8 — esqueleto K9 (ver bloco K9).
+> - [x] B8 — backup `hive_mind.db.pre-workspace` (API `backup()`, 1x, pula
+>   `:memory:`/temp) antes da 1ª aplicação da migração. Testes em
+>   `tests/unit/test_workspace_migration.py` (12 total).
+> - [x] fail-closed de migração estrutural — falha em
+>   `migrate_workspace_and_federation()` levanta `RuntimeError` por padrão.
+>   Bypass só para diagnóstico de DB legado:
+>   `HIVE_ALLOW_DEFERRED_MIGRATIONS=1`. Testes:
+>   `tests/unit/test_workspace_migration.py`.
+> - [ ] tasks 2–6 pendentes.
+> - **Verificação atual do recorte:** `tests/unit/test_workspace_migration.py`
+>   12 passed; `tests/unit/test_real_service_registry.py` 5 passed;
+>   `./tests/run_real_knowledge.sh` 21 passed (Ollama up, dim=1024 confirmado;
+>   K1 wrappers, K2 sqlite/Milvus e sync/backfill `memory_vectors` +
+>   `observation_vectors` incluidos, com K1 digest gate e E2E bounded nos
+>   bancos reais);
+>   `json.tool`, `bash -n`, `py_compile` e `integrations-update.sh
+>   --wrappers-only --no-pip` verdes.
+> - **Verificação global pós-ajuste:** `./tests/run_all.sh` verde:
+>   Smoke 19 passed; Unit 474 passed / 3 skipped; Integration 104 passed /
+>   4 skipped; E2E 22 passed.
 
 Tasks:
 
@@ -163,7 +224,15 @@ Tasks:
    LightRAG e Graphiti;
 5. declarar no `pyproject.toml` os pacotes de `.venv` necessarios para esta
    frente: `ragflow-sdk`, `pymilvus` e `llama-index`;
-6. separar testes antigos mockados dos testes reais de aceite.
+6. separar testes antigos mockados dos testes reais de aceite;
+7. manter a **migracao unica CRR-safe** (B1+B6+B8) entregue: backup
+   `hive_mind.db.pre-workspace`, `alter_table_crr_safe()`, `workspace_id`,
+   `origin_instance`/`origin_signature` e `embedding_model`/`embedding_dim`.
+   Erro estrutural de migração falha fechado por padrão; não pode ficar invisível
+   em maquina zerada.
+8. manter o **esqueleto K9 PRIMEIRO** (B3 — gate) entregue e expandir para
+   fixtures reais de Milvus, claude-mem, FalkorDB e RAGFlow antes de qualquer
+   fase usar esses serviços como aceite.
 
 Conexoes:
 
@@ -189,40 +258,63 @@ python3 scripts/services/sinapse-write.py health
 
 ### K1 — Vendor Bootstrap Em `integrations/`
 
-**Objetivo:** trazer RAGFlow, Milvus e LlamaIndex para dentro da politica de
-vendors auditaveis.
+**Objetivo:** Milvus e RAGFlow como wrappers (compose + SDK); LlamaIndex como dep
+pip. Nenhum monorepo clonado.
+
+> **Entregue (2026-06-28) — gate de update seguro:**
+> - [x] `scripts/maintenance/integrations-update.sh --no-components` pula
+>   `components.py bootstrap/update` e nao repina `components.lock.json`.
+> - [x] `--wrappers-only` aliasa `--no-components --no-plugins` para atualizar
+>   apenas deps/wrappers.
+> - [x] aceite smoke sem mutação pesada:
+>   `./scripts/maintenance/integrations-update.sh --no-components --no-pip --no-plugins`.
+> - [x] wrappers Milvus/RAGFlow (`client.py`, compose pinado por digest,
+>   `README.md`, `assert_health(strict=...)`) entregues sem clone de monorepo.
+> - [x] `scripts/setup/verify_wrappers.py` valida compose real via
+>   `docker compose config --quiet` e exige `image@sha256:<digest>` para
+>   Milvus/RAGFlow; `install.sh` e `integrations-update.sh` chamam esse gate.
+> - [x] deps `pymilvus`, `ragflow-sdk`, `llama-index` em `pyproject.toml`/`uv.lock`
+>   e importadas no `.venv`.
+> - [x] aceite real K1: `.venv/bin/python -m pytest
+>   tests/real/test_integration_wrappers.py -q` → 7 passed; `docker compose
+>   ... config` verde para Milvus/RAGFlow; `integrations-update.sh
+>   --wrappers-only --no-pip` verde e validou compose/digests sem tocar
+>   componentes git nem atualizar o lock.
 
 Tasks:
 
-1. adicionar funcao idempotente `clone_or_update_integration()` no instalador;
-2. clonar `ragflow`, `milvus`, `llama_index` em `integrations/`;
-3. escrever `integrations/<nome>/README.md` com commit, papel e comandos;
-4. adicionar health checks por integracao;
-5. registrar `ragflow`, `milvus` e `llama_index` em
-   `config/components.lock.json`;
-6. incluir os tres vendors em `scripts/maintenance/integrations-update.sh`;
-7. bloquear clone fora de `integrations/` nos scripts de setup.
+1. criar `integrations/milvus/` e `integrations/ragflow/` com `client.py`,
+   `docker-compose.yml` (imagem pinada por digest), `README.md` e `assert_health()`;
+2. `pymilvus`, `ragflow-sdk`, `llama-index` em `pyproject.toml`/`uv.lock`;
+3. incluir os wrappers em `scripts/maintenance/integrations-update.sh` sem
+   atualizar componentes git por acidente: adicionar modo `--no-components`
+   ou `--wrappers-only`;
+4. bloquear `git clone` fora de `integrations/` nos scripts de setup.
 
 Conexoes:
 
 - `install.sh`
 - `scripts/setup/install_services.py`
 - `core/paths.py::INTEGRATIONS_ROOT`
-- `config/components.lock.json`
+- `config/components.lock.json` (contrato negativo: Milvus/RAGFlow/LlamaIndex
+  nao entram no lock)
 - `scripts/maintenance/integrations-update.sh`
-- `integrations/*/README.md`
+- `integrations/{milvus,ragflow}/README.md`
 
 Aceite real:
 
 ```bash
-test -d integrations/ragflow/.git
-test -d integrations/milvus/.git
-test -d integrations/llama_index/.git
-git -C integrations/ragflow rev-parse HEAD
-git -C integrations/milvus rev-parse HEAD
-git -C integrations/llama_index rev-parse HEAD
-.venv/bin/python -m pytest tests/real/test_integration_clones.py -q
-./scripts/maintenance/integrations-update.sh --no-plugins
+test -f integrations/milvus/docker-compose.yml
+test -f integrations/ragflow/docker-compose.yml
+.venv/bin/python -c "import pymilvus, ragflow_sdk, llama_index"
+.venv/bin/python -m pytest tests/real/test_integration_wrappers.py -q
+./scripts/maintenance/integrations-update.sh --no-components --no-plugins
+.venv/bin/python - <<'PY'
+import json
+lock = json.load(open("config/components.lock.json"))
+names = set(lock.get("components", lock).keys())
+assert not {"milvus", "ragflow", "llama_index", "llama-index"} & names
+PY
 ```
 
 ---
@@ -231,6 +323,61 @@ git -C integrations/llama_index rev-parse HEAD
 
 **Objetivo:** criar contrato unico para vetores, com `sqlite_vec` local e Milvus
 como backend de producao.
+
+> **Entregue (2026-06-28) — E2E real local + Milvus:**
+> - [x] `core/vector_backend.py` com interface `upsert`, `delete`, `query`,
+>   `hybrid_query`, `count`, `health`.
+> - [x] `SQLiteVecBackend` real sobre `hive_mind.db/search_vec` para
+>   `memory_vectors`, com filtro `workspace_id`, validação de dimensão e recusa
+>   explícita de coleções planejadas.
+> - [x] `MilvusBackend` real atrás de `VECTOR_BACKEND=milvus`, usando
+>   `pymilvus.MilvusClient`, criação de coleção com schema explícito e índice
+>   `AUTOINDEX/COSINE`.
+> - [x] registro canônico em `core/vector_collections.py` para
+>   `memory_vectors`, `observation_vectors`, `document_vectors`, `code_vectors`,
+>   `visual_vectors`, `graph_vectors`, `summary_vectors`, incluindo o mapeamento
+>   B2 de `observation_vectors` para `claude-mem.db/vec_observations`.
+> - [x] metadados canônicos obrigatórios no Milvus:
+>   `parent_id`, `parent_type`, `brain_lobe`, `knowledge_type`, `project`,
+>   `source_uri`, `hash`, `valid_at`, `workspace_id`.
+> - [x] aceite E2E K2 com Milvus real via Docker:
+>   `docker compose -f integrations/milvus/docker-compose.yml up -d`;
+>   `.venv/bin/python -m pytest tests/real/test_vector_backend_sqlite.py
+>   tests/real/test_vector_backend_milvus.py -q` → 6 passed.
+> - [x] task 5 para a coleção viva `memory_vectors`: `core/vector_sync.py`
+>   sincroniza `hive_mind.db/search_vec` → Milvus via `MilvusBackend`, com
+>   idempotência por `(id, hash, workspace_id)` e relatório `scanned/upserted/
+>   skipped/failed/errors`.
+> - [x] task 5 para a coleção viva externa `observation_vectors`:
+>   `SQLiteVecBackend` consulta `claude-mem.db/vec_observations` em modo
+>   read-only local; a escrita continua worker-owned pelo `sqlite-vec-worker`.
+>   `core/vector_sync.py` exporta `claude-mem.db/vec_observations` → Milvus com
+>   id estável `obs-<id>` e o mesmo contrato de idempotência por
+>   `(id, hash, workspace_id)`.
+> - [x] task 8 para `memory_vectors`: backfill real do acervo vetorial vivo,
+>   hidratando metadados canônicos a partir de `neurons` + `search_vec`.
+> - [x] task 8 para `observation_vectors`: backfill real do acervo já
+>   materializado no claude-mem, hidratando metadados canônicos a partir de
+>   `observations` + `vec_observations`.
+> - [x] aceite E2E sync/backfill: `.venv/bin/python -m pytest
+>   tests/real/test_vector_sync_milvus.py -q` → 2 passed, cobrindo primeira
+>   carga, reexecução idempotente, atualização por hash e falha real de linha
+>   rejeitada pelo Milvus sem esconder o erro.
+> - [x] aceite E2E `observation_vectors`: `.venv/bin/python -m pytest
+>   tests/real/test_observation_vectors.py -q` → 2 passed, cobrindo
+>   `claude-mem.db` real temporário com `sqlite-vec`, filtros por projeto/tipo,
+>   recusa de escrita direta worker-owned, sync para Milvus real e reexecução
+>   idempotente.
+> - [x] aceite E2E live bounded: `.venv/bin/python -m pytest
+>   tests/real/test_vector_sync_live_e2e.py -q` → 1 passed, lendo
+>   `hive_mind.db` real + `~/.claude-mem/claude-mem.db` real em modo read-only,
+>   exportando lote limitado para coleções Milvus temporárias e validando
+>   idempotência sem alterar os bancos fonte.
+> - [ ] task 5 para coleções planejadas ainda pendente
+>   (`document_vectors`, `code_vectors`, `visual_vectors`, `graph_vectors`,
+>   `summary_vectors`).
+> - [ ] task 8 para coleções planejadas pendente: backfill de document/code/
+>   visual/graph/summary depende das tabelas/pipelines dessas fases.
 
 Tasks:
 
@@ -243,7 +390,14 @@ Tasks:
    `code_vectors`, `visual_vectors`, `graph_vectors`, `summary_vectors`;
 5. criar sync local -> Milvus com idempotency/hash;
 6. garantir metadados: `parent_id`, `parent_type`, `brain_lobe`,
-   `knowledge_type`, `project`, `source_uri`, `hash`, `valid_at`.
+   `knowledge_type`, `project`, `source_uri`, `hash`, `valid_at`, `workspace_id`;
+7. **mapear colecao→(DB, processo)** (B2): `observation_vectors` hoje e
+   `vec_observations` em **`claude-mem.db`** (processo `sqlite-vec-worker`), nao
+   `hive_mind.db`. O contrato deve declarar onde cada colecao vive e como o backend
+   fala com o worker (ou migrar `vec_observations`). "Uma interface, varias
+   colecoes" nao pode esconder dois bancos;
+8. **backfill por colecao** (B5): vetorizar o acervo existente (document_chunks,
+   code_symbols, visual, graph, summaries) — a colecao nova nasce vazia sem isso.
 
 Conexoes:
 
@@ -257,9 +411,12 @@ Conexoes:
 Aceite real:
 
 ```bash
-docker compose -f integrations/milvus/deployments/docker/standalone/docker-compose.yml up -d
+docker compose -f integrations/milvus/docker-compose.yml up -d   # compose vendorizado, imagem pinada por digest
 .venv/bin/python -m pytest tests/real/test_vector_backend_sqlite.py -q
 VECTOR_BACKEND=milvus .venv/bin/python -m pytest tests/real/test_vector_backend_milvus.py -q
+.venv/bin/python -m pytest tests/real/test_vector_sync_milvus.py -q
+.venv/bin/python -m pytest tests/real/test_observation_vectors.py -q
+.venv/bin/python -m pytest tests/real/test_vector_sync_live_e2e.py -q
 ```
 
 ---
@@ -269,9 +426,14 @@ VECTOR_BACKEND=milvus .venv/bin/python -m pytest tests/real/test_vector_backend_
 **Objetivo:** transformar observations, discoveries, summaries e arquivos em
 candidatos tipados, sem perder evidencia.
 
+**JA EXISTEM promotores por area** (`docs/11` §3.1): `decision_promoter`,
+`pattern_distiller`, `conflict_detector`, `sector_classifier`, `drift_detector`,
+`topic_consolidator`, `work_tracker`. O intake/promotion **orquestra e tipa**
+esses writers (classificacao, quarentena, idempotencia), nao os recria.
+
 Tasks:
 
-1. criar `core/knowledge/intake.py`;
+1. criar `core/knowledge/intake.py` (normaliza+classifica; chama os promotores §3.1);
 2. criar `core/knowledge/promotion.py`;
 3. normalizar fontes: claude-mem observation, discovery, session summary,
    daily/weekly/monthly/yearly summaries, docs, code symbols;
@@ -280,7 +442,12 @@ Tasks:
    `project_status`, `document_chunk`, `code_symbol`, `visual_observation`;
 5. criar quarentena para erro estrutural (`archived=2`, motivo, retry policy);
 6. gravar `observation.neuron_id` quando promocao criar neuronio;
-7. manter raw intacto.
+7. manter raw intacto;
+8. **refatorar cada promotor existente** (B4 — `decision_promoter`,
+   `pattern_distiller`, `conflict_detector`, `sector_classifier`, `drift_detector`,
+   `topic_consolidator`, `work_tracker`) para `candidate-only` + idempotente +
+   `workspace_id`, conforme o contrato de escrita (`docs/11` §12), com teste por
+   promotor. **Sao N refactors, nao 2 arquivos novos.**
 
 Conexoes:
 
@@ -306,11 +473,19 @@ python3 scripts/services/sinapse-write.py query "decisoes promovidas hoje"
 **Objetivo:** usar o melhor do claude-mem: raw events, discoveries,
 session_summaries, lessons learned e next steps.
 
+**JA EXISTE:** `scripts/services/claude_mem_bridge.py` le `claude-mem.db`
+read-only, preserva `project`, idempotente (`cm-{content_hash}` + INSERT OR
+IGNORE) → `hive_mind.observations`. Esta fase **estende**, nao recria.
+
 Tasks:
 
-1. criar adapter `core/knowledge/claude_mem_bridge.py`;
-2. consumir fluxo temporal `search -> timeline -> get_observations`;
-3. importar discoveries e summaries com `source_id` estavel;
+1. promover o bridge existente para `core/knowledge/claude_mem_bridge.py` (ou
+   manter o path e importar de `core/knowledge/`);
+2. **decisao de mecanismo (nao duplicar):** manter a leitura SQL direta (atual,
+   robusta, sem MCP) OU migrar para `search→timeline→get_observations`; o atual
+   ja funciona — so trocar com razao;
+3. estender a importacao para `discoveries` e `session_summaries` com `source_id`
+   estavel (hoje importa a tabela `observations`);
 4. promover:
    - `investigated` -> rationale/investigation note;
    - `completed` -> operational_fact/session_summary;
@@ -412,12 +587,17 @@ Tasks:
 
 1. criar `core/retrieval/router.py`;
 2. criar intents: `recent_activity`, `decision`, `learning`, `document`,
-   `code`, `causal`, `multi_hop`, `visual`, `hybrid`;
+   `code`, `causal`, `multi_hop`, `visual`, `self_state` (insula),
+   `operational` (tronco), `sector` (diencefalo), `hybrid`;
 3. integrar `sinapse_query` ao router;
 4. integrar `sinapse_temporal_*` para recentes;
 5. integrar `VectorBackend` por colecao;
 6. integrar Graphify, Graphiti e LightRAG;
-7. retornar `retrieval_path`, `citations`, `confidence`, `missing_context`.
+7. retornar `retrieval_path`, `citations`, `confidence`, `missing_context`;
+8. reranker opcional entre fusao e retorno (contrato `docs/11` §17.1; off em `local-min`);
+9. **classificador de intent explicito** (B7): papel `topic_router` (local, ja
+   existe em `core/auth.py`) decide o intent + fallback `hybrid` quando incerto;
+   caso de roteamento errado no golden set (§17.3).
 
 Conexoes:
 
@@ -439,15 +619,21 @@ python3 scripts/services/sinapse-write.py query "o que foi decidido sobre embedd
 
 **Objetivo:** provar cobertura e detectar buracos de memoria.
 
+**JA EXISTE health da insula** (`docs/11` §3.1): `health_dashboard.py`,
+`alert_dispatcher.py`, `review_writer.py` (→`saude/`). `knowledge_health.py`
+**adiciona metricas de cobertura de conhecimento**, nao substitui o dashboard.
+
 Tasks:
 
 1. criar `scripts/health/knowledge_health.py`;
 2. medir `neurons_vectorized_pct`, `observations_linked_pct`,
    `discoveries_pending`, `summary_vectors_total`, `orphan_vectors`,
-   `milvus_sync_lag`, `query_route_distribution`;
+   `milvus_sync_lag`, `query_route_distribution`, **`*_vectorized_pct` por colecao**
+   (B5: gate de cobertura cobre document/code/visual/graph/summary, nao so neurons);
 3. expor no `sinapse_health`;
 4. adicionar endpoint REST `/api/v1/knowledge/health`;
-5. gerar report Markdown em `cerebro/cortex/insula/saude/`.
+5. gerar report Markdown em `cerebro/cortex/insula/saude/`;
+6. esquecimento intencional: podar `orphan_vectors` (nao so medir) + `forget()` tombstone (contrato `docs/11` §17.2).
 
 Conexoes:
 
@@ -470,6 +656,23 @@ Aceite real:
 **Objetivo:** criar uma suite real para esta frente e impedir regressao por
 testes simulados.
 
+> **Entregue (2026-06-28) — esqueleto (gate de B3):**
+> - [x] marker `real` + `requires_service` em `pytest.ini`.
+> - [x] `tests/real/` (`__init__.py`, `conftest.py` com fixtures `real_db` e
+>   `ollama_or_skip`, `README.md`).
+> - [x] `tests/run_real_knowledge.sh` (executável; `-m real`).
+> - [x] 1º teste real: `tests/real/test_embedding_stack.py` (dim 1024, modelo
+>   unificado, colunas da migração) — baseline inicial **3 passed**; suíte real
+>   atual **21 passed** após K1 digest gate, K2 sync/backfill de
+>   `memory_vectors` e `observation_vectors`, incluindo E2E bounded nos bancos
+>   reais.
+> - [x] skip genérico de `requires_service` entregue em
+>   `tests/real/service_registry.py`: serviços nomeados `ollama`, `milvus`,
+>   `falkordb`, `claude_mem`, `ragflow`; desconhecido falha como erro de teste;
+>   offline pula com motivo e serviço nomeado.
+> - [x] README/runner atualizados para refletir o service registry.
+> - [ ] tasks 3,6 (fixtures Milvus/claude-mem, separar mocks) e 7 (golden set §17.3) pendentes.
+
 Tasks:
 
 1. criar marcador pytest `real`;
@@ -479,7 +682,11 @@ Tasks:
 4. criar `tests/real/README.md` com prerequisitos;
 5. adicionar `./tests/run_real_knowledge.sh`;
 6. separar testes antigos mockados como unitarios, sem contar como aceite da
-   arquitetura de conhecimento.
+   arquitetura de conhecimento;
+7. eval de recuperacao: `tests/real/golden_retrieval.jsonl` + precision/recall@k
+   como gate (contrato `docs/11` §17.3).
+8. implementar skip por serviço para `requires_service`: cada teste declara o
+   serviço exigido; se offline, skip com motivo; se online, falha real reprova.
 
 Regra:
 
@@ -503,7 +710,7 @@ Aceite real:
 Tasks:
 
 1. atualizar `install.sh` para baixar modelos locais obrigatorios;
-2. rodar `components.py bootstrap` para clonar vendors em `integrations/`;
+2. `components.py bootstrap` (clona só graphify/neural-memory/rtk) + `docker compose up` dos wrappers Milvus/RAGFlow (não clona monorepo);
 3. sincronizar `.venv` via `uv sync --frozen --all-groups` com
    `ragflow-sdk`, `pymilvus` e `llama-index`;
 4. iniciar/validar Ollama, claude-mem, FalkorDB, Milvus local quando perfil pedir;
@@ -538,7 +745,9 @@ K0 Auditoria
                   -> K10 Installer
 ```
 
-K9 deve comecar cedo em paralelo, mas nenhuma fase fecha sem teste real.
+**O esqueleto de K9 (`tests/real/` + `run_real_knowledge.sh`) e PRE-REQUISITO de
+K0** (B3): sem ele, o "Aceite real" de toda fase e inexequivel. A migracao
+CRR-safe (K0 task 7, B1) tambem precede qualquer fase que escreva no schema.
 
 ---
 
@@ -548,13 +757,13 @@ K9 deve comecar cedo em paralelo, mas nenhuma fase fecha sem teste real.
 |---|---|
 | VectorBackend | `core/vector_backend.py`, `core/vector_collections.py`, `tests/real/test_vector_backend_*.py` |
 | Promotion | `core/knowledge/intake.py`, `core/knowledge/promotion.py`, `core/knowledge/types.py`, `tests/real/test_promotion_pipeline_sqlite.py` |
-| Claude-Mem bridge | `core/knowledge/claude_mem_bridge.py`, `tests/real/test_claude_mem_bridge.py` |
+| Claude-Mem bridge | `core/knowledge/claude_mem_bridge.py` (**promover** de `scripts/services/claude_mem_bridge.py`, já existe), `tests/real/test_claude_mem_bridge.py` |
 | Cadencia | `scripts/dream/monthly_synthesizer.py`, `scripts/dream/yearly_synthesizer.py`, `core/schemas/monthly_models.py`, `core/schemas/yearly_models.py` |
 | DocumentPipeline | `core/document_pipeline.py`, `scripts/knowledge/document_ingest.py`, `tests/real/test_document_pipeline_*.py` |
 | Retrieval | `core/retrieval/router.py`, `core/retrieval/intents.py`, `tests/real/test_retrieval_router_real.py` |
 | Health | `scripts/health/knowledge_health.py`, `tests/real/test_knowledge_health.py` |
 | Installer | `install.sh`, `.env.example`, `pyproject.toml`, `uv.lock`, `scripts/setup/install_services.py`, `scripts/maintenance/integrations-update.sh`, `tests/run_real_knowledge.sh` |
-| Vendors | `integrations/ragflow/`, `integrations/milvus/`, `integrations/llama_index/` |
+| Vendors | `integrations/milvus/{client.py,docker-compose.yml,README.md}`, `integrations/ragflow/{client.py,docker-compose.yml,README.md}` (wrappers; sem clone). LlamaIndex = dep pip em `pyproject.toml` |
 
 ---
 
@@ -579,26 +788,56 @@ Uma fase so esta pronta quando:
 |---|---|
 | Maquina simples nao roda modelos maiores | defaults pequenos, perfis `local-min` e `local-full`, override por env |
 | Milvus aumenta complexidade local | backend opcional por env, sqlite-vec obrigatorio e sempre funcional |
-| RAGFlow virar nova fonte de verdade | adapter apenas; parent document e UMC continuam canonicos |
-| LlamaIndex esconder o roteamento | usar como referencia/adapter, mas manter `RetrievalRouter` proprio |
+| RAGFlow virar nova fonte de verdade | wrapper headless; store do RAGFlow e cache; UMC canonico |
+| Inchar repo clonando monorepo de servico | wrapper: imagem pinada por digest + SDK no `uv.lock` (§3.1) |
+| LlamaIndex esconder o roteamento | dep pip/adapter; `RetrievalRouter` proprio |
 | Testes lentos | separar `tests/real`, mas exigir para aceite de fase |
 | Promocao criar fatos falsos | candidate-only, evidencia obrigatoria, conflito com `invalid_at` |
 | Duplicacao vetorial | hash + parent_id + orphan vector audit |
+| **`ALTER` puro quebra tabela CRR** (B1) | `alter_table_crr_safe()` com `crsql_begin_alter`/`commit_alter`; backup antes; testar com `HIVE_CRDT_SYNC=true` |
+| **VectorBackend "unico" esconde 2 bancos** (B2) | declarar colecao→(DB,processo); `observation_vectors` vive em `claude-mem.db` (worker), nao `hive_mind.db` |
+| `integrations-update.sh` como aceite amplo demais | **mitigado:** `--no-components`/`--wrappers-only` implementados; wrappers K1 cobertos por teste real |
+| `requires_service` prometido mas sem registry generico | **mitigado:** registry/hook implementado; fixtures reais de Milvus/FalkorDB/claude-mem/RAGFlow ainda pendentes |
+| migração estrutural seguir com schema parcial | **mitigado:** fail-closed por padrão; bypass legado só com `HIVE_ALLOW_DEFERRED_MIGRATIONS=1` |
 
 ---
 
 ## 10. Proximo Corte Recomendado
 
-Comecar por K0 + K1 + esqueleto K9:
+Continuar a partir da base **K9 + K0** ja iniciada:
 
-1. corrigir docs/envs restantes para `snowflake-arctic-embed2:latest`;
-2. adicionar `ragflow-sdk`, `pymilvus` e `llama-index` no `pyproject.toml`
-   e atualizar `uv.lock`;
-3. registrar `ragflow`, `milvus`, `llama_index` em `components.lock.json`;
-4. incluir os tres vendors em `scripts/maintenance/integrations-update.sh`;
-5. clonar `ragflow`, `milvus`, `llama_index` em `integrations/`;
-6. criar `tests/real/README.md` e `tests/run_real_knowledge.sh`;
-7. adicionar primeiro teste real: embeddings 1024d em Ollama + SQLite.
+1. criar fixtures reais de Milvus, claude-mem, FalkorDB e RAGFlow usando o
+   service registry ja entregue;
+2. confirmar `pymilvus`, `ragflow-sdk`, `llama-index` pinados em `pyproject.toml`/`uv.lock`;
+3. criar `integrations/milvus/` e `integrations/ragflow/` como wrappers
+   (`client.py` + `docker-compose.yml`, imagem pinada por digest);
+4. adicionar modo `--no-components`/`--wrappers-only` no update para testar
+   wrappers sem repinar componentes git;
+5. manter o teste real de embeddings 1024d em Ollama + SQLite + migração com
+   backup como baseline regressivo.
 
 Esse corte cria a base verificavel para o resto sem ainda mexer no fluxo de
 promocao em producao.
+
+## 11. Auditoria Final De Alinhamento (2026-06-28)
+
+Resultado comparando arquitetura, plano e testes atuais:
+
+| Item | Estado atual verificado | Cobertura no desenho |
+|---|---|---|
+| modelo de embedding unico | `core/database.py` e worker usam `snowflake-arctic-embed2:latest`; teste real confirmou 1024d | coberto em K0 e §4 |
+| migração workspace/federação | unit 12 passed; DB real tem `workspace_id`, `origin_instance`, `origin_signature`, `embedding_model`, `embedding_dim`; ADD COLUMN legado passa por CRR-safe | coberto em `docs/11` §18 e K0 |
+| backup antes da migração | teste unitário cobre backup em DB arquivo e skip em `:memory:` | coberto em K0/B8 |
+| wrappers vs clones | script atual só atualiza graphify/neural-memory/rtk como componentes git | coberto, com contrato negativo para `components.lock.json` |
+| aceite real sem mock | `tests/run_real_knowledge.sh` roda 21 testes reais verdes, incluindo K1 wrappers/digest gate, K2 sqlite/Milvus, sync/backfill `memory_vectors` + `observation_vectors` e E2E bounded nos bancos reais | coberto, mas K9 ainda precisa fixtures dos demais serviços |
+| skip de serviço offline | registry/hook em `tests/real/service_registry.py`; unit 5 passed | coberto para seleção/skip; falta fixture real por backend novo |
+| update de integrações | `--no-components` e `--wrappers-only` implementados; K1 wrappers importados e `uv lock --upgrade && uv sync` verde | coberto para gate de update |
+| falha de migração estrutural | falha fechado por padrão; bypass legado exige `HIVE_ALLOW_DEFERRED_MIGRATIONS=1` | coberto no core |
+| regressões globais | `./tests/run_all.sh` verde apos K1 digest gate + K2 `observation_vectors` + E2E bounded nos bancos reais: Smoke 19 passed; Unit 474 passed / 3 skipped; Integration 104 passed / 4 skipped; E2E 22 passed | coberto neste recorte |
+
+Conclusao: K1 esta coberto para wrappers/pip; K2 esta coberto para as colecoes
+vivas `memory_vectors` e `observation_vectors`, tanto local quanto Milvus. K2
+nao deve ser tratado como encerrado para `document_vectors`, `code_vectors`,
+`visual_vectors`, `graph_vectors` e `summary_vectors` ate as fases que criam
+essas tabelas/pipelines entregarem backfill e aceite real. K9 ainda precisa
+expandir fixtures reais para todos os servicos usados nas proximas fases.

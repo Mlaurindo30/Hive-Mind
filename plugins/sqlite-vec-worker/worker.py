@@ -1,7 +1,7 @@
 """
 SQLite-Vec Worker — substituto leve para Chroma no claude-mem.
 
-Usa sqlite-vec (extensão nativa SQLite) + Ollama bge-m3:latest (1024d)
+Usa sqlite-vec (extensão nativa SQLite) + Ollama snowflake-arctic-embed2:latest (1024d)
 para busca semântica sem dependência de Chroma/uvx/Python MCP.
 
 Backend configurável via EMBED_BACKEND=ollama|fastembed (default: ollama).
@@ -47,10 +47,11 @@ MODEL_CACHE_DIR = Path(
         str(Path(CLAUDE_MEM_DB).resolve().parent / "models"),
     )
 ).resolve()
-# Configurable via env: "ollama" (default, bge-m3 1024d) or "fastembed" (legado, 384d)
+# Configurable via env: "ollama" (default, snowflake-arctic-embed2 1024d) or "fastembed" (legado, 384d)
 EMBED_BACKEND = os.environ.get("EMBED_BACKEND", "ollama")
 OLLAMA_BASE = os.environ.get("OLLAMA_BASE", "http://localhost:11434")
-OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "bge-m3:latest")
+# Default alinhado com core/database.py (mesmo espaço vetorial na mesma coleção).
+OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "snowflake-arctic-embed2:latest")
 DIMENSIONS = int(os.environ.get("VEC_EMBED_DIM", "1024"))
 # Max embeddings to sync at startup before the HTTP server comes up.
 # Remaining vectors are synced lazily on each /api/context/semantic request.

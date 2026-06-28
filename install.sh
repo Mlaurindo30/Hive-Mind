@@ -165,6 +165,7 @@ GRAPHIFY="$PROJECT_ROOT/.venv/bin/graphify"
 NMEM="$PROJECT_ROOT/.venv/bin/nmem"
 export PATH="$PROJECT_ROOT/.venv/bin:$PROJECT_ROOT/integrations/rtk/target/release:$PATH"
 "$PYTHON" -c "import fastapi, yaml, pydantic, graphify, neural_memory, sqlite_vec, pymilvus, llama_index, ragflow_sdk"
+"$PYTHON" "$PROJECT_ROOT/scripts/setup/verify_wrappers.py"
 mkdir -p "$PROJECT_ROOT/integrations/neural-memory/data"
 "$PYTHON" "$PROJECT_ROOT/scripts/setup/setup_umc.py" >/dev/null
 echo -e "  ${GREEN}✓${NC} Python $("$PYTHON" -c 'import sys; print(sys.version.split()[0])') em $PROJECT_ROOT/.venv"

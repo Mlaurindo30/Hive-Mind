@@ -1,0 +1,23 @@
+services:
+  milvus:
+    image: milvusdb/milvus:v2.5.14@sha256:0501c325442e518e321f103a06ab554e25e27de47183d325d9e3ab4776b7eec9
+    container_name: hive-mind-milvus
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_USE_EMBED: "true"
+      COMMON_STORAGETYPE: "local"
+      LOG_LEVEL: "info"
+    ports:
+      - "${MILVUS_PORT:-19530}:19530"
+      - "${MILVUS_METRICS_PORT:-9091}:9091"
+    volumes:
+      - milvus-data:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9091/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+volumes:
+  milvus-data:

@@ -25,13 +25,13 @@ _WORKING_DIR = str(
 # Configurável via setupbrain (role "lightrag" → HIVE_LIGHTRAG_MODEL).
 # Default qwen2.5:3b: prosa multilíngue (PT/EN), extrai entidades/relações bem
 # melhor que granite3-dense:2b (que alucinava), pequeno (~1.9GB) p/ coexistir na
-# GPU com bge-m3 e os demais modelos locais. Download no install.sh.
+# GPU com o embedder 1024d e os demais modelos locais. Download no install.sh.
 _LIGHTRAG_CHAT_MODEL = os.environ.get("HIVE_LIGHTRAG_MODEL", "qwen2.5:3b")
 _LIGHTRAG_CHAT_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1/chat/completions")
 
 
 def get_rag():
-    """Singleton: cria instância LightRAG alinhada ao projeto (Ollama bge-m3 1024d)."""
+    """Singleton: cria instância LightRAG alinhada ao projeto (Ollama 1024d)."""
     global _rag, _rag_ready
     if _rag is not None and _rag_ready:
         return _rag
@@ -50,7 +50,7 @@ def get_rag():
             @wrap_embedding_func_with_attrs(
                 embedding_dim=1024,
                 max_token_size=8192,
-                model_name="bge-m3:latest",
+                model_name=OLLAMA_EMBED_MODEL,
                 supports_asymmetric=True,
             )
             async def _embedding_func(
