@@ -21,6 +21,24 @@
       "commit": "9a52647f6529120723a04e5323f2b38be5b22655",
       "version": "0.42.4",
       "patch": "integrations/patches/rtk-umc-logging.patch"
+    },
+    "ragflow": {
+      "repository": "https://github.com/infiniflow/ragflow.git",
+      "path": "integrations/ragflow",
+      "commit": "f90be41eab4ccb9ad2c52031e6c5d3d89d998909",
+      "version": "commit:f90be41eab4c"
+    },
+    "milvus": {
+      "repository": "https://github.com/milvus-io/milvus.git",
+      "path": "integrations/milvus",
+      "commit": "2310c93b15a9ebf5657b9ddec9e056561dc6e152",
+      "version": "commit:2310c93b15a9"
+    },
+    "llama_index": {
+      "repository": "https://github.com/run-llama/llama_index.git",
+      "path": "integrations/llama_index",
+      "commit": "5891d5f4f3e934973c18334902ca8ea4eb6a2e12",
+      "version": "commit:5891d5f4f3e9"
     }
   }
 }

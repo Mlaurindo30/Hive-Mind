@@ -29,6 +29,7 @@
 19. [Fase HM-12: Federated Swarm](#19-fase-hm-12-enxame-federado-federated-swarm)
 20. [Decisões de Design (ADRs)](#20-decisões-de-design-adrs)
 21. [Governança de Fases](#21-governança-de-fases)
+22. [Arquitetura de Conhecimento Born-Large](#22-arquitetura-de-conhecimento-born-large)
 
 ---
 
@@ -246,7 +247,7 @@ Qualquer novo código que criar/modificar arquivo no vault **deve usar essas con
   │  ┌──────▼───────┐  ┌───────▼───────┐  ┌───────────────────────┐  │
   │  │  search_vec  │  │  search_fts   │  │  ambiguities          │  │
   │  │  (sqlite-vec │  │  (FTS5        │  │  (conflitos P2P)      │  │
-  │  │   384d HNSW) │  │   unicode61)  │  │  vault (segredos)     │  │
+  │  │   1024d HNSW)│  │   unicode61)  │  │  vault (segredos)     │  │
   │  └──────────────┘  └───────────────┘  └───────────────────────┘  │
   └─────────────────────────────┬──────────────────────────────────────┘
                                 │                   ▲
@@ -371,7 +372,7 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
   ┌──────────────────────────────┐          cache TTL 30s
   │ UMC SQL                      │          busca direta, zero gap
   │  search_fts MATCH 'pricing'  │
-  │  search_vec KNN 384d         │
+  │  search_vec KNN 1024d        │
   │  neurons/synapses            │
   │  observations FTS5           │
   └──────────────────────────────┘
@@ -488,7 +489,7 @@ Hermes pode fazer injeção automática via `pre_gateway_dispatch`. Limites:
   │                                                                │
   │  cerebro/cortex/temporal/<projeto>/<topico>/neuronio-*.md      │
   │  escrita atômica via arquivo temporário + os.replace()         │
-  │  UPSERT neurons (hash SHA-256, embedding 384d)                 │
+  │  UPSERT neurons (hash SHA-256, embedding 1024d)                │
   │  archived=1 (consolidado)                                      │
   └──────────────────────┬─────────────────────────────────────────┘
                          │
@@ -695,7 +696,7 @@ FastAPI, porta `HIVE_MIND_API_PORT` (default **37702**). Fail-closed sem `HIVE_M
 
 ### 11.1 Resolução de LLM por papel (`get_role_config`)
 
-Cada estágio do sistema que chama LLM tem um **papel** com configuração própria. Papéis canônicos atuais (constante `HIVE_LLM_ROLES` em `core/auth.py`): `dreamer`, `graphify`, `vision`, `synthesis`, `claude_mem`, `session_summarizer`, `daily_writer`, `alias_miner`, `topic_router`, `sector_classifier`, `weekly_synthesizer`, `drift_detector`, `decision_promoter`, `project_synthesizer`, `pattern_distiller`, `conflict_detector`. A função aceita qualquer nome de papel (case-insensitive, `-` vira `_`); nome vazio ou não-string levanta `ValueError`.
+Cada estágio do sistema que chama LLM tem um **papel** com configuração própria. Papéis canônicos atuais (constante `HIVE_LLM_ROLES` em `core/auth.py`): `dreamer`, `graphify`, `vision`, `synthesis`, `claude_mem`, `session_summarizer`, `daily_writer`, `alias_miner`, `topic_router`, `sector_classifier`, `weekly_synthesizer`, `monthly_synthesizer`, `yearly_synthesizer`, `drift_detector`, `decision_promoter`, `project_synthesizer`, `pattern_distiller`, `conflict_detector`, `graphiti`, `lightrag`. A função aceita qualquer nome de papel (case-insensitive, `-` vira `_`); nome vazio ou não-string levanta `ValueError`.
 
 ```python
 get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]
@@ -909,7 +910,7 @@ Tabela `causal_edges` registra relações causa→efeito entre neurônios. A fun
 
 ### Índice HNSW Incremental (`core/hnsw_index.py`)
 
-Índice vetorial baseado em `hnswlib` (coseno, 384 dimensões por padrão via `HNSW_DIM`), persistido em `hnsw_neurons.idx` na mesma pasta do `hive_mind.db`. Degrada gracefully se `hnswlib` não estiver instalado (aviso de log, sem crash).
+Índice vetorial baseado em `hnswlib` (coseno, 1024 dimensões por padrão via `HNSW_DIM`), persistido em `hnsw_neurons.idx` na mesma pasta do `hive_mind.db`. Degrada gracefully se `hnswlib` não estiver instalado (aviso de log, sem crash).
 
 | Função | O que faz |
 |--------|-----------|
@@ -1084,3 +1085,29 @@ renomeados na próxima edição manual do vault (NÃO pelo git — o vault é si
 - `2026-06-02-PHASE-34-Disk-Cache-persistente-para-TTS-design-rationale-e.md` (prefixo correto: TH-34)
 - `2026-06-02-PHASE-34-FFmpeg-Transcoding-no-Thoth-Telegram-Voice-Bubble.md` (prefixo correto: TH-34)
 - `2026-05-30-Implementacao-das-4-Fases-do-Sinapse-Agent.md` (fases do Sinapse Agent sem prefixo de projeto)
+
+---
+
+## 22. Arquitetura de Conhecimento Born-Large
+
+A arquitetura de conhecimento detalhada vive em
+[`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md),
+e o plano de execução vive em
+[`12-knowledge-implementation-plan.md`](12-knowledge-implementation-plan.md).
+Esses documentos são normativos para:
+
+- fluxo ideal de promoção;
+- preenchimento por parte do cérebro;
+- tipos canônicos de conhecimento;
+- uso de discoveries/session summaries do claude-mem;
+- estratégia de chunks e parent context;
+- separação de coleções vetoriais;
+- contrato `VectorBackend` com `sqlite-vec` local e Milvus produção;
+- `DocumentPipeline` inspirado em RAGFlow;
+- `RetrievalRouter` inspirado em LlamaIndex;
+- métricas de saúde da memória.
+
+Regra de arquitetura: o Hive-Mind é **local-first por operação** e
+**born-large por arquitetura**. Backends externos não substituem o cérebro;
+eles implementam contratos de escala. A fonte de verdade permanece no vault
+anatômico (`cerebro/`) e no UMC.

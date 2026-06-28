@@ -50,6 +50,8 @@ ROLES = [
     ("claude_mem", "Claude Mem (Memória & Discovery)"),
     # Fase 2 (memória inteligente)
     ("weekly_synthesizer", "Weekly Synthesizer (resumo semanal)"),
+    ("monthly_synthesizer", "Monthly Synthesizer (resumo mensal)"),
+    ("yearly_synthesizer", "Yearly Synthesizer (resumo anual)"),
     ("alias_miner",        "Alias Miner (slugs)"),
     ("sector_classifier",  "Sector Classifier (setores)"),
     ("topic_router",       "Topic Router (roteamento de tópicos)"),
@@ -71,7 +73,7 @@ LOCAL_EXTRACTION_ROLES = [
 
 # Modelos Ollama locais sugeridos para extração (ordem = preferência).
 LOCAL_MODEL_PRESETS = [
-    ("qwen2.5:3b", "padrão — multilíngue PT/EN, ~1.9GB, rápido, cabe na GPU c/ bge-m3"),
+    ("qwen2.5:3b", "padrão — multilíngue PT/EN, ~1.9GB, rápido, cabe na GPU c/ embedder 1024d"),
     ("qwen2.5:7b", "alta qualidade — ~4.7GB, exige folga de VRAM (recomendado p/ Graphiti)"),
     ("granite3-dense:2b", "legado — leve mas alucina entidades; evite"),
 ]

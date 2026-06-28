@@ -23,6 +23,8 @@
 | 5 | [Blueprints e Fluxogramas](05-blueprints.md) | Diagramas ASCII de arquitetura, read/write path, Dream Cycle, P2P | Todos |
 | 6 | [Análise de Gaps — install.sh](06-gap-analysis.md) | Auditoria técnica (C1-C5), gaps do instalador, métricas de testes | Desenvolvedores |
 | 7 | [Setup de Sincronização P2P](07-p2p-sync-setup.md) | Syncthing, UUID v4, SHA-256, Síntese Dialética (Phase 9) | DevOps |
+| 11 | [Arquitetura de Conhecimento e Promoção](11-knowledge-promotion-architecture.md) | Fluxo de promoção, preenchimento do cérebro, chunks, vector search, Milvus/RAGFlow/LlamaIndex born-large | Arquitetos / Data Engineers |
+| 12 | [Plano de Implementação da Arquitetura de Conhecimento](12-knowledge-implementation-plan.md) | Fases K0-K10, tasks, integrações em `integrations/`, modelos locais pequenos, testes reais sem mocks | Engenharia |
 
 > Todos os documentos 01–07 foram reescritos para v3.0.0 em 2026-06-13. Em caso de conflito entre eles, **[01-architecture.md](01-architecture.md) prevalece**.
 
@@ -46,12 +48,15 @@
 ## Stack em uma linha por camada
 
 ```
-Cérebro (UMC):       hive_mind.db — SQLite + sqlite-vec (384d) + FTS5 + grafo + multimodal
+Cérebro (UMC):       hive_mind.db — SQLite + sqlite-vec (1024d snowflake-arctic-embed2) + FTS5 + grafo + multimodal
 Estrutural:          Graphify (Python) → neurons/synapses/communities
 Temporal:            claude-mem (TypeScript/Bun) → observations, worker HTTP :37700
 Execução:            RTK (Rust) → hooks/plugins/instruções por agente/CLI
 Associativa:         NeuralMemory (Python) → spreading activation
 Consolidação:        dream_cycle.py → Distiller→Validator→Router→Síntese (LLM multi-provedor)
+Promoção:            KnowledgePromotionPipeline → discovery/session summary → neurônios atômicos
+Plano de execução:   docs/12 → fases K0-K10, modelos/env, vendors e testes reais
+Escala vetorial:     VectorBackend → sqlite-vec local/offline · Milvus produção
 Tempo real:          Watcher (watchdog) → Obsidian→SQLite em ~2s
 Acesso:              MCP (15 tools) · plugin Hermes · CLI · REST FastAPI :37702
 Distribuição:        Syncthing (P2P) + UUID v4 + SHA-256 + Síntese Dialética

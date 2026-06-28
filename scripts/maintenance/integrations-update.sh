@@ -10,10 +10,12 @@
 #
 # O que atualiza:
 #   1. Componentes git (config/components.lock.json):
-#        graphify, neural-memory, rtk  → components.py update
+#        graphify, neural-memory, rtk, ragflow, milvus, llama_index
+#        → components.py bootstrap/update
 #   2. Dependências Python (.venv via uv):
 #        uv lock --upgrade && uv sync  (inclui graphiti-core, falkordb,
-#        opentelemetry-* e os componentes editáveis acima)
+#        ragflow-sdk, pymilvus, llama-index, opentelemetry-* e os componentes
+#        editáveis acima)
 #   3. claude-mem (plugin global de marketplace):
 #        claude plugins update claude-mem@thedotmack
 #
@@ -70,12 +72,14 @@ echo ""
 # 1. Componentes git pinados — via components.py (patch-safe + lock + rollback)
 # =============================================================================
 log "Componentes git: verificando estado do lock..."
+"$PYTHON" scripts/setup/components.py bootstrap
 "$PYTHON" scripts/setup/components.py verify || warn "verify reportou drift (será reconciliado pelo update)"
 echo ""
 
 # Limpa __pycache__ dos checkouts: o components.py aborta com 'dirty checkout
 # beyond the pinned patch' se houver qualquer untracked além do patch.
 find integrations/graphify integrations/neural-memory integrations/rtk \
+    integrations/ragflow integrations/milvus integrations/llama_index \
     -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
 
 log "Componentes git: atualizando para origin/HEAD e re-pinando o lock..."
@@ -92,7 +96,7 @@ echo ""
 # =============================================================================
 if [ "$DO_PIP" = true ]; then
     if command -v uv &>/dev/null; then
-        log "Python deps: uv lock --upgrade && uv sync (graphiti, falkordb, otel, editáveis)..."
+        log "Python deps: uv lock --upgrade && uv sync (graphiti, falkordb, ragflow-sdk, pymilvus, llama-index, otel, editáveis)..."
         if [ "$VERBOSE" = true ]; then
             uv lock --upgrade && uv sync --all-groups
         else

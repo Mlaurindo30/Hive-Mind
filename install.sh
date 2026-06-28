@@ -123,7 +123,7 @@ else
 fi
 
 # Baixa os modelos locais que o Hive-Mind precisa (idempotente: pula os já presentes).
-# - bge-m3            embeddings 1024d (core/database.py, LightRAG)
+# - snowflake-arctic-embed2 embeddings 1024d (core/database.py, LightRAG, Graphiti)
 # - qwen2.5:3b        extração de entidades Graphiti + LightRAG (default novo)
 # - qwen2.5-coder:3b  extração semântica do Graphify
 # Opcional (gate SINAPSE_PULL_QWEN7B=1): qwen2.5:7b para o Graphiti local de
@@ -139,7 +139,7 @@ if $OLLAMA_OK; then
         fi
     }
     echo -e "  ${BOLD}Modelos locais do Hive-Mind:${NC}"
-    ollama_pull_if_missing "bge-m3"           "embeddings 1024d"
+    ollama_pull_if_missing "snowflake-arctic-embed2" "embeddings 1024d"
     ollama_pull_if_missing "qwen2.5:3b"       "extração Graphiti/LightRAG"
     ollama_pull_if_missing "qwen2.5-coder:3b" "extração Graphify"
     if [ "${SINAPSE_PULL_QWEN7B:-0}" = "1" ] || [ "${HIVE_GRAPHITI_MODEL:-}" = "qwen2.5:7b" ]; then
@@ -164,7 +164,7 @@ PYTHON="$PROJECT_ROOT/.venv/bin/python"
 GRAPHIFY="$PROJECT_ROOT/.venv/bin/graphify"
 NMEM="$PROJECT_ROOT/.venv/bin/nmem"
 export PATH="$PROJECT_ROOT/.venv/bin:$PROJECT_ROOT/integrations/rtk/target/release:$PATH"
-"$PYTHON" -c "import fastapi, yaml, pydantic, graphify, neural_memory, sqlite_vec"
+"$PYTHON" -c "import fastapi, yaml, pydantic, graphify, neural_memory, sqlite_vec, pymilvus, llama_index, ragflow_sdk"
 mkdir -p "$PROJECT_ROOT/integrations/neural-memory/data"
 "$PYTHON" "$PROJECT_ROOT/scripts/setup/setup_umc.py" >/dev/null
 echo -e "  ${GREEN}✓${NC} Python $("$PYTHON" -c 'import sys; print(sys.version.split()[0])') em $PROJECT_ROOT/.venv"
@@ -736,7 +736,7 @@ echo -e "         Flatpak: flatpak run md.obsidian.Obsidian --vault \"$VAULT_DIR
 echo -e "         Em Configurações > Arquivos e links, ative 'Mostrar arquivos ocultos'."
 echo ""
 echo -e "  ${BOLD}Ollama (modelos — baixados automaticamente acima quando detectado):${NC}"
-echo -e "         ollama pull bge-m3               # Embeddings 1024d (core/LightRAG)"
+echo -e "         ollama pull snowflake-arctic-embed2 # Embeddings 1024d (core/LightRAG/Graphiti)"
 echo -e "         ollama pull qwen2.5:3b           # Extração Graphiti + LightRAG (~1.9GB)"
 echo -e "         ollama pull qwen2.5-coder:3b     # Extração semântica do Graphify"
 echo -e "         ollama pull qwen2.5:7b           # Graphiti local alta qualidade (opcional, ~4.7GB)"

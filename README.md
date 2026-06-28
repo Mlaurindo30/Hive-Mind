@@ -180,7 +180,7 @@ One store, queried across seven dimensions:
 |-----------|---------------------|----------------|---------|
 | **Structural** | What exists? How is it connected? | `neurons`/`synapses` in UMC | < 5 ms |
 | **Temporal** | Who did what, and when? | `observations` via claude-mem | < 500 ms |
-| **Vector** | What is semantically similar? | `sqlite-vec` (384d, fastembed) | < 100 ms |
+| **Vector** | What is semantically similar? | `sqlite-vec` (1024d, snowflake-arctic-embed2 via Ollama) | < 100 ms |
 | **Textual** | Where does this term appear? | FTS5 `unicode61` with triggers | < 50 ms |
 | **Visual** | What did the agent see? | `visual_memories` + LLM Vision | offline (Dreamer) |
 | **Documental** | What did the agent read? | `document_memories` (PDF/DOCX) | offline (Dreamer) |

@@ -65,6 +65,8 @@ CEREBELO = VAULT_ROOT / "cerebelo"
 DAILY_ROOT = CEREBELO / "diario"
 SESSIONS_ROOT = CEREBELO / "sessoes"
 WEEKLY_ROOT = CEREBELO / "semanal"
+MONTHLY_ROOT = CEREBELO / "mensal"
+YEARLY_ROOT = CEREBELO / "anual"
 PADROES_ROOT = CEREBELO / "padroes"         # memória procedural
 
 # ===== TRONCO CEREBRAL — funções vitais (infra) =====
@@ -123,6 +125,16 @@ def session_path(dt: datetime, slug: str) -> Path:
 def weekly_path(year: int, week: int) -> Path:
     """cerebelo/semanal/YYYY-W{XX}.md"""
     return WEEKLY_ROOT / f"{year}-W{week:02d}.md"
+
+
+def monthly_path(year: int, month: int) -> Path:
+    """cerebelo/mensal/YYYY-MM.md"""
+    return MONTHLY_ROOT / f"{year:04d}-{month:02d}.md"
+
+
+def yearly_path(year: int) -> Path:
+    """cerebelo/anual/YYYY.md"""
+    return YEARLY_ROOT / f"{year:04d}.md"
 
 
 def rel_to_vault(p: Path) -> str:

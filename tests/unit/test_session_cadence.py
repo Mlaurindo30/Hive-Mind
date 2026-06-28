@@ -244,6 +244,8 @@ class TestCanonicalRoles:
         assert "topic_router" in source, "Papel topic_router ausente em HIVE_LLM_ROLES"
         assert "sector_classifier" in source, "Papel sector_classifier ausente em HIVE_LLM_ROLES"
         assert "weekly_synthesizer" in source, "Papel weekly_synthesizer ausente em HIVE_LLM_ROLES"
+        assert "monthly_synthesizer" in source, "Papel monthly_synthesizer ausente em HIVE_LLM_ROLES"
+        assert "yearly_synthesizer" in source, "Papel yearly_synthesizer ausente em HIVE_LLM_ROLES"
         assert "drift_detector" in source, "Papel drift_detector ausente em HIVE_LLM_ROLES"
 
 
