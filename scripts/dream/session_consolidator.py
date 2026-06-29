@@ -36,8 +36,10 @@ except ImportError:
 
 from core import paths as cp  # noqa: E402
 from core.auth import get_role_config, load_env  # noqa: E402
+from core.database import ensure_migrations, get_connection, init_db  # noqa: E402
 from core.llm_client import call_llm_with_fallback, classify_llm_error  # noqa: E402
 from core.schemas.session_models import SessionSummary  # noqa: E402
+from core.vector_sync import index_summary_file_to_sqlite  # noqa: E402
 
 load_env()
 
@@ -161,6 +163,20 @@ def _inject_summary(target: Path, summary_text: str, ok: bool, error_msg: str = 
     target.write_text(text, encoding="utf-8")
 
 
+def _index_summary_best_effort(target: Path) -> None:
+    try:
+        init_db()
+        conn = get_connection()
+        try:
+            ensure_migrations(conn)
+            vector_id = index_summary_file_to_sqlite(conn, target, cadence="session")
+        finally:
+            conn.close()
+        print(f"[session_consolidator] summary_vector={vector_id}", file=sys.stderr)
+    except Exception as exc:
+        print(f"[session_consolidator] aviso: summary_vectors indisponivel: {exc}", file=sys.stderr)
+
+
 def main() -> int:
     dry_run = os.environ.get("DRY_RUN", "0") == "1"
     _ = _read_hook_payload()
@@ -177,6 +193,7 @@ def main() -> int:
     if not transcript.strip():
         _inject_summary(target, "_Sessão vazia (placeholder criado mas sem ações registradas)._",
                        ok=True)
+        _index_summary_best_effort(target)
         return 0
 
     if dry_run:
@@ -198,10 +215,12 @@ def main() -> int:
         )
         rendered = _render_summary(summary)
         _inject_summary(target, rendered, ok=True)
+        _index_summary_best_effort(target)
         print(f"[session_consolidator] ✓ {target.relative_to(SINAPSE_HOME)}", file=sys.stderr)
     except Exception as e:
         kind = classify_llm_error(e)
         _inject_summary(target, "", ok=False, error_msg=f"{kind}: {e}")
+        _index_summary_best_effort(target)
         print(f"[session_consolidator] ✗ {kind}: {e}", file=sys.stderr)
 
     return 0

@@ -30,9 +30,10 @@ except ImportError:
 
 from core import paths as cp  # noqa: E402
 from core.auth import get_role_config, load_env  # noqa: E402
-from core.database import get_connection  # noqa: E402
+from core.database import ensure_migrations, get_connection, init_db  # noqa: E402
 from core.llm_client import call_llm_with_fallback, classify_llm_error  # noqa: E402
 from core.schemas.weekly_models import WeeklySummaryModel, ProjectStatus  # noqa: E402
+from core.vector_sync import index_summary_file_to_sqlite  # noqa: E402
 
 # Config resolvida sob demanda em main() (NÃO no import — efeito colateral no
 # import polui testes de isolamento de env de outros módulos).
@@ -250,6 +251,20 @@ generated_by: scripts/weekly_synthesizer.py
     
     return fm + "\n" + header + "\n" + wrapped_auto + footer
 
+
+def _index_summary_best_effort(target: Path) -> None:
+    try:
+        init_db()
+        conn = get_connection()
+        try:
+            ensure_migrations(conn)
+            vector_id = index_summary_file_to_sqlite(conn, target, cadence="weekly")
+        finally:
+            conn.close()
+        print(f"[weekly_synthesizer] summary_vector={vector_id}")
+    except Exception as exc:
+        print(f"[weekly_synthesizer] aviso: summary_vectors indisponivel: {exc}", file=sys.stderr)
+
 def main():
     global LLM_PROVIDER, LLM_MODEL
     load_env()  # carrega env só na execução (não no import)
@@ -260,6 +275,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--year", type=int, default=date.today().isocalendar()[0])
     parser.add_argument("--week", type=int, default=date.today().isocalendar()[1] - 1)
+    parser.add_argument("--real", action="store_true", help="compat: confirma execucao com LLM real")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -313,6 +329,7 @@ def main():
         
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(md_content, encoding="utf-8")
+        _index_summary_best_effort(output_path)
         
         print(f"[SUCCESS] Síntese semanal gravada em: {output_path.relative_to(SINAPSE_HOME)}")
         return 0

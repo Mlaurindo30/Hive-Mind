@@ -384,7 +384,14 @@ def _summary_files(summary_roots: list[Path] | None = None) -> list[Path]:
     if summary_roots is None:
         from core.paths import CEREBELO
 
-        summary_roots = [CEREBELO / "sessoes", CEREBELO / "diario", CEREBELO / "semanal", CEREBELO / "mensal", CEREBELO / "padroes"]
+        summary_roots = [
+            CEREBELO / "sessoes",
+            CEREBELO / "diario",
+            CEREBELO / "semanal",
+            CEREBELO / "mensal",
+            CEREBELO / "anual",
+            CEREBELO / "padroes",
+        ]
     files: list[Path] = []
     for root in summary_roots:
         root = Path(root)
@@ -420,6 +427,37 @@ def _backfill_summary_vectors(conn, *, summary_roots: list[Path] | None = None, 
             report.failed += 1
             report.errors.append(f"{item_id}: {type(exc).__name__}: {exc}")
     return report
+
+
+def index_summary_file_to_sqlite(
+    conn,
+    path: Path,
+    *,
+    cadence: str,
+    workspace_id: str = "default",
+) -> str:
+    """Embed one cadence summary markdown file into `summary_vectors`.
+
+    Used by K5 writers immediately after writing monthly/yearly summaries so the
+    vector layer is populated without waiting for a later backfill.
+    """
+    path = Path(path)
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    item_id = _sha256(str(path))[:32]
+    metadata = {
+        "parent_id": item_id,
+        "parent_type": "summary_file",
+        "brain_lobe": "cerebelo",
+        "knowledge_type": f"{cadence}_summary",
+        "project": "default",
+        "source_uri": str(path),
+        "hash": _sha256(text),
+        "valid_at": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(),
+        "workspace_id": workspace_id,
+    }
+    _upsert_sqlite_vector(conn, "summary_vectors", item_id, _embedding_for_text(text), metadata)
+    conn.commit()
+    return item_id
 
 
 def backfill_auxiliary_vectors_to_sqlite(

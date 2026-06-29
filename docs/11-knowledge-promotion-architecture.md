@@ -608,19 +608,26 @@ mensal/anual nao devem ser rebaixados automaticamente sem aviso.
 
 ### 14.4 Estado De Implementacao
 
-Implementado hoje:
+Implementado hoje (K5, 2026-06-29):
 
-1. `session_consolidator.py` escreve resumo de sessao com `session_summarizer`.
-2. `daily_writer.py` escreve diario com `daily_writer`.
-3. `weekly_synthesizer.py` escreve semanal com `weekly_synthesizer`.
+1. `session_consolidator.py` escreve resumo de sessao com
+   `session_summarizer` e indexa o arquivo em `summary_vectors`.
+2. `daily_writer.py` escreve diario com `daily_writer` e indexa o arquivo em
+   `summary_vectors`.
+3. `weekly_synthesizer.py` escreve semanal com `weekly_synthesizer`, aceita
+   `--real` para o gate de aceite e indexa o arquivo em `summary_vectors`.
+4. `monthly_synthesizer.py` escreve `cerebro/cerebelo/mensal/YYYY-MM.md` com
+   `MonthlySummaryModel`, `source_id`, `parent_summary_id`, periodo, papel e
+   modelo resolvido.
+5. `yearly_synthesizer.py` escreve `cerebro/cerebelo/anual/YYYY.md` com
+   `YearlySummaryModel`, `source_id`, `parent_summary_id`, periodo, papel e
+   modelo resolvido.
+6. `core/vector_sync.py` tem `index_summary_file_to_sqlite()` para indexacao
+   imediata e o backfill de `summary_vectors` cobre tambem `anual/`.
 
-Contrato born-large reservado agora:
-
-1. `monthly_synthesizer` e `yearly_synthesizer` sao papeis canonicos de LLM.
-2. `MONTHLY_ROOT`, `YEARLY_ROOT`, `monthly_path()` e `yearly_path()` sao caminhos
-   canonicos em `core/paths.py`.
-3. Os scripts `monthly_synthesizer.py` e `yearly_synthesizer.py` devem seguir o
-   mesmo contrato de schema, fonte, idempotencia e promocao descrito aqui.
+Regra operacional: mensal/anual geram resumos estrategicos, mas a promocao
+automatica continua restrita a decisoes, aprendizados, riscos, metas e
+principios duraveis com fonte rastreavel.
 
 ---
 

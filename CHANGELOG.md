@@ -1,5 +1,39 @@
 # Changelog
 
+## v3.3.0 — K5 Hierarchical Cadence
+
+Release date: 2026-06-29
+
+### Added
+
+- Adds K5 monthly and yearly cadence writers:
+  `scripts/dream/monthly_synthesizer.py` and
+  `scripts/dream/yearly_synthesizer.py`.
+- Adds structured Pydantic contracts for higher cadence synthesis:
+  `MonthlySummaryModel` and `YearlySummaryModel`.
+- Writes monthly summaries to `MONTHLY_ROOT` and yearly summaries to
+  `YEARLY_ROOT` using the canonical paths in `core/paths.py`.
+- Indexes session, daily, weekly, monthly and yearly cadence outputs into
+  `summary_vectors` through a new `index_summary_file_to_sqlite()` helper.
+- Extends `summary_vectors` backfill to include `cerebro/cerebelo/anual`.
+- Adds real K5 cadence coverage in `tests/real/test_cadence_real.py`.
+
+### Validation
+
+- `HIVE_SESSION_SUMMARIZER_PROVIDER=ollama HIVE_SESSION_SUMMARIZER_MODEL=qwen2.5:3b .venv/bin/python scripts/dream/session_consolidator.py --real`:
+  exit 0, session summary indexed in `summary_vectors`.
+- `.venv/bin/python scripts/dream/monthly_synthesizer.py --month "$(date +%Y-%m)" --real`:
+  exit 0, wrote `cerebro/cerebelo/mensal/2026-06.md` and indexed it.
+- `.venv/bin/python scripts/dream/yearly_synthesizer.py --year "$(date +%Y)" --real`:
+  exit 0, wrote `cerebro/cerebelo/anual/2026.md` and indexed it.
+- `.venv/bin/python -m pytest tests/real/test_cadence_real.py -q`:
+  1 passed.
+- Focused cadence/vector regression:
+  `tests/unit/test_session_cadence.py tests/real/test_vector_auxiliary_collections.py`:
+  15 passed, 1 skipped.
+- `./tests/run_all.sh`: Smoke 19 passed; Unit 496 passed / 3 skipped;
+  Integration 109 passed / 2 skipped; E2E 22 passed.
+
 ## v3.2.1 — Vision Setup-Brain Validation Fix
 
 Release date: 2026-06-29

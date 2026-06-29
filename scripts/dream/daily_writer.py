@@ -43,8 +43,10 @@ except ImportError:
 
 from core import paths as cp  # noqa: E402
 from core.auth import get_role_config, load_env  # noqa: E402
+from core.database import ensure_migrations, get_connection, init_db  # noqa: E402
 from core.llm_client import call_llm_with_fallback, classify_llm_error  # noqa: E402
 from core.schemas.session_models import DailySummary  # noqa: E402
+from core.vector_sync import index_summary_file_to_sqlite  # noqa: E402
 
 load_env()
 
@@ -155,6 +157,20 @@ def _call_llm_highlights(aggregate: str) -> str:
         return f"_⚠️ LLM falhou ({kind}: {e}) — preencha Highlights/Aprendizados manualmente._"
 
 
+def _index_summary_best_effort(target: Path) -> None:
+    try:
+        init_db()
+        conn = get_connection()
+        try:
+            ensure_migrations(conn)
+            vector_id = index_summary_file_to_sqlite(conn, target, cadence="daily")
+        finally:
+            conn.close()
+        print(f"[daily_writer] summary_vector={vector_id}")
+    except Exception as exc:
+        print(f"[daily_writer] aviso: summary_vectors indisponivel: {exc}", file=sys.stderr)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", help="YYYY-MM-DD (default: hoje)")
@@ -214,6 +230,7 @@ def main() -> int:
 
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(rendered, encoding="utf-8")
+    _index_summary_best_effort(target)
     print(f"[daily_writer] ✓ {target.relative_to(SINAPSE_HOME)} ({len(sessions)} sessões)")
     return 0
 

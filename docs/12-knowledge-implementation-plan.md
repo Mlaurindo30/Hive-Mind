@@ -628,6 +628,38 @@ python3 scripts/services/sinapse-write.py query "ultimos discoveries promovidos"
 **Objetivo:** concluir sessao, diario, semanal, mensal e anual como camadas
 operacionais.
 
+> **Entregue (2026-06-29) — K5 cadencia hierarquica completa:**
+>
+> - [x] `session_consolidator.py`, `daily_writer.py` e
+>   `weekly_synthesizer.py` alinham escrita de cadencia com `summary_vectors`.
+>   A indexacao de sessao e best-effort para nao quebrar hook de encerramento;
+>   daily/weekly registram aviso quando o vetor estiver indisponivel.
+> - [x] `scripts/dream/monthly_synthesizer.py` criado com `--month YYYY-MM`,
+>   `--real`, frontmatter auditavel, bloco idempotente `auto:start/end`,
+>   escrita em `MONTHLY_ROOT` e indexacao imediata em `summary_vectors`.
+> - [x] `scripts/dream/yearly_synthesizer.py` criado com `--year YYYY`,
+>   `--real`, frontmatter auditavel, bloco idempotente `auto:start/end`,
+>   escrita em `YEARLY_ROOT` e indexacao imediata em `summary_vectors`.
+> - [x] Schemas Pydantic adicionados:
+>   `core/schemas/monthly_models.py::MonthlySummaryModel` e
+>   `core/schemas/yearly_models.py::YearlySummaryModel`.
+> - [x] `core/vector_sync.py` ganhou `index_summary_file_to_sqlite()` e o
+>   backfill de `summary_vectors` inclui `cerebelo/anual`.
+> - [x] Mensal/anual so estruturam itens duraveis: decisoes, aprendizados,
+>   riscos, metas, drift/principios. Microdetalhe operacional fica nas
+>   camadas inferiores.
+> - [x] Aceite real executado:
+>   `session_consolidator.py --real` exit 0 com `summary_vector`;
+>   `monthly_synthesizer.py --month "$(date +%Y-%m)" --real` exit 0;
+>   `yearly_synthesizer.py --year "$(date +%Y)" --real` exit 0;
+>   `tests/real/test_cadence_real.py` 1 passed.
+> - [x] Regressao focada: `tests/unit/test_session_cadence.py` +
+>   `tests/real/test_vector_auxiliary_collections.py` +
+>   `tests/real/test_cadence_real.py` -> 15 passed, 1 skipped.
+> - [x] Gate global: `./tests/run_all.sh` verde (Smoke 19 passed; Unit
+>   496 passed / 3 skipped; Integration 109 passed / 2 skipped; E2E
+>   22 passed).
+>
 Tasks:
 
 1. manter `session_consolidator.py`, `daily_writer.py` e
