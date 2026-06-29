@@ -1,5 +1,24 @@
 # Changelog
 
+## v3.2.1 — Vision Setup-Brain Validation Fix
+
+Release date: 2026-06-29
+
+### Fixed
+
+- Fixes the real vision integration test to respect the active `setup-brain`
+  configuration (`HIVE_VISION_*`) instead of forcing `ollama-cloud/gemma3:4b`.
+  On this runtime the active path is local Ollama `llava:7b` with local fallback
+  `qwen3.5:9b`.
+- Removes the false external-billing assumption from the K4 validation notes:
+  the vision path is local and must pass locally when the configured Ollama
+  model is installed.
+
+### Validation
+
+- `HIVE_RUN_INTEGRATION=1 .venv/bin/python -m pytest tests/integration/vision/test_vision_real.py -q -rs`:
+  3 passed.
+
 ## v3.2.0 — Claude-Mem Promotion Bridge
 
 Release date: 2026-06-29

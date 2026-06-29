@@ -616,10 +616,10 @@ python3 scripts/services/sinapse-write.py query "ultimos discoveries promovidos"
 >   `python3 scripts/services/sinapse-write.py query "ultimos discoveries
 >   promovidos"` reexecuta pela `.venv` e sai 0.
 > - [x] Verificacao global final: `./tests/run_all.sh` verde em 2026-06-29
->   (Smoke 19 passed; Unit 496 passed / 3 skipped; Integration 107 passed /
->   4 skipped; E2E 22 passed). Os 2 skips adicionais de Integration sao
->   positivos de Ollama Cloud Vision pulados por 403 de billing externo; o
->   teste negativo da cadeia de fallback continua obrigatorio e passou.
+>   (Smoke 19 passed; Unit 496 passed / 3 skipped; Integration 109 passed /
+>   2 skipped; E2E 22 passed). O teste de visao real usa a configuracao ativa
+>   do `setup-brain`/`.env` (`HIVE_VISION_*`), que neste runtime aponta para
+>   Ollama local (`llava:7b`), e passou sem depender de Ollama Cloud.
 
 ---
 

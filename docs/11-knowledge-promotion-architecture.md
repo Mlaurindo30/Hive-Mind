@@ -267,7 +267,9 @@ Implementacao K4 (2026-06-29):
 - Aceite 2026-06-29: bridge real 2 passed, promocao operacional contra
   `~/.claude-mem/claude-mem.db` importou registros reais por `source_id`, CLI
   com `python3` do sistema saiu 0 via reexecucao na `.venv`, e
-  `./tests/run_all.sh` fechou verde.
+  `./tests/run_all.sh` fechou verde. A validacao de visao real usa o papel
+  `vision` configurado no `setup-brain`/`.env` (`HIVE_VISION_*`), sem hardcode
+  de Ollama Cloud.
 
 ---
 
