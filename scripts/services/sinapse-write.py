@@ -6,6 +6,7 @@ Uso:
   python3 scripts/services/sinapse-write.py learning --title "Título" --content "Conteúdo"
   python3 scripts/services/sinapse-write.py query "texto da busca"
   python3 scripts/services/sinapse-write.py health
+  python3 scripts/services/sinapse-write.py promotion --limit 50
   python3 scripts/services/sinapse-write.py session-end --summary "Resumo da sessão"
 """
 
@@ -56,6 +57,10 @@ def main():
     obs.add_argument("--content", required=True, help="Observation content")
     obs.add_argument("--kind", default="event", help="Observation kind (event, execution, etc.)")
 
+    promo = sub.add_parser("promotion", help="Run K3 Knowledge Intake + Promotion over pending observations")
+    promo.add_argument("--limit", type=int, default=None, help="Limit pending observations processed")
+    promo.add_argument("--dry-run", action="store_true", default=False, help="Classify without writing candidates/promotions")
+
     args = parser.parse_args()
 
     if args.command == "decision":
@@ -69,6 +74,16 @@ def main():
     elif args.command == "observation":
         result = sm._umc_save_observation(args.title, args.content, obs_type=args.kind)
         print(json.dumps({"saved": result}))
+    elif args.command == "promotion":
+        import core.database as db
+        from core.knowledge.promotion import promote_pending_observations
+        conn = db.get_connection()
+        try:
+            db.ensure_migrations(conn)
+            result = promote_pending_observations(conn, limit=args.limit, apply=not args.dry_run)
+        finally:
+            conn.close()
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     elif args.command == "query":
         result = sm._query_vault_knowledge(args.text)
         print(json.dumps(result or {}, default=str, indent=2))

@@ -19,6 +19,7 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent.parent))
 
 from core.paths import SESSIONS_ROOT, WORK_ACTIVE  # noqa: E402
+from core.knowledge.intake import KnowledgeCandidate, build_candidate  # noqa: E402
 
 # Captura bullets sob um header "Próximos Passos" (ou "Next Steps") até o próximo header.
 _NEXT_RE = re.compile(r"^##+\s*(?:Próximos Passos|Proximos Passos|Next Steps)\s*\n(.+?)(?=\n##\s|\Z)",
@@ -67,6 +68,33 @@ count: {len(items)}
 <!-- auto:gerado por work_tracker.py — itens vêm dos 'Próximos Passos' das sessões -->
 {rows}
 """
+
+
+def next_steps_to_candidates(
+    items: list[dict],
+    *,
+    project: str = "default",
+    workspace_id: str = "default",
+) -> list[KnowledgeCandidate]:
+    """Candidate-only next_step extraction for K3; no file writes."""
+    candidates: list[KnowledgeCandidate] = []
+    for item in items:
+        text = str(item.get("item") or "").strip()
+        if not text:
+            continue
+        session = str(item.get("session") or "")
+        candidates.append(build_candidate(
+            source_type="work_tracker",
+            source_id=f"{session}:{text}",
+            knowledge_type="next_step",
+            title=text[:120],
+            content=text,
+            project=project,
+            workspace_id=workspace_id,
+            evidence={"session": session},
+            metadata={"promoter": "work_tracker"},
+        ))
+    return candidates
 
 
 def run(*, sessions_root: Path = SESSIONS_ROOT, work_active: Path = WORK_ACTIVE,

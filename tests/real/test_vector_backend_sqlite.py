@@ -59,8 +59,14 @@ def test_sqlite_vector_backend_rejects_wrong_dimension(real_db):
 
 
 @pytest.mark.real
-def test_sqlite_vector_backend_refuses_planned_collections(real_db):
+def test_sqlite_vector_backend_serves_auxiliary_collections(real_db):
     backend = SQLiteVecBackend(conn=real_db)
 
-    with pytest.raises(NotImplementedError, match="planned"):
-        backend.count("document_vectors")
+    for collection in (
+        "document_vectors",
+        "code_vectors",
+        "visual_vectors",
+        "graph_vectors",
+        "summary_vectors",
+    ):
+        assert backend.count(collection) == 0

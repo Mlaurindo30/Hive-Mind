@@ -23,6 +23,7 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent.parent))
 
 from core.paths import CONFLICTS_ROOT, TEMPORAL  # noqa: E402
+from core.knowledge.intake import KnowledgeCandidate, build_candidate  # noqa: E402
 from core.schemas.conflict_models import ConflictJudgement  # noqa: E402
 from scripts.knowledge.drift_detector import scan_neuronios  # noqa: E402
 
@@ -109,6 +110,34 @@ count: {len(conflicts)}
 {rows}
 """, encoding="utf-8")
     return dest
+
+
+def conflicts_to_candidates(
+    conflicts: list[dict],
+    *,
+    project: str = "default",
+    workspace_id: str = "default",
+) -> list[KnowledgeCandidate]:
+    """Candidate-only conflict rationales for K3; no report writes."""
+    candidates: list[KnowledgeCandidate] = []
+    for conflict in conflicts:
+        a = str(conflict.get("a") or "")
+        b = str(conflict.get("b") or "")
+        explanation = str(conflict.get("explanation") or "").strip()
+        if not explanation:
+            continue
+        candidates.append(build_candidate(
+            source_type="conflict_detector",
+            source_id=f"{a}:{b}:{explanation}",
+            knowledge_type="rationale",
+            title=f"Conflito: {a} x {b}",
+            content=explanation,
+            project=str(conflict.get("a_project") or conflict.get("b_project") or project),
+            workspace_id=workspace_id,
+            evidence={"a": a, "b": b, "sim": conflict.get("sim")},
+            metadata={"promoter": "conflict_detector"},
+        ))
+    return candidates
 
 
 def run(*, temporal_root: Path = TEMPORAL, conflicts_root: Path = CONFLICTS_ROOT,

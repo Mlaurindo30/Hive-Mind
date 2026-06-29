@@ -125,6 +125,16 @@ class _PydanticError(Exception):
     pass
 
 
+def test_authentication_required_cli_message_is_auth():
+    from core.llm_client import classify_llm_error
+
+    err = RuntimeError(
+        "agy (gemini-3.5-flash) não retornou JSON extraível: "
+        "Authentication required. Please visit the URL to log in: https://accounts.google.com/o/oauth2/auth"
+    )
+    assert classify_llm_error(err) == "auth"
+
+
 # ---------------------------------------------------------------------------
 # Classe principal de testes de fallback
 # ---------------------------------------------------------------------------

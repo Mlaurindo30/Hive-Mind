@@ -45,6 +45,7 @@ VENDOR = Path(SINAPSE_HOME) / "integrations" / "crsqlite"
 CRDT_TABLES = [
     "neurons", "synapses", "observations", "vault", "ambiguities",
     "visual_memories", "document_memories", "causal_edges", "goals",
+    "knowledge_candidates",
 ]
 
 # Colunas para copiar por tabela (todas - nao tentamos filtrar nada)
@@ -69,7 +70,13 @@ COLUMNS_PER_TABLE = {
                           "topics", "metadata", "created_at"],
     "causal_edges": ["id", "cause_neuron_id", "effect_neuron_id",
                      "label", "confidence", "source", "created_at"],
-    "goals": ["id", "description", "steps_json", "status", "created_at"],
+    "goals": ["id", "description", "steps_json", "status", "created_at",
+              "workspace_id"],
+    "knowledge_candidates": ["id", "source_type", "source_id",
+                             "knowledge_type", "title", "content", "project",
+                             "workspace_id", "evidence_json", "metadata_json",
+                             "hash", "status", "neuron_id", "error",
+                             "retry_policy", "created_at", "promoted_at"],
 }
 
 
@@ -122,7 +129,12 @@ def copy_table_data(src: sqlite3.Connection, dst: sqlite3.Connection,
     referencial enforced).
     """
     src.row_factory = sqlite3.Row
-    rows = src.execute(f"SELECT {','.join(columns)} FROM {table}").fetchall()
+    src_cols = {r[1] for r in src.execute(f"PRAGMA table_info({table})").fetchall()}
+    copy_columns = [c for c in columns if c in src_cols]
+    if not copy_columns:
+        return (0, 0)
+
+    rows = src.execute(f"SELECT {','.join(copy_columns)} FROM {table}").fetchall()
     if not rows:
         return (0, 0)
 
@@ -150,12 +162,12 @@ def copy_table_data(src: sqlite3.Connection, dst: sqlite3.Connection,
         if skip:
             orphans += 1
             continue
-        placeholders = ",".join("?" * len(columns))
-        col_names = ",".join(columns)
+        placeholders = ",".join("?" * len(copy_columns))
+        col_names = ",".join(copy_columns)
         try:
             dst.execute(
                 f"INSERT INTO {table} ({col_names}) VALUES ({placeholders})",
-                tuple(row_dict[c] for c in columns),
+                tuple(row_dict[c] for c in copy_columns),
             )
             copied += 1
         except sqlite3.IntegrityError:

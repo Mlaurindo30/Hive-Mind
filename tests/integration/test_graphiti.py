@@ -9,7 +9,9 @@ Verifica:
 """
 from __future__ import annotations
 
+import asyncio
 import sys
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -109,6 +111,51 @@ def test_search_graph_swallows_errors(monkeypatch):
     monkeypatch.setattr(gc.client, "graphiti_available", lambda: True)
     result = gc.search_graph("test")
     assert result == []
+
+
+def test_graphiti_retry_logs_go_to_stderr(monkeypatch, capsys):
+    """Logs de retry não podem poluir stdout de CLIs que retornam JSON."""
+    monkeypatch.setenv("HIVE_GRAPHITI_RETRIES", "1")
+    gc.reset_circuit()
+
+    def _raise():
+        raise ConnectionError("boom")
+
+    ok, result = gc._retry_with_backoff(_raise)
+
+    captured = capsys.readouterr()
+    assert ok is False
+    assert isinstance(result, ConnectionError)
+    assert captured.out == ""
+    assert "[graphiti]" in captured.err
+
+
+def test_graphiti_redisearch_syntax_error_is_not_retried(monkeypatch):
+    monkeypatch.setenv("HIVE_GRAPHITI_RETRIES", "3")
+    calls = []
+
+    def _raise():
+        calls.append("call")
+        raise RuntimeError("RediSearch: Syntax error at offset 51 near endpoint")
+
+    ok, error = gc._retry_with_backoff(_raise)
+
+    assert ok is False
+    assert len(calls) == 1
+    assert "RediSearch" in str(error)
+
+
+def test_run_async_enforces_operation_timeout(monkeypatch):
+    """Graphiti push/search não pode travar o Dream Cycle indefinidamente."""
+    monkeypatch.setenv("HIVE_GRAPHITI_OP_TIMEOUT", "0.01")
+
+    async def _slow():
+        await asyncio.sleep(1)
+
+    started = time.monotonic()
+    with pytest.raises(asyncio.TimeoutError):
+        gc.client._run_async(lambda: _slow())
+    assert time.monotonic() - started < 0.5
 
 
 def test_build_client_uses_env(monkeypatch):

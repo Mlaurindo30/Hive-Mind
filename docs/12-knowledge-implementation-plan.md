@@ -179,7 +179,7 @@ Visual (P11 LanceDB / P13 OmniParser / P14 Amigdala / P15 Ganglios) seguem so no
 
 **Objetivo:** eliminar contradicoes antes de implementar camadas novas.
 
-> **Entregue (2026-06-28):**
+> **Entregue (2026-06-28; revalidado em 2026-06-29):**
 > - [x] task 1 — embedding unificado: `worker.py` defaulta `snowflake-arctic-embed2`
 >   (era `bge-m3`); igual a `core/database.py`. Teste: `tests/real/test_embedding_stack.py::test_default_embedding_model_unified`.
 > - [x] task 7 — migração CRR-safe: `alter_table_crr_safe()` +
@@ -204,15 +204,18 @@ Visual (P11 LanceDB / P13 OmniParser / P14 Amigdala / P15 Ganglios) seguem so no
 > - [ ] tasks 2–6 pendentes.
 > - **Verificação atual do recorte:** `tests/unit/test_workspace_migration.py`
 >   12 passed; `tests/unit/test_real_service_registry.py` 5 passed;
->   `./tests/run_real_knowledge.sh` 21 passed (Ollama up, dim=1024 confirmado;
->   K1 wrappers, K2 sqlite/Milvus e sync/backfill `memory_vectors` +
->   `observation_vectors` incluidos, com K1 digest gate e E2E bounded nos
->   bancos reais);
+>   `./tests/run_real_knowledge.sh` 24 passed (Ollama up, dim=1024
+>   confirmado;
+>   K1 wrappers, K2 sqlite/Milvus e sync/backfill das 7 coleções canônicas
+>   incluidos, com K1 digest gate, E2E bounded nos bancos reais e CLI
+>   operacional `vector-sync.py`);
 >   `json.tool`, `bash -n`, `py_compile` e `integrations-update.sh
 >   --wrappers-only --no-pip` verdes.
-> - **Verificação global pós-ajuste:** `./tests/run_all.sh` verde:
->   Smoke 19 passed; Unit 474 passed / 3 skipped; Integration 104 passed /
->   4 skipped; E2E 22 passed.
+> - **Verificação global atual (2026-06-28):** `./tests/run_all.sh` verde:
+>   Smoke 19 passed; Unit 474 passed / 3 skipped; Integration 107 passed /
+>   2 skipped; E2E 22 passed. Bloqueios anteriores foram resolvidos: Ollama
+>   estava parado, logs Graphiti foram movidos para stderr para não poluir JSON
+>   do CLI, e `test_live_push_neuron` passou com Graphiti real.
 
 Tasks:
 
@@ -328,8 +331,10 @@ como backend de producao.
 > - [x] `core/vector_backend.py` com interface `upsert`, `delete`, `query`,
 >   `hybrid_query`, `count`, `health`.
 > - [x] `SQLiteVecBackend` real sobre `hive_mind.db/search_vec` para
->   `memory_vectors`, com filtro `workspace_id`, validação de dimensão e recusa
->   explícita de coleções planejadas.
+>   `memory_vectors`, com filtro `workspace_id` e validação de dimensão.
+> - [x] `SQLiteVecBackend` real sobre tabelas sqlite-vec auxiliares em
+>   `hive_mind.db` para `document_vectors`, `code_vectors`, `visual_vectors`,
+>   `graph_vectors` e `summary_vectors`, com metadados em `vector_metadata`.
 > - [x] `MilvusBackend` real atrás de `VECTOR_BACKEND=milvus`, usando
 >   `pymilvus.MilvusClient`, criação de coleção com schema explícito e índice
 >   `AUTOINDEX/COSINE`.
@@ -359,6 +364,17 @@ como backend de producao.
 > - [x] task 8 para `observation_vectors`: backfill real do acervo já
 >   materializado no claude-mem, hidratando metadados canônicos a partir de
 >   `observations` + `vec_observations`.
+> - [x] task 8 para coleções auxiliares: `core/vector_sync.py` vetoriza/backfilla
+>   fontes reais por coleção:
+>   `document_vectors` e `code_vectors` a partir de `neurons` + `search_vec`;
+>   `visual_vectors` a partir de `visual_memories`;
+>   `graph_vectors` a partir de `causal_edges`;
+>   `summary_vectors` a partir dos Markdown em `cerebelo/{sessoes,diario,
+>   semanal,mensal,padroes}`.
+> - [x] migração K2: `core/umc_schema.sql` e `core/database.py` criam
+>   `vec_documents`, `vec_code`, `vec_visual`, `vec_graph`, `vec_summary` e
+>   `vector_metadata`; o CLI roda `ensure_migrations()` antes de operar em
+>   banco existente.
 > - [x] aceite E2E sync/backfill: `.venv/bin/python -m pytest
 >   tests/real/test_vector_sync_milvus.py -q` → 2 passed, cobrindo primeira
 >   carga, reexecução idempotente, atualização por hash e falha real de linha
@@ -373,11 +389,25 @@ como backend de producao.
 >   `hive_mind.db` real + `~/.claude-mem/claude-mem.db` real em modo read-only,
 >   exportando lote limitado para coleções Milvus temporárias e validando
 >   idempotência sem alterar os bancos fonte.
-> - [ ] task 5 para coleções planejadas ainda pendente
->   (`document_vectors`, `code_vectors`, `visual_vectors`, `graph_vectors`,
->   `summary_vectors`).
-> - [ ] task 8 para coleções planejadas pendente: backfill de document/code/
->   visual/graph/summary depende das tabelas/pipelines dessas fases.
+> - [x] CLI operacional de backfill/sync:
+>   `scripts/maintenance/vector-sync.py` executa as 7 coleções K2 contra Milvus
+>   real, com `--collection`, `--limit`, `--hive-db`, `--claude-mem-db`,
+>   `--milvus-uri`, `--milvus-prefix` e `--json`; para auxiliares, faz backfill
+>   local antes do sync. Aceite `.venv/bin/python -m pytest
+>   tests/real/test_vector_sync_cli_e2e.py -q` → 1 passed, cobrindo primeira
+>   carga das 7 coleções e reexecução idempotente via subprocesso.
+> - [x] aceite E2E completo K2: `.venv/bin/python -m pytest
+>   tests/real/test_vector_backend_sqlite.py
+>   tests/real/test_vector_backend_milvus.py
+>   tests/real/test_vector_sync_milvus.py
+>   tests/real/test_observation_vectors.py
+>   tests/real/test_vector_sync_live_e2e.py
+>   tests/real/test_vector_sync_cli_e2e.py
+>   tests/real/test_vector_auxiliary_collections.py -q -rA` → 14 passed.
+> - [x] aceite CLI explícito:
+>   `.venv/bin/python scripts/maintenance/vector-sync.py --collection
+>   memory_vectors --collection observation_vectors --limit 2 --json` →
+>   `failed=0`, `upserted=2` para ambas as coleções.
 
 Tasks:
 
@@ -398,6 +428,10 @@ Tasks:
    colecoes" nao pode esconder dois bancos;
 8. **backfill por colecao** (B5): vetorizar o acervo existente (document_chunks,
    code_symbols, visual, graph, summaries) — a colecao nova nasce vazia sem isso.
+   **Estado K2:** backfill implementado para o acervo real disponível hoje:
+   neurons `document`/`code`, `visual_memories`, `causal_edges` e arquivos de
+   resumo do Cerebelo. Quando K6 criar `document_chunks` dedicado, ele deve
+   alimentar `document_vectors` pelo mesmo contrato, sem substituir o backend.
 
 Conexoes:
 
@@ -417,6 +451,8 @@ VECTOR_BACKEND=milvus .venv/bin/python -m pytest tests/real/test_vector_backend_
 .venv/bin/python -m pytest tests/real/test_vector_sync_milvus.py -q
 .venv/bin/python -m pytest tests/real/test_observation_vectors.py -q
 .venv/bin/python -m pytest tests/real/test_vector_sync_live_e2e.py -q
+.venv/bin/python -m pytest tests/real/test_vector_sync_cli_e2e.py -q
+.venv/bin/python scripts/maintenance/vector-sync.py --collection memory_vectors --collection observation_vectors --limit 2 --json
 ```
 
 ---
@@ -425,6 +461,44 @@ VECTOR_BACKEND=milvus .venv/bin/python -m pytest tests/real/test_vector_backend_
 
 **Objetivo:** transformar observations, discoveries, summaries e arquivos em
 candidatos tipados, sem perder evidencia.
+
+> **Entregue (2026-06-28):**
+> - [x] `core/knowledge/intake.py`: normaliza observations/discoveries/session
+>   summaries e arquivos em candidatos canonicos (`fact`, `decision`,
+>   `learning`, `preference`, `rationale`, `next_step`, `project_status`,
+>   `document_chunk`, `code_symbol`, `visual_observation`) preservando
+>   `evidence`, `workspace_id`, `project`, `source_id` e hash idempotente.
+> - [x] `core/knowledge/promotion.py`: persiste `knowledge_candidates`,
+>   promove candidatos duraveis para `neurons`, `next_step` para `goals`,
+>   grava `observations.neuron_id` quando ha neuronio, mantem raw intacto e
+>   coloca erro estrutural em quarentena (`archived=2`, motivo, retry policy).
+> - [x] arquivos/summaries: `promote_files()` classifica docs como
+>   `document_chunk`, codigo como `code_symbol` e cadencias do cerebelo
+>   (`sessoes`, `diario`, `semanal`, `mensal`, `anual`) como
+>   `project_status`.
+> - [x] promotores existentes refatorados com saida `candidate-only`:
+>   `decision_promoter`, `pattern_distiller`, `conflict_detector`,
+>   `sector_classifier`, `drift_detector`, `topic_consolidator`,
+>   `work_tracker`, todos com `workspace_id`.
+> - [x] conexoes operacionais: `sinapse-write.py promotion`, MCP
+>   `sinapse_promote_knowledge`, dream cycle com intake K3 candidate-only antes
+>   da sintese legada, schema principal + schema CRR + `setup_crdt.py`.
+> - [x] testes adicionados/rodados: `tests/real/test_promotion_pipeline_sqlite.py`
+>   (observations/discoveries, quarentena, files/docs/code/summaries),
+>   `tests/unit/test_promoter_candidate_contract.py`,
+>   `tests/unit/test_sinapse_mcp.py`, `tests/unit/test_dream_resilience.py`,
+>   `tests/unit/test_database.py`.
+> - [x] aceite real 2026-06-29:
+>   `tests/real/test_promotion_pipeline_sqlite.py` = 3 passed;
+>   `scripts/dream/dream_cycle.py --once --real` = `ok`, 30 observations,
+>   29 candidatos K3 candidate-only, 19 neuronios persistidos em 3 projetos;
+>   `sinapse-write.py query "decisoes promovidas hoje"` = exit 0 com JSON no
+>   stdout. Regressao focada K3/CLI/MCP/Graphiti = 89 passed. Suite completa
+>   `./tests/run_all.sh` = Smoke 19 passed; Unit 494 passed / 3 skipped;
+>   Integration 109 passed / 2 skipped; E2E 22 passed.
+> - [x] hardening operacional descoberto no aceite: provider `antigravity`
+>   (`agy`) usa HOME real por padrao para herdar a autenticacao feita no CLI;
+>   HOME isolado ficou apenas como diagnostico (`AGY_USE_ISOLATED_HOME=1`).
 
 **JA EXISTEM promotores por area** (`docs/11` §3.1): `decision_promoter`,
 `pattern_distiller`, `conflict_detector`, `sector_classifier`, `drift_detector`,
@@ -663,9 +737,9 @@ testes simulados.
 > - [x] `tests/run_real_knowledge.sh` (executável; `-m real`).
 > - [x] 1º teste real: `tests/real/test_embedding_stack.py` (dim 1024, modelo
 >   unificado, colunas da migração) — baseline inicial **3 passed**; suíte real
->   atual **21 passed** após K1 digest gate, K2 sync/backfill de
->   `memory_vectors` e `observation_vectors`, incluindo E2E bounded nos bancos
->   reais.
+>   atual **24 passed** após K1 digest gate, K2 sync/backfill das 7 coleções
+>   canônicas, incluindo E2E bounded nos bancos reais e CLI operacional
+>   `vector-sync.py`.
 > - [x] skip genérico de `requires_service` entregue em
 >   `tests/real/service_registry.py`: serviços nomeados `ollama`, `milvus`,
 >   `falkordb`, `claude_mem`, `ragflow`; desconhecido falha como erro de teste;
@@ -804,20 +878,20 @@ Uma fase so esta pronta quando:
 
 ## 10. Proximo Corte Recomendado
 
-Continuar a partir da base **K9 + K0** ja iniciada:
+Continuar a partir da base **K0 + K1 + K2** ja verificada:
 
-1. criar fixtures reais de Milvus, claude-mem, FalkorDB e RAGFlow usando o
-   service registry ja entregue;
-2. confirmar `pymilvus`, `ragflow-sdk`, `llama-index` pinados em `pyproject.toml`/`uv.lock`;
-3. criar `integrations/milvus/` e `integrations/ragflow/` como wrappers
-   (`client.py` + `docker-compose.yml`, imagem pinada por digest);
-4. adicionar modo `--no-components`/`--wrappers-only` no update para testar
-   wrappers sem repinar componentes git;
+1. iniciar K3 Promotion Pipeline, preservando raw e usando candidatos tipados;
+2. estender K4 para discoveries/session summaries do claude-mem sem perder
+   `investigated`, `completed`, `learned`, `decisions` e `next_steps`;
+3. manter K2 como gate regressivo das 7 coleções antes de qualquer mudança em
+   promotion, document pipeline ou retrieval;
+4. expandir K9 com fixtures reais reutilizáveis para Milvus, claude-mem,
+   FalkorDB e RAGFlow usando o service registry ja entregue;
 5. manter o teste real de embeddings 1024d em Ollama + SQLite + migração com
    backup como baseline regressivo.
 
-Esse corte cria a base verificavel para o resto sem ainda mexer no fluxo de
-promocao em producao.
+Esse corte usa o backend vetorial ja fechado como base para escrita/promocao
+real de conhecimento.
 
 ## 11. Auditoria Final De Alinhamento (2026-06-28)
 
@@ -829,15 +903,16 @@ Resultado comparando arquitetura, plano e testes atuais:
 | migração workspace/federação | unit 12 passed; DB real tem `workspace_id`, `origin_instance`, `origin_signature`, `embedding_model`, `embedding_dim`; ADD COLUMN legado passa por CRR-safe | coberto em `docs/11` §18 e K0 |
 | backup antes da migração | teste unitário cobre backup em DB arquivo e skip em `:memory:` | coberto em K0/B8 |
 | wrappers vs clones | script atual só atualiza graphify/neural-memory/rtk como componentes git | coberto, com contrato negativo para `components.lock.json` |
-| aceite real sem mock | `tests/run_real_knowledge.sh` roda 21 testes reais verdes, incluindo K1 wrappers/digest gate, K2 sqlite/Milvus, sync/backfill `memory_vectors` + `observation_vectors` e E2E bounded nos bancos reais | coberto, mas K9 ainda precisa fixtures dos demais serviços |
+| aceite real sem mock | suíte K2 completa roda 14 passed, incluindo SQLite, Milvus, `claude-mem.db`, sync/backfill das 7 coleções, E2E bounded nos bancos reais e CLI operacional `vector-sync.py`; comando de aceite explícito exportou 2 `memory_vectors` + 2 `observation_vectors` com `failed=0` | K2 coberto; K9 ainda precisa fixtures reutilizáveis dos demais serviços |
 | skip de serviço offline | registry/hook em `tests/real/service_registry.py`; unit 5 passed | coberto para seleção/skip; falta fixture real por backend novo |
 | update de integrações | `--no-components` e `--wrappers-only` implementados; K1 wrappers importados e `uv lock --upgrade && uv sync` verde | coberto para gate de update |
 | falha de migração estrutural | falha fechado por padrão; bypass legado exige `HIVE_ALLOW_DEFERRED_MIGRATIONS=1` | coberto no core |
-| regressões globais | `./tests/run_all.sh` verde apos K1 digest gate + K2 `observation_vectors` + E2E bounded nos bancos reais: Smoke 19 passed; Unit 474 passed / 3 skipped; Integration 104 passed / 4 skipped; E2E 22 passed | coberto neste recorte |
+| regressões globais | `./tests/run_all.sh` verde: Smoke 19 passed; Unit 474 passed / 3 skipped; Integration 107 passed / 2 skipped; E2E 22 passed | coberto no recorte atual |
 
-Conclusao: K1 esta coberto para wrappers/pip; K2 esta coberto para as colecoes
-vivas `memory_vectors` e `observation_vectors`, tanto local quanto Milvus. K2
-nao deve ser tratado como encerrado para `document_vectors`, `code_vectors`,
-`visual_vectors`, `graph_vectors` e `summary_vectors` ate as fases que criam
-essas tabelas/pipelines entregarem backfill e aceite real. K9 ainda precisa
-expandir fixtures reais para todos os servicos usados nas proximas fases.
+Conclusao: K1 esta coberto para wrappers/pip. K2 esta coberto para as 7 colecoes
+canonicas (`memory_vectors`, `observation_vectors`, `document_vectors`,
+`code_vectors`, `visual_vectors`, `graph_vectors`, `summary_vectors`) tanto no
+backend SQLite local quanto no sync para Milvus. As proximas fases nao devem
+recriar backend vetorial; devem alimentar essas colecoes pelo contrato ja
+entregue. K9 ainda precisa expandir fixtures reais reutilizaveis para todos os
+servicos usados nas proximas fases.

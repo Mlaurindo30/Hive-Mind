@@ -7,6 +7,7 @@ Pipeline ETL determinístico: Ingestão -> Distiller -> Validator -> Router.
 import os
 import sys
 import json
+import argparse
 import sqlite3
 import yaml
 import time
@@ -77,6 +78,29 @@ def fetch_balanced_observations(conn, limit: int = MAX_OBS_PER_CYCLE) -> list:
         """,
         (limit,),
     ).fetchall()
+
+
+def _run_k3_candidate_intake(conn, observations: list) -> Dict[str, int]:
+    """K3 candidate-only stage for Dream Cycle.
+
+    O Dream Cycle legado ainda faz a síntese/roteamento completo. Este estágio
+    apenas materializa candidatos tipados para auditoria e promoção posterior,
+    sem marcar observations como archived nem preencher neuron_id.
+    """
+    from core.knowledge.intake import StructuralIntakeError, normalize_observation
+    from core.knowledge.promotion import ensure_knowledge_schema, store_candidates
+
+    ensure_knowledge_schema(conn)
+    report = {"observations": len(observations), "candidates": 0, "skipped": 0}
+    for row in observations:
+        try:
+            candidates = normalize_observation(row)
+        except StructuralIntakeError:
+            report["skipped"] += 1
+            continue
+        report["candidates"] += store_candidates(conn, candidates)
+    conn.commit()
+    return report
 
 def load_yaml(path: Path) -> dict:
     with open(path, "r", encoding="utf-8") as f:
@@ -515,21 +539,56 @@ source_image: {img_path.name}
 # Fluxo Principal (Main Loop)
 # ---------------------------------------------------------------------------
 
-def _push_neurons_to_graphs(neurons: "list[tuple[str, str]]") -> None:
+def _graph_push_backlog_path() -> Path:
+    return Path(
+        os.environ.get(
+            "HIVE_DREAM_GRAPH_PUSH_BACKLOG",
+            str(Path(SINAPSE_HOME) / "logs" / "graph_push_backlog.jsonl"),
+        )
+    )
+
+
+def _append_graph_push_backlog(neurons: "list[tuple[str, str]]", *, reason: str) -> None:
+    if not neurons:
+        return
+    path = _graph_push_backlog_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    now = datetime.now().isoformat()
+    with open(path, "a", encoding="utf-8") as f:
+        for nid, content in neurons:
+            f.write(json.dumps({
+                "neuron_id": nid,
+                "content": content[:4000],
+                "reason": reason,
+                "queued_at": now,
+                "source": "dream_cycle",
+            }, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def _push_neurons_to_graphs(neurons: "list[tuple[str, str]]") -> Dict[str, int]:
     """Estágio 3.5 (P2+P4): empurra neurônios persistidos para os grafos de
     conhecimento — Graphiti (temporal/causal) e LightRAG (entidades/relações).
 
-    Best-effort: qualquer falha é engolida e nunca aborta o Dream Cycle. Antes,
-    este push só ocorria para ambiguidades sintetizadas (raras em uso
-    single-machine), deixando ambos os grafos permanentemente vazios e as tools
-    sinapse_rag_query / sinapse_temporal_graph_search sem dados.
+    Best-effort e bounded: qualquer falha é engolida e nunca aborta o Dream
+    Cycle. O push real pode chamar LLM/Graphiti por neurônio; por isso cada
+    ciclo empurra só `HIVE_DREAM_GRAPH_PUSH_MAX` itens e grava o restante em
+    backlog JSONL para manutenção assíncrona.
     """
+    report = {"seen": len(neurons), "pushed": 0, "deferred": 0}
     if not neurons:
-        return
+        return report
+
+    max_push = max(0, int(os.environ.get("HIVE_DREAM_GRAPH_PUSH_MAX", "3")))
+    selected = neurons[:max_push] if max_push else []
+    deferred = neurons[max_push:] if max_push else list(neurons)
+    if deferred:
+        _append_graph_push_backlog(deferred, reason="dream_graph_push_budget")
+        report["deferred"] = len(deferred)
+
     # Graphiti: 1 episódio por neurônio (escrita leve no FalkorDB).
     try:
         from integrations.graphiti import push_neuron
-        for nid, content in neurons:
+        for nid, content in selected:
             try:
                 push_neuron(nid, content, source="dream")
             except Exception:
@@ -542,12 +601,14 @@ def _push_neurons_to_graphs(neurons: "list[tuple[str, str]]") -> None:
     try:
         from core.lightrag_index import index_memory_sync
 
-        for nid, content in neurons:
+        for nid, content in selected:
             index_memory_sync(content, metadata={"neuron_id": nid, "source": "dream_cycle"})
+            report["pushed"] += 1
     except ImportError:
         pass
     except Exception as e:
         print(f"  [LightRAG] index em lote ignorado (best-effort): {e}")
+    return report
 
 
 def _route_and_persist_project(conn, now, proj, distilled, proj_obs_ids, mark_obs) -> int:
@@ -687,6 +748,18 @@ def _run_dream_cycle_inner() -> Dict[str, int]:
         print("  Cérebro descansado. Sem novas observações na fila.")
         conn.close()
         return {"observations": 0, "persisted": 0}
+
+    k3_t0 = time.perf_counter()
+    try:
+        k3_report = _run_k3_candidate_intake(conn, obs)
+        print(
+            "  [K3] Intake candidate-only: "
+            f"{k3_report['candidates']} candidatos, {k3_report['skipped']} ignorados"
+        )
+    except Exception as e:
+        print(f"  [K3] Intake candidate-only falhou sem abortar o ciclo: {e}")
+    finally:
+        mark_stage("k3_candidate_intake_ms", k3_t0)
 
     # Arquiva os logs brutos para a Inbox sensorial (cortex/parietal/inbox)
     from core import paths as cp
@@ -947,7 +1020,27 @@ def _persist_cycle_metrics(metrics: Dict[str, float], status: str) -> None:
     print(f"  [Metrics] Dream Cycle: {metrics}")
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Hive-Mind Dream Cycle")
+    parser.add_argument("--once", action="store_true", help="Executa um ciclo e encerra (default)")
+    parser.add_argument("--real", action="store_true", help="Confirma execução contra banco/modelos reais")
+    parser.add_argument("--dry-run", action="store_true", help="Valida configuração sem executar o ciclo")
+    args = parser.parse_args(argv)
+    if args.dry_run:
+        print(json.dumps({
+            "configured": bool(LLM_PROVIDER and LLM_MODEL),
+            "provider": LLM_PROVIDER,
+            "model": LLM_MODEL,
+        }, ensure_ascii=False, sort_keys=True))
+        return 0
+    if not LLM_PROVIDER or not LLM_MODEL:
+        print("ERRO: Hive-Dreamer não configurado.")
+        return 1
+    run_dream_cycle()
+    return 0
+
+
+def _install_sigterm_handler() -> None:
     # SIGTERM handler: systemd oneshot envia SIGTERM (não SIGINT) no stop manual.
     # Default Python termina sem rodar `finally`/`atexit` — perderíamos o flush
     # de spans e o log do ciclo. Convertemos SIGTERM em SystemExit para cair no
@@ -957,7 +1050,8 @@ if __name__ == "__main__":
         signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(0)))
     except (ValueError, OSError):
         pass  # SIGTERM só pode ser tratado no main thread
-    if not LLM_PROVIDER or not LLM_MODEL:
-        print("ERRO: Hive-Dreamer não configurado.")
-        sys.exit(1)
-    run_dream_cycle()
+
+
+if __name__ == "__main__":
+    _install_sigterm_handler()
+    raise SystemExit(main())

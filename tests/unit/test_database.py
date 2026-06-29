@@ -160,6 +160,113 @@ class TestEnsureMigrations:
             "SELECT 1 FROM sqlite_master WHERE type='table' AND name='goals'"
         ).fetchone()
 
+    def test_ensure_migrations_creates_k3_schema(self):
+        conn = sqlite3.connect(":memory:")
+        _make_observations_table(conn)
+
+        ensure_migrations(conn)
+
+        candidate_cols = {
+            row[1] for row in conn.execute("PRAGMA table_info(knowledge_candidates)")
+        }
+        assert {
+            "id",
+            "source_type",
+            "source_id",
+            "knowledge_type",
+            "title",
+            "content",
+            "workspace_id",
+            "evidence_json",
+            "hash",
+            "status",
+        } <= candidate_cols
+
+        goal_cols = {row[1] for row in conn.execute("PRAGMA table_info(goals)")}
+        assert "workspace_id" in goal_cols
+
+
+def test_crr_schema_and_setup_include_k3_tables():
+    schema = (_PROJECT_ROOT / "core" / "umc_schema_crr.sql").read_text(encoding="utf-8")
+    assert "CREATE TABLE IF NOT EXISTS knowledge_candidates" in schema
+    assert "workspace_id TEXT NOT NULL DEFAULT 'default'" in schema
+
+    from scripts.setup import setup_crdt
+
+    assert "knowledge_candidates" in setup_crdt.CRDT_TABLES
+    assert "knowledge_candidates" in setup_crdt.COLUMNS_PER_TABLE
+    assert "workspace_id" in setup_crdt.COLUMNS_PER_TABLE["knowledge_candidates"]
+    assert "workspace_id" in setup_crdt.COLUMNS_PER_TABLE["goals"]
+
+
+def test_crdt_copy_uses_destination_defaults_for_missing_columns():
+    from scripts.setup.setup_crdt import copy_table_data
+
+    src = sqlite3.connect(":memory:")
+    src.row_factory = sqlite3.Row
+    src.execute(
+        """
+        CREATE TABLE goals (
+            id TEXT PRIMARY KEY,
+            description TEXT NOT NULL,
+            steps_json TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    src.execute(
+        "INSERT INTO goals(id, description, steps_json, status, created_at) VALUES (?, ?, ?, ?, ?)",
+        ("goal-1", "legacy goal", "[]", "active", "2026-06-28T00:00:00"),
+    )
+
+    dst = sqlite3.connect(":memory:")
+    dst.execute(
+        """
+        CREATE TABLE goals (
+            id TEXT PRIMARY KEY,
+            description TEXT NOT NULL,
+            steps_json TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            workspace_id TEXT NOT NULL DEFAULT 'default'
+        )
+        """
+    )
+
+    copied, orphans = copy_table_data(
+        src,
+        dst,
+        "goals",
+        ["id", "description", "steps_json", "status", "created_at", "workspace_id"],
+    )
+
+    assert (copied, orphans) == (1, 0)
+    row = dst.execute("SELECT workspace_id FROM goals WHERE id='goal-1'").fetchone()
+    assert row[0] == "default"
+
+
+def test_query_hybrid_vec0_error_goes_to_stderr(monkeypatch, capsys):
+    import core.database as db_module
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE VIRTUAL TABLE search_fts USING fts5(neuron_id UNINDEXED, label, content)")
+    conn.execute("CREATE TABLE neurons (id TEXT PRIMARY KEY, label TEXT, content TEXT)")
+    conn.execute("INSERT INTO neurons(id, label, content) VALUES ('n1', 'Teste', 'decisao promovida')")
+    conn.execute("INSERT INTO search_fts(neuron_id, label, content) VALUES ('n1', 'Teste', 'decisao promovida')")
+    conn.commit()
+
+    monkeypatch.setattr(db_module, "get_connection", lambda: conn)
+    monkeypatch.setattr(db_module, "embed_text", lambda _text: [0.0] * 1024)
+
+    result = db_module.query_hybrid("decisao", limit=1)
+
+    captured = capsys.readouterr()
+    assert result[0]["id"] == "n1"
+    assert captured.out == ""
+    assert "Erro na busca vetorial" in captured.err
+
 
 def test_add_observation_persists_intent_fields(monkeypatch, tmp_path):
     import core.database as db_module

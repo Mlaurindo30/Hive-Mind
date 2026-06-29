@@ -267,6 +267,24 @@ TOOLS = [
         }
     },
     {
+        "name": "sinapse_promote_knowledge",
+        "description": "Run K3 Knowledge Intake + Promotion over pending UMC observations. Normalizes observations/discoveries/session summaries into typed candidates, preserves raw records, quarantines structural errors with archived=2, and links observation.neuron_id when a neuron is created.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum pending observations to process"
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "Classify and count without writing candidates/promotions",
+                    "default": False
+                }
+            }
+        }
+    },
+    {
         "name": "sinapse_temporal_graph_search",
         "description": "Compatibility tool for direct Graphiti/FalkorDB lookup over temporal/causal edges extracted from synthesized neurons. Prefer sinapse_query for normal work because it already fuses Graphiti with the other six backends. Use this only when debugging Graphiti specifically or when raw temporal graph edges are required. Requires FalkorDB on localhost:6379.",
         "inputSchema": {
@@ -367,6 +385,7 @@ HANDLERS = {
         args.get("monitor"),
     ),
     "sinapse_plan_goal": lambda args: _plan_goal(args.get("goal", ""), args.get("context")),
+    "sinapse_promote_knowledge": lambda args: _promote_knowledge(args),
     "sinapse_temporal_graph_search": lambda args: _temporal_graph_search(
         args.get("query", ""),
         num_results=int(args.get("num_results", 10)),
@@ -679,6 +698,24 @@ def _search_memories(query: str, top_k: int = 10, project=None, mode: str = "sem
     ensure_migrations(conn)
     try:
         return search_neurons(conn, query, top_k=top_k, project=project, mode=mode)
+    finally:
+        conn.close()
+
+
+def _promote_knowledge(args: dict) -> dict:
+    """Run K3 promotion pipeline from MCP without duplicating CLI logic."""
+    from core.database import get_connection, ensure_migrations
+    from core.knowledge.promotion import promote_pending_observations
+
+    limit = args.get("limit")
+    if limit is not None:
+        limit = int(limit)
+    dry_run = bool(args.get("dry_run", False))
+
+    conn = get_connection()
+    try:
+        ensure_migrations(conn)
+        return promote_pending_observations(conn, limit=limit, apply=not dry_run)
     finally:
         conn.close()
 

@@ -4,7 +4,12 @@ Live sync paths:
 - `memory_vectors`: local `hive_mind.db/search_vec` -> Milvus.
 - `observation_vectors`: global/local `claude-mem.db/vec_observations` -> Milvus.
 
-Other collections remain planned until their tables/backfill pipelines exist.
+Auxiliary collection sync paths:
+- `document_vectors`: document neurons with existing search_vec embeddings.
+- `code_vectors`: code neurons with existing search_vec embeddings.
+- `visual_vectors`: visual_memories embedded from description/OCR/path.
+- `graph_vectors`: causal_edges embedded from edge text.
+- `summary_vectors`: cerebelo summary/session markdown files embedded from text.
 """
 from __future__ import annotations
 
@@ -18,7 +23,16 @@ import struct
 from typing import Any
 
 from core.vector_backend import MilvusBackend, VectorBackend
-from core.vector_collections import EMBED_DIM
+from core.vector_collections import COLLECTIONS, EMBED_DIM, get_collection
+
+
+AUXILIARY_COLLECTIONS = (
+    "document_vectors",
+    "code_vectors",
+    "visual_vectors",
+    "graph_vectors",
+    "summary_vectors",
+)
 
 
 @dataclass
@@ -209,6 +223,276 @@ def _metadata_for_observation_vector(row: Any) -> dict[str, str]:
     }
 
 
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8", "ignore")).hexdigest()
+
+
+def _upsert_sqlite_vector(conn, collection: str, item_id: str, vector: list[float], metadata: dict[str, str]) -> None:
+    from core.database import serialize_f32
+
+    c = get_collection(collection)
+    conn.execute(f"DELETE FROM {c.table} WHERE {c.id_col} = ?", (item_id,))
+    conn.execute(
+        f"INSERT INTO {c.table}({c.id_col}, embedding) VALUES (?, ?)",
+        (item_id, serialize_f32(vector)),
+    )
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO vector_metadata(
+            collection, id, parent_id, parent_type, brain_lobe, knowledge_type,
+            project, source_uri, hash, valid_at, workspace_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            collection,
+            item_id,
+            metadata["parent_id"],
+            metadata["parent_type"],
+            metadata["brain_lobe"],
+            metadata["knowledge_type"],
+            metadata["project"],
+            metadata["source_uri"],
+            metadata["hash"],
+            metadata["valid_at"],
+            metadata["workspace_id"],
+        ),
+    )
+
+
+def _metadata_for_neuron_collection(row: Any, collection: str, knowledge_type: str) -> dict[str, str]:
+    base = _metadata_for_memory_vector(row)
+    base["parent_type"] = "neuron"
+    base["knowledge_type"] = knowledge_type
+    if collection == "document_vectors":
+        base["brain_lobe"] = "parietal"
+    elif collection == "code_vectors":
+        base["brain_lobe"] = "occipital"
+    return base
+
+
+def _iter_neuron_type_vectors(conn, neuron_type: str, *, limit: int | None = None):
+    sql = """
+    SELECT
+        n.id, n.label, n.type, n.source_file, n.content, n.hash, n.metadata,
+        n.created_at, n.updated_at, n.workspace_id,
+        sv.embedding
+    FROM neurons n
+    JOIN search_vec sv ON sv.neuron_id = n.id
+    WHERE n.type = ?
+    ORDER BY n.id
+    """
+    params: tuple[Any, ...] = (neuron_type,)
+    if limit is not None:
+        sql += " LIMIT ?"
+        params = (neuron_type, int(limit))
+    return conn.execute(sql, params)
+
+
+def _embedding_for_text(text: str) -> list[float]:
+    from core.database import embed_text
+
+    return embed_text(text[:5000])
+
+
+def _backfill_neuron_collection(conn, collection: str, neuron_type: str, *, limit: int | None = None) -> VectorSyncReport:
+    report = VectorSyncReport(collection=collection)
+    for row in _iter_neuron_type_vectors(conn, neuron_type, limit=limit):
+        report.scanned += 1
+        item_id = str(row["id"])
+        try:
+            metadata = _metadata_for_neuron_collection(row, collection, neuron_type)
+            _upsert_sqlite_vector(conn, collection, item_id, _decode_f32(row["embedding"]), metadata)
+            report.upserted += 1
+        except Exception as exc:
+            report.failed += 1
+            report.errors.append(f"{item_id}: {type(exc).__name__}: {exc}")
+    return report
+
+
+def _backfill_visual_vectors(conn, *, limit: int | None = None) -> VectorSyncReport:
+    report = VectorSyncReport(collection="visual_vectors")
+    sql = """
+    SELECT id, image_path, description, ocr_text, neuron_id, metadata, created_at, workspace_id
+    FROM visual_memories
+    ORDER BY id
+    """
+    params: tuple[Any, ...] = ()
+    if limit is not None:
+        sql += " LIMIT ?"
+        params = (int(limit),)
+    for row in conn.execute(sql, params):
+        report.scanned += 1
+        item_id = str(row["id"])
+        text = "\n".join(str(row[key] or "") for key in ("image_path", "description", "ocr_text"))
+        try:
+            metadata = {
+                "parent_id": str(row["neuron_id"] or item_id),
+                "parent_type": "visual_memory",
+                "brain_lobe": "occipital",
+                "knowledge_type": "visual",
+                "project": "default",
+                "source_uri": str(row["image_path"] or f"hive_mind.db:visual_memories/{item_id}"),
+                "hash": _sha256(text),
+                "valid_at": str(row["created_at"] or datetime.now(timezone.utc).isoformat()),
+                "workspace_id": str(row["workspace_id"] or "default"),
+            }
+            _upsert_sqlite_vector(conn, "visual_vectors", item_id, _embedding_for_text(text), metadata)
+            report.upserted += 1
+        except Exception as exc:
+            report.failed += 1
+            report.errors.append(f"{item_id}: {type(exc).__name__}: {exc}")
+    return report
+
+
+def _backfill_graph_vectors(conn, *, limit: int | None = None) -> VectorSyncReport:
+    report = VectorSyncReport(collection="graph_vectors")
+    sql = """
+    SELECT id, cause_neuron_id, effect_neuron_id, label, confidence, source, created_at
+    FROM causal_edges
+    ORDER BY id
+    """
+    params: tuple[Any, ...] = ()
+    if limit is not None:
+        sql += " LIMIT ?"
+        params = (int(limit),)
+    for row in conn.execute(sql, params):
+        report.scanned += 1
+        item_id = str(row["id"])
+        text = f"{row['cause_neuron_id']} {row['label'] or 'relates_to'} {row['effect_neuron_id']} source={row['source'] or ''}"
+        try:
+            metadata = {
+                "parent_id": item_id,
+                "parent_type": "causal_edge",
+                "brain_lobe": "temporal",
+                "knowledge_type": "graph_edge",
+                "project": "default",
+                "source_uri": f"hive_mind.db:causal_edges/{item_id}",
+                "hash": _sha256(text),
+                "valid_at": str(row["created_at"] or datetime.now(timezone.utc).isoformat()),
+                "workspace_id": "default",
+            }
+            _upsert_sqlite_vector(conn, "graph_vectors", item_id, _embedding_for_text(text), metadata)
+            report.upserted += 1
+        except Exception as exc:
+            report.failed += 1
+            report.errors.append(f"{item_id}: {type(exc).__name__}: {exc}")
+    return report
+
+
+def _summary_files(summary_roots: list[Path] | None = None) -> list[Path]:
+    if summary_roots is None:
+        from core.paths import CEREBELO
+
+        summary_roots = [CEREBELO / "sessoes", CEREBELO / "diario", CEREBELO / "semanal", CEREBELO / "mensal", CEREBELO / "padroes"]
+    files: list[Path] = []
+    for root in summary_roots:
+        root = Path(root)
+        if root.exists():
+            files.extend(sorted(root.rglob("*.md")))
+    return files
+
+
+def _backfill_summary_vectors(conn, *, summary_roots: list[Path] | None = None, limit: int | None = None) -> VectorSyncReport:
+    report = VectorSyncReport(collection="summary_vectors")
+    files = _summary_files(summary_roots)
+    if limit is not None:
+        files = files[: int(limit)]
+    for path in files:
+        item_id = _sha256(str(path))[:32]
+        report.scanned += 1
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            metadata = {
+                "parent_id": item_id,
+                "parent_type": "summary_file",
+                "brain_lobe": "cerebelo",
+                "knowledge_type": "summary",
+                "project": "default",
+                "source_uri": str(path),
+                "hash": _sha256(text),
+                "valid_at": datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(),
+                "workspace_id": "default",
+            }
+            _upsert_sqlite_vector(conn, "summary_vectors", item_id, _embedding_for_text(text), metadata)
+            report.upserted += 1
+        except Exception as exc:
+            report.failed += 1
+            report.errors.append(f"{item_id}: {type(exc).__name__}: {exc}")
+    return report
+
+
+def backfill_auxiliary_vectors_to_sqlite(
+    conn,
+    *,
+    summary_roots: list[Path] | None = None,
+    limit: int | None = None,
+) -> list[VectorSyncReport]:
+    """Backfill K2 auxiliary sqlite-vec collections from real local sources."""
+    reports = [
+        _backfill_neuron_collection(conn, "document_vectors", "document", limit=limit),
+        _backfill_neuron_collection(conn, "code_vectors", "code", limit=limit),
+        _backfill_visual_vectors(conn, limit=limit),
+        _backfill_graph_vectors(conn, limit=limit),
+        _backfill_summary_vectors(conn, summary_roots=summary_roots, limit=limit),
+    ]
+    conn.commit()
+    return reports
+
+
+def _iter_vector_metadata_rows(conn, collection: str, *, limit: int | None = None):
+    c = get_collection(collection)
+    sql = f"""
+    SELECT
+        vm.*,
+        v.embedding
+    FROM vector_metadata vm
+    JOIN {c.table} v ON v.{c.id_col} = vm.id
+    WHERE vm.collection = ?
+    ORDER BY vm.id
+    """
+    params: tuple[Any, ...] = (collection,)
+    if limit is not None:
+        sql += " LIMIT ?"
+        params = (collection, int(limit))
+    return conn.execute(sql, params)
+
+
+def sync_auxiliary_vectors_to_milvus(
+    conn,
+    backend: VectorBackend | None = None,
+    *,
+    collections: tuple[str, ...] = AUXILIARY_COLLECTIONS,
+    limit: int | None = None,
+) -> list[VectorSyncReport]:
+    """Sync auxiliary K2 collections from local sqlite-vec tables to Milvus."""
+    backend = backend or MilvusBackend()
+    reports: list[VectorSyncReport] = []
+    for collection in collections:
+        if collection not in AUXILIARY_COLLECTIONS:
+            raise ValueError(f"colecao auxiliar K2 desconhecida: {collection}")
+        report = VectorSyncReport(collection=collection)
+        for row in _iter_vector_metadata_rows(conn, collection, limit=limit):
+            report.scanned += 1
+            item_id = str(row["id"])
+            try:
+                metadata = {
+                    field: str(row[field])
+                    for field in MilvusBackend.METADATA_FIELDS
+                }
+                vector = _decode_f32(row["embedding"])
+                if _already_synced(backend, collection, item_id, metadata):
+                    report.skipped += 1
+                    continue
+                backend.upsert(collection, item_id, vector, metadata)
+                report.upserted += 1
+            except Exception as exc:
+                report.failed += 1
+                report.errors.append(f"{item_id}: {type(exc).__name__}: {exc}")
+        reports.append(report)
+    return reports
+
+
 def _open_claude_mem_connection(path: str | Path) -> sqlite3.Connection:
     db_path = Path(path).expanduser()
     if not db_path.exists():
@@ -289,9 +573,12 @@ def sync_observation_vectors_to_milvus(
 
 
 __all__ = [
+    "AUXILIARY_COLLECTIONS",
     "VectorSyncReport",
+    "backfill_auxiliary_vectors_to_sqlite",
     "iter_memory_vector_rows",
     "iter_observation_vector_rows",
+    "sync_auxiliary_vectors_to_milvus",
     "sync_observation_vectors_to_milvus",
     "sync_memory_vectors_to_milvus",
 ]

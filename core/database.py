@@ -3,6 +3,7 @@ import os
 import json
 import struct
 import uuid
+import sys
 from pathlib import Path
 from datetime import datetime
 
@@ -481,7 +482,8 @@ def ensure_migrations(conn):
             description TEXT NOT NULL,
             steps_json TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'active',
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            workspace_id TEXT NOT NULL DEFAULT 'default'
         )
     """)
 
@@ -534,6 +536,81 @@ def ensure_migrations(conn):
         )
     """)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_dream_cycle_started ON dream_cycle_log(started_at)")
+
+    # K2: coleções vetoriais auxiliares. search_vec cobre memória principal; as
+    # demais coleções precisam de tabelas próprias + metadados canônicos para
+    # sync local -> Milvus sem perder proveniência.
+    try:
+        conn.execute("SELECT vec_version()").fetchone()
+        sqlite_vec_loaded = True
+    except sqlite3.OperationalError:
+        sqlite_vec_loaded = False
+    if sqlite_vec_loaded:
+        for table, id_col in (
+            ("vec_documents", "chunk_id"),
+            ("vec_code", "symbol_id"),
+            ("vec_visual", "image_id"),
+            ("vec_graph", "entity_id"),
+            ("vec_summary", "summary_id"),
+        ):
+            conn.execute(
+                f"""
+                CREATE VIRTUAL TABLE IF NOT EXISTS {table} USING vec0(
+                    {id_col} TEXT PRIMARY KEY,
+                    embedding FLOAT[1024]
+                )
+                """
+            )
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS vector_metadata (
+            collection TEXT NOT NULL,
+            id TEXT NOT NULL,
+            parent_id TEXT NOT NULL,
+            parent_type TEXT NOT NULL,
+            brain_lobe TEXT NOT NULL,
+            knowledge_type TEXT NOT NULL,
+            project TEXT NOT NULL DEFAULT 'default',
+            source_uri TEXT NOT NULL,
+            hash TEXT NOT NULL,
+            valid_at TEXT NOT NULL,
+            workspace_id TEXT NOT NULL DEFAULT 'default',
+            PRIMARY KEY(collection, id)
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_vector_metadata_collection_workspace
+        ON vector_metadata(collection, workspace_id)
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS knowledge_candidates (
+            id TEXT PRIMARY KEY,
+            source_type TEXT NOT NULL,
+            source_id TEXT NOT NULL,
+            knowledge_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            project TEXT NOT NULL DEFAULT 'default',
+            workspace_id TEXT NOT NULL DEFAULT 'default',
+            evidence_json TEXT NOT NULL,
+            metadata_json TEXT,
+            hash TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'candidate',
+            neuron_id TEXT,
+            error TEXT,
+            retry_policy TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            promoted_at TEXT,
+            UNIQUE(source_id, knowledge_type, hash, workspace_id)
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_source
+        ON knowledge_candidates(source_type, source_id, status)
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_type_workspace
+        ON knowledge_candidates(knowledge_type, workspace_id, status)
+    """)
 
     # B1/B6 (frente K, K0): workspace_id + federação + embedding-provenance.
     # CRR-safe e idempotente. Falha fechado por padrão: schema parcial não é
@@ -649,7 +726,7 @@ def query_hybrid(query_text, limit=10):
         """, (query_text, limit * 2)).fetchall()
         fts_ids = [row['neuron_id'] for row in fts_rows]
     except Exception as e:
-        print(f"[umc] Erro na busca FTS5: {e}")
+        print(f"[umc] Erro na busca FTS5: {e}", file=sys.stderr)
         fts_ids = []
 
     # 2. Busca Vetorial (Semantica) — lista ordenada de IDs
@@ -666,7 +743,7 @@ def query_hybrid(query_text, limit=10):
         """, (serialized, limit * 2)).fetchall()
         vec_ids = [row['neuron_id'] for row in vec_rows]
     except Exception as e:
-        print(f"[umc] Erro na busca vetorial: {e}")
+        print(f"[umc] Erro na busca vetorial: {e}", file=sys.stderr)
 
     # 3. Combinar com RRF — produz ranking global unico
     ranked_lists = [lst for lst in [fts_ids, vec_ids] if lst]

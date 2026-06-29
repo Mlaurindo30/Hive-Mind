@@ -29,6 +29,7 @@ logger = logging.getLogger("sector_classifier")
 
 # Importações do Core
 from core.paths import TEMPORAL
+from core.knowledge.intake import KnowledgeCandidate, build_candidate
 from core.auth import load_env
 from core.llm_client import call_llm_with_fallback
 from core.schemas.sector_models import SectorClassifierOutput
@@ -75,6 +76,31 @@ def extract_neuron_info(body: str) -> Tuple[str, str]:
     # Remove o título do conteúdo para não redundar no prompt
     content_only = body.replace(f"# {title}", "", 1).strip()
     return title, content_only
+
+
+def sector_update_candidate(
+    filepath: Path,
+    sectors: List[str],
+    *,
+    project: str = "default",
+    workspace_id: str = "default",
+) -> KnowledgeCandidate:
+    """Candidate-only sector classification result for K3; no file writes."""
+    safe_sectors = [str(sector) for sector in sectors if str(sector).strip()]
+    title = f"Classificação setorial: {filepath.name}"
+    content = f"{filepath.name} classificado nos setores: {', '.join(safe_sectors)}"
+    return build_candidate(
+        source_type="sector_classifier",
+        source_id=str(filepath),
+        knowledge_type="project_status",
+        title=title,
+        content=content,
+        project=project,
+        workspace_id=workspace_id,
+        evidence={"source_uri": str(filepath), "sectors": safe_sectors},
+        metadata={"promoter": "sector_classifier", "sectors": safe_sectors},
+    )
+
 
 def process_file(filepath: Path):
     """Lê, analisa e atualiza o arquivo com setores se necessário."""
