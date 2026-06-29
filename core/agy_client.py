@@ -8,11 +8,11 @@ claude-sonnet-4-6, claude-opus-4-6, gpt-oss-120b-maas — só é acessível pelo
 backend NATIVO do antigravity, que o CLI `agy` fala. Este módulo chama o `agy`
 em modo headless (`agy -p ... --model ...`) e devolve a resposta.
 
-Isolamento de contexto (crítico): o `agy` é um assistente AGÊNTICO — por padrão
-carrega `~/.gemini/GEMINI.md` e `~/.gemini/skills/` (inclui a skill llm-council),
-poluindo a saída com vereditos em vez de JSON. Para obter saída determinística,
-rodamos o `agy` com um HOME isolado cujo `.gemini` contém apenas as credenciais
-(symlinks p/ as reais — refresh do OAuth propaga) e NENHUMA skill/GEMINI.md.
+Contexto: o `agy` é um assistente AGÊNTICO. O primeiro wrapper usava HOME
+isolado para esconder skills/GEMINI.md, mas isso quebrou a autenticação real do
+Antigravity mesmo quando `agy` autenticado funcionava no terminal. O padrão
+agora usa HOME real e cwd neutro `/tmp` com `--new-project`; o HOME isolado
+continua disponível apenas com `AGY_USE_ISOLATED_HOME=1` para diagnóstico.
 
 Validado 2026-06-26: claude-sonnet-4-6 e gemini-3.5-flash retornam saída limpa.
 
@@ -23,12 +23,13 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
 # Binário do antigravity CLI. Override via AGY_BIN.
-AGY_BIN = os.environ.get("AGY_BIN", str(Path.home() / ".local/bin/agy"))
+AGY_BIN = os.environ.get("AGY_BIN") or shutil.which("agy") or str(Path.home() / ".local/bin/agy")
 
 # Config real do gemini/antigravity (de onde herdamos as credenciais OAuth).
 _REAL_GEMINI_DIR = Path(os.environ.get("GEMINI_CLI_DIR", str(Path.home() / ".gemini")))
@@ -117,17 +118,34 @@ def _extract_json(text: str) -> Optional[str]:
     return None
 
 
+def _use_isolated_home() -> bool:
+    return os.environ.get("AGY_USE_ISOLATED_HOME", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _run_agy(prompt: str, model: str, timeout: int = DEFAULT_TIMEOUT) -> str:
-    """Roda `agy -p <prompt> --model <model>` com HOME isolado e cwd neutro."""
+    """Roda `agy -p <prompt> --model <model>` com autenticação real do CLI."""
     if not Path(AGY_BIN).exists():
         raise AgyCliError(f"agy não encontrado em {AGY_BIN} (ajuste AGY_BIN)")
 
-    home = _ensure_isolated_home()
+    if _use_isolated_home():
+        home = _ensure_isolated_home()
+        cwd = str(home)
+    else:
+        home = Path.home()
+        cwd = "/tmp"
     env = {**os.environ, "HOME": str(home)}
     try:
         proc = subprocess.run(
-            [AGY_BIN, "-p", prompt, "--model", model, "--dangerously-skip-permissions"],
-            cwd=str(home),  # cwd neutro: evita GEMINI.md/AGENTS.md do projeto
+            [
+                AGY_BIN,
+                "--new-project",
+                "-p",
+                prompt,
+                "--model",
+                model,
+                "--dangerously-skip-permissions",
+            ],
+            cwd=cwd,  # cwd neutro: evita GEMINI.md/AGENTS.md do projeto
             env=env,
             capture_output=True,
             text=True,

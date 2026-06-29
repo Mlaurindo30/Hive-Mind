@@ -7,9 +7,10 @@ topic: testing
 # testing — Hive-Mind
 
 <!-- auto:gerado por generate_mocs.py — não editar à mão -->
-> MOC do tópico · 10 neurônio(s).
+> MOC do tópico · 11 neurônio(s).
 
 ## Neurônios
+- [[neuronio-frente-k-test-alignment-feb92816|Frente K Test Alignment]]
 - [[neuronio-6a19422a80fbcd9e|MCP Decision]]
 - [[neuronio-e74f4def2b965f22|MCP Decision Test]]
 - [[neuronio-86c85ad169bcbd18|MCP Decision Test]]

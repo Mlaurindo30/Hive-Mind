@@ -68,6 +68,7 @@ _AUTH_MARKERS = (
     "insufficient_quota", "exceeded your current quota", "saldo insuficiente",
     "credenciais não encontradas", "credenciais inválidas",
     "token expirado", "oauth token expired", "authentication failed",
+    "authentication required", "please visit the url to log in",
 )
 _TRANSIENT_MARKERS = (
     "timeout", "timed out", "connection", "429", "too many requests",
@@ -149,7 +150,8 @@ def call_llm_structured(prompt: str, system_prompt: str, response_model: Any,
                                           image_path, provider=provider)
 
     # Provider 'antigravity': catálogo rico (gemini-3.5-flash, gemini-3.1-pro,
-    # claude-*, gpt-oss) via shell-out ao binário `agy` em HOME isolado (sem skills).
+    # claude-*, gpt-oss) via shell-out ao binário `agy`. Usa HOME real por padrão
+    # para herdar a autenticação do CLI; HOME isolado é opt-in de diagnóstico.
     # Credenciais vêm de ~/.gemini (não de env). Participa do fallback do papel.
     if provider == "antigravity":
         from core.agy_client import call_agy_structured

@@ -122,6 +122,31 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_vec USING vec0(
     embedding FLOAT[1024] -- snowflake-arctic-embed2:latest (Ollama) size
 );
 
+-- K3: Knowledge Intake + Promotion candidates
+CREATE TABLE IF NOT EXISTS knowledge_candidates (
+    id TEXT PRIMARY KEY NOT NULL DEFAULT '',
+    source_type TEXT NOT NULL DEFAULT '',
+    source_id TEXT NOT NULL DEFAULT '',
+    knowledge_type TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL DEFAULT '',
+    project TEXT NOT NULL DEFAULT 'default',
+    workspace_id TEXT NOT NULL DEFAULT 'default',
+    evidence_json TEXT NOT NULL DEFAULT '{}',
+    metadata_json TEXT,
+    hash TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'candidate',
+    neuron_id TEXT,
+    error TEXT,
+    retry_policy TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    promoted_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_source
+    ON knowledge_candidates(source_type, source_id, status);
+CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_type_workspace
+    ON knowledge_candidates(knowledge_type, workspace_id, status);
+
 -- Triggers for FTS sync
 CREATE TRIGGER IF NOT EXISTS neurons_after_insert AFTER INSERT ON neurons BEGIN
     INSERT INTO search_fts(neuron_id, label, content) VALUES (new.id, new.label, new.content);
@@ -176,7 +201,8 @@ CREATE TABLE IF NOT EXISTS goals (
     description TEXT NOT NULL DEFAULT '',
     steps_json TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'active',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    workspace_id TEXT NOT NULL DEFAULT 'default'
 );
 
 -- PRAGMAS for performance

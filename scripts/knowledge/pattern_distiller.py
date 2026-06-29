@@ -22,6 +22,7 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent.parent))
 
 from core.paths import PADROES_ROOT, SESSIONS_ROOT  # noqa: E402
+from core.knowledge.intake import KnowledgeCandidate, build_candidate  # noqa: E402
 from core.schemas.pattern_models import PatternOutput, Pattern  # noqa: E402
 
 MAX_SIGNAL_CHARS = int(__import__("os").environ.get("HIVE_MAX_SIGNAL_CHARS", "8000"))
@@ -97,6 +98,31 @@ confidence: {p.confidence}
 {p.when_to_use or '_(a preencher)_'}
 """, encoding="utf-8")
     return dest
+
+
+def patterns_to_candidates(
+    patterns: list[Pattern],
+    *,
+    project: str = "default",
+    workspace_id: str = "default",
+) -> list[KnowledgeCandidate]:
+    """Candidate-only view for K3; converts distilled patterns to learnings."""
+    candidates: list[KnowledgeCandidate] = []
+    for p in patterns:
+        steps = "\n".join(f"{i}. {step}" for i, step in enumerate(p.steps, 1))
+        content = f"{p.context}\n\n## Passos\n{steps}\n\n## Quando usar\n{p.when_to_use or ''}".strip()
+        candidates.append(build_candidate(
+            source_type="pattern_distiller",
+            source_id=_slug(p),
+            knowledge_type="learning",
+            title=p.title,
+            content=content,
+            project=project,
+            workspace_id=workspace_id,
+            evidence={"pattern_slug": _slug(p), "confidence": p.confidence},
+            metadata={"promoter": "pattern_distiller", "slug": _slug(p)},
+        ))
+    return candidates
 
 
 def run(*, sessions_root: Path = SESSIONS_ROOT, padroes_root: Path = PADROES_ROOT,

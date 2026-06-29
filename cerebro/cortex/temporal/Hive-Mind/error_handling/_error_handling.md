@@ -7,17 +7,23 @@ topic: error_handling
 # error_handling — Hive-Mind
 
 <!-- auto:gerado por generate_mocs.py — não editar à mão -->
-> MOC do tópico · 14 neurônio(s).
+> MOC do tópico · 20 neurônio(s).
 
 ## Neurônios
 - [[neuronio-ai-model-fallback-strategy-773724c3|AI Model Fallback Strategy]]
+- [[neuronio-data-corruption-audit-need-7c76e26d|Data Corruption Audit Need]]
 - [[neuronio-data-integrity-via-quarantine-5a11966b|Data Integrity via Quarantine]]
+- [[neuronio-dream-cycle-fail-loud-a8b097a5|Dream Cycle Fail Loud]]
 - [[neuronio-e54dc37a8db0e2c3|Fix Ideogram 4 Shape Mismatch]]
+- [[neuronio-intra-provider-llm-fallback-99bc9e95|Intra-Provider LLM Fallback]]
 - [[neuronio-llm-client-error-classification-ba5b0379|LLM Client Error Classification]]
 - [[neuronio-llm-client-regex-http-status-4431deae|LLM Client Regex HTTP Status]]
 - [[neuronio-llm-client-reliable-error-handling-b8764709|LLM Client Reliable Error Handling]]
+- [[neuronio-llm-fallback-notification-3ce87310|LLM Fallback Notification]]
 - [[neuronio-llm-fallback-retry-strategy-5bf99c37|LLM Fallback Retry Strategy]]
+- [[neuronio-llm-fallback-silent-degradation-3fb842ec|LLM Fallback Silent Degradation]]
 - [[neuronio-oauth-to-api-key-fallback-62480458|OAuth to API Key Fallback]]
+- [[neuronio-ollama-fallback-risk-679f93de|Ollama Fallback Risk]]
 - [[openai-polling-error-handling|OpenAI Polling Error Handling]]
 - [[neuronio-pip-externally-managed-env-error-d0b529b4|Pip Externally Managed Env Error]]
 - [[neuronio-sqlite-migration-column-error-5a5c028c|SQLite Migration Column Error]]

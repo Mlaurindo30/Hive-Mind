@@ -1,4 +1,4 @@
-## Last Update: 2026-06-28 17:08
+## Last Update: 2026-06-29 09:14
 
 ---
 tags: [memory, current-state]
@@ -520,3 +520,27 @@ Continuacao K1/K2: adicionado E2E live bounded para sync memory/observation vect
 - Nenhuma decisão registrada### Learnings
 - Nenhum aprendizado registrado### Summary
 K1 reforcado: verify_wrappers.py valida compose/digest Milvus/RAGFlow; install.sh e integrations-update.sh chamam o gate. Testes: K1 wrappers 7 passed, run_real_knowledge 21 passed, run_all verde.
+
+
+## Session: 2026-06-28 22:01
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+K2 reforcado com CLI operacional vector-sync.py + E2E real por subprocesso; docs atualizadas. Verificacoes: CLI test 1 passed, K2 real agregado 12 passed, run_real_knowledge 21 passed/1 skipped; run_all bloqueado por falhas externas a K2 em Ollama/Graphiti/sinapse-write.
+
+
+## Session: 2026-06-28 22:39
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+K2 finalizado: 7 colecoes VectorBackend vivas, backfill auxiliar, sync Milvus idempotente, CLI completo, docs 11/12 atualizadas. Verificacao: K2 real 14 passed, run_real_knowledge 24 passed, run_all 4 suites verdes.
+
+
+## Session: 2026-06-29 09:14
+
+### Decisions
+- Nenhuma decisão registrada### Learnings
+- Nenhum aprendizado registrado### Summary
+Corrigido provider Antigravity/agy para usar HOME real por padrao e herdar auth do CLI; AGY_BIN agora resolve via env/PATH/fallback. Validado agy direto, dreamer antigravity/gemini-3.5-flash, fallback gemini-cli e dream_cycle real ok sem auth errors.

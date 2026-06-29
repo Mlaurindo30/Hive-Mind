@@ -3,8 +3,8 @@
 B2 (auditoria): as coleções NÃO estão todas no mesmo banco. `observation_vectors`
 vive em `claude-mem.db` (processo `sqlite-vec-worker`), não em `hive_mind.db`. O
 `VectorBackend` precisa saber disso — "uma interface, várias coleções" não pode
-esconder dois bancos. `status='planned'` = coleção contratada mas ainda sem
-tabela/backfill (frente K em andamento).
+esconder dois bancos. As coleções `hive_mind` vivem em tabelas sqlite-vec
+dedicadas e usam `vector_metadata` para proveniência canônica.
 """
 from __future__ import annotations
 
@@ -24,11 +24,11 @@ class Collection:
 COLLECTIONS: dict[str, Collection] = {
     "memory_vectors":      Collection("memory_vectors",      "hive_mind", "search_vec",      "neuron_id", "live"),
     "observation_vectors": Collection("observation_vectors", "claude_mem", "vec_observations", "rowid",    "live"),
-    "document_vectors":    Collection("document_vectors",    "hive_mind", "vec_documents",   "chunk_id",  "planned"),
-    "code_vectors":        Collection("code_vectors",        "hive_mind", "vec_code",        "symbol_id", "planned"),
-    "visual_vectors":      Collection("visual_vectors",      "hive_mind", "vec_visual",      "image_id",  "planned"),
-    "graph_vectors":       Collection("graph_vectors",       "hive_mind", "vec_graph",       "entity_id", "planned"),
-    "summary_vectors":     Collection("summary_vectors",     "hive_mind", "vec_summary",     "summary_id","planned"),
+    "document_vectors":    Collection("document_vectors",    "hive_mind", "vec_documents",   "chunk_id",  "live"),
+    "code_vectors":        Collection("code_vectors",        "hive_mind", "vec_code",        "symbol_id", "live"),
+    "visual_vectors":      Collection("visual_vectors",      "hive_mind", "vec_visual",      "image_id",  "live"),
+    "graph_vectors":       Collection("graph_vectors",       "hive_mind", "vec_graph",       "entity_id", "live"),
+    "summary_vectors":     Collection("summary_vectors",     "hive_mind", "vec_summary",     "summary_id","live"),
 }
 
 EMBED_DIM = 1024  # snowflake-arctic-embed2:latest

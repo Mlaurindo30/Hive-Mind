@@ -40,8 +40,8 @@
     "semantic_hash": ""
   },
   "_Consciencia.md": {
-    "mtime": 1782626694.8216043,
-    "ast_hash": "d7c36b8d97839786b2be2b0856477ee9",
+    "mtime": 1782735655.2724407,
+    "ast_hash": "e15ca728c149fb50aea095a1f3986837",
     "semantic_hash": ""
   },
   "cerebelo/cerebelo.md": {
@@ -110,8 +110,8 @@
     "semantic_hash": ""
   },
   "cerebelo/padroes/Patterns.md": {
-    "mtime": 1782677311.7577953,
-    "ast_hash": "9e33262ce9e66fa8ac776822cfb30994",
+    "mtime": 1782694873.5621488,
+    "ast_hash": "ae1feb5a1467c112f9aaf27e6cbc11df",
     "semantic_hash": ""
   },
   "cerebelo/padroes/padroes_.md": {
@@ -150,8 +150,8 @@
     "semantic_hash": ""
   },
   "cortex/frontal/brain/Current State.md": {
-    "mtime": 1782677317.4962187,
-    "ast_hash": "92dde6be752c74cfd19dfd2870fe44dc",
+    "mtime": 1782735251.421265,
+    "ast_hash": "fdceeca774a9c6143d5d042bb7cf77f3",
     "semantic_hash": ""
   },
   "cortex/frontal/brain/Gotchas.md": {
@@ -350,13 +350,13 @@
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/_Hive-Mind.md": {
-    "mtime": 1782626694.8205516,
-    "ast_hash": "5cac65a26e5bbc9c88e230bb00ce8b5f",
+    "mtime": 1782735655.2706943,
+    "ast_hash": "0c1af284c3c465fa4cdef2d1da184bda",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/agent_skills/_agent_skills.md": {
-    "mtime": 1782626694.8165972,
-    "ast_hash": "5db34db24f4ff2f72ec29217ec085e38",
+    "mtime": 1782735655.2646644,
+    "ast_hash": "9ca2b6e9e448c8253f5385e0383f0a10",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/agent_skills/agent_skills.md": {
@@ -365,7 +365,7 @@
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atlas/_atlas.md": {
-    "mtime": 1782626694.81784,
+    "mtime": 1782735655.265767,
     "ast_hash": "0b374c7b4103974c8e85d9728b857a8f",
     "semantic_hash": ""
   },
@@ -415,7 +415,7 @@
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/atoms/_atoms.md": {
-    "mtime": 1782626694.8175244,
+    "mtime": 1782735655.265286,
     "ast_hash": "a30b9277d43a31fb5c144409a0859a23",
     "semantic_hash": ""
   },
@@ -440,8 +440,8 @@
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/error_handling/_error_handling.md": {
-    "mtime": 1782626694.8164775,
-    "ast_hash": "cbcbec3f04aa3477cc5e632e5942259f",
+    "mtime": 1782735655.264529,
+    "ast_hash": "2e80618e53f1b1c4454840de216c6f50",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/error_handling/error_handling.md": {
@@ -460,8 +460,8 @@
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/infrastructure/_infrastructure.md": {
-    "mtime": 1782626694.81774,
-    "ast_hash": "076c254f8a429242c58de5d93245b1bd",
+    "mtime": 1782735655.2656236,
+    "ast_hash": "422009a439a298aba935be31d525802a",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/infrastructure/infrastructure.md": {
@@ -475,8 +475,8 @@
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/preferences/_preferences.md": {
-    "mtime": 1782626694.8167956,
-    "ast_hash": "9bc12afb3dfc5817211add4e21d07b09",
+    "mtime": 1782735655.264911,
+    "ast_hash": "469bd41b496bd6933eb12f8a275b0e12",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/preferences/preferences.md": {
@@ -490,8 +490,8 @@
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/project_management/_project_management.md": {
-    "mtime": 1782626694.816077,
-    "ast_hash": "ea51c07f2fee71f00d554664ed9e8f24",
+    "mtime": 1782735655.2643592,
+    "ast_hash": "067178a2096cc146b9b6a424a1da8b7c",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/project_management/project_management.md": {
@@ -500,8 +500,8 @@
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/security/_security.md": {
-    "mtime": 1782626694.8166986,
-    "ast_hash": "4fbc2b06232d48f08af0cd70ce0f2b8f",
+    "mtime": 1782735655.264789,
+    "ast_hash": "b572225ddb28f8ec34290227553e38b8",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/security/llm-security-audit.md": {
@@ -520,12 +520,12 @@
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/test_swarm/_test_swarm.md": {
-    "mtime": 1782626694.817314,
-    "ast_hash": "4dbae6a44c6830078e89bd53c9a3ed56",
+    "mtime": 1782735655.2650294,
+    "ast_hash": "4d5b2f92c5ea3a3e5a82327f0cefb18f",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/test_topic/_test_topic.md": {
-    "mtime": 1782626694.8174176,
+    "mtime": 1782735655.2651536,
     "ast_hash": "b4854de0aaf4f32b9edb8149c90685cd",
     "semantic_hash": ""
   },
@@ -545,8 +545,8 @@
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/testing/_testing.md": {
-    "mtime": 1782626694.817626,
-    "ast_hash": "3cf8a4d6eff31b3e32413f38a6eb9a86",
+    "mtime": 1782735655.2654288,
+    "ast_hash": "b2d0ae99faf20e87944fe76a955b2b9d",
     "semantic_hash": ""
   },
   "cortex/temporal/Hive-Mind/testing/testing.md": {
@@ -600,12 +600,12 @@
     "semantic_hash": ""
   },
   "diencefalo/setores/_ai-infra.md": {
-    "mtime": 1782626694.8213174,
+    "mtime": 1782735655.2719908,
     "ast_hash": "e8daf80b73a24d338a24bd1ceb176eb6",
     "semantic_hash": ""
   },
   "diencefalo/setores/_dev-tools.md": {
-    "mtime": 1782626694.8214154,
+    "mtime": 1782735655.2721486,
     "ast_hash": "8af3864c51596dd85259c8c036875f07",
     "semantic_hash": ""
   },
@@ -615,7 +615,7 @@
     "semantic_hash": ""
   },
   "diencefalo/setores/_infra.md": {
-    "mtime": 1782626694.8215036,
+    "mtime": 1782735655.2722912,
     "ast_hash": "164fb23e6a020d998bf1e481e49e5aca",
     "semantic_hash": ""
   },
@@ -817,6 +817,11 @@
   "cerebelo/padroes/renomeacao-e-shim-scripts-hifenizados.md": {
     "mtime": 1782633904.7384243,
     "ast_hash": "37235bb1a8f0d2732bdaffdf08a1725a",
+    "semantic_hash": ""
+  },
+  "cerebelo/diario/2026/06/2026-06-28.md": {
+    "mtime": 1782701720.1432045,
+    "ast_hash": "4284f74e60143b560539622e42af4526",
     "semantic_hash": ""
   }
 }

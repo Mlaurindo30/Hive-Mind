@@ -5,12 +5,12 @@ sempre funcional. `MilvusBackend` é o backend de produção atrás de
 `VECTOR_BACKEND=milvus`. A aplicação nunca chama Milvus fora deste contrato
 (não troca a anatomia por infra).
 
-Estado (frente K em andamento): `memory_vectors` é servida por
-`hive_mind.db/search_vec`; `observation_vectors` é servida por
-`claude-mem.db/vec_observations` em modo read-only local, porque a escrita
-canônica continua sendo do `sqlite-vec-worker`. As demais coleções do registro
-(`document_vectors`, ...) são `planned` — `upsert/query` levantam
-`NotImplementedError` até a fase que as criar/backfilla (K2 task 8, K6...).
+Estado: `memory_vectors` é servida por `hive_mind.db/search_vec`;
+`observation_vectors` é servida por `claude-mem.db/vec_observations` em modo
+read-only local, porque a escrita canônica continua sendo do
+`sqlite-vec-worker`. As coleções auxiliares (`document_vectors`, `code_vectors`,
+`visual_vectors`, `graph_vectors`, `summary_vectors`) vivem em tabelas
+sqlite-vec próprias e metadados em `vector_metadata`.
 """
 from __future__ import annotations
 
@@ -132,6 +132,73 @@ class SQLiteVecBackend:
             return "default"
         return str(data.get("workspace_id") or "default") if isinstance(data, dict) else "default"
 
+    @staticmethod
+    def _metadata_filter(filters: Optional[dict]) -> tuple[list[str], list[Any]]:
+        filters = filters or {}
+        allowed = {
+            "id",
+            "parent_id",
+            "parent_type",
+            "brain_lobe",
+            "knowledge_type",
+            "project",
+            "source_uri",
+            "hash",
+            "valid_at",
+            "workspace_id",
+        }
+        clauses: list[str] = []
+        params: list[Any] = []
+        for key, value in filters.items():
+            if key not in allowed:
+                raise ValueError(f"filtro sqlite vector_metadata nao permitido: {key!r}")
+            if value is None:
+                continue
+            clauses.append(f"{key} = ?")
+            params.append(str(value))
+        return clauses, params
+
+    @staticmethod
+    def _write_vector_metadata(conn, collection: str, id: str, metadata: Optional[dict]) -> None:
+        if not metadata:
+            return
+        required = (
+            "parent_id",
+            "parent_type",
+            "brain_lobe",
+            "knowledge_type",
+            "project",
+            "source_uri",
+            "hash",
+            "valid_at",
+            "workspace_id",
+        )
+        missing = [field for field in required if not metadata.get(field)]
+        if missing:
+            raise ValueError(f"metadata obrigatorio ausente: {', '.join(missing)}")
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO vector_metadata(
+                collection, id, parent_id, parent_type, brain_lobe,
+                knowledge_type, project, source_uri, hash, valid_at, workspace_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                collection,
+                str(id),
+                str(metadata["parent_id"]),
+                str(metadata["parent_type"]),
+                str(metadata["brain_lobe"]),
+                str(metadata["knowledge_type"]),
+                str(metadata["project"]),
+                str(metadata["source_uri"]),
+                str(metadata["hash"]),
+                str(metadata["valid_at"]),
+                str(metadata["workspace_id"]),
+            ),
+        )
+
     # -- contrato ----------------------------------------------------------
     def upsert(self, collection, id, vector, metadata=None):
         c = self._served(collection)
@@ -145,6 +212,8 @@ class SQLiteVecBackend:
             f"INSERT INTO {c.table}({c.id_col}, embedding) VALUES (?, ?)",
             (id, self._blob(vector)),
         )
+        if c.name != "memory_vectors":
+            self._write_vector_metadata(conn, c.name, str(id), metadata)
         conn.commit()
 
     def delete(self, collection, id):
@@ -155,6 +224,8 @@ class SQLiteVecBackend:
             )
         conn = self._connection()
         conn.execute(f"DELETE FROM {c.table} WHERE {c.id_col} = ?", (id,))
+        if c.name != "memory_vectors":
+            conn.execute("DELETE FROM vector_metadata WHERE collection = ? AND id = ?", (c.name, str(id)))
         conn.commit()
 
     def query(self, collection, vector, top_k=10, filters=None):
@@ -162,9 +233,10 @@ class SQLiteVecBackend:
         if c.db == "claude_mem":
             return self._query_observation_vectors(vector, top_k=top_k, filters=filters)
         conn = self._connection()
-        # Over-fetch quando há filtro de workspace (filtra após o KNN).
+        # Over-fetch quando há filtro pós-KNN.
+        has_metadata_filter = bool(filters) and c.name != "memory_vectors"
         ws = (filters or {}).get("workspace_id")
-        k = top_k * 3 if ws else top_k
+        k = top_k * 3 if (ws or has_metadata_filter) else top_k
         rows = conn.execute(
             f"SELECT {c.id_col} AS id, distance FROM {c.table} "
             f"WHERE embedding MATCH ? ORDER BY distance LIMIT ?",
@@ -183,6 +255,24 @@ class SQLiteVecBackend:
                     )
                 }
                 out = [r for r in out if r["id"] in allowed]
+        elif has_metadata_filter and out:
+            clauses, params = self._metadata_filter(filters)
+            ids = [str(r["id"]) for r in out]
+            ph = ",".join("?" * len(ids))
+            where = " AND ".join(["collection = ?", f"id IN ({ph})", *clauses])
+            meta_rows = conn.execute(
+                f"SELECT * FROM vector_metadata WHERE {where}",
+                (c.name, *ids, *params),
+            ).fetchall()
+            by_id = {row["id"]: row for row in meta_rows}
+            filtered = []
+            for item in out:
+                meta = by_id.get(str(item["id"]))
+                if not meta:
+                    continue
+                item["metadata"] = {key: meta[key] for key in meta.keys() if key not in {"collection", "id"}}
+                filtered.append(item)
+            out = filtered
         return out[:top_k]
 
     def _query_observation_vectors(self, vector, top_k=10, filters=None):
@@ -272,6 +362,13 @@ class SQLiteVecBackend:
                 )
             return len(rows)
         conn = self._connection()
+        if filters and c.name != "memory_vectors":
+            clauses, params = self._metadata_filter(filters)
+            where = " AND ".join(["collection = ?", *clauses])
+            return conn.execute(
+                f"SELECT COUNT(*) FROM vector_metadata WHERE {where}",
+                (c.name, *params),
+            ).fetchone()[0]
         return conn.execute(f"SELECT COUNT(*) FROM {c.table}").fetchone()[0]
 
     def health(self):
@@ -283,6 +380,17 @@ class SQLiteVecBackend:
                 health["observation_vectors"] = self.count("observation_vectors")
             except Exception as exc:
                 health["observation_vectors_error"] = str(exc)
+            for collection in (
+                "document_vectors",
+                "code_vectors",
+                "visual_vectors",
+                "graph_vectors",
+                "summary_vectors",
+            ):
+                try:
+                    health[collection] = self.count(collection)
+                except Exception as exc:
+                    health[f"{collection}_error"] = str(exc)
             return health
         except Exception as e:
             return {"backend": "sqlite_vec", "ok": False, "error": str(e)}

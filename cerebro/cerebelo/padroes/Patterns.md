@@ -1227,3 +1227,10 @@ Para validar K2 com dados reais sem risco operacional, o teste E2E deve ler hive
 ## K1 wrappers validam compose e digest no install/update (2026-06-28)
 
 No Hive-Mind K1, Milvus e RAGFlow sao wrappers Docker/SDK, nao clones git. Para evitar regressao de supply chain e setup em maquina nova, scripts/setup/verify_wrappers.py valida os docker-compose.yml reais via docker compose config --quiet e exige imagem pinada por digest @sha256:<64 hex>. install.sh chama esse gate apos uv sync/imports, e scripts/maintenance/integrations-update.sh chama o mesmo gate no fluxo --wrappers-only/normal. Aceite real em 2026-06-28: tests/real/test_integration_wrappers.py 7 passed, verify_wrappers.py OK para Milvus/RAGFlow, integrations-update.sh --wrappers-only --no-pip OK, run_real_knowledge 21 passed, run_all verde.
+
+
+---
+
+## K2 CLI operacional para sync vetorial Milvus (2026-06-28)
+
+Foi adicionada a rotina scripts/maintenance/vector-sync.py para executar backfill/sync real de memory_vectors e observation_vectors para Milvus. O comando aceita --collection repetível, --limit, --hive-db, --claude-mem-db, --milvus-uri, --milvus-prefix e --json. Aceite real: tests/real/test_vector_sync_cli_e2e.py executa o CLI via subprocesso contra hive_mind.db real, ~/.claude-mem/claude-mem.db real e Milvus real com prefixo temporário, validando primeira carga e reexecução idempotente.

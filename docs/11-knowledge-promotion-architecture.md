@@ -134,6 +134,16 @@ A tabela acima e o contrato; esta e a verdade em codigo hoje (arquivos reais que
 escrevem em cada area). Toda nova ferramenta de promocao deve se encaixar aqui,
 nao reinventar.
 
+> Estado operacional K3 (2026-06-28; revalidado em 2026-06-29): `core/knowledge/intake.py` e
+> `core/knowledge/promotion.py` materializam a camada `[3] Knowledge Intake` e
+> `[4] Promotion Layer`. Os promotores especializados abaixo mantem sua escrita
+> historica, mas tambem expõem saida `candidate-only` idempotente com
+> `workspace_id` para orquestracao central. Superficies: CLI
+> `sinapse-write.py promotion`, MCP `sinapse_promote_knowledge`, e Dream Cycle
+> com intake candidate-only antes da sintese legada. Aceite real: pipeline
+> SQLite, Dream Cycle `--once --real`, query via CLI e suite completa
+> `./tests/run_all.sh` verdes em 2026-06-29.
+
 | Area | Ferramentas que escrevem (arquivo real) | Indice |
 |---|---|---|
 | Cortex temporal (neuronios) | `claude_mem_bridge.py` (claude-mem→observations, preserva `project`) → `dream_cycle.py` (Distiller→Validator→Router→`neuronio-*.md` + UPSERT) · `drift_detector.py` (→`arquivo/` frio >90d) · `topic_consolidator.py` · `alias_miner.py` · `generate_mocs.py` | UMC vec/fts + Graphiti `push_neuron` + LightRAG `index_memory` |
@@ -295,22 +305,23 @@ O Hive-Mind deve suportar colecoes separadas. Nao colocar tudo no mesmo ranking.
 
 | Colecao | Conteudo | Backend local | Backend producao |
 |---|---|---|---|
-| `memory_vectors` | facts, decisions, learnings, preferences | sqlite-vec `search_vec` | Milvus |
-| `observation_vectors` | claude-mem observations/discoveries | sqlite-vec `vec_observations` | Milvus |
-| `document_vectors` | document chunks/vault docs | sqlite-vec ou local files | Milvus |
-| `code_vectors` | code symbols/files | sqlite-vec/Graphify | Milvus |
-| `visual_vectors` | screenshots/visual descriptions | LanceDB/sqlite-vec | Milvus |
-| `graph_vectors` | entity/relation summaries | LightRAG local | Milvus + graph |
-| `summary_vectors` | resumos de cadencia (sessao→anual) | sqlite-vec | Milvus |
+| `memory_vectors` | facts, decisions, learnings, preferences | UMC `hive_mind.db/search_vec` | Milvus |
+| `observation_vectors` | claude-mem observations/discoveries | `~/.claude-mem/claude-mem.db/vec_observations` (`sqlite-vec-worker`, read-only pelo VectorBackend local) | Milvus |
+| `document_vectors` | document chunks/vault docs | UMC `vec_documents` + `vector_metadata` | Milvus |
+| `code_vectors` | code symbols/files | UMC `vec_code` + `vector_metadata` | Milvus |
+| `visual_vectors` | screenshots/visual descriptions | UMC `vec_visual` + `vector_metadata` | Milvus |
+| `graph_vectors` | entity/relation summaries | UMC `vec_graph` + `vector_metadata` | Milvus + graph |
+| `summary_vectors` | resumos de cadencia (sessao→anual) | UMC `vec_summary` + `vector_metadata` | Milvus |
 
 `sqlite-vec` continua obrigatorio para local-first/offline. Milvus e backend
 de producao, nao substitui a fonte de verdade.
 
-Cada item vetorial precisa carregar no metadata: `workspace_id`, `project`,
-`knowledge_type`, `source_uri`, `hash`, `embedding_model`, `embedding_dim`,
-`created_at` e, quando aplicavel, `valid_at`. `workspace_id` e
-`embedding_model/dim` nao sao opcionais: sem eles nao ha isolamento nem migracao
-de embedding segura.
+Cada item vetorial precisa carregar metadados canônicos: `parent_id`,
+`parent_type`, `brain_lobe`, `knowledge_type`, `project`, `source_uri`, `hash`,
+`valid_at` e `workspace_id`. No UMC, coleções auxiliares guardam esses campos em
+`vector_metadata`; no Milvus, eles viram campos obrigatórios do schema. O modelo
+e a dimensão do embedding continuam controlados pelo contrato global:
+`snowflake-arctic-embed2:latest`, 1024d, salvo override explícito por env.
 
 ---
 

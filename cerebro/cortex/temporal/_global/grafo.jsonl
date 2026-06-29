@@ -35,3 +35,7 @@
 {"uuid": "neuron:n002", "source": "test", "fact": "content", "valid_at": "2026-06-28T19:40:50.315557+00:00", "invalid_at": null, "created_at": "2026-06-28T19:40:50.315571+00:00", "fallback": true, "last_error": "boom"}
 {"uuid": "neuron:n002", "source": "test", "fact": "content", "valid_at": "2026-06-28T19:55:50.407546+00:00", "invalid_at": null, "created_at": "2026-06-28T19:55:50.407559+00:00", "fallback": true, "last_error": "boom"}
 {"uuid": "neuron:n002", "source": "test", "fact": "content", "valid_at": "2026-06-28T20:06:25.037460+00:00", "invalid_at": null, "created_at": "2026-06-28T20:06:25.037475+00:00", "fallback": true, "last_error": "boom"}
+{"uuid": "neuron:n002", "source": "test", "fact": "content", "valid_at": "2026-06-29T02:18:39.701953+00:00", "invalid_at": null, "created_at": "2026-06-29T02:18:39.701972+00:00", "fallback": true, "last_error": "boom"}
+{"uuid": "neuron:n002", "source": "test", "fact": "content", "valid_at": "2026-06-29T11:38:07.614842+00:00", "invalid_at": null, "created_at": "2026-06-29T11:38:07.614862+00:00", "fallback": true, "last_error": "boom"}
+{"uuid": "neuron:n002", "source": "test", "fact": "content", "valid_at": "2026-06-29T12:21:55.691582+00:00", "invalid_at": null, "created_at": "2026-06-29T12:21:55.691604+00:00", "fallback": true, "last_error": "boom"}
+{"uuid": "neuron:n002", "source": "test", "fact": "content", "valid_at": "2026-06-29T12:23:29.492263+00:00", "invalid_at": null, "created_at": "2026-06-29T12:23:29.492279+00:00", "fallback": true, "last_error": "boom"}

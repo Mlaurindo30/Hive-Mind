@@ -1,16 +1,16 @@
-# Graph Report - cerebro  (2026-06-28)
+# Graph Report - cerebro  (2026-06-29)
 
 ## Corpus Check
-- 160 files · ~45,298 words
+- 161 files · ~45,777 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 957 nodes · 838 edges · 164 communities (94 shown, 70 thin omitted)
+- 970 nodes · 850 edges · 167 communities (95 shown, 72 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `14b89937`
+- Built from commit: `62170b78`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -168,10 +168,13 @@
 - [[_COMMUNITY_Community 161|Community 161]]
 - [[_COMMUNITY_Community 162|Community 162]]
 - [[_COMMUNITY_Community 163|Community 163]]
+- [[_COMMUNITY_Community 164|Community 164]]
+- [[_COMMUNITY_Community 165|Community 165]]
+- [[_COMMUNITY_Community 166|Community 166]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `Patterns & Conventions` - 71 edges
-2. `Current State` - 52 edges
+1. `Patterns & Conventions` - 72 edges
+2. `Current State` - 55 edges
 3. `Sinapse Agent — Vault (AGENTS.md)` - 15 edges
 4. `Sinapse Agent — Vault (CLAUDE.md)` - 15 edges
 5. `Semana 2026-W25 (15/06 - 21/06)` - 11 edges
@@ -187,11 +190,11 @@
 ## Import Cycles
 - None detected.
 
-## Communities (164 total, 70 thin omitted)
+## Communities (167 total, 72 thin omitted)
 
 ### Community 0 - "Community 0"
 Cohesion: 0.03
-Nodes (71): agy/gemini CLIs são agênticos — isolar skills via HOME limpo p/ saída determinística (2026-06-26), Análise Fria: Manus Agent — 3 fases de adoção (2026-05-30), Aprendizado via API (2026-05-24), Auditoria de funcionalidade Hive-Mind: gaps em LightRAG/Graphiti, loop asyncio e backlog (2026-06-26), Auditoria frente-K (2026-06-28): substrato verde (457 unit), frente K 0% implementada, 8 omissões técnicas no plano (2026-06-28), Auditoria Sinapse deve comparar descricao MCP com integracao real (2026-06-27), brain-first.md, builder-ethos.md (+63 more)
+Nodes (72): agy/gemini CLIs são agênticos — isolar skills via HOME limpo p/ saída determinística (2026-06-26), Análise Fria: Manus Agent — 3 fases de adoção (2026-05-30), Aprendizado via API (2026-05-24), Auditoria de funcionalidade Hive-Mind: gaps em LightRAG/Graphiti, loop asyncio e backlog (2026-06-26), Auditoria frente-K (2026-06-28): substrato verde (457 unit), frente K 0% implementada, 8 omissões técnicas no plano (2026-06-28), Auditoria Sinapse deve comparar descricao MCP com integracao real (2026-06-27), brain-first.md, builder-ethos.md (+64 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.06
@@ -211,7 +214,7 @@ Nodes (22): **Conclusão:**, **Exemplo de Uso:**, **Funcionalidades Principais d
 
 ### Community 5 - "Community 5"
 Cohesion: 0.07
-Nodes (27): Current State, Decisions, Decisions, Decisions, Decisions, Decisions, Decisions, Decisions (+19 more)
+Nodes (28): Current State, Decisions, Decisions, Decisions, Decisions, Decisions, Decisions, Decisions (+20 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.09
@@ -505,6 +508,10 @@ Nodes (3): 🧠 Hive-Mind, Tópicos, Voltar
 Cohesion: 0.33
 Nodes (5): 2026-06-27 — Daily Log, Aprendizados, Highlights, Referências, Sessões do dia
 
+### Community 128 - "Community 128"
+Cohesion: 0.33
+Nodes (5): 2026-06-28 — Daily Log, Aprendizados, Highlights, Referências, Sessões do dia
+
 ### Community 131 - "Community 131"
 Cohesion: 0.14
 Nodes (13): Abertas/Em Discussão, Alertas, Daily Compliance, Decisões, Decisões Estagnadas, Fechadas, Métricas de Saúde, Padrões Emergentes (+5 more)
@@ -522,21 +529,21 @@ Cohesion: 0.40
 Nodes (4): Contexto, Padrão: Renomeação e Shim para importação de scripts Python com hífens, Passos, Quando usar
 
 ## Knowledge Gaps
-- **631 isolated node(s):** `RESOLVER (skill dispatcher)`, `brain-first.md`, `builder-ethos.md`, `filing-rules.md`, `output-rules.md` (+626 more)
+- **639 isolated node(s):** `Neurônios`, `Neurônios`, `Neurônios`, `Neurônios`, `Neurônios` (+634 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **70 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **72 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Current State` connect `Community 5` to `Community 128`, `Community 143`, `Community 144`, `Community 145`, `Community 146`, `Community 150`, `Community 152`, `Community 153`, `Community 154`, `Community 155`, `Community 156`, `Community 157`, `Community 158`, `Community 159`, `Community 160`, `Community 161`, `Community 162`, `Community 163`, `Community 39`, `Community 60`, `Community 61`, `Community 62`, `Community 63`, `Community 64`, `Community 65`, `Community 66`, `Community 67`, `Community 68`, `Community 69`, `Community 70`, `Community 71`, `Community 72`, `Community 73`, `Community 74`, `Community 75`, `Community 76`, `Community 77`, `Community 78`, `Community 79`?**
-  _High betweenness centrality (0.023) - this node is a cross-community bridge._
+- **Why does `Current State` connect `Community 5` to `Community 143`, `Community 144`, `Community 145`, `Community 146`, `Community 150`, `Community 152`, `Community 153`, `Community 154`, `Community 155`, `Community 156`, `Community 157`, `Community 158`, `Community 159`, `Community 160`, `Community 161`, `Community 162`, `Community 163`, `Community 164`, `Community 165`, `Community 166`, `Community 39`, `Community 60`, `Community 61`, `Community 62`, `Community 63`, `Community 64`, `Community 65`, `Community 66`, `Community 67`, `Community 68`, `Community 69`, `Community 70`, `Community 71`, `Community 72`, `Community 73`, `Community 74`, `Community 75`, `Community 76`, `Community 77`, `Community 78`, `Community 79`?**
+  _High betweenness centrality (0.025) - this node is a cross-community bridge._
 - **Why does `Sinapse Agent — Vault (AGENTS.md)` connect `Community 2` to `Community 1`?**
   _High betweenness centrality (0.003) - this node is a cross-community bridge._
-- **What connects `RESOLVER (skill dispatcher)`, `brain-first.md`, `builder-ethos.md` to the rest of the system?**
-  _631 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `Neurônios`, `Neurônios`, `Neurônios` to the rest of the system?**
+  _639 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0.027777777777777776 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0273972602739726 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.06060606060606061 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**

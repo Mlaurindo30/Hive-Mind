@@ -97,6 +97,74 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_vec USING vec0(
     embedding FLOAT[1024] -- snowflake-arctic-embed2:latest (Ollama) size
 );
 
+CREATE VIRTUAL TABLE IF NOT EXISTS vec_documents USING vec0(
+    chunk_id TEXT PRIMARY KEY,
+    embedding FLOAT[1024]
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS vec_code USING vec0(
+    symbol_id TEXT PRIMARY KEY,
+    embedding FLOAT[1024]
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS vec_visual USING vec0(
+    image_id TEXT PRIMARY KEY,
+    embedding FLOAT[1024]
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS vec_graph USING vec0(
+    entity_id TEXT PRIMARY KEY,
+    embedding FLOAT[1024]
+);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS vec_summary USING vec0(
+    summary_id TEXT PRIMARY KEY,
+    embedding FLOAT[1024]
+);
+
+CREATE TABLE IF NOT EXISTS vector_metadata (
+    collection TEXT NOT NULL,
+    id TEXT NOT NULL,
+    parent_id TEXT NOT NULL,
+    parent_type TEXT NOT NULL,
+    brain_lobe TEXT NOT NULL,
+    knowledge_type TEXT NOT NULL,
+    project TEXT NOT NULL DEFAULT 'default',
+    source_uri TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    valid_at TEXT NOT NULL,
+    workspace_id TEXT NOT NULL DEFAULT 'default',
+    PRIMARY KEY(collection, id)
+);
+CREATE INDEX IF NOT EXISTS idx_vector_metadata_collection_workspace
+    ON vector_metadata(collection, workspace_id);
+
+-- K3: Knowledge Intake + Promotion candidates
+CREATE TABLE IF NOT EXISTS knowledge_candidates (
+    id TEXT PRIMARY KEY,
+    source_type TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    knowledge_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    project TEXT NOT NULL DEFAULT 'default',
+    workspace_id TEXT NOT NULL DEFAULT 'default',
+    evidence_json TEXT NOT NULL,
+    metadata_json TEXT,
+    hash TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'candidate',
+    neuron_id TEXT,
+    error TEXT,
+    retry_policy TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    promoted_at TEXT,
+    UNIQUE(source_id, knowledge_type, hash, workspace_id)
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_source
+    ON knowledge_candidates(source_type, source_id, status);
+CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_type_workspace
+    ON knowledge_candidates(knowledge_type, workspace_id, status);
+
 -- Triggers for FTS sync
 CREATE TRIGGER IF NOT EXISTS neurons_after_insert AFTER INSERT ON neurons BEGIN
     INSERT INTO search_fts(neuron_id, label, content) VALUES (new.id, new.label, new.content);
@@ -152,7 +220,8 @@ CREATE TABLE IF NOT EXISTS goals (
     description TEXT NOT NULL,
     steps_json TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'active',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    workspace_id TEXT NOT NULL DEFAULT 'default'
 );
 
 -- PRAGMAS for performance

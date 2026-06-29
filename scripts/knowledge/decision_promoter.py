@@ -22,6 +22,7 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent.parent))
 
 from core.paths import DECISIONS_ROOT, TEMPORAL  # noqa: E402
+from core.knowledge.intake import KnowledgeCandidate, build_candidate  # noqa: E402
 from scripts.knowledge.drift_detector import scan_neuronios, DECISION_TYPES  # noqa: E402
 
 AUTO = "<!-- auto:gerado por decision_promoter.py — não editar dentro do bloco -->"
@@ -101,6 +102,29 @@ def promote(item: dict, decisions_root: Path = DECISIONS_ROOT, *, dry_run: bool 
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(_record_body(item), encoding="utf-8")
     return dest
+
+
+def collect_candidates(temporal_root: Path = TEMPORAL, *, workspace_id: str = "default") -> list[KnowledgeCandidate]:
+    """Candidate-only view for K3 orchestration; no file writes."""
+    out: list[KnowledgeCandidate] = []
+    for item in promotable_decisions(temporal_root):
+        title = _title(item)
+        content = re.sub(r"^# .+?\n", "", item.get("body", ""), count=1).strip() or title
+        out.append(build_candidate(
+            source_type="decision_promoter",
+            source_id=str(item["path"]),
+            knowledge_type="decision",
+            title=title,
+            content=content,
+            project=item["project"],
+            workspace_id=workspace_id,
+            evidence={
+                "source_uri": str(item["path"]),
+                "source_hash": str(item["data"].get("integrity_hash", "")),
+            },
+            metadata={"promoter": "decision_promoter"},
+        ))
+    return out
 
 
 def run(*, temporal_root: Path = TEMPORAL, decisions_root: Path = DECISIONS_ROOT,

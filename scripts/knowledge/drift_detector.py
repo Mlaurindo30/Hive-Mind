@@ -32,6 +32,7 @@ sys.path.insert(0, str(_HERE.parent.parent))
 
 import yaml  # noqa: E402
 from core.paths import TEMPORAL, ARQUIVO  # noqa: E402
+from core.knowledge.intake import KnowledgeCandidate, build_candidate  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
                     handlers=[logging.StreamHandler(sys.stdout)])
@@ -142,6 +143,36 @@ def apply_stale(item: dict, *, dry_run: bool) -> None:
         return
     item["data"]["staleness"] = "flagged"
     item["path"].write_text(_rewrite(item["data"], item["body"]), encoding="utf-8")
+
+
+def drift_to_candidates(
+    cold: list[dict],
+    stale: list[dict],
+    *,
+    workspace_id: str = "default",
+) -> list[KnowledgeCandidate]:
+    """Candidate-only operational facts for K3; no file moves or rewrites."""
+    candidates: list[KnowledgeCandidate] = []
+    for state, items in (("cold", cold), ("stale", stale)):
+        for item in items:
+            title = f"Drift {state}: {Path(item['path']).name}"
+            content = (
+                f"Neuronio {Path(item['path']).name} marcado como {state}; "
+                f"idade={item.get('age_days')} dias; projeto={item.get('project')}; "
+                f"topico={item.get('topic')}."
+            )
+            candidates.append(build_candidate(
+                source_type="drift_detector",
+                source_id=str(item["path"]),
+                knowledge_type="project_status",
+                title=title,
+                content=content,
+                project=str(item.get("project") or "default"),
+                workspace_id=workspace_id,
+                evidence={"source_uri": str(item["path"]), "age_days": item.get("age_days")},
+                metadata={"promoter": "drift_detector", "drift_state": state},
+            ))
+    return candidates
 
 
 def run_drift(*, temporal_root: Path = TEMPORAL, arquivo_root: Path = ARQUIVO,

@@ -36,6 +36,7 @@ class TestSinapseMCP:
             "sinapse_zettelkasten_split",
             "sinapse_capture_screen",
             "sinapse_plan_goal",
+            "sinapse_promote_knowledge",
             "sinapse_rag_query",
             "search_memories",
         }
@@ -191,6 +192,27 @@ class TestSinapseMCP:
         assert called["path"] == "/api/observations/batch"
         assert called["payload"] == {"ids": [13834]}
         assert result["results"] == [{"id": 13834}]
+
+    def test_promote_knowledge_tool_calls_pipeline(self, monkeypatch):
+        monkeypatch.setattr(
+            mcp,
+            "_promote_knowledge",
+            lambda args: {"observations": 1, "candidates": 2, "promoted": 2, "quarantined": 0},
+        )
+        req = {
+            "jsonrpc": "2.0",
+            "id": 103,
+            "method": "tools/call",
+            "params": {
+                "name": "sinapse_promote_knowledge",
+                "arguments": {"limit": 1, "dry_run": False},
+            },
+        }
+        resp = mcp.handle_request(req)
+        text = resp["result"]["content"][0]["text"]
+        data = json.loads(text)
+        assert data["observations"] == 1
+        assert data["promoted"] == 2
 
     def test_sinapse_health_description_lists_seven_backends_and_excludes_rtk(self):
         """A description da tool sinapse_health deve listar os 7 read-backends

@@ -18,6 +18,7 @@ Config (env vars):
                          GRAPHITI_LLM_MODEL é alias legado e tem precedência.
   GRAPHITI_EMBED_MODEL — default: snowflake-arctic-embed2:latest (deve existir no Ollama)
   HIVE_GRAPHITI_RETRIES    — default: 3 (tentativas com backoff 1s, 2s, 4s)
+  HIVE_GRAPHITI_OP_TIMEOUT — default: 60s por chamada assíncrona Graphiti
   HIVE_GRAPHITI_CB_FAILS   — default: 3 (falhas consecutivas que abrem o circuit)
   HIVE_GRAPHITI_CB_COOLDOWN — default: 30s
 
@@ -33,6 +34,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,7 +62,12 @@ def _run_async(coro_factory):
     if _event_loop is None or _event_loop.is_closed():
         _event_loop = asyncio.new_event_loop()
         _graphiti = None  # cliente vinculado ao loop anterior é inválido
-    return _event_loop.run_until_complete(coro_factory())
+    timeout = _cfg_float("HIVE_GRAPHITI_OP_TIMEOUT", 60.0)
+
+    async def _bounded():
+        return await asyncio.wait_for(coro_factory(), timeout=timeout)
+
+    return _event_loop.run_until_complete(_bounded())
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +242,8 @@ def _circuit_record_failure() -> None:
         _circuit_open_until = time.monotonic() + cooldown
         print(
             f"  [graphiti] circuit breaker ABERTO por {cooldown:.0f}s "
-            f"(após {_consecutive_failures} falhas consecutivas)"
+            f"(após {_consecutive_failures} falhas consecutivas)",
+            file=sys.stderr,
         )
 
 
@@ -268,6 +276,7 @@ def _is_transient(error: Exception) -> bool:
         "json: unsupported value",
         "validationerror",
         "invalid schema",
+        "redisearch: syntax error",
     )
     return not any(s in msg for s in nonretryable)
 
@@ -288,12 +297,13 @@ def _retry_with_backoff(fn, *args, **kwargs):
         except Exception as e:
             last_error = e
             if not _is_transient(e):
-                print(f"  [graphiti] erro não-transitório (sem retry): {e}")
+                print(f"  [graphiti] erro não-transitório (sem retry): {e}", file=sys.stderr)
                 break
             wait = 2 ** attempt  # 1s, 2s, 4s
             print(
                 f"  [graphiti] tentativa {attempt + 1}/{retries} falhou: {e} "
-                f"(próxima em {wait}s)"
+                f"(próxima em {wait}s)",
+                file=sys.stderr,
             )
             if attempt < retries - 1:
                 time.sleep(wait)
@@ -384,7 +394,7 @@ def _fallback_append(edge: dict) -> bool:
             f.write(json.dumps(edge, ensure_ascii=False) + "\n")
         return True
     except Exception as e:
-        print(f"  [graphiti] fallback write falhou: {e}")
+        print(f"  [graphiti] fallback write falhou: {e}", file=sys.stderr)
         return False
 
 
@@ -411,7 +421,7 @@ def _fallback_search(query: str, num_results: int = 10) -> list[dict]:
                     break
         return results
     except Exception as e:
-        print(f"  [graphiti] fallback read falhou: {e}")
+        print(f"  [graphiti] fallback read falhou: {e}", file=sys.stderr)
         return []
 
 

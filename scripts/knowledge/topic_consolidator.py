@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from core import paths as cp
 from core import database as db
+from core.knowledge.intake import KnowledgeCandidate, build_candidate
 from core.llm_client import call_llm_with_fallback
 from core.schemas.topic_models import TopicMergeProposal
 
@@ -188,6 +189,34 @@ Esta nota foi movida para: [[{link_target}]]
 Atualize seus links se necessário.
 """
     old_path.write_text(content)
+
+
+def merge_proposal_candidate(
+    project: str,
+    old_topics: List[str],
+    new_topic: str,
+    *,
+    rationale: str = "",
+    workspace_id: str = "default",
+) -> KnowledgeCandidate:
+    """Candidate-only topic merge rationale for K3; no file moves or DB writes."""
+    old = ", ".join(old_topics)
+    content = (
+        f"Proposta de fusão de tópicos no projeto {project}: "
+        f"{old} -> {new_topic}. {rationale}".strip()
+    )
+    return build_candidate(
+        source_type="topic_consolidator",
+        source_id=f"{project}:{old}:{new_topic}",
+        knowledge_type="rationale",
+        title=f"Fusão de tópicos: {new_topic}",
+        content=content,
+        project=project,
+        workspace_id=workspace_id,
+        evidence={"old_topics": old_topics, "new_topic": new_topic},
+        metadata={"promoter": "topic_consolidator", "rationale": rationale},
+    )
+
 
 def execute_merge(project: str, old_topics: List[str], new_topic: str):
     """Executa a fusão física e no banco de dados."""
