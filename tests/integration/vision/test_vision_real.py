@@ -50,19 +50,35 @@ def _looks_red(r: VisionResponse) -> bool:
     return ("vermelho" in blob) or ("red" in blob) or ("rgb" in blob and "220" in blob)
 
 
-def _is_quota_error(exc: Exception) -> bool:
-    """True se a falha foi rate limit / cota esgotada (429), não defeito de código."""
+def _is_provider_unavailable(exc: Exception) -> bool:
+    """True se o provedor real está indisponível por limite, auth ou cobrança."""
     blob = str(exc).lower()
-    return "429" in blob or "usage limit" in blob or "rate limit" in blob or "quota" in blob
+    return any(
+        marker in blob
+        for marker in (
+            "429",
+            "401",
+            "402",
+            "403",
+            "usage limit",
+            "rate limit",
+            "quota",
+            "payment is past due",
+            "subscription payment is past due",
+            "billing",
+            "unauthorized",
+            "forbidden",
+        )
+    )
 
 
 def _vision_call_or_skip(**kwargs) -> VisionResponse:
-    """Executa a chamada de visão; pula o teste se o provedor estiver sem cota (429)."""
+    """Executa visão; pula se o provedor real estiver indisponível externamente."""
     try:
         return call_llm_with_fallback(**kwargs)
     except LLMChainFailure as exc:
-        if _is_quota_error(exc):
-            pytest.skip(f"ollama-cloud sem cota (429) — limite externo, não regressão: {exc}")
+        if _is_provider_unavailable(exc):
+            pytest.skip(f"ollama-cloud indisponível externamente; não é regressão de código: {exc}")
         raise
 
 

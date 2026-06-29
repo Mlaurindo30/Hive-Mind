@@ -583,6 +583,44 @@ Aceite real:
 python3 scripts/services/sinapse-write.py query "ultimos discoveries promovidos"
 ```
 
+> Status K4 (2026-06-29):
+>
+> - [x] `core/knowledge/claude_mem_bridge.py` criado; o script
+>   `scripts/services/claude_mem_bridge.py` agora e wrapper de compatibilidade.
+> - [x] Mecanismo mantido como leitura SQL direta read-only do
+>   `~/.claude-mem/claude-mem.db`. Decisao: este caminho evita falso negativo
+>   por query longa e permite backfill deterministico por tabela, id e janela
+>   temporal. O fluxo `search -> timeline -> get_observations` continua sendo o
+>   melhor caminho interativo para agentes, mas nao substitui o bridge de
+>   promocao/backfill.
+> - [x] Importa `observations`, `session_summaries` e, quando existir no runtime,
+>   `discoveries`. No schema real atual do claude-mem, nao ha tabela
+>   `discoveries`; discoveries ricos aparecem como `observations.type =
+>   'discovery'` com `facts`, `narrative`, `concepts`, `files_*`.
+> - [x] Cada registro recebe `source_id` estavel:
+>   `claude-mem:<table>:<id>`, preservado em `metadata.source_id` e evidencia.
+> - [x] `session_summaries` promove `investigated -> rationale`,
+>   `completed -> operational_fact`, `learned -> learning`, `decisions ->
+>   decision`, `next_steps -> goal/task`.
+> - [x] Bridge aceita ids filtrados (`source_ids`) e janela temporal
+>   (`since_epoch`, `until_epoch`), tambem expostos no CLI/MCP:
+>   `sinapse-write.py promotion --import-claude-mem --source-id ...` e
+>   `sinapse_promote_knowledge(import_claude_mem=true, ...)`.
+> - [x] Aceite real adicionado em `tests/real/test_claude_mem_bridge.py` e
+>   validado com SQLite real, sem mocks: 2 passed.
+> - [x] Aceite operacional contra o runtime atual:
+>   `sinapse-write.py promotion --import-claude-mem --source-id ...` importou
+>   2 registros reais do claude-mem global e promoveu 6 candidatos com
+>   `source_id` preservado.
+> - [x] Aceite de CLI em maquina sem `sqlite_vec` no Python do sistema:
+>   `python3 scripts/services/sinapse-write.py query "ultimos discoveries
+>   promovidos"` reexecuta pela `.venv` e sai 0.
+> - [x] Verificacao global final: `./tests/run_all.sh` verde em 2026-06-29
+>   (Smoke 19 passed; Unit 496 passed / 3 skipped; Integration 107 passed /
+>   4 skipped; E2E 22 passed). Os 2 skips adicionais de Integration sao
+>   positivos de Ollama Cloud Vision pulados por 403 de billing externo; o
+>   teste negativo da cadeia de fallback continua obrigatorio e passou.
+
 ---
 
 ### K5 — Cadencia Hierarquica Completa

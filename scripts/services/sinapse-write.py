@@ -16,6 +16,15 @@ import os
 import sys
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+VENV_PYTHON = PROJECT_ROOT / ".venv" / "bin" / "python"
+if (
+    VENV_PYTHON.exists()
+    and Path(sys.executable).resolve() != VENV_PYTHON.resolve()
+    and os.environ.get("SINAPSE_NO_VENV_REEXEC") != "1"
+):
+    os.execv(str(VENV_PYTHON), [str(VENV_PYTHON), *sys.argv])
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from core import paths as cp
@@ -60,6 +69,11 @@ def main():
     promo = sub.add_parser("promotion", help="Run K3 Knowledge Intake + Promotion over pending observations")
     promo.add_argument("--limit", type=int, default=None, help="Limit pending observations processed")
     promo.add_argument("--dry-run", action="store_true", default=False, help="Classify without writing candidates/promotions")
+    promo.add_argument("--import-claude-mem", action="store_true", default=False, help="Import Claude-Mem observations/discoveries/session summaries before promotion")
+    promo.add_argument("--claude-mem-db", default=None, help="Path to claude-mem.db (default: ~/.claude-mem/claude-mem.db)")
+    promo.add_argument("--source-id", action="append", default=[], help="Filter Claude-Mem source id, e.g. claude-mem:session_summaries:4055")
+    promo.add_argument("--since-epoch", type=int, default=None, help="Import Claude-Mem records created at/after this epoch")
+    promo.add_argument("--until-epoch", type=int, default=None, help="Import Claude-Mem records created at/before this epoch")
 
     args = parser.parse_args()
 
@@ -77,12 +91,29 @@ def main():
     elif args.command == "promotion":
         import core.database as db
         from core.knowledge.promotion import promote_pending_observations
+        bridge_stats = None
+        if args.import_claude_mem:
+            from pathlib import Path as _Path
+            from core.knowledge.claude_mem_bridge import bridge
+
+            bridge_kwargs = {
+                "limit": args.limit or 1000,
+                "dry_run": args.dry_run,
+                "source_ids": args.source_id,
+                "since_epoch": args.since_epoch,
+                "until_epoch": args.until_epoch,
+            }
+            if args.claude_mem_db:
+                bridge_kwargs["cm_db"] = _Path(args.claude_mem_db)
+            bridge_stats = bridge(**bridge_kwargs)
         conn = db.get_connection()
         try:
             db.ensure_migrations(conn)
             result = promote_pending_observations(conn, limit=args.limit, apply=not args.dry_run)
         finally:
             conn.close()
+        if bridge_stats is not None:
+            result = {"claude_mem_bridge": bridge_stats, **result}
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     elif args.command == "query":
         result = sm._query_vault_knowledge(args.text)

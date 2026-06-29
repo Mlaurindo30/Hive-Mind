@@ -22,6 +22,7 @@ CANONICAL_TYPES = {
     "preference",
     "rationale",
     "next_step",
+    "operational_fact",
     "project_status",
     "document_chunk",
     "code_symbol",
@@ -251,7 +252,7 @@ def normalize_observation(row: Any) -> list[KnowledgeCandidate]:
     add_many("learnings", "learning", title)
     add_many("preferences", "preference", title)
     add_many("next_steps", "next_step", title)
-    add_many("completed", "project_status", title)
+    add_many("completed", "operational_fact", title)
 
     narrative = payload.get("narrative") or payload.get("investigated") or metadata.get("narrative")
     if narrative:
@@ -276,6 +277,7 @@ def normalize_observation(row: Any) -> list[KnowledgeCandidate]:
         "preference": "preference",
         "rationale": "rationale",
         "next_step": "next_step",
+        "operational_fact": "operational_fact",
         "project_status": "project_status",
         "document": "document_chunk",
         "document_chunk": "document_chunk",

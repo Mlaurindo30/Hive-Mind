@@ -67,6 +67,8 @@ Quando o fallback é acionado, o log registra: `[Fallback] Papel 'X': alternando
 | Provider | Autenticação | Endpoint | Exemplo de Modelo |
 |----------|-------------|----------|-------------------|
 | `google` | OAuth Device Flow | AI Studio / Vertex | `gemini-2.0-flash` |
+| `antigravity` | Token nativo do `agy` em `~/.gemini/antigravity-cli/antigravity-oauth-token` | CLI `agy` | `gemini-3.5-flash`, `gemini-3.1-pro`, `claude-sonnet-4-6`, `gpt-oss-120b-maas` |
+| `gemini-cli` | OAuth do Gemini CLI / Google VS Code extension | Code Assist `cloudcode-pa` | `gemini-2.5-flash`, `gemini-3.1-flash-lite` |
 | `openai` | Bearer token | api.openai.com | `gpt-4o`, `gpt-4.1-mini` |
 | `anthropic` | Bearer token | api.anthropic.com | `claude-fable-5`, `claude-haiku-4-5` |
 | `deepseek` | Bearer token | api.deepseek.com | `deepseek-v3`, `deepseek-r1` |
@@ -76,6 +78,11 @@ Quando o fallback é acionado, o log registra: `[Fallback] Papel 'X': alternando
 | `openrouter` | Bearer token | openrouter.ai/api/v1 | `google/gemini-flash-1.5` |
 | `lmstudio` | Sem auth (local) | localhost:1234/v1 | modelo carregado no LM Studio |
 | `ollama` | Sem auth (local) | localhost:11434/v1 | `qwen2.5-coder:3b`, `llama3.2` |
+
+`antigravity` e `gemini-cli` não usam o provider legado `google`. O caminho
+operacional preferido para Antigravity é o token nativo do `agy`; o OAuth do
+Gemini CLI continua suportado apenas para o provider `gemini-cli`/Code Assist
+enquanto esse endpoint responder para a conta.
 
 ### 2.3 Saída Estruturada (Pydantic)
 

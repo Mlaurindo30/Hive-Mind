@@ -280,6 +280,24 @@ TOOLS = [
                     "type": "boolean",
                     "description": "Classify and count without writing candidates/promotions",
                     "default": False
+                },
+                "import_claude_mem": {
+                    "type": "boolean",
+                    "description": "Import Claude-Mem observations/discoveries/session summaries before promotion",
+                    "default": False
+                },
+                "source_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Optional Claude-Mem source ids, e.g. claude-mem:session_summaries:4055"
+                },
+                "since_epoch": {
+                    "type": "integer",
+                    "description": "Import Claude-Mem records at/after this epoch"
+                },
+                "until_epoch": {
+                    "type": "integer",
+                    "description": "Import Claude-Mem records at/before this epoch"
                 }
             }
         }
@@ -711,11 +729,25 @@ def _promote_knowledge(args: dict) -> dict:
     if limit is not None:
         limit = int(limit)
     dry_run = bool(args.get("dry_run", False))
+    bridge_stats = None
+    if bool(args.get("import_claude_mem", False)):
+        from core.knowledge.claude_mem_bridge import bridge
+
+        bridge_stats = bridge(
+            limit=limit or 1000,
+            dry_run=dry_run,
+            source_ids=args.get("source_ids") or [],
+            since_epoch=args.get("since_epoch"),
+            until_epoch=args.get("until_epoch"),
+        )
 
     conn = get_connection()
     try:
         ensure_migrations(conn)
-        return promote_pending_observations(conn, limit=limit, apply=not dry_run)
+        result = promote_pending_observations(conn, limit=limit, apply=not dry_run)
+        if bridge_stats is not None:
+            result = {"claude_mem_bridge": bridge_stats, **result}
+        return result
     finally:
         conn.close()
 

@@ -19,6 +19,10 @@ GEMINI_CLI_OAUTH_FILES = (
     Path.home() / ".cache" / "google-vscode-extension" / "auth" / "credentials.json",
     Path.home() / ".cache" / "google-vscode-extension" / "auth" / "application_default_credentials.json",
 )
+ANTIGRAVITY_CLI_AUTH_FILES = (
+    Path.home() / ".gemini" / "antigravity-cli" / "antigravity-oauth-token",
+    Path.home() / ".gemini" / "antigravity" / "antigravity-oauth-token",
+)
 
 
 def gemini_cli_oauth_file() -> Optional[Path]:
@@ -27,6 +31,14 @@ def gemini_cli_oauth_file() -> Optional[Path]:
         if path.is_file():
             return path
     return None
+
+
+def antigravity_cli_auth_file() -> Optional[Path]:
+    """Retorna o token nativo do `agy`, com fallback ao OAuth compartilhado."""
+    for path in ANTIGRAVITY_CLI_AUTH_FILES:
+        if path.is_file():
+            return path
+    return gemini_cli_oauth_file()
 
 def _env(key: str, default: str = "") -> str:
     """Lê uma variável do ambiente, com fallback para o .env do projeto."""
@@ -72,9 +84,9 @@ PROVIDERS_CONFIG = {
         "env_var": "ANTIGRAVITY_UNUSED",
         "base_url": "cli://agy",
         "auth_type": ["agy_cli"],
-        "doc": "Antigravity via CLI nativo `agy` (subprocess isolado, sem skills). "
+        "doc": "Antigravity via CLI nativo `agy` (HOME real por padrão; isolado só via AGY_USE_ISOLATED_HOME=1). "
                "Catálogo rico: gemini-3.5-flash, gemini-3.1-pro, claude-sonnet-4-6, "
-               "claude-opus-4-6, gpt-oss-120b-maas. Credencial = mesmo OAuth de ~/.gemini. "
+               "claude-opus-4-6, gpt-oss-120b-maas. Credencial = token nativo de ~/.gemini/antigravity-cli. "
                "(O Code Assist daily-cloudcode-pa só servia gemini-3.1-flash-lite e foi "
                "aposentado em favor deste caminho.)",
         "models_hint": [
@@ -571,17 +583,17 @@ def discover_models_realtime(only_provider: str = None):
                     })
             continue
         # antigravity (`agy`): catálogo via subprocess. Lista models_hint quando o
-        # binário existe e há o OAuth compartilhado de ~/.gemini.
+        # binário existe e há token nativo do agy (ou fallback OAuth compartilhado).
         if "agy_cli" in cfg["auth_type"]:
             from pathlib import Path as _P
             agy_ok = _P(os.environ.get("AGY_BIN", str(_P.home() / ".local/bin/agy"))).exists()
-            if agy_ok and gemini_cli_oauth_file():
+            if agy_ok and antigravity_cli_auth_file():
                 for m_id in cfg.get("models_hint", []):
                     all_discovered.append({
                         "id": m_id,
                         "provider": name,
                         "display": f"[{name}] {m_id}",
-                        "source": "gemini_cli_oauth_models_hint",
+                        "source": "antigravity_cli_models_hint",
                     })
             continue
         # Google: Tenta API Key primeiro porque o OAuth de redirecionamento bloqueia listagem

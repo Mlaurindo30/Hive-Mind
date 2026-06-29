@@ -39,6 +39,9 @@ def test_run_agy_can_opt_into_isolated_home(monkeypatch, tmp_path):
     real_gemini = tmp_path / "real-gemini"
     real_gemini.mkdir()
     (real_gemini / "oauth_creds.json").write_text("{}", encoding="utf-8")
+    agy_token = real_gemini / "antigravity-cli" / "antigravity-oauth-token"
+    agy_token.parent.mkdir()
+    agy_token.write_text("agy-token", encoding="utf-8")
     isolated = tmp_path / "isolated"
     captured = {}
 
@@ -57,3 +60,4 @@ def test_run_agy_can_opt_into_isolated_home(monkeypatch, tmp_path):
     assert captured["home"] == str(isolated)
     assert captured["cwd"] == str(isolated)
     assert (isolated / ".gemini" / "oauth_creds.json").is_symlink()
+    assert (isolated / ".gemini" / "antigravity-cli" / "antigravity-oauth-token").is_symlink()

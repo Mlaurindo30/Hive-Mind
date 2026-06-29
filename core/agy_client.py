@@ -49,6 +49,11 @@ _AUTH_ENTRIES = (
     "state.json",
     "config",
 )
+_AUTH_PATH_ENTRIES = (
+    "antigravity-cli/antigravity-oauth-token",
+    "antigravity/cache/projects.json",
+    "antigravity-cli/cache/projects.json",
+)
 
 # Modelos do antigravity acessíveis via `agy` (de `agy models`, IDs do binário).
 # Ordem: rápido/barato → capaz. Usada para rotação no 429/erro.
@@ -76,11 +81,12 @@ def _ensure_isolated_home() -> Path:
     """
     gem = _ISOLATED_HOME / ".gemini"
     gem.mkdir(parents=True, exist_ok=True)
-    for name in _AUTH_ENTRIES:
+    for name in (*_AUTH_ENTRIES, *_AUTH_PATH_ENTRIES):
         src = _REAL_GEMINI_DIR / name
         link = gem / name
         if not src.exists():
             continue
+        link.parent.mkdir(parents=True, exist_ok=True)
         # Recria o symlink se ausente ou apontando p/ lugar errado.
         try:
             if link.is_symlink() and Path(os.readlink(link)) == src:

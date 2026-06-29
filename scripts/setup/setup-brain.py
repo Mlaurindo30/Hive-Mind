@@ -23,6 +23,7 @@ sys.path.append(str(PROJECT_ROOT))
 
 from core.auth import (
     PROVIDERS_CONFIG,
+    antigravity_cli_auth_file,
     discover_models_realtime,
     gemini_cli_oauth_file,
     get_credentials,
@@ -136,6 +137,8 @@ def role_config_parts(role: str, env: Dict[str, str]) -> tuple[str, str, str]:
 
 def provider_auth_label(p_name: str) -> str:
     cfg = PROVIDERS_CONFIG[p_name]
+    if "agy_cli" in cfg["auth_type"]:
+        return "agy CLI"
     if "gemini_cli_oauth" in cfg["auth_type"]:
         return "CLI OAuth"
     if "local" in cfg["auth_type"]:
@@ -147,6 +150,9 @@ def provider_auth_label(p_name: str) -> str:
 
 def provider_source_label(p_name: str, env: Dict[str, str]) -> str:
     cfg = PROVIDERS_CONFIG[p_name]
+    if "agy_cli" in cfg["auth_type"]:
+        auth_file = antigravity_cli_auth_file()
+        return f"agy CLI: {auth_file}" if auth_file else "agy CLI: login pendente"
     if "gemini_cli_oauth" in cfg["auth_type"]:
         oauth_file = gemini_cli_oauth_file()
         return f"CLI externo: {oauth_file}" if oauth_file else "CLI externo: login pendente"
@@ -163,6 +169,8 @@ def provider_source_label(p_name: str, env: Dict[str, str]) -> str:
 
 def model_source_label(model: Dict[str, Any], p_name: str) -> str:
     source = model.get("source")
+    if source == "antigravity_cli_models_hint":
+        return "catalogo local liberado por agy"
     if source == "gemini_cli_oauth_models_hint":
         return "catalogo local liberado por OAuth"
     cfg = PROVIDERS_CONFIG[p_name]
@@ -200,14 +208,14 @@ _LEVEL_LABEL = {0: "papel", 1: "1º FALLBACK", 2: "2º FALLBACK (rede final)"}
 
 def is_provider_configured(p_name: str, env: Dict[str, str]) -> bool:
     cfg = PROVIDERS_CONFIG[p_name]
-    # antigravity / gemini-cli: configurado = existe o login OAuth do CLI no disco.
+    # gemini-cli: configurado = existe o login OAuth do CLI no disco.
     if "gemini_cli_oauth" in cfg["auth_type"]:
         return gemini_cli_oauth_file() is not None
-    # antigravity-cli (`agy`): configurado = binário presente + mesmo OAuth de ~/.gemini.
+    # antigravity-cli (`agy`): configurado = binário presente + token nativo do agy.
     if "agy_cli" in cfg["auth_type"]:
         from pathlib import Path as _P
         return _P(os.environ.get("AGY_BIN", str(_P.home() / ".local/bin/agy"))).exists() \
-            and gemini_cli_oauth_file() is not None
+            and antigravity_cli_auth_file() is not None
     if "oauth" in cfg["auth_type"]:
         if f"{p_name.upper()}_ACCESS_TOKEN" in env: return True
     if cfg['env_var'] in env or "local" in cfg['auth_type']:
@@ -412,6 +420,11 @@ def _mask_secret(value: str) -> str:
 def describe_provider_credential(p_name: str, env: Dict[str, str]) -> str:
     """Descreve a credencial ativa do provedor (método + valor mascarado)."""
     cfg = PROVIDERS_CONFIG[p_name]
+    if "agy_cli" in cfg["auth_type"]:
+        auth_file = antigravity_cli_auth_file()
+        if auth_file:
+            return f"agy CLI ({auth_file})"
+        return f"{YELLOW}agy CLI pendente — execute `agy` e faça login uma vez{NC}"
     if "gemini_cli_oauth" in cfg["auth_type"]:
         oauth_file = gemini_cli_oauth_file()
         if oauth_file:

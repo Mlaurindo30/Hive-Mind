@@ -246,6 +246,29 @@ Regra: discovery/session summary nao fica esquecido como `archived=0`.
 Ele precisa passar pelo Promotion Layer e produzir unidades atomicas quando
 contiver aprendizado, decisao, fato, preferencia ou proximo passo.
 
+Implementacao K4 (2026-06-29):
+
+- Bridge canonico: `core/knowledge/claude_mem_bridge.py`.
+- Entry point legado: `scripts/services/claude_mem_bridge.py` apenas delega ao
+  core.
+- Mecanismo: leitura SQL direta read-only de `~/.claude-mem/claude-mem.db`.
+  Este e o caminho de promocao/backfill porque aceita ids e janela temporal sem
+  depender de busca textual. O workflow `search -> timeline -> get_observations`
+  segue sendo o caminho interativo para recuperar contexto bruto antes de
+  escolher ids.
+- Schema real atual: `session_summaries` existe; `discoveries` pode nao existir.
+  Quando ausente, discoveries vêm de `observations.type='discovery'` com campos
+  `facts`, `narrative`, `concepts` e `files_*`.
+- `source_id` estavel: `claude-mem:<table>:<id>`, preservado em metadata e
+  evidencia para rastrear a origem.
+- CLI/MCP: `sinapse-write.py promotion --import-claude-mem` e
+  `sinapse_promote_knowledge(import_claude_mem=true)` importam e promovem no
+  mesmo fluxo.
+- Aceite 2026-06-29: bridge real 2 passed, promocao operacional contra
+  `~/.claude-mem/claude-mem.db` importou registros reais por `source_id`, CLI
+  com `python3` do sistema saiu 0 via reexecucao na `.venv`, e
+  `./tests/run_all.sh` fechou verde.
+
 ---
 
 ## 7. Chunking E Parent Context
@@ -550,8 +573,10 @@ Promocao automatica permitida:
 1. `decision` quando o texto declara escolha, alternativa rejeitada e motivo.
 2. `learning` quando ha padrao reutilizavel com contexto e consequencia.
 3. `project_status` quando ha estado verificavel de projeto, data e fonte.
-4. `goal/task` quando ha proximo passo acionavel, dono ou criterio de aceite.
-5. `rationale` quando explica por que uma mudanca foi feita e onde ela aplica.
+4. `operational_fact` quando `completed` ou um sumario operacional declara
+   estado verificavel produzido pela sessao.
+5. `goal/task` quando ha proximo passo acionavel, dono ou criterio de aceite.
+6. `rationale` quando explica por que uma mudanca foi feita e onde ela aplica.
 
 Promocao automatica proibida:
 
