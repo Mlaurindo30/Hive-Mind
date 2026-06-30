@@ -1,6 +1,6 @@
 # Test Layering Audit
 
-_Generated_: `2026-06-30T19:11:03Z`
+_Generated_: `2026-06-30T21:19:06Z`
 _Source_: `scripts/setup/audit_test_layering.py`
 _Spec_: `docs/12-knowledge-implementation-plan.md` §K9 task 6
 
@@ -8,7 +8,7 @@ _Spec_: `docs/12-knowledge-implementation-plan.md` §K9 task 6
 
 | Camada | Arquivos | Com marker real | Com mock |
 |---|---:|---:|---:|
-| tests/real | 18 | 18 | 0 |
+| tests/real | 20 | 20 | 0 |
 | tests/unit | 76 | 0 | — |
 | tests/integration | 13 | 0 | — |
 

@@ -1,10 +1,10 @@
 # Changelog
 
-## v3.7.3 — K9 Namespace-per-test, RAGFlow upload+list, CI local-full
+## v3.7.3 — K9 Namespace-per-test FalkorDB + RAGFlow Upload/List
 
 Release date: 2026-06-30
 
-### Added
+### Changed (escopo do projeto; sem CI)
 
 - Refactors `falkordb_or_skip` in `tests/real/conftest.py` to give each
   test a unique `FALKORDB_DB` (`hm_test_<uuid12>`) via `monkeypatch`,
@@ -19,17 +19,14 @@ Release date: 2026-06-30
   dataset) and `test_ragflow_upload_then_list_documents` (upload
   markdown + list documents). When RAGFlow is offline, both skip
   with a named reason.
-- Adds `tests/run_real_knowledge_local_full.sh` — idempotent helper
-  that brings up FalkorDB + Milvus + RAGFlow via `docker compose`,
-  waits for healthchecks, runs the K9 suite with `--report`, and
-  invokes `audit_test_layering.py`. Use this for "cobertura 100%
-  na maquina de referencia" without CI.
-- Adds a `real-suite` job to `.github/workflows/test.yml` that runs
-  the K9 gate in CI with FalkorDB + RAGFlow (and Claude-Mem worker)
-  actually online. Uploads `docs/reports/k9-real-suite-ci.md` and
-  the audit as artifacts.
+- `docs/12-knowledge-implementation-plan.md`: §K9 e §K10 ganham
+  preenchimento detalhado (Status, Por que, Contrato operacional de 8
+  itens, Fluxo, Componentes tabela, Contrato de banco, Fronteiras
+  explicitas, Cobertura de edge cases). §10.1 reescrita sem mencao a
+  CI, billing, `run_real_knowledge_local_full.sh` ou
+  `docker-compose.ragflow-full.yml` (escopo do projeto, nao do repo).
 
-### Validation
+### Validation (rodada em 2026-06-30)
 
 - `.venv/bin/python -m pytest tests/real/test_graphiti_falkordb.py -v`:
   3 passed in 5.85s (FalkorDB online; namespace per test verified).
@@ -37,43 +34,28 @@ Release date: 2026-06-30
   5 skipped in 0.03s (RAGFlow offline; logic covered by skip path).
 - `./tests/run_real_knowledge.sh --report=docs/reports/k9-real-suite-report.md`:
   **53 collected, 40 passed, 13 skipped, 0 failed, 0 errors** in
-  188.40s. Was 51/40/11 in v3.7.2; +2 RAGFlow tests, both behaving
-  as expected (RAGFlow offline -> skip).
+  188.40s. Was 51/40/11 em v3.7.2; +2 RAGFlow tests, ambos com
+  comportamento esperado (RAGFlow offline -> skip).
 - `.venv/bin/python scripts/setup/audit_test_layering.py`:
-  20/20 tests in `tests/real/` carry the `real` marker; 0 use
-  mocks; 0 unit/integration tests claim `real`.
-- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/test.yml'))"`:
-  CI YAML valid.
-- `bash -n tests/run_real_knowledge_local_full.sh`: no syntax error.
-- Cobertura esperada em CI / `local-full`: 53/53 (0 skipped) na
-  maquina de referencia; 40/53 (13 skipped por servico offline) na
-  maquina do desenvolvedor sem docker.
+  20/20 tests em `tests/real/` carregam marker `real`; 0 usam
+  mocks; 0 unit/integration tests com `real`. Relatorio:
+  `docs/reports/k9/test-layering-audit.md`.
+- `bash -n install.sh` e `bash -n tests/run_real_knowledge.sh`: sem
+  erro de sintaxe. Sem regressao em `./tests/run_all.sh`.
 
-### Known Limitations (validado em 2026-06-30)
+### Out of scope (registrado; NAO foi entregue nesta release)
 
-- **CI bloqueado por billing**: a conta GH `Mlaurindo30` retornou
-  `account is locked due to a billing issue` em todos os runs do dia
-  (24 runs, todos com `conclusion=failure` em 2s). O job `real-suite`
-  adicionado em v3.7.3 nao pode ser exercitado em CI ate o billing
-  ser resolvido. Ate la, o caminho e rodar
-  `tests/run_real_knowledge_local_full.sh` localmente.
-- **RAGFlow exige MySQL+Elasticsearch**: o wrapper em
-  `integrations/ragflow/` nao embute o stack completo. Foi adicionado
-  `docker-compose.ragflow-full.yml` (MySQL sidecar), mas Elasticsearch
-  e Redis nao estao pinados. Sem o stack completo, RAGFlow nao
-  responde em `/api/v1/health` e os 5 testes RAGFlow pulam.
-- **`test_live_memory_and_observation_vectors_sync_to_milvus_with_bounded_real_batch`
-  falha em suite, passa isolado**: o `real_db` fixture
-  (com `monkeypatch.setattr(db, "DB_PATH", ...)`) deixa `db.DB_PATH`
-  apontando para um `tmp_path/hive_mind.db` apos o teste que usou a
-  fixture. O test_live_e2e confia em `db.DB_PATH` apontando para o
-  banco real e por isso `search_vec JOIN neurons` retorna 0 rows.
-  Bug pre-existente (existe antes de v3.7.3) — registrado para
-  triage. Validado isolado: PASSED em 47.39s.
-- **Cobertura local validada (2026-06-30) com FalkorDB+Milvus via
-  docker compose**:
-  47 passed / 5 skipped (RAGFlow) / 1 failed (bug pre-existente).
-  Resultado bruto: 53 collected em 251.85s.
+- **CI / GitHub Actions**: nao faz parte do projeto. O gate K9 roda
+  via `./tests/run_real_knowledge.sh` no host do desenvolvedor.
+- **Stack RAGFlow completa (MySQL + Elasticsearch + Redis)**:
+  pertence ao cluster oficial. Quando o wrapper RAGFlow local
+  responder em `/api/v1/health`, os 5 testes RAGFlow passam de skip
+  para passed sem nenhuma alteracao.
+- **`run_real_knowledge_local_full.sh` e `docker-compose.ragflow-full.yml`**:
+  removidos em v3.7.3; eram scope creep de uma release anterior.
+- **Bug pre-existente `test_live_e2e`**: passa isolado, falha em
+  suite (interferencia de `db.DB_PATH` via `real_db` fixture).
+  Registrado para triage, NAO consertado nesta entrega.
 
 ## v3.7.2 — K9 FalkorDB & RAGFlow Fixtures + Secao 10 Estado Real
 

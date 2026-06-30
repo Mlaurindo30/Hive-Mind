@@ -26,7 +26,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 REPORTS = ROOT / "cerebro" / "cortex" / "insulsa"  # fallback se pasta errada
-REPORTS = ROOT / "cerebro" / "cortex" / "insula" / "saude"
+# Caminho canônico versionado para o relatório de auditoria (consistente
+# com docs/reports/). Ainda escreve no saude/ se o caller passar --report.
+REPORTS = ROOT / "docs" / "reports" / "k9"
 
 MOCK_RE = re.compile(r"\b(MagicMock|@patch\b|@mock\b|from unittest\.mock import.*Mock\b)")
 MARK_REAL = re.compile(r"pytest\.mark\.real")
