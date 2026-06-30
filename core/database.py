@@ -193,7 +193,8 @@ def execute_insert(conn, table, data):
     # Whitelist de tabelas permitidas para evitar injeção SQL no nome da tabela
     ALLOWED_TABLES = {
         "neurons", "synapses", "observations", "vault", 
-        "ambiguities", "visual_memories", "document_memories"
+        "ambiguities", "visual_memories", "document_memories",
+        "knowledge_tombstones", "query_route_log",
     }
     if table not in ALLOWED_TABLES:
         raise ValueError(f"Tabela não permitida: {table}")
@@ -637,6 +638,39 @@ def ensure_migrations(conn):
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_type_workspace
         ON knowledge_candidates(knowledge_type, workspace_id, status)
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS knowledge_tombstones (
+            id TEXT PRIMARY KEY,
+            target_type TEXT NOT NULL,
+            target_id TEXT NOT NULL,
+            collection TEXT,
+            reason TEXT NOT NULL,
+            actor TEXT NOT NULL DEFAULT 'system',
+            metadata_json TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            workspace_id TEXT NOT NULL DEFAULT 'default'
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_knowledge_tombstones_target
+        ON knowledge_tombstones(target_type, target_id, collection, workspace_id)
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS query_route_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            query_hash TEXT NOT NULL,
+            intent TEXT NOT NULL,
+            first_route TEXT,
+            retrieval_path_json TEXT NOT NULL,
+            confidence REAL NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            workspace_id TEXT NOT NULL DEFAULT 'default'
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_query_route_log_created
+        ON query_route_log(created_at, workspace_id)
     """)
 
     # B1/B6 (frente K, K0): workspace_id + federação + embedding-provenance.

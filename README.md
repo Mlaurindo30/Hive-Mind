@@ -144,7 +144,7 @@ cross-cutting execution layer. Full anatomy: [`docs/01-architecture.md` §2](doc
 | `sinapse_query` | RetrievalRouter query with audited path, citations and hybrid fallback |
 | `sinapse_save_decision` | Save a decision to the vault (`cortex/frontal/trabalho/ativo/`) |
 | `sinapse_save_learning` | Save a learning/insight to `cerebelo/padroes/Patterns.md` |
-| `sinapse_health` | Health of the 7 read-backends and auxiliary components |
+| `sinapse_health` | Health of the 7 read-backends, auxiliary components and K8 knowledge coverage |
 | `sinapse_session_end` | End the session, update Current State |
 | `sinapse_temporal_search` | claude-mem step 1: textual index with IDs |
 | `sinapse_temporal_timeline` | claude-mem step 2: chronological window by ID/query |

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -21,7 +22,7 @@ from urllib.request import Request, urlopen
 
 from pydantic import BaseModel, Field
 
-from core.database import embed_text, ensure_migrations, get_connection
+from core.database import embed_text, get_connection
 from core.vector_backend import get_vector_backend
 
 
@@ -94,7 +95,7 @@ class RetrievalRouter:
     ):
         self.conn = conn or get_connection()
         self._owns_conn = conn is None
-        ensure_migrations(self.conn)
+        _ensure_route_log_schema(self.conn)
         self.workspace_id = workspace_id
         self.project = project
         self.sinapse_query_fn = sinapse_query_fn
@@ -158,6 +159,7 @@ class RetrievalRouter:
             "missing_context": sorted(set(missing_context)),
         }
         result.update(_legacy_projection(answer_context))
+        self._log_route(query, result)
         return result
 
     def classify(self, query: str, *, explicit_intent: Intent | None = None) -> IntentDecision:
@@ -528,6 +530,32 @@ class RetrievalRouter:
             "edges": [],
         }
 
+    def _log_route(self, query: str, result: dict[str, Any]) -> None:
+        try:
+            path = result.get("retrieval_path") or []
+            first_route = path[0].get("route") if path else None
+            self.conn.execute("PRAGMA busy_timeout = 250")
+            self.conn.execute(
+                """
+                INSERT INTO query_route_log(
+                    query_hash, intent, first_route, retrieval_path_json,
+                    confidence, workspace_id
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    hashlib.sha256(query.encode("utf-8", "ignore")).hexdigest(),
+                    str(result.get("intent") or "hybrid"),
+                    first_route,
+                    json.dumps(path, ensure_ascii=False),
+                    float(result.get("confidence") or 0.0),
+                    self.workspace_id,
+                ),
+            )
+            self.conn.commit()
+        except Exception:
+            pass
+
 
 def route_query(
     query: str,
@@ -549,6 +577,42 @@ def route_query(
         return router.route(query, top_k=top_k, intent=intent)
     finally:
         router.close()
+
+
+def _ensure_route_log_schema(conn) -> None:
+    """Keep per-query route telemetry cheap.
+
+    Full UMC migrations are owned by `core.database.ensure_migrations`. The
+    router only needs the append-only K8 route log before it can serve a query,
+    so doing the full migration stack in every CLI/API request makes short
+    queries timeout-prone.
+    """
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='query_route_log'"
+    ).fetchone()
+    if exists:
+        return
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS query_route_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            query_hash TEXT NOT NULL,
+            intent TEXT NOT NULL,
+            first_route TEXT,
+            retrieval_path_json TEXT NOT NULL,
+            confidence REAL NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            workspace_id TEXT NOT NULL DEFAULT 'default'
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_query_route_log_created
+        ON query_route_log(created_at, workspace_id)
+        """
+    )
+    conn.commit()
 
 
 def _classify_heuristic(query: str) -> IntentDecision:

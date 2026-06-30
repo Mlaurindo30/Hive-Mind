@@ -99,7 +99,7 @@ TOOLS = [
     },
     {
         "name": "sinapse_health",
-        "description": "Health check for Sinapse. Returns read_backends with the 7 backends fused by sinapse_query (UMC, NeuralMemory, sqlite-vec, claude-mem, Graphify, Graphiti, filesystem), components with auxiliary/runtime availability, and vault status. RTK is NOT a read-backend; it appears only under components because it is a shell command optimizer and does NOT participate in sinapse_query.",
+        "description": "Health check for Sinapse. Returns read_backends with the 7 backends fused by sinapse_query (UMC, NeuralMemory, sqlite-vec, claude-mem, Graphify, Graphiti, filesystem), components with auxiliary/runtime availability, vault status, and K8 knowledge_health coverage metrics. RTK is NOT a read-backend; it appears only under components because it is a shell command optimizer and does NOT participate in sinapse_query.",
         "inputSchema": {"type": "object", "properties": {}}
     },
     {

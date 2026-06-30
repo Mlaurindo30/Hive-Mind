@@ -118,8 +118,21 @@ def main():
     elif args.command == "query":
         from core.retrieval.router import route_query
 
+        query_timeout = min(
+            float(getattr(sm, "GLOBAL_QUERY_TIMEOUT", 8)),
+            float(os.environ.get("SINAPSE_CLI_QUERY_TIMEOUT", "4")),
+        )
+        sm.GLOBAL_QUERY_TIMEOUT = query_timeout
+        if hasattr(sm, "_module"):
+            sm._module.GLOBAL_QUERY_TIMEOUT = query_timeout
         result = route_query(args.text, sinapse_query_fn=sm._query_vault_knowledge)
-        print(json.dumps(result or {}, default=str, indent=2))
+        sys.stdout.write(json.dumps(result or {}, default=str, indent=2) + "\n")
+        sys.stdout.flush()
+        sys.stderr.flush()
+        # Some read-backends can leave cleanup work behind after returning a
+        # complete answer. This CLI command is read-only and has already closed
+        # its router connection, so exit deterministically after flushing.
+        os._exit(0)
     elif args.command == "health":
         result = sm.health_check()
         print(json.dumps(result, default=str, indent=2))

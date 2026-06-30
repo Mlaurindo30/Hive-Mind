@@ -230,6 +230,39 @@ def get_metrics(request: Request):
         },
     }
 
+
+@app.get("/api/v1/knowledge/health", dependencies=[Depends(verify_api_key)])
+@limiter.limit("30/minute")
+def get_knowledge_health(request: Request, prune: bool = Query(False)):
+    """K8 knowledge coverage health.
+
+    `prune=true` removes orphan vectors and writes tombstones. The default is
+    read-only so dashboards can poll this endpoint safely.
+    """
+    try:
+        from scripts.health.knowledge_health import (
+            compute_knowledge_health,
+            evaluate_fail_closed,
+            write_report,
+        )
+
+        conn = get_connection()
+        try:
+            metrics = compute_knowledge_health(conn, prune_orphans=prune)
+            failures = evaluate_fail_closed(metrics)
+            report = write_report(metrics, failures)
+            return {
+                "status": metrics.get("status"),
+                "metrics": metrics,
+                "failures": failures,
+                "report_path": str(report),
+            }
+        finally:
+            conn.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/v1/observations", dependencies=[Depends(verify_api_key)])
 @limiter.limit("20/minute")
 def post_observation(request: Request, body: Any = Body(...)):

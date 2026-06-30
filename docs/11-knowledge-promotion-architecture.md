@@ -425,6 +425,99 @@ Contrato K6 implementado:
   nunca como fonte canonica. Qualquer output externo precisa ser normalizado
   para `document_memories` + `document_chunks` + `document_vectors`.
 
+### 10.1 Contrato De Documento, Chunk E Vetor
+
+K6 separa tres niveis para evitar "texto solto" sem prova:
+
+| Nivel | Tabela/colecao | Conteudo | Por que existe |
+|---|---|---|---|
+| Documento-pai | `document_memories` | `document_id`, `source_uri`, `file_hash`, `project`, `workspace_id`, metadata | Prova de origem e unidade de reingestao |
+| Chunk | `document_chunks` | `parent_id`, `parent_type=document`, `chunk_index`, `heading`, offsets, `hash`, metadata | Unidade atomica recuperavel |
+| Vetor | `document_vectors` | embedding do chunk + metadata canonica | Busca semantica local/Milvus sem perder parent context |
+
+Metadados obrigatorios em `document_vectors`:
+
+- `parent_id`
+- `parent_type=document`
+- `brain_lobe=parietal`
+- `knowledge_type=document_chunk`
+- `project`
+- `source_uri`
+- `hash`
+- `valid_at`
+- `workspace_id`
+
+Sem esses campos, o vetor e considerado incompleto para o desenho K6, porque
+nao da para provar a origem, filtrar por workspace/projeto nem sincronizar para
+Milvus com idempotencia.
+
+### 10.2 Ingestao Local-First
+
+Fluxo normativo:
+
+```text
+path real
+  |
+  +-- calcular file_hash e document_id estavel
+  +-- parser por tipo (.md/.txt/.pdf/.docx)
+  +-- gerar chunks estruturais com offsets
+  +-- substituir parent/chunks/vetores antigos do mesmo document_id
+  +-- gravar parent em document_memories
+  +-- gravar chunks em document_chunks
+  +-- indexar cada chunk em document_vectors
+```
+
+Markdown deve preservar headings. Texto sem estrutura deve quebrar por
+paragrafo e depois por janela fixa. PDF com texto usa parser real; PDF sem texto
+gera chunk fallback auditavel para nao perder a existencia do documento. DOCX
+depende de `python-docx` e deve falhar de forma clara quando a dependencia nao
+estiver instalada.
+
+### 10.3 Consulta Com Parent Context
+
+Consulta documental valida segue este formato:
+
+```text
+query
+  -> document_vectors
+  -> document_chunks
+  -> document_memories
+  -> citations[{source_uri, offset_start, offset_end, score, parent}]
+```
+
+O retorno nao pode ser apenas "melhor trecho". Ele precisa carregar o trecho,
+score, `source_uri`, offsets e parent completo o suficiente para auditoria. O
+`RetrievalRouter` K7 usa esta rota quando classifica a pergunta como
+documental; K6 nao decide intent global.
+
+### 10.4 Papel Do RAGFlow
+
+RAGFlow e permitido como parser/headless para documentos complexos, mas com
+fronteiras:
+
+- nao e fonte de verdade;
+- nao substitui `document_memories`, `document_chunks` ou `document_vectors`;
+- cache/store proprio nao entra no contrato de recuperacao;
+- indisponibilidade do RAGFlow nao pode quebrar o caminho local-first;
+- qualquer saida aproveitada precisa ser normalizada para UMC antes de ser
+  recuperavel pelo cerebro.
+
+### 10.5 Relacao Com Promocao De Conhecimento
+
+K6 torna documentos recuperaveis. Ele nao decide sozinho que um trecho virou
+fato, decisao ou aprendizado duravel. A promocao continua no fluxo K3/K4:
+
+```text
+document_chunks/document_vectors
+  -> evidencia citavel
+  -> KnowledgePromotionPipeline
+  -> fact/learning/decision/preference
+  -> cortex temporal/frontal/cerebelo
+```
+
+Essa separacao evita poluir memoria duravel com todo chunk de documento e
+preserva a diferenca entre evidencia recuperavel e conhecimento promovido.
+
 ---
 
 ## 11. RetrievalRouter Born-Large
@@ -505,6 +598,13 @@ idempotency: title+content_hash
 
 O sistema deve expor metricas por camada:
 
+**Status K8 (v3.6.0, 2026-06-30):** entregue em
+`scripts/health/knowledge_health.py`. Este modulo adiciona metricas de
+cobertura de conhecimento; ele nao substitui `health_dashboard.py`,
+`alert_dispatcher.py` nem `review_writer.py`, que continuam sendo o health da
+Insula. `sinapse_health` inclui um bloco `knowledge_health` read-only em modo
+quick, e a REST API expoe `GET /api/v1/knowledge/health` para o gate completo.
+
 | Metrica | Sinal |
 |---|---|
 | `neurons_total` | tamanho da memoria consolidada |
@@ -518,6 +618,17 @@ O sistema deve expor metricas por camada:
 | `milvus_sync_lag` | divergencia local/producao |
 | `orphan_vectors` | indice sujo |
 | `query_route_distribution` | quais camadas respondem |
+| `*_vectorized_pct` | cobertura por colecao canonica |
+
+K8 mede as sete colecoes canonicas: `memory_vectors`,
+`observation_vectors`, `document_vectors`, `code_vectors`, `visual_vectors`,
+`graph_vectors` e `summary_vectors`. O gate nao pode olhar apenas
+`neurons_vectorized_pct`: document/code/visual/graph/summary tambem precisam
+aparecer explicitamente.
+
+`query_route_distribution` vem de `query_route_log`, preenchida pelo
+`RetrievalRouter` em modo best-effort. A query gravada e sempre hash; o texto
+bruto da pergunta nao entra na telemetria.
 
 Gate minimo de producao:
 
@@ -738,6 +849,14 @@ forget(target, reason) -> tombstone auditavel (nunca delete fisico silencioso)
 
 Casa com a metrica `orphan_vectors` (§13) — orfao podado, nao so medido. Segredo
 em sync/Milvus-remoto deve reusar `core/redactor.py` antes de cruzar maquina.
+
+K8 implementa a primeira fatia desse contrato para vetores orfaos:
+`knowledge_health.py` chama `forget_vector()` com motivo `orphan_vector`, remove
+o item da colecao sqlite-vec local, limpa `vector_metadata` quando aplicavel e
+grava `knowledge_tombstones` com `target_type`, `target_id`, `collection`,
+`reason`, `actor`, `workspace_id` e metadata auditavel. Extensoes futuras para
+`secret_leak`, `expired`, `superseded` e `user_request` devem reaproveitar a
+mesma tabela de tombstone.
 
 ### 17.3 Avaliacao de recuperacao (eval)
 

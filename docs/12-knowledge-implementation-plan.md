@@ -737,6 +737,47 @@ arquivo/vault doc
     -> consulta com citacao + parent context
 ```
 
+**Componentes implementados:**
+
+| Componente | Papel | Contrato |
+|---|---|---|
+| `core/document_pipeline.py` | Pipeline canonico K6 | Parseia, normaliza, chunkiza, grava parent/chunks, indexa vetores e consulta com citacao |
+| `DocumentPipeline.ingest()` | Entrada de escrita | Recebe path real, calcula hash, recria parent/chunks/vetores de forma idempotente |
+| `DocumentPipeline.query()` | Entrada de leitura | Consulta `document_vectors` e retorna chunk + parent + offsets + score |
+| `scripts/knowledge/document_ingest.py` | Ponte operacional | Usa K6 em banco real e preserva observation `document_ingest` para o Dream Cycle |
+| `integrations/ragflow/` | Adapter opcional | Verifica/encapsula RAGFlow sem transformar RAGFlow em fonte canonica |
+| `document_memories` | Registro pai | Guarda documento, hash, origem, metadata, projeto e workspace |
+| `document_chunks` | Unidades recuperaveis | Guarda chunks atomicos com parent, heading, offsets, hash e metadata |
+| `document_vectors` | Indice semantico | Guarda embeddings dos chunks via `VectorBackend` local-first |
+
+**Contrato de banco e metadados:**
+
+| Campo | Onde aparece | Obrigatorio | Motivo |
+|---|---|---:|---|
+| `document_id` | `document_memories`, `document_chunks`, metadata vetorial | sim | ID estavel para reingestao e parent context |
+| `parent_id` / `parent_type` | `document_chunks`, `document_vectors` | sim | Permite subir do chunk para o documento-pai |
+| `source_uri` | parent, chunk, vetor | sim | Citacao auditavel e reconstrucao da fonte |
+| `file_hash` | parent | sim | Detecta mudanca do arquivo e evita duplicidade logica |
+| `hash` | chunk, metadata vetorial | sim | Idempotencia por chunk e sync futuro |
+| `offset_start` / `offset_end` | chunk | sim | Citacao precisa dentro do documento |
+| `heading` | chunk | nao | Contexto estrutural para Markdown/documentos seccionados |
+| `workspace_id` | parent, chunk, vetor | sim | Isolamento multi-workspace e Milvus futuro |
+| `project` | parent, metadata vetorial | sim | Roteamento por projeto e filtro de busca |
+
+**Fluxo de consulta documental:**
+
+```text
+query documental
+    -> DocumentPipeline.query()
+    -> VectorBackend.query(collection=document_vectors)
+    -> join metadata/chunk
+    -> parent document
+    -> resposta com citations[{source_uri, offsets, score, parent}]
+```
+
+K6 nao deve responder com texto sem origem. Resultado valido precisa carregar
+o trecho recuperado e a prova minima: `source_uri`, offsets e parent.
+
 **Cobertura obrigatoria de edge cases:**
 
 - Markdown com multiplos headings deve preservar contexto estrutural.
@@ -750,6 +791,28 @@ arquivo/vault doc
   deve usar `document_chunks` + `document_vectors`.
 - `workspace_id`, `project`, `hash`, `source_uri` e parent metadata sao
   obrigatorios para permitir sync futuro com Milvus e isolamento por workspace.
+- Falha de embedding deve ser reportada como falha operacional do pipeline; nao
+  pode criar chunk "recuperavel" sem vetor quando o banco real tem sqlite-vec.
+- RAGFlow indisponivel nao pode bloquear o caminho local-first; apenas reduz a
+  capacidade de parsing avancado quando explicitamente habilitado.
+- Documentos duplicados por conteudo em caminhos diferentes preservam
+  `source_uri` proprio, mas compartilham hash auditavel para deduplicacao
+  posterior.
+- Reindexacao precisa limpar `document_vectors` antigos do mesmo parent antes
+  de gravar os novos chunks.
+- Consulta deve ser deterministica o bastante para teste real: top-k, score e
+  parent metadata precisam ser validaveis sem mock.
+
+**Fronteiras explicitas:**
+
+- K6 ingere e recupera documento. Ele nao promove automaticamente qualquer
+  trecho para fato/aprendizado duravel; essa promocao continua sendo K3/K4.
+- K6 nao substitui K7. O roteamento entre documento, memoria, temporal, codigo
+  e grafo acontece no `RetrievalRouter`; K6 e a rota documental.
+- K6 nao transforma RAGFlow em banco paralelo. RAGFlow e parser/adapter; o
+  material persistente fica em UMC + `document_vectors`.
+- K6 nao grava resumo hierarquico de sessao/diario/semanal/mensal/anual; isso
+  pertence a K5 e `summary_vectors`.
 
 > **Entregue (2026-06-30) — K6 DocumentPipeline local-first:**
 >
@@ -926,12 +989,56 @@ python3 scripts/services/sinapse-write.py query "o que foi decidido sobre embedd
 
 ### K8 — Metricas, Health E Auditoria
 
+**Status:** ✅ Entregue em 2026-06-30 (`v3.6.0`).
+
 **Objetivo:** provar cobertura e detectar buracos de memoria.
 
 **JA EXISTE health da insula** (`docs/11` §3.1): `health_dashboard.py`,
 `alert_dispatcher.py`, `review_writer.py` (→`saude/`). `knowledge_health.py`
 **adiciona metricas de cobertura de conhecimento**, nao substitui o dashboard.
 
+> **Entregue (2026-06-30) — K8 cobertura, health e forget auditavel:**
+>
+> - [x] `scripts/health/knowledge_health.py` criado como gate de cobertura de
+>   conhecimento. Ele mede UMC + sqlite-vec + claude-mem vectors e escreve
+>   report Markdown em `cerebro/cortex/insula/saude/knowledge-health-YYYY-MM-DD.md`.
+> - [x] Metricas principais implementadas:
+>   `neurons_vectorized_pct`, `observations_linked_pct`,
+>   `discoveries_pending`, `summary_vectors_total`, `orphan_vectors`,
+>   `milvus_sync_lag`, `query_route_distribution` e
+>   `*_vectorized_pct` por colecao canonica.
+> - [x] Cobertura por colecao cobre as 7 colecoes K2:
+>   `memory_vectors`, `observation_vectors`, `document_vectors`,
+>   `code_vectors`, `visual_vectors`, `graph_vectors`, `summary_vectors`.
+> - [x] `query_route_distribution` deixou de ser estimativa: K7 grava
+>   `query_route_log` em modo best-effort com `query_hash`, `intent`,
+>   `first_route`, `retrieval_path_json`, `confidence` e `workspace_id`.
+>   A escrita da telemetria e fail-open/fail-fast sob lock de SQLite para nao
+>   travar `sinapse-write.py query`.
+> - [x] `core/database.py`, `core/umc_schema.sql` e
+>   `core/umc_schema_crr.sql` receberam tabelas K8:
+>   `knowledge_tombstones` e `query_route_log`.
+> - [x] Esquecimento intencional implementado para vetores orfaos:
+>   `forget_vector()` remove o vetor da colecao, remove `vector_metadata`
+>   quando aplicavel e grava tombstone auditavel com motivo `orphan_vector`.
+> - [x] Poda real executada pelo aceite: o primeiro run encontrou 1 orfao em
+>   `document_vectors`, podou, criou tombstone e deixou `orphan_vectors=0`.
+> - [x] `sinapse_health` expoe `knowledge_health` em modo read-only/quick, sem
+>   varredura pesada de `observation_vectors` e sem substituir o health
+>   dashboard da Insula. O gate completo fica no CLI/API K8.
+> - [x] REST API adicionou `GET /api/v1/knowledge/health` autenticado.
+>   Default read-only; `prune=true` executa a manutencao com tombstones.
+> - [x] Testes reais adicionados em `tests/real/test_knowledge_health.py`,
+>   cobrindo metricas, poda, tombstone, distribuicao de rotas, report Markdown
+>   e aceite CLI.
+> - [x] Aceite real executado:
+>   `.venv/bin/python scripts/health/knowledge_health.py --fail-closed --json`
+>   -> exit 0, `failures=[]`, `orphan_vectors=0`;
+>   `tests/real/test_knowledge_health.py` -> 2 passed;
+>   regressao CLI/MCP/API/K8 -> 21 passed / 1 skipped;
+>   `./tests/run_all.sh` -> Smoke 19 passed; Unit 497 passed / 3 skipped;
+>   Integration 111 passed / 2 skipped; E2E 22 passed.
+>
 Tasks:
 
 1. criar `scripts/health/knowledge_health.py`;
@@ -955,7 +1062,13 @@ Aceite real:
 
 ```bash
 .venv/bin/python scripts/health/knowledge_health.py --fail-closed
+# exit 0; failures=[]; orphan_vectors=0; 7 colecoes reportadas
+
 .venv/bin/python -m pytest tests/real/test_knowledge_health.py -q
+# 2 passed
+
+.venv/bin/python -m pytest tests/unit/test_sinapse_mcp.py tests/integration/test_sinapse_api.py tests/real/test_knowledge_health.py -q
+# 20 passed, 1 skipped
 ```
 
 ---

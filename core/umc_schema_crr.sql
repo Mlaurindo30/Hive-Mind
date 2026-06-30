@@ -147,6 +147,34 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_source
 CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_type_workspace
     ON knowledge_candidates(knowledge_type, workspace_id, status);
 
+-- K8: Knowledge coverage health and intentional forgetting audit.
+CREATE TABLE IF NOT EXISTS knowledge_tombstones (
+    id TEXT PRIMARY KEY NOT NULL DEFAULT '',
+    target_type TEXT NOT NULL DEFAULT '',
+    target_id TEXT NOT NULL DEFAULT '',
+    collection TEXT,
+    reason TEXT NOT NULL DEFAULT '',
+    actor TEXT NOT NULL DEFAULT 'system',
+    metadata_json TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    workspace_id TEXT NOT NULL DEFAULT 'default'
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_tombstones_target
+    ON knowledge_tombstones(target_type, target_id, collection, workspace_id);
+
+CREATE TABLE IF NOT EXISTS query_route_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    query_hash TEXT NOT NULL DEFAULT '',
+    intent TEXT NOT NULL DEFAULT '',
+    first_route TEXT,
+    retrieval_path_json TEXT NOT NULL DEFAULT '[]',
+    confidence REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    workspace_id TEXT NOT NULL DEFAULT 'default'
+);
+CREATE INDEX IF NOT EXISTS idx_query_route_log_created
+    ON query_route_log(created_at, workspace_id);
+
 -- Triggers for FTS sync
 CREATE TRIGGER IF NOT EXISTS neurons_after_insert AFTER INSERT ON neurons BEGIN
     INSERT INTO search_fts(neuron_id, label, content) VALUES (new.id, new.label, new.content);

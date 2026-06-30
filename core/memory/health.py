@@ -135,6 +135,25 @@ def health_check(
             "backends_registered": read_backends_count,
         },
     }
+    try:
+        from core.database import get_connection
+        from scripts.health.knowledge_health import (
+            compute_knowledge_health,
+            evaluate_fail_closed,
+        )
+
+        conn = get_connection()
+        try:
+            knowledge = compute_knowledge_health(conn, prune_orphans=False, quick=True)
+            knowledge["failures"] = evaluate_fail_closed(knowledge)
+            status["knowledge_health"] = knowledge
+        finally:
+            conn.close()
+    except Exception as exc:
+        status["knowledge_health"] = {
+            "status": "unavailable",
+            "error": str(exc),
+        }
     status["healthy"] = all(v for v in read_backends.values())
     status["components_healthy"] = all(v for v in components.values())
     return status

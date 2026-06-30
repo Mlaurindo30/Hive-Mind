@@ -1,5 +1,44 @@
 # Changelog
 
+## v3.6.0 — K8 Knowledge Health
+
+Release date: 2026-06-30
+
+### Added
+
+- Adds `scripts/health/knowledge_health.py` to measure knowledge coverage
+  without replacing the existing insula health dashboard.
+- Measures `neurons_vectorized_pct`, `observations_linked_pct`,
+  `discoveries_pending`, `summary_vectors_total`, `orphan_vectors`,
+  `milvus_sync_lag`, `query_route_distribution` and per-collection
+  `*_vectorized_pct`.
+- Adds `knowledge_tombstones` and `query_route_log` to the UMC schema and
+  CRR-safe schema.
+- Adds best-effort route telemetry in `RetrievalRouter` so
+  `query_route_distribution` is based on stored route paths, not guesses.
+- Keeps route telemetry fail-open/fail-fast under SQLite lock, preventing
+  `sinapse-write.py query` from timing out while preserving K8 route logs.
+- Adds intentional forgetting for orphan vectors: prune local sqlite-vec rows,
+  clean metadata and write auditable tombstones with reason `orphan_vector`.
+- Exposes K8 coverage in `sinapse_health` under `knowledge_health` using a
+  quick/read-only path; the CLI and REST endpoint keep the complete gate.
+- Adds authenticated REST endpoint `GET /api/v1/knowledge/health` with
+  read-only default and `prune=true` maintenance mode.
+- Writes Markdown reports to
+  `cerebro/cortex/insula/saude/knowledge-health-YYYY-MM-DD.md`.
+- Adds real K8 coverage in `tests/real/test_knowledge_health.py`.
+
+### Validation
+
+- `.venv/bin/python scripts/health/knowledge_health.py --fail-closed --json`:
+  exit 0, `failures=[]`, `orphan_vectors=0`.
+- `.venv/bin/python -m pytest tests/real/test_knowledge_health.py -q`:
+  2 passed.
+- `.venv/bin/python -m pytest tests/unit/test_sinapse_write_cli.py::TestSinapseWriteCLI::test_query_command tests/unit/test_sinapse_mcp.py tests/integration/test_sinapse_api.py tests/real/test_knowledge_health.py -q`:
+  21 passed, 1 skipped.
+- `./tests/run_all.sh`: Smoke 19 passed; Unit 497 passed / 3 skipped;
+  Integration 111 passed / 2 skipped; E2E 22 passed.
+
 ## v3.5.0 — K7 RetrievalRouter
 
 Release date: 2026-06-30

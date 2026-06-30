@@ -57,6 +57,7 @@ class TestSinapseMCP:
         assert "components" in data
         assert "vault" in data
         assert "plugin" in data
+        assert "knowledge_health" in data
         assert "healthy" in data
         assert set(data["read_backends"]) == {
             "umc",

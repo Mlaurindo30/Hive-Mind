@@ -96,6 +96,11 @@ def test_metrics_requires_auth():
     assert r.status_code in (401, 403)
 
 
+def test_knowledge_health_requires_auth():
+    r = client.get("/api/v1/knowledge/health")
+    assert r.status_code in (401, 403)
+
+
 def test_query_endpoint_authenticated():
     """POST /api/v1/query autenticado retorna a lista de resultados."""
     r = client.post("/api/v1/query", json={"query": "memory", "limit": 3}, headers=_AUTH)
@@ -124,3 +129,13 @@ def test_metrics_endpoint_authenticated():
     assert data["database"]["quick_check"] == "ok"
     assert data["database"]["foreign_key_violations"] == 0
     assert data["indexes"]["hnsw"] is True
+
+
+def test_knowledge_health_endpoint_authenticated():
+    r = client.get("/api/v1/knowledge/health", headers=_AUTH)
+    assert r.status_code == 200
+    data = r.json()
+    assert "metrics" in data
+    assert "failures" in data
+    assert "neurons_vectorized_pct" in data["metrics"]
+    assert "collections" in data["metrics"]
