@@ -693,6 +693,8 @@ HIVE_SESSION_SUMMARIZER_PROVIDER=ollama HIVE_SESSION_SUMMARIZER_MODEL=qwen2.5:3b
 
 ### K6 — DocumentPipeline Com Parent Context
 
+**Status:** ✅ Entregue em 2026-06-30 (`v3.4.0`).
+
 **Objetivo:** ingerir documentos e vault docs com chunks pequenos, citacoes e
 recuperacao do pai.
 
@@ -718,6 +720,57 @@ Aceite real:
 ```bash
 .venv/bin/python -m pytest tests/real/test_document_pipeline_markdown.py -q
 .venv/bin/python -m pytest tests/real/test_document_pipeline_pdf.py -q
+```
+
+Implementacao entregue:
+
+1. `core/document_pipeline.py` criado como pipeline canonico local-first.
+   Ele recebe `Path`, calcula `file_hash`, cria `document_id` estavel
+   (`doc-<sha16>`), grava o parent em `document_memories` e retorna
+   `IngestResult`.
+2. Parser Markdown por secoes implementado com offsets absolutos. Cada heading
+   vira contexto estrutural do chunk; textos longos sao quebrados por paragrafo
+   antes de cair para janela fixa.
+3. Parser texto/PDF/DOCX implementado:
+   - `.md`/`.markdown`: secoes por heading;
+   - `.txt`: chunk textual direto;
+   - `.pdf`: `pypdf` primeiro e `PyMuPDF` como fallback real; PDF sem texto gera
+     chunk fallback auditavel, sem perder parent/hash;
+   - `.docx`: `python-docx` quando instalado, mantendo compatibilidade com o
+     ingest legado.
+4. Adapter RAGFlow opcional criado como extensao operacional (`RAGFlowAdapter`).
+   O adapter expoe health via `integrations.ragflow.client.assert_health`, mas
+   nao vira fonte de verdade. A fonte canonica permanece UMC + `cerebro/`.
+5. `document_chunks` adicionado ao schema UMC normal e CRR-safe, com:
+   `id`, `document_id`, `parent_id`, `parent_type`, `source_uri`,
+   `chunk_index`, `heading`, `content`, `offset_start`, `offset_end`, `hash`,
+   `metadata`, `workspace_id`.
+6. Indexacao em `document_vectors` implementada via `SQLiteVecBackend`, usando
+   embedding real do `core.database.embed_text` e metadata canonica:
+   `parent_id`, `parent_type`, `brain_lobe=parietal`,
+   `knowledge_type=document_chunk`, `project`, `source_uri`, `hash`,
+   `valid_at`, `workspace_id`.
+7. Recuperacao por citacao implementada em `DocumentPipeline.query()`, retornando
+   `source_uri`, offsets, conteudo do chunk e parent com `id`, `type`,
+   `source_uri`, `file_hash` e metadata do documento.
+8. `scripts/knowledge/document_ingest.py` conectado ao K6: em banco real com
+   `sqlite-vec`, a ingestao PDF/DOCX passa pelo `DocumentPipeline` e tambem
+   preserva a observacao `document_ingest` para o Dream Cycle; em schemas
+   minimos de testes antigos sem `sqlite-vec`, cai no caminho legado.
+9. Idempotencia preservada: reingestao do mesmo arquivo substitui parent/chunks,
+   remove vetores antigos do documento e reindexa os chunks atuais.
+
+Evidencia de validacao:
+
+```bash
+.venv/bin/python -m pytest tests/real/test_document_pipeline_markdown.py tests/real/test_document_pipeline_pdf.py tests/real/test_document_ingest_pipeline.py -q
+# 3 passed
+
+.venv/bin/python -m pytest tests/unit/test_document_ingest.py -q
+# 8 passed
+
+./tests/run_all.sh
+# Smoke 19 passed; Unit 497 passed / 3 skipped; Integration 109 passed / 2 skipped; E2E 22 passed
 ```
 
 ---

@@ -582,6 +582,33 @@ def ensure_migrations(conn):
         ON vector_metadata(collection, workspace_id)
     """)
     conn.execute("""
+        CREATE TABLE IF NOT EXISTS document_chunks (
+            id TEXT PRIMARY KEY,
+            document_id TEXT NOT NULL,
+            parent_id TEXT NOT NULL,
+            parent_type TEXT NOT NULL DEFAULT 'document',
+            source_uri TEXT NOT NULL,
+            chunk_index INTEGER NOT NULL,
+            heading TEXT,
+            content TEXT NOT NULL,
+            offset_start INTEGER NOT NULL,
+            offset_end INTEGER NOT NULL,
+            hash TEXT NOT NULL,
+            metadata JSON,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            workspace_id TEXT NOT NULL DEFAULT 'default',
+            FOREIGN KEY(document_id) REFERENCES document_memories(id) ON DELETE CASCADE
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_document_chunks_document
+        ON document_chunks(document_id, chunk_index)
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_document_chunks_source
+        ON document_chunks(source_uri, offset_start, offset_end)
+    """)
+    conn.execute("""
         CREATE TABLE IF NOT EXISTS knowledge_candidates (
             id TEXT PRIMARY KEY,
             source_type TEXT NOT NULL,

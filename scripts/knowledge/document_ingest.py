@@ -17,6 +17,7 @@ SINAPSE_HOME = os.environ.get("SINAPSE_HOME", str(_HERE.parent.parent))
 sys.path.append(SINAPSE_HOME)
 
 from core.database import get_connection
+from core.document_pipeline import DocumentPipeline
 
 # Dependências opcionais
 try:
@@ -47,6 +48,30 @@ def extract_docx_text(path: Path) -> str:
         return "\n\n".join([p.text for p in doc.paragraphs]).strip()
     except Exception as e:
         return f"Erro ao ler DOCX: {e}"
+
+
+def _table_exists(conn, name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type IN ('table', 'virtual table') AND name = ?",
+        (name,),
+    ).fetchone()
+    return row is not None
+
+
+def _can_use_document_pipeline(conn) -> bool:
+    if _table_exists(conn, "vec_documents"):
+        return True
+    try:
+        conn.execute("SELECT vec_version()").fetchone()
+        return True
+    except Exception:
+        return False
+
+
+def _try_pipeline_ingest(conn, f_path: Path, *, project: str = "Hive-Mind"):
+    if not _can_use_document_pipeline(conn):
+        return None
+    return DocumentPipeline(conn).ingest(f_path, project=project)
 
 def run_ingestion():
     print("=== Hive-Mind: Ingestão de Documentos ===")
@@ -81,28 +106,34 @@ def run_ingestion():
             print(f"    [!] {content}")
             continue
 
-        # 3. Registrar na tabela document_memories
-        doc_id = f"doc-{file_hash[:12]}"
-        doc_metadata = {
-            "source": "document_ingest",
-            "original_name": f_path.name,
-            "ingested_at": datetime.now().isoformat()
-        }
-        conn.execute("""
-            INSERT OR REPLACE INTO document_memories (id, file_path, file_hash, metadata)
-            VALUES (?, ?, ?, ?)
-        """, (
-            doc_id,
-            str(f_path.name), # Guardamos o nome, o path real será em attachments/
-            file_hash,
-            json.dumps(doc_metadata)
-        ))
+        # 3. Registrar na tabela document_memories + chunks/vetores quando K6
+        # estiver disponivel. Testes antigos com schema minimo caem no legado.
+        pipeline_result = _try_pipeline_ingest(conn, f_path)
+        if pipeline_result is None:
+            doc_id = f"doc-{file_hash[:12]}"
+            doc_metadata = {
+                "source": "document_ingest",
+                "original_name": f_path.name,
+                "ingested_at": datetime.now().isoformat()
+            }
+            conn.execute("""
+                INSERT OR REPLACE INTO document_memories (id, file_path, file_hash, metadata)
+                VALUES (?, ?, ?, ?)
+            """, (
+                doc_id,
+                str(f_path.name), # Guardamos o nome, o path real será em attachments/
+                file_hash,
+                json.dumps(doc_metadata)
+            ))
+        else:
+            doc_id = pipeline_result.document_id
 
         # 4. Criar Observação no SQLite para o Dream Cycle
         obs_id = str(hashlib.sha256(f_path.name.encode()).hexdigest()[:8])
         metadata = {
             "source": "document_ingest",
             "file_hash": file_hash,
+            "document_id": doc_id,
             "original_name": f_path.name,
             "ingested_at": datetime.now().isoformat()
         }
@@ -162,21 +193,26 @@ def ingest_single_file(f_path: Path) -> bool:
         return False
 
     conn = get_connection()
-    doc_id = f"doc-{file_hash[:12]}"
-    doc_metadata = {
-        "source": "document_ingest",
-        "original_name": f_path.name,
-        "ingested_at": datetime.now().isoformat()
-    }
-    conn.execute("""
-        INSERT OR REPLACE INTO document_memories (id, file_path, file_hash, metadata)
-        VALUES (?, ?, ?, ?)
-    """, (doc_id, str(f_path.name), file_hash, json.dumps(doc_metadata)))
+    pipeline_result = _try_pipeline_ingest(conn, f_path)
+    if pipeline_result is None:
+        doc_id = f"doc-{file_hash[:12]}"
+        doc_metadata = {
+            "source": "document_ingest",
+            "original_name": f_path.name,
+            "ingested_at": datetime.now().isoformat()
+        }
+        conn.execute("""
+            INSERT OR REPLACE INTO document_memories (id, file_path, file_hash, metadata)
+            VALUES (?, ?, ?, ?)
+        """, (doc_id, str(f_path.name), file_hash, json.dumps(doc_metadata)))
+    else:
+        doc_id = pipeline_result.document_id
 
     obs_id = str(hashlib.sha256(f_path.name.encode()).hexdigest()[:8])
     metadata = {
         "source": "document_ingest",
         "file_hash": file_hash,
+        "document_id": doc_id,
         "original_name": f_path.name,
         "ingested_at": datetime.now().isoformat()
     }

@@ -182,6 +182,27 @@ CREATE TABLE IF NOT EXISTS document_memories (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS document_chunks (
+    id TEXT PRIMARY KEY NOT NULL DEFAULT '',
+    document_id TEXT NOT NULL DEFAULT '',
+    parent_id TEXT NOT NULL DEFAULT '',
+    parent_type TEXT NOT NULL DEFAULT 'document',
+    source_uri TEXT NOT NULL DEFAULT '',
+    chunk_index INTEGER NOT NULL DEFAULT 0,
+    heading TEXT,
+    content TEXT NOT NULL DEFAULT '',
+    offset_start INTEGER NOT NULL DEFAULT 0,
+    offset_end INTEGER NOT NULL DEFAULT 0,
+    hash TEXT NOT NULL DEFAULT '',
+    metadata JSON,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    workspace_id TEXT NOT NULL DEFAULT 'default'
+);
+CREATE INDEX IF NOT EXISTS idx_document_chunks_document
+    ON document_chunks(document_id, chunk_index);
+CREATE INDEX IF NOT EXISTS idx_document_chunks_source
+    ON document_chunks(source_uri, offset_start, offset_end);
+
 -- Phase HM-11: Causal Graph
 CREATE TABLE IF NOT EXISTS causal_edges (
     id TEXT PRIMARY KEY NOT NULL DEFAULT '',

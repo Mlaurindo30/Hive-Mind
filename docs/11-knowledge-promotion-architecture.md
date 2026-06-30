@@ -407,6 +407,24 @@ optional promotion to facts/learnings
 RAGFlow pode entrar como adapter/servico de ingestao, mas nao como fonte de
 verdade. A fonte de verdade continua sendo `cerebro/` e UMC.
 
+Contrato K6 implementado:
+
+- `DocumentPipeline.ingest(path, project)` grava um parent em
+  `document_memories` e chunks atomicos em `document_chunks`.
+- `document_chunks` preserva offsets absolutos (`offset_start`, `offset_end`),
+  `heading`, `source_uri`, `hash`, `workspace_id` e ponte de parent
+  (`parent_id`, `parent_type=document`).
+- Cada chunk entra em `document_vectors` pelo `VectorBackend`, com
+  `brain_lobe=parietal` e `knowledge_type=document_chunk`.
+- `DocumentPipeline.query(text)` retorna citacoes auditaveis:
+  `source_uri`, offsets, conteudo do chunk e parent com `file_hash` e metadata.
+- `scripts/knowledge/document_ingest.py` usa o pipeline quando o banco real
+  tem `sqlite-vec`; o caminho legado existe apenas para compatibilidade com
+  schemas minimos/testes antigos.
+- RAGFlow e usado como adapter/headless opcional (`integrations/ragflow/`),
+  nunca como fonte canonica. Qualquer output externo precisa ser normalizado
+  para `document_memories` + `document_chunks` + `document_vectors`.
+
 ---
 
 ## 11. RetrievalRouter Born-Large

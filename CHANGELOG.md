@@ -1,5 +1,34 @@
 # Changelog
 
+## v3.4.0 — K6 DocumentPipeline With Parent Context
+
+Release date: 2026-06-30
+
+### Added
+
+- Adds `core/document_pipeline.py` as the canonical K6 document ingestion
+  pipeline with parent records, structural chunks, offsets, hashes and
+  citation return.
+- Adds Markdown section chunking, plain text ingestion, real PDF parsing via
+  `pypdf`/`PyMuPDF`, and DOCX parsing via `python-docx`.
+- Adds `document_chunks` to the UMC schema and CRR-safe schema.
+- Indexes document chunks into `document_vectors` through `SQLiteVecBackend`
+  with canonical vector metadata.
+- Adds optional RAGFlow adapter health integration while keeping UMC as the
+  source of truth.
+- Connects `scripts/knowledge/document_ingest.py` to the K6 pipeline for real
+  PDF/DOCX ingestion while preserving legacy observation records.
+- Adds real K6 coverage for Markdown, PDF and the legacy ingest bridge.
+
+### Validation
+
+- `.venv/bin/python -m pytest tests/real/test_document_pipeline_markdown.py tests/real/test_document_pipeline_pdf.py tests/real/test_document_ingest_pipeline.py -q`:
+  3 passed.
+- `.venv/bin/python -m pytest tests/unit/test_document_ingest.py -q`:
+  8 passed.
+- `./tests/run_all.sh`: Smoke 19 passed; Unit 497 passed / 3 skipped;
+  Integration 109 passed / 2 skipped; E2E 22 passed.
+
 ## v3.3.0 — K5 Hierarchical Cadence
 
 Release date: 2026-06-29
