@@ -136,3 +136,30 @@ def search_neurons(conn, query: str, *, top_k: int = 10,
         logger.debug("HNSW semantic unavailable — falling back to full-text")
 
     return _text_search(conn, query, top_k=top_k, project=project)
+
+
+def route_retrieval(
+    conn,
+    query: str,
+    *,
+    top_k: int = 5,
+    project: Optional[str] = None,
+    workspace_id: str = "default",
+    intent: str | None = None,
+) -> dict:
+    """K7 adapter: route a query through RetrievalRouter from the search layer.
+
+    `search_neurons` remains the narrow neuron-search API. This adapter is the
+    central search-module entrypoint for callers that need the full K7 retrieval
+    path, citations, confidence and missing-context contract.
+    """
+    from core.retrieval.router import route_query
+
+    return route_query(
+        query,
+        conn=conn,
+        top_k=top_k,
+        project=project,
+        workspace_id=workspace_id,
+        intent=intent,  # type: ignore[arg-type]
+    )

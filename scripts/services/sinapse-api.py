@@ -141,7 +141,7 @@ if str(_ROOT) not in sys.path:
     sys.path.append(str(_ROOT))
 
 try:
-    from core.database import get_connection, query_hybrid, execute_insert
+    from core.database import get_connection, execute_insert
 except ImportError:
     raise RuntimeError("Core Hive-Mind não encontrado")
 
@@ -284,11 +284,20 @@ def post_observation(request: Request, body: Any = Body(...)):
 @app.post("/api/v1/query", dependencies=[Depends(verify_api_key)])
 @limiter.limit("30/minute")
 def post_query(request: Request, body: Any = Body(...)):
-    """Consulta híbrida protegida."""
+    """Consulta protegida via K7 RetrievalRouter."""
     try:
         data = body.dict() if hasattr(body, "dict") else dict(body)
-        results = query_hybrid(data.get("query", ""), limit=data.get("limit", 5))
-        return {"results": results}
+        from core.retrieval.router import route_query
+
+        routed = route_query(data.get("query", ""), top_k=int(data.get("limit", 5)))
+        return {
+            "results": routed.get("answer_context", []),
+            "retrieval_path": routed.get("retrieval_path", []),
+            "citations": routed.get("citations", []),
+            "confidence": routed.get("confidence", 0.0),
+            "missing_context": routed.get("missing_context", []),
+            "intent": routed.get("intent"),
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

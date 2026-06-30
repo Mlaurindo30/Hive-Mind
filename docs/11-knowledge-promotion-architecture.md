@@ -431,6 +431,15 @@ Contrato K6 implementado:
 
 Inspirado em LlamaIndex, implementado como contrato proprio.
 
+**Status K7 (v3.5.0, 2026-06-30):** entregue em
+`core/retrieval/router.py`. O router classifica intent, executa rotas
+especializadas, preserva fallback para `sinapse_query`/Context Fusion e retorna
+`retrieval_path`, `citations`, `confidence` e `missing_context` em todas as
+consultas. `core/search.py` expoe `route_retrieval()` como adaptador interno
+para callers que precisam do contrato K7 sem passar por MCP/API. LlamaIndex
+entra apenas como adapter opcional de rerank; nao decide rota nem vira fonte de
+verdade.
+
 ```text
 query
   |

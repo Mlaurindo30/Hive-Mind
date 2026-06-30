@@ -698,6 +698,100 @@ HIVE_SESSION_SUMMARIZER_PROVIDER=ollama HIVE_SESSION_SUMMARIZER_MODEL=qwen2.5:3b
 **Objetivo:** ingerir documentos e vault docs com chunks pequenos, citacoes e
 recuperacao do pai.
 
+**Por que este K existe:** K6 fecha a lacuna entre "arquivo lido" e
+"conhecimento recuperavel com prova". O sistema nao deve apenas salvar texto
+bruto: ele precisa preservar o documento-pai, dividir em chunks auditaveis,
+indexar em `document_vectors` e devolver citacoes que permitam reconstruir de
+onde a resposta veio.
+
+**Contrato operacional K6:**
+
+1. **Entrada canonica:** arquivo local ou vault doc recebido por
+   `DocumentPipeline.ingest(path, project, workspace_id?)`.
+2. **Parent document:** cada documento vira um registro em `document_memories`
+   com `document_id=doc-<sha16>`, `source_uri`, `file_hash`, metadata e
+   `workspace_id`.
+3. **Chunk atomico:** cada trecho vira `document_chunks`, sempre ligado ao pai
+   por `parent_id`/`parent_type=document`, com `chunk_index`, `heading`,
+   offsets absolutos, `hash` e metadata.
+4. **Vetor canonico:** cada chunk entra em `document_vectors` via
+   `VectorBackend`, usando o modelo canonico de embedding
+   `snowflake-arctic-embed2:latest` por padrao e metadados obrigatorios.
+5. **Recuperacao auditavel:** consulta documental deve devolver chunk,
+   `source_uri`, offsets, score e parent completo; nunca apenas texto solto.
+6. **RAGFlow headless:** RAGFlow pode ajudar em parsing/chunking/citacoes, mas
+   seu store e cache. Tudo que sobreviver precisa ser normalizado para UMC +
+   `document_vectors`.
+7. **Idempotencia:** reingestao do mesmo documento substitui parent/chunks e
+   remove vetores antigos daquele `document_id` antes de reindexar.
+
+**Fluxo de ingestao esperado:**
+
+```text
+arquivo/vault doc
+    -> parser especifico (.md/.txt/.pdf/.docx/RAGFlow opcional)
+    -> parent document em document_memories
+    -> chunks estruturais em document_chunks
+    -> embedding local
+    -> document_vectors
+    -> consulta com citacao + parent context
+```
+
+**Cobertura obrigatoria de edge cases:**
+
+- Markdown com multiplos headings deve preservar contexto estrutural.
+- Texto longo sem headings deve quebrar por paragrafo e depois por janela fixa.
+- PDF com texto deve usar parser real; PDF sem texto nao pode sumir, deve gerar
+  fallback auditavel.
+- DOCX deve funcionar quando `python-docx` estiver instalado e falhar de forma
+  clara quando a dependencia faltar.
+- Reingestao precisa provar que nao sobram chunks/vetores obsoletos.
+- Banco minimo antigo continua aceito apenas como compatibilidade; banco real
+  deve usar `document_chunks` + `document_vectors`.
+- `workspace_id`, `project`, `hash`, `source_uri` e parent metadata sao
+  obrigatorios para permitir sync futuro com Milvus e isolamento por workspace.
+
+> **Entregue (2026-06-30) — K6 DocumentPipeline local-first:**
+>
+> - [x] `core/document_pipeline.py` criado como pipeline canonico para
+>   documentos. Ele calcula `file_hash`, gera `document_id` estavel
+>   (`doc-<sha16>`), grava o parent em `document_memories` e retorna
+>   `IngestResult` auditavel.
+> - [x] Parser Markdown por secoes implementado: headings entram como contexto
+>   estrutural, offsets absolutos sao preservados, textos longos quebram por
+>   paragrafo antes de cair para janela fixa.
+> - [x] Parser texto/PDF/DOCX implementado com dependencias reais:
+>   `.md`/`.markdown`, `.txt`, `.pdf` via `pypdf` com fallback `PyMuPDF`, e
+>   `.docx` via `python-docx` quando instalado. PDF sem texto gera chunk
+>   fallback auditavel em vez de perder parent/hash.
+> - [x] Adapter RAGFlow opcional entregue em `integrations/ragflow/`. Ele expoe
+>   health operacional, mas nao vira fonte de verdade; UMC + `cerebro/`
+>   continuam canonicos.
+> - [x] Schema UMC recebeu `document_chunks` em caminho normal e CRR-safe,
+>   incluindo `document_id`, `parent_id`, `parent_type`, `source_uri`,
+>   `chunk_index`, `heading`, `offset_start`, `offset_end`, `hash`,
+>   `metadata` e `workspace_id`.
+> - [x] `document_vectors` integrado ao `SQLiteVecBackend`, com embedding real
+>   de `core.database.embed_text` e metadata canonica:
+>   `parent_id`, `parent_type`, `brain_lobe=parietal`,
+>   `knowledge_type=document_chunk`, `project`, `source_uri`, `hash`,
+>   `valid_at`, `workspace_id`.
+> - [x] Recuperacao por citacao entregue em `DocumentPipeline.query()`,
+>   retornando `source_uri`, offsets, conteudo do chunk e parent completo
+>   (`id`, `type`, `source_uri`, `file_hash`, metadata).
+> - [x] `scripts/knowledge/document_ingest.py` conectado ao pipeline novo:
+>   em banco real com `sqlite-vec`, PDF/DOCX passam pelo DocumentPipeline e
+>   ainda preservam a observation `document_ingest` para o Dream Cycle; schemas
+>   minimos antigos seguem pelo caminho legado.
+> - [x] Idempotencia garantida: reingestao do mesmo arquivo substitui parent e
+>   chunks, remove vetores antigos do documento e reindexa os chunks atuais.
+> - [x] Aceite real executado:
+>   `test_document_pipeline_markdown.py`,
+>   `test_document_pipeline_pdf.py`,
+>   `test_document_ingest_pipeline.py` -> 3 passed;
+>   `tests/unit/test_document_ingest.py` -> 8 passed;
+>   gate global `./tests/run_all.sh` verde.
+>
 Tasks:
 
 1. criar `core/document_pipeline.py`;
@@ -718,51 +812,6 @@ Conexoes:
 Aceite real:
 
 ```bash
-.venv/bin/python -m pytest tests/real/test_document_pipeline_markdown.py -q
-.venv/bin/python -m pytest tests/real/test_document_pipeline_pdf.py -q
-```
-
-Implementacao entregue:
-
-1. `core/document_pipeline.py` criado como pipeline canonico local-first.
-   Ele recebe `Path`, calcula `file_hash`, cria `document_id` estavel
-   (`doc-<sha16>`), grava o parent em `document_memories` e retorna
-   `IngestResult`.
-2. Parser Markdown por secoes implementado com offsets absolutos. Cada heading
-   vira contexto estrutural do chunk; textos longos sao quebrados por paragrafo
-   antes de cair para janela fixa.
-3. Parser texto/PDF/DOCX implementado:
-   - `.md`/`.markdown`: secoes por heading;
-   - `.txt`: chunk textual direto;
-   - `.pdf`: `pypdf` primeiro e `PyMuPDF` como fallback real; PDF sem texto gera
-     chunk fallback auditavel, sem perder parent/hash;
-   - `.docx`: `python-docx` quando instalado, mantendo compatibilidade com o
-     ingest legado.
-4. Adapter RAGFlow opcional criado como extensao operacional (`RAGFlowAdapter`).
-   O adapter expoe health via `integrations.ragflow.client.assert_health`, mas
-   nao vira fonte de verdade. A fonte canonica permanece UMC + `cerebro/`.
-5. `document_chunks` adicionado ao schema UMC normal e CRR-safe, com:
-   `id`, `document_id`, `parent_id`, `parent_type`, `source_uri`,
-   `chunk_index`, `heading`, `content`, `offset_start`, `offset_end`, `hash`,
-   `metadata`, `workspace_id`.
-6. Indexacao em `document_vectors` implementada via `SQLiteVecBackend`, usando
-   embedding real do `core.database.embed_text` e metadata canonica:
-   `parent_id`, `parent_type`, `brain_lobe=parietal`,
-   `knowledge_type=document_chunk`, `project`, `source_uri`, `hash`,
-   `valid_at`, `workspace_id`.
-7. Recuperacao por citacao implementada em `DocumentPipeline.query()`, retornando
-   `source_uri`, offsets, conteudo do chunk e parent com `id`, `type`,
-   `source_uri`, `file_hash` e metadata do documento.
-8. `scripts/knowledge/document_ingest.py` conectado ao K6: em banco real com
-   `sqlite-vec`, a ingestao PDF/DOCX passa pelo `DocumentPipeline` e tambem
-   preserva a observacao `document_ingest` para o Dream Cycle; em schemas
-   minimos de testes antigos sem `sqlite-vec`, cai no caminho legado.
-9. Idempotencia preservada: reingestao do mesmo arquivo substitui parent/chunks,
-   remove vetores antigos do documento e reindexa os chunks atuais.
-
-Evidencia de validacao:
-
-```bash
 .venv/bin/python -m pytest tests/real/test_document_pipeline_markdown.py tests/real/test_document_pipeline_pdf.py tests/real/test_document_ingest_pipeline.py -q
 # 3 passed
 
@@ -777,9 +826,63 @@ Evidencia de validacao:
 
 ### K7 — RetrievalRouter
 
+**Status:** ✅ Entregue em 2026-06-30 (`v3.5.0`).
+
 **Objetivo:** rotear consulta para temporal, memoria, documento, codigo, grafo
 ou hibrido, com caminho de recuperacao auditavel.
 
+> **Entregue (2026-06-30) — K7 RetrievalRouter auditavel:**
+>
+> - [x] `core/retrieval/router.py` criado com contrato proprio inspirado em
+>   LlamaIndex, sem esconder o roteamento. A saida sempre inclui:
+>   `answer_context`, `citations`, `retrieval_path`, `confidence` e
+>   `missing_context`.
+> - [x] Intents canonicas implementadas:
+>   `recent_activity`, `decision`, `learning`, `document`, `code`, `causal`,
+>   `multi_hop`, `visual`, `self_state`, `operational`, `sector`, `hybrid`.
+> - [x] Classificador explicito entregue: heuristica deterministica local como
+>   default e gancho opcional para o papel `topic_router` via
+>   `HIVE_RETRIEVAL_LLM_INTENT=1`. Se o classificador ficar incerto, cai em
+>   `hybrid`.
+> - [x] `sinapse_query` foi integrado ao router mantendo compatibilidade:
+>   Context Fusion continua sendo chamado e seus campos legados (`source`,
+>   `observations`, `nodes`, etc.) sao preservados; K7 anexa os campos
+>   auditaveis por cima.
+> - [x] Fluxo temporal integrado para atividade recente:
+>   `claude-mem /api/search` -> ids -> `/api/observations/batch` quando
+>   houver ids filtrados. Falha temporal nao derruba a query; vira
+>   `missing_context` e segue para fallback hibrido.
+> - [x] `VectorBackend` usado por colecao:
+>   via factory `get_vector_backend()` para respeitar `VECTOR_BACKEND`
+>   (`sqlite_vec` local-first ou Milvus quando configurado);
+>   `memory_vectors` para decisoes/aprendizados/operacional/setor/self-state,
+>   `document_vectors` para documentos com parent context,
+>   `code_vectors` + Graphify para codigo,
+>   `visual_vectors` para memoria visual,
+>   `graph_vectors` para causalidade quando Graphiti/LightRAG nao bastam.
+> - [x] Graphify, Graphiti e LightRAG integrados como rotas especificas:
+>   codigo usa Graphify estrutural, causal usa Graphiti + `graph_vectors`, e
+>   `multi_hop` usa LightRAG com fallback para `graph_vectors`.
+> - [x] Reranker opcional entregue via `integrations/llama_index/`: off por
+>   padrao (`local-min`), ativado por `HIVE_RETRIEVAL_RERANKER`. O adapter
+>   tem health proprio e reordena de forma deterministica/fail-open.
+> - [x] CLI/API/MCP conectados:
+>   `scripts/services/sinapse-write.py query`, `sinapse_query` no MCP e
+>   `POST /api/v1/query` passam pelo router. `core/search.py` expoe
+>   `route_retrieval()` para callers internos que precisam do contrato K7 sem
+>   chamar servico.
+> - [x] Golden set inicial entregue em `tests/real/golden_retrieval.jsonl`,
+>   cobrindo `intent_accuracy` minimo e casos de roteamento errado futuros.
+> - [x] Aceite real executado:
+>   `tests/real/test_retrieval_router_real.py` -> 3 passed;
+>   regressao MCP/CLI/API/K7 -> 29 passed / 1 skipped;
+>   comando de aceite `sinapse-write.py query "o que foi decidido sobre
+>   embeddings?"` saiu 0 e retornou `intent`, `retrieval_path`, `citations`,
+>   `confidence` e `missing_context`.
+> - [x] Gate global executado com `./tests/run_all.sh`:
+>   Smoke 19 passed; Unit 497 passed / 3 skipped; Integration 109 passed /
+>   2 skipped; E2E 22 passed.
+>
 Tasks:
 
 1. criar `core/retrieval/router.py`;
@@ -807,7 +910,16 @@ Aceite real:
 
 ```bash
 .venv/bin/python -m pytest tests/real/test_retrieval_router_real.py -q
+# 3 passed
+
+.venv/bin/python -m pytest tests/unit/test_sinapse_mcp.py tests/unit/test_sinapse_write_cli.py tests/integration/test_sinapse_api.py tests/real/test_retrieval_router_real.py -q
+# 29 passed, 1 skipped
+
 python3 scripts/services/sinapse-write.py query "o que foi decidido sobre embeddings?"
+# exit 0; retorna intent, retrieval_path, citations, confidence, missing_context
+
+./tests/run_all.sh
+# Smoke 19 passed; Unit 497 passed / 3 skipped; Integration 109 passed / 2 skipped; E2E 22 passed
 ```
 
 ---

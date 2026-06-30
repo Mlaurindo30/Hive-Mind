@@ -464,8 +464,17 @@ def _sinapse_query_with_diagnostics(query: str) -> dict:
     de erro estruturado para o chamador MCP entender (sem exception
     silenciosa).
     """
+    legacy_holder = {"result": None}
+
+    def _legacy_query(q: str):
+        if legacy_holder["result"] is None:
+            legacy_holder["result"] = sm._query_vault_knowledge(q)
+        return legacy_holder["result"]
+
     try:
-        result = sm._query_vault_knowledge(query)
+        from core.retrieval.router import route_query
+
+        routed = route_query(query, sinapse_query_fn=_legacy_query)
     except Exception as e:
         return {
             "source": "context-fusion",
@@ -474,15 +483,33 @@ def _sinapse_query_with_diagnostics(query: str) -> dict:
             "error": str(e),
             "error_type": type(e).__name__,
         }
-    if result is None:
+    legacy = legacy_holder["result"]
+    if legacy is None and not routed.get("answer_context"):
         return {
             "source": "context-fusion",
             "observations": [],
             "query": query,
             "error": "_query_vault_knowledge returned None (nenhum backend saudável)",
             "error_type": "BackendUnavailable",
+            "retrieval_path": routed.get("retrieval_path", []),
+            "citations": routed.get("citations", []),
+            "confidence": routed.get("confidence", 0.0),
+            "missing_context": routed.get("missing_context", []),
         }
-    return result
+    if isinstance(legacy, dict):
+        enriched = dict(legacy)
+        enriched.update({
+            "intent": routed.get("intent"),
+            "intent_confidence": routed.get("intent_confidence"),
+            "intent_reason": routed.get("intent_reason"),
+            "answer_context": routed.get("answer_context", []),
+            "citations": routed.get("citations", []),
+            "retrieval_path": routed.get("retrieval_path", []),
+            "confidence": routed.get("confidence", 0.0),
+            "missing_context": routed.get("missing_context", []),
+        })
+        return enriched
+    return routed
 
 
 def _capture_screen(description="", monitor=None):

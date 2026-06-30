@@ -116,7 +116,9 @@ def main():
             result = {"claude_mem_bridge": bridge_stats, **result}
         print(json.dumps(result, ensure_ascii=False, sort_keys=True))
     elif args.command == "query":
-        result = sm._query_vault_knowledge(args.text)
+        from core.retrieval.router import route_query
+
+        result = route_query(args.text, sinapse_query_fn=sm._query_vault_knowledge)
         print(json.dumps(result or {}, default=str, indent=2))
     elif args.command == "health":
         result = sm.health_check()

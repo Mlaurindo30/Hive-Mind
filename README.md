@@ -141,7 +141,7 @@ cross-cutting execution layer. Full anatomy: [`docs/01-architecture.md` §2](doc
 
 | Tool | Purpose |
 |------|---------|
-| `sinapse_query` | Unified hybrid search across all backends |
+| `sinapse_query` | RetrievalRouter query with audited path, citations and hybrid fallback |
 | `sinapse_save_decision` | Save a decision to the vault (`cortex/frontal/trabalho/ativo/`) |
 | `sinapse_save_learning` | Save a learning/insight to `cerebelo/padroes/Patterns.md` |
 | `sinapse_health` | Health of the 7 read-backends and auxiliary components |

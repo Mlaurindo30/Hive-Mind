@@ -1,5 +1,42 @@
 # Changelog
 
+## v3.5.0 — K7 RetrievalRouter
+
+Release date: 2026-06-30
+
+### Added
+
+- Adds `core/retrieval/router.py` with explicit query intents:
+  `recent_activity`, `decision`, `learning`, `document`, `code`, `causal`,
+  `multi_hop`, `visual`, `self_state`, `operational`, `sector` and `hybrid`.
+- Returns an auditable retrieval envelope with `answer_context`, `citations`,
+  `retrieval_path`, `confidence` and `missing_context`.
+- Routes recent activity through claude-mem temporal search/hydration, documents
+  through `document_vectors`, memory questions through `memory_vectors`, code
+  through `code_vectors` + Graphify, causal questions through Graphiti +
+  `graph_vectors`, and multi-hop questions through LightRAG.
+- Integrates the router into MCP `sinapse_query`, REST `/api/v1/query` and
+  `scripts/services/sinapse-write.py query` while preserving legacy
+  Context-Fusion fields for existing clients.
+- Adds `core.search.route_retrieval()` as the internal search-layer adapter for
+  callers that need the K7 envelope without going through MCP/REST.
+- Adds optional `integrations/llama_index/` reranker adapter, disabled by
+  default and fail-open.
+- Adds `tests/real/golden_retrieval.jsonl` for intent accuracy regression.
+
+### Validation
+
+- `.venv/bin/python -m pytest tests/real/test_retrieval_router_real.py -q`:
+  3 passed.
+- `.venv/bin/python -m pytest tests/unit/test_sinapse_mcp.py tests/unit/test_sinapse_write_cli.py tests/integration/test_sinapse_api.py tests/real/test_retrieval_router_real.py -q`:
+  29 passed, 1 skipped.
+- `python3 scripts/services/sinapse-write.py query "o que foi decidido sobre embeddings?"`:
+  exit 0 and returned K7 fields (`intent`, `retrieval_path`, `citations`,
+  `confidence`, `missing_context`).
+- `./tests/run_all.sh`:
+  Smoke 19 passed; Unit 497 passed / 3 skipped; Integration 109 passed /
+  2 skipped; E2E 22 passed.
+
 ## v3.4.0 — K6 DocumentPipeline With Parent Context
 
 Release date: 2026-06-30

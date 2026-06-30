@@ -1,0 +1,4 @@
+{"query":"o que foi decidido sobre embeddings snowflake?","expected_intent":"decision","expected_source_ids":["decision-embeddings-snowflake"]}
+{"query":"cite o documento sobre arquitetura de recuperacao","expected_intent":"document","expected_source_ids":["doc"]}
+{"query":"qual foi a ultima atividade do claude mem?","expected_intent":"recent_activity","expected_source_ids":[]}
+{"query":"qual a relacao entre Graphiti e LightRAG?","expected_intent":"multi_hop","expected_source_ids":[]}
