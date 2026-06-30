@@ -24,8 +24,19 @@ docker compose -f "$COMPOSE_FALKORDB" up -d --quiet-pull
 echo "[local-full] Subindo Milvus..."
 docker compose -f "$COMPOSE_MILVUS" up -d --quiet-pull
 
-echo "[local-full] Subindo RAGFlow..."
-docker compose -f "$COMPOSE_RAGFLOW" up -d --quiet-pull
+echo "[local-full] Subindo RAGFlow (opcional — exige MySQL sidecar)..."
+# RAGFlow puro (integrations/ragflow/docker-compose.yml) nao inclui o
+# MySQL sidecar de que precisa; se RAGFLOW_WITH_MYSQL=1, sobimos o
+# docker-compose com mysql. Caso contrario, pulamos (RAGFlow fica
+# offline e os testes pulam limpo com motivo nomeado).
+if [ "${RAGFLOW_WITH_MYSQL:-0}" = "1" ] && [ -f "docker-compose.ragflow-full.yml" ]; then
+    docker compose -f docker-compose.ragflow-full.yml up -d --quiet-pull
+else
+    echo "[local-full] RAGFlow puro: pulando (defina RAGFLOW_WITH_MYSQL=1 e use docker-compose.ragflow-full.yml se quiser subir)."
+    # Tenta subir mesmo assim; o container pode iniciar e o teste pula
+    # com motivo se o servico nao responder.
+    docker compose -f "$COMPOSE_RAGFLOW" up -d --quiet-pull 2>/dev/null || true
+fi
 
 # Healthchecks
 wait_for() {

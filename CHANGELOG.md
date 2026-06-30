@@ -49,6 +49,32 @@ Release date: 2026-06-30
   maquina de referencia; 40/53 (13 skipped por servico offline) na
   maquina do desenvolvedor sem docker.
 
+### Known Limitations (validado em 2026-06-30)
+
+- **CI bloqueado por billing**: a conta GH `Mlaurindo30` retornou
+  `account is locked due to a billing issue` em todos os runs do dia
+  (24 runs, todos com `conclusion=failure` em 2s). O job `real-suite`
+  adicionado em v3.7.3 nao pode ser exercitado em CI ate o billing
+  ser resolvido. Ate la, o caminho e rodar
+  `tests/run_real_knowledge_local_full.sh` localmente.
+- **RAGFlow exige MySQL+Elasticsearch**: o wrapper em
+  `integrations/ragflow/` nao embute o stack completo. Foi adicionado
+  `docker-compose.ragflow-full.yml` (MySQL sidecar), mas Elasticsearch
+  e Redis nao estao pinados. Sem o stack completo, RAGFlow nao
+  responde em `/api/v1/health` e os 5 testes RAGFlow pulam.
+- **`test_live_memory_and_observation_vectors_sync_to_milvus_with_bounded_real_batch`
+  falha em suite, passa isolado**: o `real_db` fixture
+  (com `monkeypatch.setattr(db, "DB_PATH", ...)`) deixa `db.DB_PATH`
+  apontando para um `tmp_path/hive_mind.db` apos o teste que usou a
+  fixture. O test_live_e2e confia em `db.DB_PATH` apontando para o
+  banco real e por isso `search_vec JOIN neurons` retorna 0 rows.
+  Bug pre-existente (existe antes de v3.7.3) — registrado para
+  triage. Validado isolado: PASSED em 47.39s.
+- **Cobertura local validada (2026-06-30) com FalkorDB+Milvus via
+  docker compose**:
+  47 passed / 5 skipped (RAGFlow) / 1 failed (bug pre-existente).
+  Resultado bruto: 53 collected em 251.85s.
+
 ## v3.7.2 — K9 FalkorDB & RAGFlow Fixtures + Secao 10 Estado Real
 
 Release date: 2026-06-30

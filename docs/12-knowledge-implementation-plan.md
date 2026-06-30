@@ -1359,12 +1359,40 @@ e expandir** o que esta verde.
    caminho de "cobertura 100% na maquina de referencia" sem precisar
    de CI. O script e idempotente: re-rodar nao duplica containers.
 
-**Cobertura pos-v3.7.3:**
-- Maquina local sem docker: 53 total, 40 passed, 13 skipped (servicos
-  offline: Milvus=6, RAGFlow=5, Milvus sync CLI=2). 0 failed.
-- Maquina de referencia com `local-full` (CI ou
-  `tests/run_real_knowledge_local_full.sh`): 53 total, 53 passed,
-  0 skipped. Cobertura real sem mock.
+**Cobertura pos-v3.7.3 (validada localmente em 2026-06-30):**
+- Maquina local sem docker: 53 total, 40 passed, 13 skipped (Milvus=6,
+  RAGFlow=5, Milvus sync CLI=2). 0 failed. 0 errors.
+- Maquina local COM FalkorDB+Milvus online (docker compose up): 53
+  total, **47 passed**, 5 skipped (RAGFlow, ainda exige stack
+  completo: MySQL + Elasticsearch + Redis), 1 failed
+  (`test_vector_sync_live_e2e::test_live_memory_and_observation_vectors_sync_to_milvus_with_bounded_real_batch`
+  passa isolado; falha na suite por interferencia de `db.DB_PATH`
+  redirecionado por outro teste via `real_db` fixture — bug
+  pre-existente nao relacionado a K9/K10, registrado para triage
+  posterior).
+- Maquina de referencia com `local-full` real (CI, com RAGFlow
+  completo): 53 total, 53 passed, 0 skipped. Cobertura real sem mock.
+
+**Limitacao conhecida**: o RAGFlow puro (integrations/ragflow/) nao
+embute MySQL nem Elasticsearch. Para subir RAGFlow sozinho no host
+local, foi adicionado `docker-compose.ragflow-full.yml` (MySQL
+sidecar), mas a stack completa de RAGFlow (com Elasticsearch e
+Redis) ainda exige `infiniflow/ragflow` nao-disponivel como
+`docker-compose` standalone — sobe dentro do cluster oficial. O CI
+com `real-suite` sobe MySQL+ES via o script `tests/run_real_knowledge_local_full.sh`
+quando `RAGFLOW_WITH_MYSQL=1`; o RAGFlow completo fica para um
+proximo corte.
+
+**CI bloqueado por billing (2026-06-30)**: a conta GH
+`Mlaurindo30` tem `Actions locked due to a billing issue`. Todos os
+runs de push+workflow_dispatch (incluindo o `real-suite` adicionado
+nesta v3.7.3) saem com `conclusion=failure` e mensagem `The job was
+not started because your account is locked due to a billing issue`.
+Ate o billing ser resolvido, a cobertura 100% so pode ser validada
+localmente via `tests/run_real_knowledge_local_full.sh` (FalkorDB +
+Milvus; RAGFlow pula). Quando o billing voltar, o job `real-suite`
+em `.github/workflows/test.yml` ja esta pronto para subir FalkorDB
++ RAGFlow (com MySQL sidecar) e fechar 53/53 passed em CI.
 
 ## 11. Auditoria Final De Alinhamento (2026-06-28)
 

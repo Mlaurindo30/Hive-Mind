@@ -1,0 +1,50 @@
+# RAGFlow + MySQL sidecar para gate K9 local-full.
+# O RAGFlow puro em integrations/ragflow/ nao embute o MySQL de que
+# precisa; este compose adiciona o sidecar oficial e referencia o
+# wrapper pinado por digest. Use:
+#   RAGFLOW_WITH_MYSQL=1 ./tests/run_real_knowledge_local_full.sh
+services:
+  ragflow-mysql:
+    image: mysql:8.0.33
+    container_name: hive-mind-ragflow-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ragflow
+      MYSQL_DATABASE: rag_flow
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ragflow-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pragflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+  ragflow:
+    image: infiniflow/ragflow:v0.26.1@sha256:1281817d496e25d3d9fca55df8a6b195e056fd467a2030ec950bbb654df0f362
+    container_name: hive-mind-ragflow
+    depends_on:
+      ragflow-mysql:
+        condition: service_healthy
+    ports:
+      - "${RAGFLOW_PORT:-9380}:9380"
+    environment:
+      RAGFLOW_HOST: 0.0.0.0
+      RAGFLOW_PORT: 9380
+      MYSQL_HOST: ragflow-mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: ragflow
+      MYSQL_DATABASE: rag_flow
+    volumes:
+      - ragflow-data:/ragflow
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9380/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 120s
+
+volumes:
+  ragflow-data:
+  ragflow-mysql-data:
