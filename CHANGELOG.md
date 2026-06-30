@@ -1,5 +1,36 @@
 # Changelog
 
+## v3.7.1 — Role Config Hotfix
+
+Release date: 2026-06-30
+
+### Fixed
+
+- Keeps `graphiti` and `lightrag` roles on local Ollama instead of
+  inheriting the Dreamer provider. Without this shortcut, when the
+  Dreamer is configured as `antigravity` or any Gemini-tier provider,
+  `get_role_config("graphiti")` returned the Dreamer config and the
+  Graphiti / LightRAG workers would either burn Antigravity quota or
+  fail with the wrong model.
+- Honors `HIVE_GRAPHITI_MODEL` / `HIVE_LIGHTRAG_MODEL` env vars; falls
+  back to `qwen2.5:3b` when unset. Provider is forced to `ollama` and
+  fallback chain is `None` for both roles — they are local-only by
+  design.
+
+### Validation
+
+- `.venv/bin/python -m pytest tests/unit/test_role_config.py -v`:
+  9 passed (incl. the new
+  `test_local_extraction_roles_should_not_inherit_dreamer`).
+- `.venv/bin/python -m pytest tests/unit -q`: 497 passed, 3 skipped
+  (no regressions vs v3.7.0).
+- Runtime probe with `HIVE_DREAMER_PROVIDER=antigravity` and
+  `HIVE_GRAPHITI_MODEL=qwen2.5:7b`:
+  - `get_role_config("graphiti")` -> `provider=ollama, model=qwen2.5:7b`
+  - `get_role_config("lightrag")` -> `provider=ollama, model=qwen2.5:3b`
+  - `get_role_config("dreamer")`  -> `provider=antigravity, model=gemini-3.5-flash`
+  (and other roles still inherit Dreamer as expected).
+
 ## v3.7.0 — K9 Test Harness Real Sem Mocks + K10 Installer E Maquina Zerada
 
 Release date: 2026-06-30

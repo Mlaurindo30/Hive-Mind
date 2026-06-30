@@ -473,6 +473,25 @@ def get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]:
         raise ValueError("Papel de LLM inválido: informe um nome não vazio (ex.: 'dreamer').")
     key = role.strip().upper().replace("-", "_")
 
+    # Papéis locais de extração não participam da máquina provider/fallback.
+    # O setup-brain grava apenas HIVE_{ROLE}_MODEL e os clientes usam Ollama
+    # local diretamente. Sem este atalho, diagnósticos e agentes viam estes
+    # papéis herdando o Dreamer, embora o runtime seja local.
+    local_defaults = {
+        "GRAPHITI": "qwen2.5:3b",
+        "LIGHTRAG": "qwen2.5:3b",
+    }
+    if key in local_defaults:
+        model = (os.environ.get(f"HIVE_{key}_MODEL") or local_defaults[key]).strip()
+        return {
+            "provider": "ollama",
+            "model": model,
+            "fallback_provider": None,
+            "fallback_model": None,
+            "fallback2_provider": None,
+            "fallback2_model": None,
+        }
+
     # Papel fora do conjunto canônico herda do Dreamer silenciosamente — um
     # typo ("graphfy") passaria despercebido. Avisa sem bloquear.
     if key.lower() not in HIVE_LLM_ROLES:

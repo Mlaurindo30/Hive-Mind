@@ -308,3 +308,38 @@ class TestGetRoleConfig:
         for role in ("dreamer", "graphify", "vision", "synthesis"):
             cfg = get_role_config_fn(role)
             assert cfg is not None, f"Role '{role}' retornou None com Dreamer configurado"
+
+    def test_local_extraction_roles_should_not_inherit_dreamer(
+        self, get_role_config_fn, monkeypatch
+    ):
+        """
+        Graphiti e LightRAG são papéis Ollama-only configurados por
+        HIVE_GRAPHITI_MODEL/HIVE_LIGHTRAG_MODEL. Eles não devem herdar
+        Antigravity/Gemini/Dreamer.
+        """
+        monkeypatch.setenv("HIVE_DREAMER_PROVIDER", "antigravity")
+        monkeypatch.setenv("HIVE_DREAMER_MODEL", "gemini-3.5-flash")
+        monkeypatch.setenv("HIVE_DREAMER_FALLBACK_PROVIDER", "gemini-cli")
+        monkeypatch.setenv("HIVE_DREAMER_FALLBACK_MODEL", "gemini-3.1-flash-lite")
+        monkeypatch.setenv("HIVE_GRAPHITI_MODEL", "qwen2.5:7b")
+        monkeypatch.delenv("HIVE_LIGHTRAG_MODEL", raising=False)
+
+        graphiti = get_role_config_fn("graphiti")
+        lightrag = get_role_config_fn("lightrag")
+
+        assert graphiti == {
+            "provider": "ollama",
+            "model": "qwen2.5:7b",
+            "fallback_provider": None,
+            "fallback_model": None,
+            "fallback2_provider": None,
+            "fallback2_model": None,
+        }
+        assert lightrag == {
+            "provider": "ollama",
+            "model": "qwen2.5:3b",
+            "fallback_provider": None,
+            "fallback_model": None,
+            "fallback2_provider": None,
+            "fallback2_model": None,
+        }
