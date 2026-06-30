@@ -1,5 +1,54 @@
 # Changelog
 
+## v3.7.5 — K9/K10 Final Acceptance Hardening
+
+Release date: 2026-06-30
+
+### Changed
+
+- K10 `install.sh --with-real-tests` agora falha fechado quando
+  `tests/run_real_knowledge.sh` retorna exit diferente de zero. O gate K9
+  deixa de ser aviso operacional quando o caller pediu validação real.
+- O instalador ficou idempotente em reexecução: copia `bun` por arquivo
+  temporário + rename atômico, preserva checkout Graphify sujo em bootstrap
+  não estrito e reconstrói HNSW após backfill de vetores canônicos ausentes.
+- O instalador K10 passa a baixar `glm-ocr:latest` como modelo local leve
+  para Vision/OCR, além de `snowflake-arctic-embed2`, `qwen2.5:3b` e
+  `qwen2.5-coder:3b`.
+- `.env.example` passa a documentar Vision local em
+  `ollama/glm-ocr:latest`, evitando o default pesado `llava:7b` que pode
+  estourar VRAM em hosts menores.
+- Wrappers `integrations.ragflow` e `integrations.milvus` agora exportam
+  suas APIs públicas via `__init__.py`, cobrindo os imports usados pelas
+  fixtures reais K9.
+- `scripts/setup/audit_test_layering.py` foi limpo para apontar direto para
+  o relatório versionado `docs/reports/k9/test-layering-audit.md`.
+- `tests/real/test_cadence_real.py` não vaza mais `core.database.DB_PATH`,
+  corrigindo o gate live Milvus quando a suíte real roda completa.
+- `docs/12-knowledge-implementation-plan.md` foi alinhado ao contrato real:
+  K9 com relatório fresco, K10 fail-closed sob `--with-real-tests`, modelo
+  Vision local leve e auditoria pós-v3.7.5.
+
+### Validation
+
+- `./tests/run_real_knowledge.sh --report=docs/reports/k9-real-suite-report.md`:
+  53 collected, 48 passed, 5 skipped, 0 failed, 0 errors in 221.06s
+  (Milvus online; remaining skips are RAGFlow offline/container conflict).
+- `./install.sh --profile=local-full --with-real-tests --non-interactive`:
+  exit 0; internal K9 report in `logs/k9-real-suite-report.md` with
+  48 passed, 5 skipped, 0 failed in 333.54s; final install report in
+  `logs/install-report.md`.
+- `.venv/bin/python scripts/setup/audit_test_layering.py --strict`:
+  20 real tests with `real` marker, 0 real tests with mocks, 0
+  unit/integration tests with `real`.
+- `./tests/run_all.sh`:
+  Smoke 19 passed; Unit 497 passed / 3 skipped; Integration 111 passed /
+  2 skipped; E2E 22 passed.
+- Targeted regression:
+  `tests/unit/test_sinapse_write_cli.py::TestSinapseWriteCLI::test_health_command`
+  passed, and Vision real fallback/direct tests passed with
+  `glm-ocr:latest`.
+
 ## v3.7.3 — K9 Namespace-per-test FalkorDB + RAGFlow Upload/List
 
 Release date: 2026-06-30

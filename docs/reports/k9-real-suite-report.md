@@ -6,9 +6,9 @@
 | Metrica | Valor |
 |---|---:|
 | total | 53 |
-| passed | 40 |
+| passed | 48 |
 | failed | 0 |
 | errors | 0 |
-| skipped | 13 |
+| skipped | 5 |
 
 _Skips = servicos nomeados em `requires_service` que estao offline (intencional)._

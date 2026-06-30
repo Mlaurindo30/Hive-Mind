@@ -14,25 +14,36 @@ if str(ROOT) not in sys.path:
 
 from core.database import get_connection
 from core.hnsw_index import rebuild_from_vectors
+from core.indexing import index_neuron_ids
 
 
 def build(conn) -> int:
-    rows = conn.execute(
+    def _load_vectors() -> dict[str, list[float]]:
+        rows = conn.execute(
         "SELECT neuron_id, embedding FROM search_vec"
-    ).fetchall()
-    vectors = {
-        row["neuron_id"]: list(
-            struct.unpack(f"{len(row['embedding']) // 4}f", row["embedding"])
-        )
-        for row in rows
-    }
+        ).fetchall()
+        return {
+            row["neuron_id"]: list(
+                struct.unpack(f"{len(row['embedding']) // 4}f", row["embedding"])
+            )
+            for row in rows
+        }
+
+    vectors = _load_vectors()
     if not vectors:
         raise RuntimeError("search_vec is empty; graph/vector indexing must run first")
 
     neuron_rows = conn.execute("SELECT id FROM neurons ORDER BY id").fetchall()
     missing = [row["id"] for row in neuron_rows if row["id"] not in vectors]
     if missing:
-        raise RuntimeError(f"{len(missing)} neurons are missing canonical vectors")
+        indexed = index_neuron_ids(conn, missing)
+        vectors = _load_vectors()
+        missing = [row["id"] for row in neuron_rows if row["id"] not in vectors]
+        if missing:
+            raise RuntimeError(
+                f"{len(missing)} neurons are missing canonical vectors after backfill "
+                f"(indexed={indexed})"
+            )
 
     ordered_vectors = {row["id"]: vectors[row["id"]] for row in neuron_rows}
     return rebuild_from_vectors(conn, ordered_vectors)

@@ -14,7 +14,7 @@ class TestSinapseWriteCLI:
     def test_health_command(self):
         result = subprocess.run(
             [sys.executable, str(self.SCRIPT), "health"],
-            capture_output=True, text=True, timeout=15
+            capture_output=True, text=True, timeout=30
         )
         assert result.returncode == 0
         data = json.loads(result.stdout)

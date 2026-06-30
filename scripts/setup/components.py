@@ -84,7 +84,7 @@ def patch_is_applied(target: Path, patch: Path) -> bool:
     )
 
 
-def apply_component_patch(name: str, spec: dict) -> None:
+def apply_component_patch(name: str, spec: dict, *, strict: bool = True) -> None:
     patch = component_patch(spec)
     if patch is None:
         return
@@ -96,6 +96,13 @@ def apply_component_patch(name: str, spec: dict) -> None:
     if not succeeds(
         "git", "apply", "--unidiff-zero", "--check", str(patch), cwd=target
     ):
+        if not strict and is_dirty(target):
+            print(
+                f"[components] WARNING {name}: pinned patch does not apply to "
+                f"dirty checkout at {head(target)}; preserving existing checkout",
+                file=sys.stderr,
+            )
+            return
         raise SystemExit(
             f"{name}: pinned patch does not apply to commit {head(target)}"
         )
@@ -141,7 +148,7 @@ def bootstrap(args: argparse.Namespace) -> int:
                 raise SystemExit(message)
             print(f"[components] WARNING {message}; preserving existing checkout", file=sys.stderr)
         else:
-            apply_component_patch(name, spec)
+            apply_component_patch(name, spec, strict=args.strict)
     return 0
 
 

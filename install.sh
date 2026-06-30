@@ -119,8 +119,10 @@ if command -v bun &>/dev/null; then
     mkdir -p "$TOOLS_DIR"
     BUN_SOURCE="$(command -v bun)"
     if [ "$BUN_SOURCE" != "$TOOLS_DIR/bun" ]; then
-        cp "$BUN_SOURCE" "$TOOLS_DIR/bun"
-        chmod 0755 "$TOOLS_DIR/bun"
+        BUN_TMP="$TOOLS_DIR/bun.$$"
+        cp "$BUN_SOURCE" "$BUN_TMP"
+        chmod 0755 "$BUN_TMP"
+        mv -f "$BUN_TMP" "$TOOLS_DIR/bun"
     fi
     BUN_BIN="$TOOLS_DIR/bun"
 else
@@ -142,6 +144,7 @@ fi
 # - snowflake-arctic-embed2 embeddings 1024d (core/database.py, LightRAG, Graphiti)
 # - qwen2.5:3b        extração de entidades Graphiti + LightRAG (default novo)
 # - qwen2.5-coder:3b  extração semântica do Graphify
+# - glm-ocr:latest    visão/OCR local leve para Deep Portal e testes vision
 # Opcional (gate SINAPSE_PULL_QWEN7B=1): qwen2.5:7b para o Graphiti local de
 # alta qualidade (HIVE_GRAPHITI_MODEL=qwen2.5:7b). ~4.7GB, exige folga de VRAM.
 if $OLLAMA_OK; then
@@ -158,6 +161,7 @@ if $OLLAMA_OK; then
     ollama_pull_if_missing "snowflake-arctic-embed2" "embeddings 1024d"
     ollama_pull_if_missing "qwen2.5:3b"       "extração Graphiti/LightRAG"
     ollama_pull_if_missing "qwen2.5-coder:3b" "extração Graphify"
+    ollama_pull_if_missing "glm-ocr:latest"   "visão/OCR local leve"
     if [ "${SINAPSE_PULL_QWEN7B:-0}" = "1" ] || [ "${HIVE_GRAPHITI_MODEL:-}" = "qwen2.5:7b" ]; then
         ollama_pull_if_missing "qwen2.5:7b"   "Graphiti local alta qualidade"
     else
@@ -781,13 +785,15 @@ fi
 if $WITH_REAL_TESTS; then
     echo -e "${BOLD}Executando suite real de conhecimento (K9) — backends reais, sem mock...${NC}"
     if [ -x "$PROJECT_ROOT/tests/run_real_knowledge.sh" ]; then
-        if "$PROJECT_ROOT/tests/run_real_knowledge.sh" 2>&1 | tail -40; then
+        if "$PROJECT_ROOT/tests/run_real_knowledge.sh" --report "$PROJECT_ROOT/logs/k9-real-suite-report.md" 2>&1 | tail -40; then
             echo -e "  ${GREEN}OK${NC} suite real de conhecimento executada"
         else
-            echo -e "  ${YELLOW}WARN${NC} suite real retornou !=0 (algum servico pode estar offline)"
+            echo -e "  ${RED}ERRO${NC} suite real retornou !=0; corrija o gate K9 antes de considerar o install valido"
+            exit 1
         fi
     else
-        echo -e "  ${YELLOW}WARN${NC} tests/run_real_knowledge.sh nao encontrado/exequivel"
+        echo -e "  ${RED}ERRO${NC} tests/run_real_knowledge.sh nao encontrado/exequivel"
+        exit 1
     fi
     echo ""
 fi
@@ -852,7 +858,8 @@ for m in data.get("models", []):
     echo "## Validacao real (K9)"
     echo ""
     if $WITH_REAL_TESTS; then
-        echo "- \`./tests/run_real_knowledge.sh\` executado — ver saida acima."
+        echo "- \`./tests/run_real_knowledge.sh --report logs/k9-real-suite-report.md\` executado com exit 0."
+        echo "- Relatorio K9: \`logs/k9-real-suite-report.md\`."
     else
         echo "- Pule \`--with-real-tests\` para rodar a suite real de conhecimento."
         echo "- Comando: \`./tests/run_real_knowledge.sh\`"
@@ -905,6 +912,7 @@ echo -e "  ${BOLD}Ollama (modelos — baixados automaticamente acima quando dete
 echo -e "         ollama pull snowflake-arctic-embed2 # Embeddings 1024d (core/LightRAG/Graphiti)"
 echo -e "         ollama pull qwen2.5:3b           # Extração Graphiti + LightRAG (~1.9GB)"
 echo -e "         ollama pull qwen2.5-coder:3b     # Extração semântica do Graphify"
+echo -e "         ollama pull glm-ocr:latest       # Visão/OCR local leve"
 echo -e "         ollama pull qwen2.5:7b           # Graphiti local alta qualidade (opcional, ~4.7GB)"
 echo -e "         ollama pull nomic-embed-text     # Embeddings leve (alternativo)"
 echo ""

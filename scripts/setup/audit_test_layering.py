@@ -9,9 +9,9 @@ Saída:
 - exit 0 + relatório com ofensores = informativo (não bloqueia CI).
 - exit 1 = uso errado do script (ver --help).
 
-Por padrão, escreve um relatório em
-`cerebro/cortex/insula/saude/test-layering-audit.md` e imprime um resumo
-no stdout. Use `--strict` para falhar quando:
+Por padrão, escreve um relatório versionado em
+`docs/reports/k9/test-layering-audit.md` e imprime um resumo no stdout.
+Use `--strict` para falhar quando:
   - `tests/real/` usar MagicMock/@patch; ou
   - `tests/unit/` usar `@pytest.mark.real` (vazou para o lado errado).
 """
@@ -25,9 +25,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-REPORTS = ROOT / "cerebro" / "cortex" / "insulsa"  # fallback se pasta errada
-# Caminho canônico versionado para o relatório de auditoria (consistente
-# com docs/reports/). Ainda escreve no saude/ se o caller passar --report.
 REPORTS = ROOT / "docs" / "reports" / "k9"
 
 MOCK_RE = re.compile(r"\b(MagicMock|@patch\b|@mock\b|from unittest\.mock import.*Mock\b)")

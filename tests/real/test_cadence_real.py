@@ -94,7 +94,7 @@ def _env(home: Path) -> dict[str, str]:
 
 @pytest.mark.real
 @pytest.mark.requires_service("ollama")
-def test_monthly_and_yearly_synthesizers_write_cerebelo_and_summary_vectors(tmp_path):
+def test_monthly_and_yearly_synthesizers_write_cerebelo_and_summary_vectors(tmp_path, monkeypatch):
     home = _seed_tmp_hive(tmp_path)
     env = _env(home)
 
@@ -138,7 +138,7 @@ def test_monthly_and_yearly_synthesizers_write_cerebelo_and_summary_vectors(tmp_
 
     import core.database as db
     from core.vector_backend import SQLiteVecBackend
-    db.DB_PATH = str(home / "hive_mind.db")
+    monkeypatch.setattr(db, "DB_PATH", str(home / "hive_mind.db"))
     conn = db.get_connection()
     try:
         db.ensure_migrations(conn)

@@ -1,6 +1,6 @@
 # Test Layering Audit
 
-_Generated_: `2026-06-30T21:19:06Z`
+_Generated_: `2026-06-30T23:24:41Z`
 _Source_: `scripts/setup/audit_test_layering.py`
 _Spec_: `docs/12-knowledge-implementation-plan.md` §K9 task 6
 
