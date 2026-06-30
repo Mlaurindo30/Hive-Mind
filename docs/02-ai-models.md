@@ -1,7 +1,7 @@
 # 02 — Modelos de IA e Provedores
 
 > **Hive-Mind v3.0.0** — Modelos, embeddings, provedores do Hive-Dreamer e cadeia de fallback.
-> Última revisão: 2026-06-27 · Embeddings 1024d snowflake-arctic-embed2 · LightRAG granite3-dense:2b (P4)
+> Última revisão: 2026-06-30 · Embeddings 1024d snowflake-arctic-embed2 · LightRAG qwen2.5:3b (P4)
 
 ---
 
@@ -174,15 +174,15 @@ LightRAG (HKUDS/EMNLP 2025) é o **segundo extrator** ao lado do Graphify: enqua
   MCP: retorna entidades + relações + chunks relevantes
 ```
 
-**Modelo LLM do LightRAG (FIXO por design):**
+**Modelo LLM do LightRAG (local por design):**
 | Modelo | Provider | Justificativa |
 |--------|----------|---------------|
-| `granite3-dense:2b` | Ollama local | 1.5 GB · cabe em qualquer máquina · especializado em RAG/extração · JSON schema confiável (4/4 entities + 3/3 rels em teste live) |
+| `qwen2.5:3b` | Ollama local | ~1.9 GB · multilíngue PT/EN · extrai entidades/relações de prosa melhor que `granite3-dense:2b` nos testes reais · cabe junto do embedder 1024d em máquina local de dev |
 
-- Sem fallback: se o `granite3-dense:2b` falhar, o `index_memory` retorna `False` e o Dream Cycle segue.
-- Sem UI de troca no `setup-brain.sh`: o modelo é fixo em `core/lightrag_index.py:_LIGHTRAG_CHAT_MODEL`.
-- `.env` (`HIVE_LIGHTRAG_MODEL`) sobrescreve apenas para debug/dev, não para produção.
-- `install.sh` adiciona `ollama pull granite3-dense:2b` na nota pós-instalação.
+- Sem fallback remoto: se o modelo Ollama local falhar, o `index_memory` retorna `False` e o Dream Cycle segue.
+- Com UI de troca no `setup-brain.sh`: menu `Extração local (Graphiti/LightRAG)` grava `HIVE_LIGHTRAG_MODEL`.
+- `.env` (`HIVE_LIGHTRAG_MODEL`) sobrescreve o default para dev/producao local; `qwen2.5:7b` pode ser usado em máquinas com mais VRAM.
+- `install.sh` baixa `qwen2.5:3b` como modelo local pequeno suficiente para Graphiti/LightRAG.
 
 **Modo de query (`sinapse_rag_query`):**
 | Mode | Comportamento |
@@ -197,7 +197,7 @@ LightRAG (HKUDS/EMNLP 2025) é o **segundo extrator** ao lado do Graphify: enqua
 - KNN: similaridade semântica entre query e documento (não entende estrutura relacional)
 - LightRAG: entende **relações** — "quem criou X?", "que ferramentas Y usa?", "qual a relação entre A e B?"
 
-**Validação:** commit `fe68300` confirma que 4 entities + 3 relationships são extraídos corretamente de uma frase simples com o `granite3-dense:2b` (campos `entity_name`, `entity_type`, `entity_description`, `source_entity`, `target_entity`, `relationship_keywords`, `relationship_description` todos preenchidos, sem alucinação).
+**Validação:** os testes reais atuais usam `qwen2.5:3b` por padrão em `core/lightrag_index.py`, com schema estruturado (`name`, `type`, `description`, `source`, `target`, `keywords`) para evitar entidades vazias e relações sem descrição.
 
 ---
 
@@ -240,8 +240,8 @@ Os pesos das arestas (24 tipos de relações) foram definidos baseados em psicol
 
 | Cenário | Graphify (código) | LightRAG (texto) | Embeddings | Dream Cycle | Recall |
 |---------|-------------------|------------------|-----------|-----------|--------|
-| Cloud (API keys) | Gemini 2.5 Flash | Granite 3 Dense 2b (local) | snowflake-arctic-embed2 (local) | Provider configurado | Spreading Activation |
-| Local (Ollama) | Qwen 2.5 Coder 3B | Granite 3 Dense 2b (local) | snowflake-arctic-embed2 (local) | Ollama configurado | Spreading Activation |
+| Cloud (API keys) | Provider configurado | Qwen 2.5 3B (local) | snowflake-arctic-embed2 (local) | Provider configurado | Spreading Activation |
+| Local (Ollama) | Qwen 2.5 Coder 3B | Qwen 2.5 3B (local) | snowflake-arctic-embed2 (local) | Ollama configurado | Spreading Activation |
 | Offline (sem Ollama) | tree-sitter + regex | Indisponível (best-effort) | Indisponível | Indisponível | Spreading Activation |
 | Mínimo (sem Python) | Indisponível | Indisponível | Indisponível | Indisponível | Indisponível |
 

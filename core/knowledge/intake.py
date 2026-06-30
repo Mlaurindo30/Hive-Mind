@@ -287,6 +287,7 @@ def normalize_observation(row: Any) -> list[KnowledgeCandidate]:
         "visual_observation": "visual_observation",
         "session_summary": "project_status",
         "summary": "project_status",
+        "change": "operational_fact",
     }
     if not candidates and obs_type in direct_type_map and content:
         candidates.append(_candidate(

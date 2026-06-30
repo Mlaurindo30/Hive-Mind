@@ -142,6 +142,54 @@ def test_promotion_pipeline_quarantines_structural_errors_and_preserves_raw(real
 
 
 @pytest.mark.real
+def test_promotion_pipeline_promotes_claude_mem_change_observation(real_db):
+    from core.knowledge.promotion import promote_pending_observations
+
+    raw_content = "Integrated install-ide-hooks.ts into install.sh main workflow."
+    real_db.execute(
+        """
+        INSERT INTO observations(id, project, type, title, content, archived, metadata)
+        VALUES (?, ?, ?, ?, ?, 0, ?)
+        """,
+        (
+            "cm-change-observation",
+            "Hive-Mind",
+            "change",
+            "Integrated install hooks",
+            raw_content,
+            json.dumps(
+                {
+                    "source": "claude-mem-bridge",
+                    "source_kind": "change",
+                    "source_id": "claude-mem:observations:545",
+                },
+                ensure_ascii=False,
+            ),
+        ),
+    )
+    real_db.commit()
+
+    report = promote_pending_observations(real_db, limit=10, apply=True)
+
+    assert report["observations"] == 1
+    assert report["quarantined"] == 0
+    assert report["promoted"] == 1
+    obs = real_db.execute(
+        "SELECT archived, neuron_id FROM observations WHERE id = ?",
+        ("cm-change-observation",),
+    ).fetchone()
+    assert obs["archived"] == 1
+    assert obs["neuron_id"]
+
+    candidate = real_db.execute(
+        "SELECT knowledge_type, source_id FROM knowledge_candidates WHERE source_id = ?",
+        ("cm-change-observation",),
+    ).fetchone()
+    assert candidate is not None
+    assert candidate["knowledge_type"] == "operational_fact"
+
+
+@pytest.mark.real
 def test_promotion_pipeline_promotes_files_docs_code_and_summaries(real_db, tmp_path):
     from core.knowledge.promotion import promote_files
 

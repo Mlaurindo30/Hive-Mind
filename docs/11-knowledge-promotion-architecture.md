@@ -151,7 +151,7 @@ nao reinventar.
 | Cortex parietal (sensorial) | `capture/` (screenpipe+parsers→`inbox/`) · `document_ingest.py` (→`document_memories`+`inbox/documents/`) | document index, fts |
 | Cortex occipital (visao/grafo) | `visual_capture.py`/`sinapse_capture_screen` (→`visual_memories`,`capturas-visuais/`) · Graphify (→`graph.json`) · `dream_cycle` estagio visual | grafo Leiden, visual |
 | Cortex insula (autoconsciencia) | `health_dashboard.py` · `alert_dispatcher.py` · `review_writer.py` (→`saude/`) · `conflict_detector.py` · `topic_consolidator.py` (→`conflitos/`) · `ambiguities` (sintese dialetica estagio 3) | UMC, `ambiguities` |
-| Cerebelo (cadencia) | `session_consolidator` · `daily_writer.py` · `weekly_synthesizer.py` · `pattern_distiller.py` (→`padroes/`) · (mensal/anual = K5/P10 pendente) | summary, fts |
+| Cerebelo (cadencia) | `session_consolidator` · `daily_writer.py` · `weekly_synthesizer.py` · `monthly_synthesizer.py` · `yearly_synthesizer.py` · `pattern_distiller.py` (→`padroes/`) | summary, fts |
 | Diencefalo (relay) | `sector_classifier.py` (→`setores/` MOCs) · `generate_mocs.py` · `roteamento/` | grafo |
 | Tronco (infra) | `modelos/` (templates) · `paineis/` (.base) · `meta/` — mais estatico que promovido | — |
 

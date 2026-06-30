@@ -123,7 +123,7 @@ implementacao deve tratar `ollama + snowflake-arctic-embed2:latest` como padrao.
 | `topic_router` | `HIVE_TOPIC_ROUTER_PROVIDER/MODEL` | `ollama/qwen2.5:3b` | sim | roteamento topico/setor |
 | `sector_classifier` | `HIVE_SECTOR_CLASSIFIER_PROVIDER/MODEL` | `ollama/qwen2.5:3b` | sim | classificacao cross-projeto |
 | `conflict_detector` | `HIVE_CONFLICT_DETECTOR_PROVIDER/MODEL` | `ollama/qwen2.5:7b` | medio | exige julgamento |
-| `lightrag` | `HIVE_LIGHTRAG_MODEL` | `granite3-dense:2b` | sim | extracao RAG relacional |
+| `lightrag` | `HIVE_LIGHTRAG_MODEL` | `qwen2.5:3b` | sim | extracao RAG relacional local |
 | `graphiti` | `HIVE_GRAPHITI_MODEL` | `qwen2.5:3b` | sim | entidades/relacoes temporais |
 
 Todos os papeis continuam configuraveis via `setup-brain`. O default de
@@ -132,7 +132,7 @@ instalacao deve baixar modelos pequenos suficientes:
 ```bash
 ollama pull snowflake-arctic-embed2:latest
 ollama pull qwen2.5:3b
-ollama pull granite3-dense:2b
+ollama pull qwen2.5-coder:3b
 ```
 
 Perfil recomendado para maquina com mais folga:
@@ -145,7 +145,7 @@ ollama pull qwen2.5:7b
 
 | Perfil | Objetivo | Modelos obrigatorios | Backends |
 |---|---|---|---|
-| `local-min` | laptop simples | snowflake embedder, qwen2.5:3b, granite3-dense:2b | SQLite, sqlite-vec, Graphify AST, claude-mem |
+| `local-min` | laptop simples | snowflake embedder, qwen2.5:3b, qwen2.5-coder:3b | SQLite, sqlite-vec, Graphify AST, claude-mem |
 | `local-full` | maquina de dev completa | local-min + qwen2.5:7b | Graphiti, LightRAG, Milvus local, RAGFlow adapter |
 | `prod-local` | VPS/desktop sempre ligado | local-full | Milvus Docker, API REST, watcher, metrics |
 | `cloud-optional` | qualidade maior sob escolha | qualquer provider configurado | nunca obrigatorio |
@@ -252,7 +252,7 @@ Conexoes:
 Aceite real:
 
 ```bash
-ollama list | rg 'snowflake-arctic-embed2|qwen2.5:3b|granite3-dense:2b'
+ollama list | rg 'snowflake-arctic-embed2|qwen2.5:3b|qwen2.5-coder:3b'
 .venv/bin/python -m pytest tests/real/test_embedding_stack.py -q
 python3 scripts/services/sinapse-write.py health
 ```
