@@ -1106,6 +1106,13 @@ testes simulados.
       - `tests/real/test_golden_retrieval.py` implementa o gate
         intent (>=75%) e precision/recall@k (>=0.5) sobre
         `tests/real/golden_retrieval.jsonl`.
+- [x] FalkorDB e RAGFlow: `conftest.py` ganhou `falkordb_or_skip` e
+      `ragflow_or_skip`; `tests/real/test_graphiti_falkordb.py` (3 passed
+      quando FalkorDB online) exercita `graphiti_available()` e
+      `push_neuron()`; `tests/real/test_ragflow_real.py` (3 skipped
+      quando RAGFlow offline) exercita `RAGFlowSettings` e
+      `assert_health(strict=False)`. Cobertura: 5/5 servicos nomeados
+      no `service_registry` com fixture real.
 - [x] auditoria pos-implementacao — `scripts/setup/audit_test_layering.py`
   varre `tests/{real,unit,integration}/` e exige que (a) `tests/real/`
   nao use `MagicMock`/`@patch`, (b) `tests/unit/`/`tests/integration/`
@@ -1299,6 +1306,51 @@ Continuar a partir da base **K0 + K1 + K2** ja verificada:
 
 Esse corte usa o backend vetorial ja fechado como base para escrita/promocao
 real de conhecimento.
+
+---
+
+## 10.1 Estado Atual do Corte (2026-06-30, pós-v3.7.0)
+
+Cada item do corte acima foi verificado contra o estado real do repo.
+A v3.7.0 entregou o gate K9 + instalador K10, o que muda a posicao do
+proximo corte: ja nao precisamos "iniciar" o que segue, e sim **manter
+e expandir** o que esta verde.
+
+| Item | Estado v3.7.0 | Evidencia |
+|---|:---:|---|
+| 1. K3 Promotion Pipeline | ✅ Entregue (`v3.1.0`, commit `a15c492`) | `tests/real/test_promotion_pipeline_sqlite.py` 4 passed; preserva raw, candidatos tipados, quarentena estrutural |
+| 2. K4 Claude-Mem Bridge | ✅ Entregue (`v3.2.0`, commit `91257ea`) | `core/knowledge/claude_mem_bridge.py` + `tests/real/test_claude_mem_bridge.py` 2 passed; preserva `investigated`, `completed`, `learned`, `decisions`, `next_steps` |
+| 3. K2 como gate regressivo | ✅ Ativo | 7 colecoes canonicas (`memory_vectors`, `observation_vectors`, `document_vectors`, `code_vectors`, `visual_vectors`, `graph_vectors`, `summary_vectors`); CLI `vector-sync.py`; K2 e pre-requisito de K3/K4/K6/K7/K8 |
+| 4. K9 fixtures reais | ✅ Ampliado (v3.7.0 + esta atualizacao) | `tests/real/conftest.py` cobre `ollama`, `milvus`, `claude_mem` (v3.7.0) e **agora tambem** `falkordb` e `ragflow` (esta entrega); 5 servicos nomeados no `service_registry`, 5 fixtures reais no conftest |
+| 5. Baseline regressivo 1024d | ✅ Ativo | `tests/real/test_embedding_stack.py` 3 passed (dim=1024, modelo unificado, `workspace_id` + federacao) |
+
+**O que mudou neste commit (item 4):**
+
+- `tests/real/conftest.py` ganhou duas fixtures reutilizaveis:
+  - `falkordb_or_skip` -> `(host, port)` ou skip com motivo;
+  - `ragflow_or_skip` -> `(RAGFlowSettings, assert_health)` ou skip.
+- `tests/real/test_graphiti_falkordb.py` (novo) cobre o caminho FalkorDB
+  real: probe de servico, `graphiti_available()`, e `push_neuron()` +
+  limpeza. **3 passed neste host** (FalkorDB online).
+- `tests/real/test_ragflow_real.py` (novo) cobre o wrapper RAGFlow real:
+  probe, `RAGFlowSettings`, e `assert_health(strict=False)`. **3 skipped
+  neste host** (RAGFlow offline; sobe com `--profile=local-full`).
+
+**Proximo corte real (alem dos 5 itens):**
+
+1. **Marcar FalkorDB e RAGFlow como exercidos no CI** — atualmente os
+   testes existem mas o CI padrao sobe `local-min` (sem docker). Quando
+   o gate K9 rodar em CI com `--profile=local-full`, os 6 testes novos
+   precisam virar `passed` (sem skip) na maquina de referencia.
+2. **Aprofundar a fixture de FalkorDB** — adicionar helper que cria
+   namespace unico por teste e limpa todos os nos criados, para
+   evitar dependencia de `DETACH DELETE` no caller.
+3. **Fixture RAGFlow com dataset real** — alem do health, exercitar
+   upload de documento pequeno e listar datasets para fechar a cobertura
+   de ingestao K6.
+4. **Subir a cobertura real para 100%** — hoje 6 testes pulam por
+   servico offline no host local; relatar a razao de cada skip no
+   relatorio `docs/reports/k9-real-suite-report.md`.
 
 ## 11. Auditoria Final De Alinhamento (2026-06-28)
 

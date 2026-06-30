@@ -1,5 +1,47 @@
 # Changelog
 
+## v3.7.2 — K9 FalkorDB & RAGFlow Fixtures + Secao 10 Estado Real
+
+Release date: 2026-06-30
+
+### Added
+
+- Adds `falkordb_or_skip` and `ragflow_or_skip` fixtures to
+  `tests/real/conftest.py`, completing the K9 real-fixture coverage
+  for all 5 services in `service_registry.py` (was 3/5 in v3.7.0;
+  now 5/5: ollama, milvus, claude_mem, falkordb, ragflow).
+- Adds `tests/real/test_graphiti_falkordb.py` with 3 real tests
+  exercising `graphiti_available()` and `push_neuron()` against the
+  real FalkorDB instance. **3 passed** in this run (FalkorDB online).
+- Adds `tests/real/test_ragflow_real.py` with 3 real tests exercising
+  `RAGFlowSettings` and `assert_health(strict=False)` against the
+  real RAGFlow wrapper. **3 skipped** in this run (RAGFlow offline;
+  comes up with `--profile=local-full`).
+- Updates `docs/12-knowledge-implementation-plan.md` §10 with a new
+  subsection **10.1 Estado Atual do Corte (2026-06-30, pós-v3.7.0)**,
+  mapping each of the 5 items of the original "Proximo Corte
+  Recomendado" to the current state (delivered/active/expanded) with
+  evidence, plus a forward-looking list of the next real cut:
+  mark FalkorDB/RAGFlow as exercised in CI, deepen the FalkorDB
+  fixture with a per-test namespace helper, add a RAGFlow upload
+  fixture, and lift the real-suite coverage report to 100% on the
+  reference machine.
+
+### Validation
+
+- `.venv/bin/python -m pytest tests/real/test_graphiti_falkordb.py
+  tests/real/test_ragflow_real.py -v`:
+  **3 passed, 3 skipped, 1 warning** in 10.96s (FalkorDB online,
+  RAGFlow offline neste host).
+- `./tests/run_real_knowledge.sh --report=docs/reports/k9-real-suite-report.md`:
+  **51 collected, 40 passed, 11 skipped, 0 failed, 0 errors** in
+  80.74s. Was 45/37/8 in v3.7.0; +6 tests added, all behaving as
+  expected (3 passed because FalkorDB is online; 3 skipped because
+  RAGFlow is offline).
+- `.venv/bin/python scripts/setup/audit_test_layering.py`:
+  20/20 tests in `tests/real/` carry the `real` marker (was 18/18 in
+  v3.7.0); 0 use mocks; 0 unit/integration tests claim `real`.
+
 ## v3.7.1 — Role Config Hotfix
 
 Release date: 2026-06-30

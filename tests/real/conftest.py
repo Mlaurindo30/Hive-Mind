@@ -172,3 +172,40 @@ def claude_mem_or_skip(tmp_path, monkeypatch):
     monkeypatch.setenv("CLAUDE_MEM_DB", str(db))
     monkeypatch.setenv("CLAUDE_MEM_WORKER_HOST", "")
     yield bridge
+
+@pytest.fixture
+def falkordb_or_skip() -> tuple[str, int]:
+    """Retorna (host, port) do FalkorDB ou pula o teste se offline.
+
+    FalkorDB nao precisa de fixture persistente: cada teste cria o proprio
+    namespace e limpa. Caller deve usar `graphiti_available()` (ou o modulo
+    `integrations.graphiti`) para chamar o servico; o teste e considerado
+    real apenas quando o servico responde ao TCP probe.
+    """
+    import os
+    status = check_service("falkordb")
+    if not status.ok:
+        pytest.skip(f"{status.reason} (requires_service:falkordb)")
+    host = os.environ.get("FALKORDB_HOST", "localhost")
+    port = int(os.environ.get("FALKORDB_PORT", "6379"))
+    return host, port
+
+
+@pytest.fixture
+def ragflow_or_skip():
+    """Importa o wrapper RAGFlow ou pula o teste se offline.
+
+    Caller deve usar `RAGFlowSettings`, `assert_health` ou `create_client`
+    do modulo `integrations.ragflow`. O servico so e considerado real
+    quando responde em `/api/v1/health` ou `/`. Caso o modulo nao
+    esteja instalado, pula explicito (RAGFlow e opcional no gate K9).
+    """
+    try:
+        from integrations.ragflow import RAGFlowSettings, assert_health
+    except Exception as exc:  # pragma: no cover - depende do host
+        pytest.skip(f"integrations.ragflow indisponivel: {exc}")
+    status = check_service("ragflow")
+    if not status.ok:
+        pytest.skip(f"{status.reason} (requires_service:ragflow)")
+    return RAGFlowSettings, assert_health
+
