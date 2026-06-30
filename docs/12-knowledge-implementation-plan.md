@@ -1075,176 +1075,52 @@ Aceite real:
 
 ### K9 — Test Harness Real Sem Mocks
 
-**Status:** ✅ Entregue em 2026-06-30 (`v3.7.0`).
+**Objetivo:** criar uma suite real para esta frente e impedir regressao por
+testes simulados.
 
-**Objetivo:** garantir que toda fase K* tenha aceite real, sem mocks, e que a
-fronteira entre real × unit × integration fique auditavel em CI e em maquina
-zerada.
-
-**Por que este K existe:** B3 do roadmap. Sem um test harness real, qualquer
-fase K* pode "ficar verde" no CI com testes simulados e quebrar no
-runtime real (Ollama offline, Milvus com schema diferente, claude-mem com
-worker morto). K9 transforma o gate em prova: o `pytest -m real` precisa
-rodar contra os mesmos backends que o sistema usa em producao, e os
-testes mockados precisam ficar visivelmente fora desse gate.
-
-**Contrato operacional K9:**
-
-1. **Marcador canonico:** `pytest.ini` declara `markers = real, requires_service(...)`.
-   Todo teste em `tests/real/` carrega `@pytest.mark.real`. Marcador ausente
-   em arquivo de `tests/real/` e regressao silenciosa — K9 falha.
-2. **Service registry:** `tests/real/service_registry.py` e o unico
-   resolvedor de "servico online?". Servicos conhecidos: `ollama`,
-   `milvus`, `falkordb`, `claude_mem`, `ragflow`. Servico desconhecido
-   em `requires_service(...)` falha o setup com motivo explicito
-   ("servico requires_service desconhecido: ...; conhecidos: ...").
-3. **Skip por servico offline:** servico registrado mas offline -> skip
-   com `pytest.skip("<motivo> (requires_service:<servico>)")`. Nada
-   que dependa de servico externo quebra o gate por causa de ambiente.
-4. **Mock apenas em unit:** `tests/real/` nao pode usar `MagicMock`,
-   `@patch`, `@mock` nem `from unittest.mock import ...`. Defesa em
-   dois lugares: (a) `test_acceptance_split.py` falha a coleta se
-   aparecer; (b) `scripts/setup/audit_test_layering.py` varre o
-   repositorio e escreve relatorio Markdown versionado.
-5. **Golden retrieval gate:** `tests/real/golden_retrieval.jsonl` + 
-   `tests/real/test_golden_retrieval.py` avaliam o router real com
-   dois gates minimos:
-   - **intent accuracy** >= 75% (gate da frente de conhecimento);
-   - **precision@k / recall@k** >= 0.5 quando o caso declara
-     `expected_source_ids` (gate do envelope de retrieval, `docs/11`
-     §17.3).
-   Caso sem corpus compativel pula explicito (nao passa silencioso).
-6. **Fixture contract:** cada fixture real isola o teste de outros
-   runs — Milvus usa prefixo de colecao unico e teardown automatico;
-   claude-mem usa SQLite temporario com schema real e `CLAUDE_MEM_DB`
-   redirecionado; `real_db` usa `tmp_path` para que cada teste receba
-   banco proprio.
-7. **Reporte automatico:** `tests/run_real_knowledge.sh --report=<path>`
-   grava `--junitxml` + Markdown com totais (passed/failed/errors/
-   skipped). Idempotente: re-rodar sobrescreve.
-8. **Auditoria versionada:** `scripts/setup/audit_test_layering.py` e
-   executado no fim do gate K10 e grava
-   `docs/reports/k9/test-layering-audit.md`. Em CI, o caminho e
-   estavel e nao depende de `cerebro/cortex/insula/` (gitignored).
-
-**Fluxo do gate K9:**
-
-```text
-install.sh --with-real-tests
-    -> ./tests/run_real_knowledge.sh --report=docs/reports/k9-real-suite-report.md
-        -> .venv/bin/python -m pytest tests/real -m real -v
-            -> service_registry: para cada teste, verifica servicos exigidos
-                -> online: roda o teste (sem mock)
-                -> offline: pytest.skip("<motivo> (requires_service:<nome>)")
-                -> desconhecido: pytest.fail("<motivo>")
-        -> parse junitxml
-        -> grava docs/reports/k9-real-suite-report.md
-    -> .venv/bin/python scripts/setup/audit_test_layering.py
-        -> varre tests/{real,unit,integration}
-        -> grava docs/reports/k9/test-layering-audit.md
-```
-
-**Componentes implementados:**
-
-| Componente | Papel | Contrato |
-|---|---|---|
-| `tests/real/conftest.py` | Fixtures reais | `ollama_or_skip`, `real_db` (sqlite-vec em tmp), `milvus_or_skip`, `milvus_backend` (com teardown), `claude_mem_or_skip` (SQLite temporario com schema real, `CLAUDE_MEM_DB` apontado) |
-| `tests/real/service_registry.py` | Skip generico | Resolve `requires_service` para 5 servicos nomeados; servico desconhecido falha a coleta com lista dos conhecidos |
-| `tests/real/test_acceptance_split.py` | Guarda de fronteira | Falha se algum `tests/real/test_*.py` (excluindo o proprio guard) usar MagicMock/@patch ou se `tests/unit/`/`tests/integration/` marcar `real` |
-| `tests/real/test_golden_retrieval.py` | Gate K7 | Aplica intent accuracy >= 75% e precision/recall@k >= 0.5 sobre `golden_retrieval.jsonl`; pula explicito quando o corpus nao cobre o caso |
-| `tests/real/golden_retrieval.jsonl` | Golden set | 4 casos: decision, document, recent_activity, multi_hop — espinha minima do router |
-| `tests/run_real_knowledge.sh` | Runner oficial | `pytest tests/real -m real`; aceita `--report=<path>` para junitxml + Markdown |
-| `scripts/setup/audit_test_layering.py` | Auditoria | Varre `tests/real/`, `tests/unit/`, `tests/integration/`; conta markers e mocks; escreve relatorio em `docs/reports/k9/test-layering-audit.md`. `--strict` falha em ofensor grave |
-| `pytest.ini` | Marcadores | Define `markers = real, requires_service(...)`; testes sem marker nao contam para o gate |
-
-**Contrato de marcador e skip:**
-
-| Campo | Onde aparece | Obrigatorio | Motivo |
-|---|---|---:|---|
-| `@pytest.mark.real` | `tests/real/test_*.py` | sim | Teste so conta no gate real se o marker esta explicito; evita coletar refactor por engano |
-| `@pytest.mark.requires_service("<nome>")` | teste que precisa de backend externo | quando aplicavel | Garante skip explicito (com motivo) em vez de falha por ambiente; servico desconhecido falha a coleta |
-| `MagicMock`/`@patch` | proibido em `tests/real/` | sim | Defesa em duas camadas (teste + auditoria) para nao regredir a fronteira real/unit |
-| `requires_service` argumento | um dos 5 nomes: `ollama`, `milvus`, `falkordb`, `claude_mem`, `ragflow` | sim | Forca o caller a conhecer o servico; servico novo exige patch no registry + PR |
-
-**Fronteiras explicitas:**
-
-- K9 e a suite de aceite, nao a suite de TDD. Testes mockados podem
-  continuar existindo em `tests/unit/` e ajudam o desenvolvimento, mas
-  **nunca** contam para fechar uma fase K*. O auditor e o guard
-  existem exatamente para evitar que isso vaze.
-- K9 nao substitui o gate global `./tests/run_all.sh` (Smoke + Unit
-  + Integration + E2E). E uma camada a mais: o gate real roda por
-  cima do gate unit, nao no lugar dele.
-- K9 nao e uma ferramenta de performance. Ele aceita que pular Milvus
-  ou FalkorDB e um resultado legitimo (`requires_service` skip). O
-  objetivo e provar que a arquitetura de conhecimento funciona em
-  maquina real quando os servicos estao online, nao obrigar todo
-  host a ter Milvus.
-- K9 nao exige Docker. Quando `--profile=local-min`, o instalador
-  sobe apenas claude-mem e graphify-watch; Milvus/RAGFlow ficam
-  offline e pulam. O gate continua passando (com skips honestos).
-
-**Cobertura obrigatoria de edge cases:**
-
-- Teste real que exige Milvus sem Milvus online nao pode falhar
-  coleta nem setup; tem que pular com motivo nomeado.
-- Servico nomeado em `requires_service` que nao existe no registry
-  tem que falhar a coleta (bug do caller, nao do ambiente).
-- `tests/unit/` marcando `real` por engano tem que ser barrado pelo
-  guard e pelo auditor (defesa em profundidade).
-- O guard `test_acceptance_split.py` tem que se autoexcluir do
-  proprio scan (ele importa a regex `MagicMock` no codigo).
-- Golden set sem casos com `expected_source_ids` nao pode fazer o
-  teste falhar — o teste pula explicito, nao vira `1/1 passed`
-  silencioso.
-- Re-rodar `./tests/run_real_knowledge.sh --report=X` tem que
-  sobrescrever X sem erro; o relatorio precisa ser idempotente.
-- Fixture `milvus_backend` tem que dropar as colecoes com o
-  prefixo do teste mesmo se a chamada `upsert` falhou no meio;
-  vazar colecao entre testes viola isolamento.
-
-> **Entregue (2026-06-30) — K9 test harness real sem mocks (v3.7.0):**
->
-> - [x] Marcador `real` + `requires_service(...)` em `pytest.ini`; servicos
->   conhecidos (`ollama`, `milvus`, `falkordb`, `claude_mem`, `ragflow`),
->   desconhecido falha a coleta com motivo explicito.
-> - [x] Fixtures reais em `tests/real/conftest.py`:
->   `ollama_or_skip` (existente), `real_db` (existente), `milvus_or_skip`
->   (novo), `milvus_backend` (novo, com teardown das colecoes prefixadas),
->   `claude_mem_or_skip` (novo, SQLite temporario com schema real e
->   `CLAUDE_MEM_DB` redirecionado).
-> - [x] `tests/real/test_acceptance_split.py` defende a fronteira: falha
->   coleta se `tests/real/` (excluindo o proprio guard) usar MagicMock/
->   `@patch`, ou se `tests/unit/`/`tests/integration/` marcar `real`.
-> - [x] `tests/real/test_golden_retrieval.py` implementa o gate de
->   `docs/11` §17.3: intent accuracy >= 75% e precision/recall@k >= 0.5
->   sobre `tests/real/golden_retrieval.jsonl` (pula explicito quando o
->   corpus nao cobre o caso).
-> - [x] `tests/real/test_knowledge_health.py` marcado com `@pytest.mark.real`
->   (estava sem marker, vazava para o gate de forma silenciosa).
-> - [x] `scripts/setup/audit_test_layering.py` separa real × unit ×
->   integration e escreve `docs/reports/k9/test-layering-audit.md`.
->   Suporta `--strict` para falhar em ofensor grave.
-> - [x] `tests/run_real_knowledge.sh` aceita `--report=<path>`: roda
->   pytest com `--junitxml`, parseia o resultado e grava Markdown com
->   totais. Idempotente (sobrescreve o relatorio).
-> - [x] Aceite real executado:
->   `.venv/bin/python -m pytest tests/real -m real -q` ->
->   **37 passed, 8 skipped, 0 failed, 0 errors em 38.88s**;
->   `./tests/run_real_knowledge.sh --report=docs/reports/k9-real-suite-report.md`
->   -> 45 collected, 37 passed, 8 skipped, 0 failed, 0 errors;
->   `.venv/bin/python -m pytest tests/real/test_acceptance_split.py -q`
->   -> 4 passed;
->   `.venv/bin/python -m pytest tests/real/test_golden_retrieval.py -q`
->   -> 2 passed;
->   `.venv/bin/python scripts/setup/audit_test_layering.py` -> 18/18
->   testes em `tests/real/` com marker `real`, 0 com mock, 0 unit/
->   integration marcando `real`.
-> - [x] Relatorios versionados gravados em
->   `docs/reports/k9/test-layering-audit.md` e
->   `docs/reports/k9-real-suite-report.md`.
-> - [x] Gate global `./tests/run_all.sh` continua verde (suite real
->   e adicional, nao substitui o gate unit/integration/E2E).
+> **Entregue (2026-06-28) — esqueleto (gate de B3):**
+> - [x] marker `real` + `requires_service` em `pytest.ini`.
+> - [x] `tests/real/` (`__init__.py`, `conftest.py` com fixtures `real_db` e
+>   `ollama_or_skip`, `README.md`).
+> - [x] `tests/run_real_knowledge.sh` (executável; `-m real`).
+> - [x] 1º teste real: `tests/real/test_embedding_stack.py` (dim 1024, modelo
+>   unificado, colunas da migração) — baseline inicial **3 passed**; suíte real
+>   atual **24 passed** após K1 digest gate, K2 sync/backfill das 7 coleções
+>   canônicas, incluindo E2E bounded nos bancos reais e CLI operacional
+>   `vector-sync.py`.
+> - [x] skip genérico de `requires_service` entregue em
+>   `tests/real/service_registry.py`: serviços nomeados `ollama`, `milvus`,
+>   `falkordb`, `claude_mem`, `ragflow`; desconhecido falha como erro de teste;
+>   offline pula com motivo e serviço nomeado.
+> - [x] README/runner atualizados para refletir o service registry.
+> - [x] tasks 3, 6 e 7 entregues:
+      - `tests/real/conftest.py` ganhou fixtures `milvus_or_skip`,
+        `milvus_backend` (com teardown) e `claude_mem_or_skip` (SQLite
+        temporario com schema real, `CLAUDE_MEM_DB` apontado).
+      - `scripts/setup/audit_test_layering.py` separa real × unit ×
+        integration e escreve relatorio em
+        `docs/reports/k9/test-layering-audit.md`.
+      - `tests/real/test_acceptance_split.py` defende a fronteira:
+        falha se `tests/real/` usar MagicMock/@patch ou se
+        `tests/unit/` marcar `real`.
+      - `tests/real/test_golden_retrieval.py` implementa o gate
+        intent (>=75%) e precision/recall@k (>=0.5) sobre
+        `tests/real/golden_retrieval.jsonl`.
+- [x] auditoria pos-implementacao — `scripts/setup/audit_test_layering.py`
+  varre `tests/{real,unit,integration}/` e exige que (a) `tests/real/`
+  nao use `MagicMock`/`@patch`, (b) `tests/unit/`/`tests/integration/`
+  nao marquem `real`, (c) todo `tests/real/test_*.py` carregue
+  `@pytest.mark.real`. Auditoria 2026-06-30: 18 arquivos em `tests/real/`,
+  18 com marker `real`, 0 com mock, 0 unit/integration com `real`.
+  Relatorio: `docs/reports/k9/test-layering-audit.md`.
+- [x] guard de fronteira (`tests/real/test_acceptance_split.py`) executa
+  as mesmas invariantes no `pytest` (defesa em profundidade) e falha
+  coleta se qualquer teste real usar mocks ou se algum teste unit vazar
+  com marker `real`. 4 passed em 0.02s.
+- [x] gate K9 exercido com suite real: 45 collected, 37 passed, 8
+  skipped (`requires_service:milvus` neste host), 0 failed, 0 errors.
+  Skips sao honestos: o servico nao subiu neste host, gate segue.
+  Report: `docs/reports/k9-real-suite-report.md`.
 
 Tasks:
 
@@ -1260,275 +1136,190 @@ Tasks:
    como gate (contrato `docs/11` §17.3).
 8. implementar skip por serviço para `requires_service`: cada teste declara o
    serviço exigido; se offline, skip com motivo; se online, falha real reprova.
+9. **auditoria pos-implementacao** — `scripts/setup/audit_test_layering.py`
+   roda apos o gate K9, varre `tests/{real,unit,integration}/` e grava
+   `docs/reports/k9/test-layering-audit.md`. Falha em `--strict` se
+   `tests/real/` usar mocks ou se `tests/unit/` marcar `real`. Roda
+   tambem em CI para impedir regressao silenciosa.
 
-Conexoes:
+Regra:
 
-- `tests/real/service_registry.py`
-- `tests/real/conftest.py`
-- `tests/real/test_acceptance_split.py`
-- `tests/real/test_golden_retrieval.py`
-- `tests/real/golden_retrieval.jsonl`
-- `scripts/setup/audit_test_layering.py`
-- `tests/run_real_knowledge.sh`
-- `pytest.ini`
+```text
+Aceite de fase K* = teste real verde + health real verde.
+Teste mockado pode ajudar desenvolvimento, mas nao fecha fase.
+```
 
 Aceite real:
 
 ```bash
-.venv/bin/python -m pytest tests/real -m real -q
-# 37 passed, 8 skipped (requires_service:milvus offline neste host)
-
-./tests/run_real_knowledge.sh --report=docs/reports/k9-real-suite-report.md
-# 45 collected; 37 passed; 8 skipped; 0 failed; 0 errors
-
-.venv/bin/python -m pytest tests/real/test_acceptance_split.py -q
-# 4 passed
-
-.venv/bin/python -m pytest tests/real/test_golden_retrieval.py -q
-# 2 passed
-
-.venv/bin/python scripts/setup/audit_test_layering.py
-# 18/18 real com marker; 0 com mock; 0 unit/integration com marker real
-# relatorio: docs/reports/k9/test-layering-audit.md
+./tests/run_real_knowledge.sh
 ```
 
 ---
 
 ### K10 — Installer E Maquina Zerada
 
-**Status:** ✅ Entregue em 2026-06-30 (`v3.7.0`).
+**Objetivo:** instalar tudo em maquina nova e provar funcionamento end-to-end.
 
-**Objetivo:** instalar tudo em maquina nova e provar funcionamento end-to-end
-com flags explicitas, relatorio final e suite real encadeada quando pedida.
+Tasks (entregues em v3.7.0):
 
-**Por que este K existe:** B0 (maquina zerada) e B2 (vendor sem clone) do
-roadmap. K10 fecha o ciclo: a v3.7.0 precisa instalar do zero sem prompts
-ocultos, precisa ser capaz de subir o cerebro com `uv sync` + componentes
-pinados + opcionalmente Milvus/RAGFlow, precisa registrar MCP por agente
-sem sobrescrever configs externas e precisa entregar um relatorio final
-com paths, portas, modelos e health. Sem isso, todo o trabalho de K0..K9
-fica dependente de setup manual que nao escala.
-
-**Contrato operacional K10:**
-
-1. **Perfil de servicos:** `--profile=local-min|local-full`.
-   `local-min` (default) sobe apenas claude-mem + graphify-watch — eh o
-   minimo para o cerebro rodar e nada mais. `local-full` tenta subir
-   Milvus + RAGFlow via `docker compose up` em `integrations/{milvus,
-   ragflow}/` e avisa se FalkorDB estiver offline. Perfil invalido
-   (`--profile=foo`) aborta com mensagem clara.
-2. **Idempotencia:** rodar `install.sh` duas vezes na mesma maquina
-   nao quebra nada. `components.py bootstrap` clona apenas o que
-   falta, `install_services.py install` so regrava units com
-   conteudo diferente, `register-mcp.sh` e idempotente, e as
-   fixtures re-aplicam migrations sem erro.
-3. **Vinculo com K9:** `--with-real-tests` encadeia
-   `./tests/run_real_knowledge.sh --report=docs/reports/k9-real-suite-report.md`
-   no fim do install. Sem a flag, o install nao roda testes
-   (mantem compatibilidade com CI rapido).
-4. **Vinculo com o gate global:** `--with-tests` continua disparando
-   `./tests/run_all.sh` (Smoke + Unit + Integration + E2E) como antes.
-   As duas flags sao ortogonais: `--with-tests` = suite completa;
-   `--with-real-tests` = gate K9.
-5. **MCP por agente sem sobrescrita:** o bloco K10 invoca
-   `scripts/setup/register-mcp.sh` apos o profile. O script e
-   idempotente, merge-safe (nao apaga MCPs alheios) e ja remove
-   entradas legadas do proprio Hive-Mind. Roda apenas quando ha
-   agente detectado.
-6. **Relatorio final versionado:** `logs/install-report.md` (nao
-   versionado) e `install-report.md` resumo no stdout. O relatorio
-   contem: paths (vault, banco, venv, claude-mem), portas
+1. [x] `install.sh` baixa modelos locais obrigatorios (snowflake-arctic-embed2,
+   qwen2.5:3b, qwen2.5-coder:3b) e respeita `SINAPSE_PULL_QWEN7B=1` para o
+   modelo Graphiti de alta qualidade.
+2. [x] `scripts/setup/components.py bootstrap` clona apenas
+   graphify/neural-memory/rtk; `install.sh` chama `docker compose up` em
+   `integrations/milvus` e `integrations/ragflow` apenas quando
+   `--profile=local-full`.
+3. [x] `uv sync --frozen --all-groups` re-aplicado em toda instalacao
+   (ragflow-sdk, pymilvus, llama-index ja estao no `pyproject.toml`).
+4. [x] Novas flags `--profile=local-min|local-full` e `--with-real-tests`
+   no `install.sh`. Perfil `local-full` tenta subir Milvus + RAGFlow via
+   docker; perfil `local-min` mantem apenas claude-mem + graphify-watch.
+5. [x] Bloco K10 re-aplica `core.database.ensure_migrations` antes do
+   smoke real, garantindo schema/vetores sincronos em maquina zerada.
+6. [x] `scripts/setup/register-mcp.sh` continua idempotente e nao
+   sobrescreve MCPs externos. O bloco K10 do `install.sh` invoca o
+   registro apos o profile, apenas quando ha agentes detectados.
+7. [x] Com `--with-real-tests`, o instalador encadeia
+   `./tests/run_real_knowledge.sh` e gera relatorio Markdown com
+   `passed/failed/skipped`.
+8. [x] Relatorio final em `logs/install-report.md` com paths, portas
    (claude-mem 37700, sqlite-vec 37701, api 37702, mcp-http 37703),
-   modelos Ollama instalados, e a saida completa de
-   `sinapse-write.py health`. Em maquina sem Ollama, o relatorio
-   marca "Ollama offline neste host" sem falhar.
-7. **Argumentos backward-compatible:** `--force`, `--with-tests`,
-   `--skip-agent=`, `--provider=`, `--model=`, `--non-interactive`
-   continuam funcionando exatamente como antes. `--profile=` e
-   `--with-real-tests` sao puramente aditivos.
-8. **Health por chamada:** a verificacao de saude
-   (`sinapse-write.py health`) e feita apos o bloco K10 e gravada
-   no relatorio. Nao falha o install por causa de backend offline
-   (e um gate, nao um pre-requisito).
-
-**Fluxo do install K10:**
-
-```text
-install.sh --profile=local-full --with-real-tests
-    [passos 1-12 do install original, intactos]
-    [bloco K10]
-        if profile=local-full:
-            integrations/milvus:    docker compose up -d
-            integrations/ragflow:   docker compose up -d
-            FalkorDB check         (warn-only)
-        ensure_migrations (idempotente, CRR-safe)
-        register-mcp.sh (merge-safe, idempotente)
-    [bloco K10 - encadeamento]
-        if --with-tests:         ./tests/run_all.sh
-        if --with-real-tests:    ./tests/run_real_knowledge.sh --report=...
-    [bloco K10 - relatorio]
-        logs/install-report.md com paths/portas/modelos/health
-        resumo no stdout
-```
-
-**Componentes implementados:**
-
-| Componente | Papel | Contrato |
-|---|---|---|
-| `install.sh` | Entry point K10 | Adiciona `--profile=local-min\|local-full` e `--with-real-tests`. Bloco K10 roda profile -> migrations -> register-mcp -> encadeia testes -> grava relatorio. Mantem flags e passos 1-12 originais intactos |
-| `install.sh::ollama_pull_if_missing` | Modelos locais | Baixa `snowflake-arctic-embed2`, `qwen2.5:3b`, `qwen2.5-coder:3b`; `qwen2.5:7b` so com `SINAPSE_PULL_QWEN7B=1` ou `HIVE_GRAPHITI_MODEL=qwen2.5:7b` (opt-in para nao exigir VRAM em maquina simples) |
-| `install.sh` (bloco local-full) | Stack pesada | `cd integrations/milvus && docker compose up -d`; mesma coisa em `integrations/ragflow`. Falha de docker so warn, nao aborta |
-| `install.sh` (bloco migrations) | Schema/vectors | `core.database.ensure_migrations(get_connection())` idempotente. CRR-safe (B1) garantido por `ensure_migrations` + `crsql_begin_alter/commit_alter` |
-| `install.sh` (bloco MCP) | Registro por agente | `scripts/setup/register-mcp.sh` detecta agentes suportados (Claude Code, Codex CLI, Gemini CLI, Kiro, Cursor, OpenClaw etc.) e registra apenas o `sinapse-memory`, sem apagar MCPs externos |
-| `install.sh` (bloco encadeamento) | Encadeia K9 + global | `--with-real-tests` -> `./tests/run_real_knowledge.sh` (gera `docs/reports/k9-real-suite-report.md`); `--with-tests` -> `./tests/run_all.sh` (suite completa) |
-| `install.sh` (bloco relatorio) | Saida versionavel | Grava `logs/install-report.md` (nao versionado) com paths, portas, modelos e saida completa de `sinapse-write.py health`; mini-resumo impresso no stdout para o operador ver sem abrir arquivo |
-| `tests/run_real_knowledge.sh` | Runner K9 | `pytest tests/real -m real`; `--report=<path>` para junitxml + Markdown; sem `--report`, saida silenciosa em `-q` |
-
-**Contrato de perfil e encadeamento:**
-
-| Flag | Default | Efeito | Quando usar |
-|---|---|---|---|
-| `--profile=local-min` | sim | Apenas claude-mem + graphify-watch; Milvus/RAGFlow offline | CI rapido, maquina sem docker, smoke do cerebro |
-| `--profile=local-full` | nao | Tenta subir Milvus + RAGFlow via docker; FalkorDB avisado se offline | Maquina nova com docker, gate K9 com todos os servicos |
-| `--with-real-tests` | nao | Encadeia `./tests/run_real_knowledge.sh --report=...` no fim | Validacao de release, gate K9 |
-| `--with-tests` | nao | Encadeia `./tests/run_all.sh` (Smoke + Unit + Integration + E2E) | CI completo, regressao ampla |
-| `--force` | nao | Reinstala componentes mesmo se ja existirem | Atualizacao de versao, reset de patch |
-| `--non-interactive` | nao | Pula prompts interativos (setup-brain) | CI, maquina zerada, `--profile=*` ja e suficiente na maioria dos casos |
-| `--provider=X` | vazio | Seta `HIVE_DREAMER_PROVIDER` no `.env` | Setup inicial com provedor conhecido |
-| `--model=X` | vazio | Seta `HIVE_DREAMER_MODEL` no `.env` | Idem |
-| `--skip-agent=X` | vazio | Pula registro MCP em um agente especifico | Ex.: nao registrar em copilot por politica da organizacao |
-
-**Fronteiras explicitas:**
-
-- K10 nao transforma a instalacao em um "modo" novo. Ele mantem os 12
-  passos originais intactos e adiciona o bloco K10 depois deles.
-  Qualquer regressao em `--force`, `--with-tests`, etc. e bug de K10.
-- K10 nao exige Docker. Quando `--profile=local-min`, o install sobe
-  sem subir container nenhum. O `docker compose up` so roda em
-  `local-full`, e mesmo assim e warn-only se docker faltar.
-- K10 nao muda o comportamento do MCP. Ele apenas garante que
-  `register-mcp.sh` seja chamado no fim. A logica de merge-safe e
-  do script, nao do install.
-- K10 nao esconde o relatorio no cerebro. O relatorio e em
-  `logs/install-report.md` (nao versionado) + mini-resumo no stdout.
-  O cerebro (`cerebro/cortex/insula/`) e gitignored e nao e destino
-  de saida do install.
-- K10 nao introduz dependencias novas alem das ja declaradas em
-  `pyproject.toml` (ragflow-sdk, pymilvus, llama-index). O bloco K10
-  re-aplica `uv sync --frozen --all-groups` que ja era o padrao.
-- K10 nao roda suite real automaticamente. O usuario precisa pedir
-  `--with-real-tests`. Isso preserva o comportamento de CI rapido
-  (so `--with-tests`) e da controle explicito.
-
-**Cobertura obrigatoria de edge cases:**
-
-- Rodar o install com `--profile=invalid` aborta antes de fazer
-  qualquer mutacao; o perfil default `local-min` e seguro para
-  re-rodar em CI.
-- `install.sh --with-real-tests` em maquina sem Milvus nao pode
-  falhar: o gate K9 pula com `requires_service:milvus` e segue.
-  Relatorio final marca "Milvus offline (nao-bloqueante)".
-- Relatorio final nao pode quebrar quando Ollama esta offline: o
-  bloco de modelos marca "Ollama offline neste host" e segue.
-- Relatorio nao pode quebrar quando `sinapse-write.py health`
-  retorna !=0: ele captura a saida, anexa ao relatorio e marca
-  "health check retornou !=0 (ver logs)".
-- Flag desconhecida (typo) aborta com mensagem clara, sem tentar
-  continuar em estado parcial.
-- `install.sh` rodando duas vezes seguidas nao pode duplicar
-  unidades systemd, duplicar entradas no crontab, nem duplicar
-  MCPs. `install_services.py install` e `register-mcp.sh` ja
-  tratam isso; K10 apenas orquestra.
-- Re-rodar `./tests/run_real_knowledge.sh --report=X` com o mesmo
-  X tem que sobrescrever X (nao falhar nem duplicar). O runner
-  garante isso parseando o junitxml e reescrevendo o Markdown.
-
-> **Entregue (2026-06-30) — K10 installer e maquina zerada (v3.7.0):**
->
-> - [x] Flags novas no `install.sh`:
->   `--profile=local-min|local-full` (default `local-min`, rejeita valor
->   invalido com mensagem clara) e `--with-real-tests` (encadeia o gate K9
->   no fim do install). Flags antigas (`--force`, `--with-tests`,
->   `--skip-agent=`, `--provider=`, `--model=`, `--non-interactive`)
->   preservadas intactas.
-> - [x] Help do `install.sh` atualizado listando as novas flags e os
->   perfis disponiveis.
-> - [x] Bloco K10 executa em ordem:
->   1. **profile**: se `local-full`, tenta `docker compose up -d` em
->      `integrations/milvus` e `integrations/ragflow`; warn-only se
->      docker indisponivel ou servico offline; `local-min` mantem
->      apenas claude-mem + graphify-watch.
->   2. **migrations**: `core.database.ensure_migrations(get_connection())`
->      idempotente (CRR-safe B1).
->   3. **register-mcp.sh**: idempotente, merge-safe, nao sobrescreve
->      MCPs externos; remove legados do proprio Hive-Mind.
->   4. **encadeamento**: `--with-tests` -> `./tests/run_all.sh`;
->      `--with-real-tests` -> `./tests/run_real_knowledge.sh --report=...`.
->   5. **relatorio final**: `logs/install-report.md` com paths, portas
->      (claude-mem 37700, sqlite-vec 37701, api 37702, mcp-http 37703),
->      modelos Ollama instalados, e saida completa de
->      `sinapse-write.py health`. Mini-resumo no stdout.
-> - [x] `tests/run_real_knowledge.sh` reescrito: aceita `--report=<path>`;
->   roda `pytest -m real -v --junitxml=...`; parseia o junitxml e grava
->   Markdown com totais. Sem `--report`, mantem saida `-q` original.
-> - [x] `docs/12-knowledge-implementation-plan.md` marca K9 e K10 como
->   entregues com Status, Por que existe, Contrato, Componentes,
->   Fronteiras e Cobertura obrigatoria.
-> - [x] Aceite real executado:
->   `bash -n install.sh` e `bash -n tests/run_real_knowledge.sh` -> sem
->   erro de sintaxe;
->   `pytest tests/unit -q` -> 497 passed, 3 skipped (sem regressao);
->   `./tests/run_real_knowledge.sh --report=docs/reports/k9-real-suite-report.md`
->   -> 45 collected; 37 passed; 8 skipped; 0 failed; 0 errors;
->   `.venv/bin/python scripts/services/sinapse-write.py health` ->
->   `healthy=true`, 7/7 backends up, 1020 graph nodes, 5706 neurons,
->   97.76% vectorized;
->   `grep "v3.7.0" CHANGELOG.md` -> entrada presente.
-
-Tasks:
-
-1. atualizar `install.sh` para baixar modelos locais obrigatorios;
-2. `components.py bootstrap` (clona só graphify/neural-memory/rtk) + `docker compose up` dos wrappers Milvus/RAGFlow (não clona monorepo);
-3. sincronizar `.venv` via `uv sync --frozen --all-groups` com
-   `ragflow-sdk`, `pymilvus` e `llama-index`;
-4. iniciar/validar Ollama, claude-mem, FalkorDB, Milvus local quando perfil pedir;
-5. rodar migrations de schema/vetores;
-6. registrar MCP por agente sem sobrescrever configs externas;
-7. rodar smoke real;
-8. produzir relatorio final com paths, portas, modelos e health.
-
-Conexoes:
-
-- `install.sh`
-- `scripts/setup/components.py`
-- `scripts/setup/install_services.py`
-- `scripts/setup/register-mcp.sh`
-- `tests/run_real_knowledge.sh`
-- `scripts/services/sinapse-write.py`
-- `core/database.py`
-- `integrations/milvus/docker-compose.yml`
-- `integrations/ragflow/docker-compose.yml`
+   modelos Ollama instalados e saida completa de
+   `sinapse-write.py health`.
+9. [x] auditoria pos-implementacao — bloco K10 do `install.sh` foi
+   auditado quanto a: (a) idempotencia (re-rodar install nao duplica
+   units, MCPs, crontab, `~/.hermes/mcp/*.json`); (b) backward-compat
+   das flags originais (`--force`, `--with-tests`, `--skip-agent=`,
+   `--provider=`, `--model=`, `--non-interactive`); (c) relatorio
+   final em `logs/install-report.md` com paths canonicos
+   (`$VAULT_DIR`, `$PROJECT_ROOT/hive_mind.db`, `.venv`),
+   portas reais (claude-mem 37700, sqlite-vec 37701, api 37702,
+   mcp-http 37703) e saida de `sinapse-write.py health`; (d)
+   `bash -n install.sh` e `bash -n tests/run_real_knowledge.sh`
+   passam sem erro de sintaxe. Sem regressao em `./tests/run_all.sh`:
+   gate global continua verde.
 
 Aceite real:
 
 ```bash
-# perfil minimo (default): smoke do cerebro sem subir docker
-./install.sh --profile=local-min --with-real-tests
-
-# perfil completo: stack pesada + gate K9 + relatorio
-./install.sh --profile=local-full --with-real-tests
-
-# gate K9 isolado
-./tests/run_real_knowledge.sh --report=docs/reports/k9-real-suite-report.md
-# 45 collected; 37 passed; 8 skipped; 0 failed; 0 errors
-
-# health real (mesmo criterio de aceite de fase K*)
-.venv/bin/python scripts/services/sinapse-write.py health
-# healthy=true; 7/7 backends up; 1020 graph nodes; 5706 neurons; 97.76% vectorized
-
-# relatorio final do install
-cat logs/install-report.md
-# paths, portas, modelos Ollama, saida de health completa
+./install.sh --profile local-full --with-real-tests
+./tests/run_real_knowledge.sh
+python3 scripts/services/sinapse-write.py health
 ```
 
 ---
+
+## 6. Dependencias Entre Fases
+
+```text
+K0 Auditoria
+  -> K1 Vendors
+  -> K2 VectorBackend
+      -> K3 Promotion
+          -> K4 Claude-Mem Bridge
+          -> K5 Cadencia
+      -> K6 DocumentPipeline
+      -> K7 RetrievalRouter
+          -> K8 Health
+              -> K9 Test Harness
+                  -> K10 Installer
+```
+
+**O esqueleto de K9 (`tests/real/` + `run_real_knowledge.sh`) e PRE-REQUISITO de
+K0** (B3): sem ele, o "Aceite real" de toda fase e inexequivel. A migracao
+CRR-safe (K0 task 7, B1) tambem precede qualquer fase que escreva no schema.
+
+---
+
+## 7. Mapa De Arquivos A Criar Ou Alterar
+
+| Area | Arquivos |
+|---|---|
+| VectorBackend | `core/vector_backend.py`, `core/vector_collections.py`, `tests/real/test_vector_backend_*.py` |
+| Promotion | `core/knowledge/intake.py`, `core/knowledge/promotion.py`, `core/knowledge/types.py`, `tests/real/test_promotion_pipeline_sqlite.py` |
+| Claude-Mem bridge | `core/knowledge/claude_mem_bridge.py` (**promover** de `scripts/services/claude_mem_bridge.py`, já existe), `tests/real/test_claude_mem_bridge.py` |
+| Cadencia | `scripts/dream/monthly_synthesizer.py`, `scripts/dream/yearly_synthesizer.py`, `core/schemas/monthly_models.py`, `core/schemas/yearly_models.py` |
+| DocumentPipeline | `core/document_pipeline.py`, `scripts/knowledge/document_ingest.py`, `tests/real/test_document_pipeline_*.py` |
+| Retrieval | `core/retrieval/router.py`, `core/retrieval/intents.py`, `tests/real/test_retrieval_router_real.py` |
+| Health | `scripts/health/knowledge_health.py`, `tests/real/test_knowledge_health.py` |
+| Installer | `install.sh`, `.env.example`, `pyproject.toml`, `uv.lock`, `scripts/setup/install_services.py`, `scripts/maintenance/integrations-update.sh`, `tests/run_real_knowledge.sh` |
+| Vendors | `integrations/milvus/{client.py,docker-compose.yml,README.md}`, `integrations/ragflow/{client.py,docker-compose.yml,README.md}` (wrappers; sem clone). LlamaIndex = dep pip em `pyproject.toml` |
+
+---
+
+## 8. Criterio De Pronto
+
+Uma fase so esta pronta quando:
+
+1. o codigo usa paths canonicos e env vars;
+2. os vendors externos, se houver, estao em `integrations/`;
+3. existe health check real;
+4. existe teste real sem mock fechando o comportamento;
+5. os dados escritos preservam fonte, hash e idempotencia;
+6. falhas nao apagam raw data;
+7. a documentacao e o instalador foram atualizados;
+8. `sinapse_query` consegue recuperar o resultado pela rota correta.
+
+---
+
+## 9. Riscos E Contramedidas
+
+| Risco | Contramedida |
+|---|---|
+| Maquina simples nao roda modelos maiores | defaults pequenos, perfis `local-min` e `local-full`, override por env |
+| Milvus aumenta complexidade local | backend opcional por env, sqlite-vec obrigatorio e sempre funcional |
+| RAGFlow virar nova fonte de verdade | wrapper headless; store do RAGFlow e cache; UMC canonico |
+| Inchar repo clonando monorepo de servico | wrapper: imagem pinada por digest + SDK no `uv.lock` (§3.1) |
+| LlamaIndex esconder o roteamento | dep pip/adapter; `RetrievalRouter` proprio |
+| Testes lentos | separar `tests/real`, mas exigir para aceite de fase |
+| Promocao criar fatos falsos | candidate-only, evidencia obrigatoria, conflito com `invalid_at` |
+| Duplicacao vetorial | hash + parent_id + orphan vector audit |
+| **`ALTER` puro quebra tabela CRR** (B1) | `alter_table_crr_safe()` com `crsql_begin_alter`/`commit_alter`; backup antes; testar com `HIVE_CRDT_SYNC=true` |
+| **VectorBackend "unico" esconde 2 bancos** (B2) | declarar colecao→(DB,processo); `observation_vectors` vive em `claude-mem.db` (worker), nao `hive_mind.db` |
+| `integrations-update.sh` como aceite amplo demais | **mitigado:** `--no-components`/`--wrappers-only` implementados; wrappers K1 cobertos por teste real |
+| `requires_service` prometido mas sem registry generico | **mitigado:** registry/hook implementado; fixtures reais de Milvus/FalkorDB/claude-mem/RAGFlow ainda pendentes |
+| migração estrutural seguir com schema parcial | **mitigado:** fail-closed por padrão; bypass legado só com `HIVE_ALLOW_DEFERRED_MIGRATIONS=1` |
+
+---
+
+## 10. Proximo Corte Recomendado
+
+Continuar a partir da base **K0 + K1 + K2** ja verificada:
+
+1. iniciar K3 Promotion Pipeline, preservando raw e usando candidatos tipados;
+2. estender K4 para discoveries/session summaries do claude-mem sem perder
+   `investigated`, `completed`, `learned`, `decisions` e `next_steps`;
+3. manter K2 como gate regressivo das 7 coleções antes de qualquer mudança em
+   promotion, document pipeline ou retrieval;
+4. expandir K9 com fixtures reais reutilizáveis para Milvus, claude-mem,
+   FalkorDB e RAGFlow usando o service registry ja entregue;
+5. manter o teste real de embeddings 1024d em Ollama + SQLite + migração com
+   backup como baseline regressivo.
+
+Esse corte usa o backend vetorial ja fechado como base para escrita/promocao
+real de conhecimento.
+
+## 11. Auditoria Final De Alinhamento (2026-06-28)
+
+Resultado comparando arquitetura, plano e testes atuais:
+
+| Item | Estado atual verificado | Cobertura no desenho |
+|---|---|---|
+| modelo de embedding unico | `core/database.py` e worker usam `snowflake-arctic-embed2:latest`; teste real confirmou 1024d | coberto em K0 e §4 |
+| migração workspace/federação | unit 12 passed; DB real tem `workspace_id`, `origin_instance`, `origin_signature`, `embedding_model`, `embedding_dim`; ADD COLUMN legado passa por CRR-safe | coberto em `docs/11` §18 e K0 |
+| backup antes da migração | teste unitário cobre backup em DB arquivo e skip em `:memory:` | coberto em K0/B8 |
+| wrappers vs clones | script atual só atualiza graphify/neural-memory/rtk como componentes git | coberto, com contrato negativo para `components.lock.json` |
+| aceite real sem mock | suíte K2 completa roda 14 passed, incluindo SQLite, Milvus, `claude-mem.db`, sync/backfill das 7 coleções, E2E bounded nos bancos reais e CLI operacional `vector-sync.py`; comando de aceite explícito exportou 2 `memory_vectors` + 2 `observation_vectors` com `failed=0` | K2 coberto; K9 ainda precisa fixtures reutilizáveis dos demais serviços |
+| skip de serviço offline | registry/hook em `tests/real/service_registry.py`; unit 5 passed | coberto para seleção/skip; falta fixture real por backend novo |
+| update de integrações | `--no-components` e `--wrappers-only` implementados; K1 wrappers importados e `uv lock --upgrade && uv sync` verde | coberto para gate de update |
+| falha de migração estrutural | falha fechado por padrão; bypass legado exige `HIVE_ALLOW_DEFERRED_MIGRATIONS=1` | coberto no core |
+| regressões globais | `./tests/run_all.sh` verde: Smoke 19 passed; Unit 474 passed / 3 skipped; Integration 107 passed / 2 skipped; E2E 22 passed | coberto no recorte atual |
+
+Conclusao: K1 esta coberto para wrappers/pip. K2 esta coberto para as 7 colecoes
+canonicas (`memory_vectors`, `observation_vectors`, `document_vectors`,
+`code_vectors`, `visual_vectors`, `graph_vectors`, `summary_vectors`) tanto no
+backend SQLite local quanto no sync para Milvus. As proximas fases nao devem
+recriar backend vetorial; devem alimentar essas colecoes pelo contrato ja
+entregue. K9 ainda precisa expandir fixtures reais reutilizaveis para todos os
+servicos usados nas proximas fases.
