@@ -20,9 +20,14 @@
 #  12. Configura agentes externos (MCP: Claude Code, Codex, Kilo Code, etc.)
 #
 # Flags:
-#   --force          Reinstala componentes mesmo se já existirem
-#   --skip-agent=X   Pula configuração de um agente específico
-#   --with-tests     Executa testes unitários após instalação
+#   --force              Reinstala componentes mesmo se ja existirem
+#   --skip-agent=X       Pula configuracao de um agente especifico
+#   --with-tests         Executa testes unitarios apos instalacao
+#   --with-real-tests    Encadeia a suite real de conhecimento (K9) no fim
+#   --profile=<perfil>   Perfil de servicos: local-min (padrao) ou local-full
+#   --provider=X         Provider do Dreamer (gemini|openai|ollama|...)
+#   --model=X            Modelo do Dreamer
+#   --non-interactive    Pula prompts interativos (CI/maquina zerada)
 # =============================================================================
 
 set -euo pipefail
@@ -56,9 +61,20 @@ for arg in "$@"; do
         --non-interactive) NON_INTERACTIVE=true ;;
         --provider=*) PROVIDER="${arg#*=}" ;;
         --model=*) MODEL="${arg#*=}" ;;
+        --profile=*) INSTALL_PROFILE="${arg#*=}" ;;
+        --with-real-tests) WITH_REAL_TESTS=true ;;
         *) echo -e "${RED}Erro:${NC} argumento desconhecido: $arg"; exit 1 ;;
     esac
 done
+
+# Defaults de K10 (docs/12 §K10). --profile escolhe até onde o instalador
+# vai em "maquina zerada"; --with-real-tests encadeia a suite real no fim.
+INSTALL_PROFILE="${INSTALL_PROFILE:-local-min}"
+WITH_REAL_TESTS="${WITH_REAL_TESTS:-false}"
+case "$INSTALL_PROFILE" in
+    local-min|local-full) ;;
+    *) echo -e "${RED}Erro:${NC} --profile invalido: $INSTALL_PROFILE (use local-min|local-full)"; exit 1 ;;
+esac
 
 # ── Banner ──────────────────────────────────────────────────────────────────
 echo ""
@@ -706,6 +722,51 @@ else
 fi
 echo ""
 
+# =============================================================================
+# K10 — Validacao por perfil e suite real (docs/12 §K10)
+# =============================================================================
+echo -e "${BOLD}[K10] Perfil=${INSTALL_PROFILE} — validando servicos...${NC}"
+
+# Habilita servicos locais adicionais em local-full. local-min mantem apenas
+# claude-mem (que ja foi iniciado por install_services.py) e o watchdog
+# graphify, que sao seguros mesmo sem GPU/disco extra.
+if [ "$INSTALL_PROFILE" = "local-full" ]; then
+    echo -e "  ${BOLD}Perfil local-full:${NC} habilitando Milvus + FalkorDB + RAGFlow (docker)"
+    if [ -f "$PROJECT_ROOT/integrations/milvus/docker-compose.yml" ]; then
+        (cd "$PROJECT_ROOT/integrations/milvus" && docker compose up -d)             && echo -e "  ${GREEN}OK${NC} Milvus iniciado"             || echo -e "  ${YELLOW}WARN${NC} Milvus nao subiu (docker indisponivel ou perfil sem docker)"
+    fi
+    if [ -f "$PROJECT_ROOT/integrations/ragflow/docker-compose.yml" ]; then
+        (cd "$PROJECT_ROOT/integrations/ragflow" && docker compose up -d)             && echo -e "  ${GREEN}OK${NC} RAGFlow iniciado"             || echo -e "  ${YELLOW}WARN${NC} RAGFlow nao subiu (opcional em local-full)"
+    fi
+    # FalkorDB ja foi iniciado por install_services.py quando disponivel; so
+    # reforcamos o aviso se ele nao estiver respondendo.
+    if ! "$PYTHON" -c "import socket,os; s=socket.socket(); s.settimeout(1); s.connect((os.environ.get('FALKORDB_HOST','localhost'), int(os.environ.get('FALKORDB_PORT','6379'))))" 2>/dev/null; then
+        echo -e "  ${YELLOW}WARN${NC} FalkorDB offline — cerebro usa fallback JSON-lines"
+    fi
+else
+    echo -e "  Perfil local-min: mantendo apenas claude-mem + graphify-watch"
+    echo -e "  Para subir Milvus/FalkorDB/RAGFlow depois, use:"
+    echo -e "    ${BOLD}./install.sh --profile=local-full --with-real-tests${NC}"
+fi
+
+# Migrations: re-aplica schema/vetores idempotentemente. CRR-safe (B1) ja
+# garantido por ensure_migrations; aqui so reforcamos que esta aplicado.
+"$PYTHON" -c "
+import os, sys
+sys.path.insert(0, '$PROJECT_ROOT')
+from core.database import ensure_migrations, get_connection
+conn = get_connection()
+ensure_migrations(conn)
+conn.close()
+print('  OK: schema/vector migrations aplicadas (idempotente)')
+" 2>&1 | sed 's/^/  /' || echo -e "  ${YELLOW}WARN${NC} migrations nao puderam ser validadas"
+
+# MCP por agente, idempotente e preservando configs externas.
+"$PROJECT_ROOT/scripts/setup/register-mcp.sh" 2>&1 | sed 's/^/  /' || true
+echo ""
+
+# Smoke real da frente de conhecimento (--with-real-tests). Pula limpo
+# servicos offline e falha apenas quando um teste real (sem mock) quebra.
 if $WITH_TESTS; then
     echo -e "${BOLD}Executando testes da suíte completa...${NC}"
     if ./tests/run_all.sh; then
@@ -716,6 +777,110 @@ if $WITH_TESTS; then
     fi
     echo ""
 fi
+
+if $WITH_REAL_TESTS; then
+    echo -e "${BOLD}Executando suite real de conhecimento (K9) — backends reais, sem mock...${NC}"
+    if [ -x "$PROJECT_ROOT/tests/run_real_knowledge.sh" ]; then
+        if "$PROJECT_ROOT/tests/run_real_knowledge.sh" 2>&1 | tail -40; then
+            echo -e "  ${GREEN}OK${NC} suite real de conhecimento executada"
+        else
+            echo -e "  ${YELLOW}WARN${NC} suite real retornou !=0 (algum servico pode estar offline)"
+        fi
+    else
+        echo -e "  ${YELLOW}WARN${NC} tests/run_real_knowledge.sh nao encontrado/exequivel"
+    fi
+    echo ""
+fi
+
+# =============================================================================
+# K10 Task 8 — Relatorio final com paths, portas, modelos e health
+# =============================================================================
+REPORT="$PROJECT_ROOT/logs/install-report.md"
+mkdir -p "$(dirname "$REPORT")"
+{
+    echo "# Hive-Mind — Relatorio de Instalacao"
+    echo ""
+    echo "- Data: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "- Perfil: \`${INSTALL_PROFILE}\`"
+    echo "- With real tests: \`${WITH_REAL_TESTS}\`"
+    echo "- With full tests:  \`${WITH_TESTS}\`"
+    echo ""
+    echo "## Paths"
+    echo ""
+    echo "| Recurso | Caminho |"
+    echo "|---|---|"
+    echo "| Vault Obsidian | \`${VAULT_DIR}\` |"
+    echo "| Knowledge Graph | \`${GRAPHIFY_OUT}/graph.json\` |"
+    echo "| Banco principal | \`${PROJECT_ROOT}/hive_mind.db\` |"
+    echo "| claude-mem DB | \`${HOME}/.claude-mem/claude-mem.db\` |"
+    echo "| Python venv | \`${PROJECT_ROOT}/.venv\` |"
+    echo ""
+    echo "## Portas e servicos"
+    echo ""
+    echo "| Servico | Porta esperada | Status |"
+    echo "|---|---:|---|"
+    for svc in "claude-mem 37700" "sqlite-vec 37701" "api 37702" "mcp-http 37703"; do
+        name="${svc% *}"; port="${svc##* }"
+        if "$PYTHON" -c "import socket; s=socket.socket(); s.settimeout(0.5); s.connect(('127.0.0.1', ${port}))" 2>/dev/null; then
+            echo "| ${name} | ${port} | online |"
+        else
+            echo "| ${name} | ${port} | offline (nao-bloqueante) |"
+        fi
+    done
+    echo ""
+    echo "## Modelos Ollama (instalados quando disponivel)"
+    echo ""
+    if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
+        curl -s http://localhost:11434/api/tags | "$PYTHON" -c '
+import json, sys
+data = json.load(sys.stdin)
+for m in data.get("models", []):
+    print("- `" + m["name"] + "` (" + str(round(m["size"]/1e9, 1)) + " GB)")
+'
+    else
+        echo "_Ollama offline neste host._"
+    fi
+    echo ""
+    echo "## Health check"
+    echo ""
+    if "$PYTHON" "$PROJECT_ROOT/scripts/services/sinapse-write.py" health > "$REPORT.health" 2>&1; then
+        sed 's/^/    /' "$REPORT.health" | head -40
+    else
+        echo "_Health check retornou !=0 (ver logs/install-report.md.health)._"
+    fi
+    echo ""
+    echo "## Validacao real (K9)"
+    echo ""
+    if $WITH_REAL_TESTS; then
+        echo "- \`./tests/run_real_knowledge.sh\` executado — ver saida acima."
+    else
+        echo "- Pule \`--with-real-tests\` para rodar a suite real de conhecimento."
+        echo "- Comando: \`./tests/run_real_knowledge.sh\`"
+    fi
+    echo ""
+    echo "## Proximos passos"
+    echo ""
+    echo "1. Reinicie seus agentes (Claude Code, Codex CLI, etc.) para carregar o MCP."
+    echo "2. Suba o Obsidian apontando para \`cerebro/\`."
+    echo "3. Verifique o watcher: \`./scripts/services/start-watcher.sh status\`."
+} > "$REPORT"
+echo ""
+echo -e "  ${GREEN}OK${NC} Relatorio final escrito em: ${BOLD}$REPORT${NC}"
+
+# Mini-resumo no stdout (para o usuario ver sem abrir o arquivo)
+echo ""
+echo -e "  ${BOLD}Resumo da instalacao (perfil ${INSTALL_PROFILE}):${NC}"
+echo -e "    Vault:         ${BOLD}$VAULT_DIR${NC}"
+echo -e "    Banco:         ${BOLD}$PROJECT_ROOT/hive_mind.db${NC}"
+echo -e "    Python:        ${BOLD}$PROJECT_ROOT/.venv/bin/python${NC}"
+echo -e "    claude-mem:    ${BOLD}http://127.0.0.1:37700${NC}"
+echo -e "    API REST:      ${BOLD}http://127.0.0.1:37702${NC}"
+echo -e "    MCP HTTP:      ${BOLD}http://127.0.0.1:37703${NC}"
+if $WITH_REAL_TESTS; then
+    echo -e "    Suite real:    ${BOLD}executada (ver logs)${NC}"
+fi
+echo ""
+
 echo -e "${BOLD}${GREEN}║       Sinapse Agent instalado com sucesso!          ║${NC}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""

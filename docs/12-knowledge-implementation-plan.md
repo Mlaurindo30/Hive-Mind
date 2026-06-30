@@ -1093,7 +1093,19 @@ testes simulados.
 >   `falkordb`, `claude_mem`, `ragflow`; desconhecido falha como erro de teste;
 >   offline pula com motivo e serviço nomeado.
 > - [x] README/runner atualizados para refletir o service registry.
-> - [ ] tasks 3,6 (fixtures Milvus/claude-mem, separar mocks) e 7 (golden set §17.3) pendentes.
+> - [x] tasks 3, 6 e 7 entregues:
+      - `tests/real/conftest.py` ganhou fixtures `milvus_or_skip`,
+        `milvus_backend` (com teardown) e `claude_mem_or_skip` (SQLite
+        temporario com schema real, `CLAUDE_MEM_DB` apontado).
+      - `scripts/setup/audit_test_layering.py` separa real × unit ×
+        integration e escreve relatorio em
+        `docs/reports/k9/test-layering-audit.md`.
+      - `tests/real/test_acceptance_split.py` defende a fronteira:
+        falha se `tests/real/` usar MagicMock/@patch ou se
+        `tests/unit/` marcar `real`.
+      - `tests/real/test_golden_retrieval.py` implementa o gate
+        intent (>=75%) e precision/recall@k (>=0.5) sobre
+        `tests/real/golden_retrieval.jsonl`.
 
 Tasks:
 
@@ -1129,17 +1141,32 @@ Aceite real:
 
 **Objetivo:** instalar tudo em maquina nova e provar funcionamento end-to-end.
 
-Tasks:
+Tasks (entregues em v3.7.0):
 
-1. atualizar `install.sh` para baixar modelos locais obrigatorios;
-2. `components.py bootstrap` (clona só graphify/neural-memory/rtk) + `docker compose up` dos wrappers Milvus/RAGFlow (não clona monorepo);
-3. sincronizar `.venv` via `uv sync --frozen --all-groups` com
-   `ragflow-sdk`, `pymilvus` e `llama-index`;
-4. iniciar/validar Ollama, claude-mem, FalkorDB, Milvus local quando perfil pedir;
-5. rodar migrations de schema/vetores;
-6. registrar MCP por agente sem sobrescrever configs externas;
-7. rodar smoke real;
-8. produzir relatorio final com paths, portas, modelos e health.
+1. [x] `install.sh` baixa modelos locais obrigatorios (snowflake-arctic-embed2,
+   qwen2.5:3b, qwen2.5-coder:3b) e respeita `SINAPSE_PULL_QWEN7B=1` para o
+   modelo Graphiti de alta qualidade.
+2. [x] `scripts/setup/components.py bootstrap` clona apenas
+   graphify/neural-memory/rtk; `install.sh` chama `docker compose up` em
+   `integrations/milvus` e `integrations/ragflow` apenas quando
+   `--profile=local-full`.
+3. [x] `uv sync --frozen --all-groups` re-aplicado em toda instalacao
+   (ragflow-sdk, pymilvus, llama-index ja estao no `pyproject.toml`).
+4. [x] Novas flags `--profile=local-min|local-full` e `--with-real-tests`
+   no `install.sh`. Perfil `local-full` tenta subir Milvus + RAGFlow via
+   docker; perfil `local-min` mantem apenas claude-mem + graphify-watch.
+5. [x] Bloco K10 re-aplica `core.database.ensure_migrations` antes do
+   smoke real, garantindo schema/vetores sincronos em maquina zerada.
+6. [x] `scripts/setup/register-mcp.sh` continua idempotente e nao
+   sobrescreve MCPs externos. O bloco K10 do `install.sh` invoca o
+   registro apos o profile, apenas quando ha agentes detectados.
+7. [x] Com `--with-real-tests`, o instalador encadeia
+   `./tests/run_real_knowledge.sh` e gera relatorio Markdown com
+   `passed/failed/skipped`.
+8. [x] Relatorio final em `logs/install-report.md` com paths, portas
+   (claude-mem 37700, sqlite-vec 37701, api 37702, mcp-http 37703),
+   modelos Ollama instalados e saida completa de
+   `sinapse-write.py health`.
 
 Aceite real:
 

@@ -5,6 +5,8 @@ mocked vector backend is used for the core acceptance checks.
 """
 from __future__ import annotations
 
+import pytest
+
 from pathlib import Path
 import json
 
@@ -15,6 +17,7 @@ def _zero_vector_blob():
     return serialize_f32([0.0] * 1024)
 
 
+@pytest.mark.real
 def test_knowledge_health_prunes_orphan_vectors_and_writes_tombstones(real_db, tmp_path):
     from scripts.health.knowledge_health import (
         compute_knowledge_health,
@@ -119,6 +122,7 @@ def test_knowledge_health_prunes_orphan_vectors_and_writes_tombstones(real_db, t
     assert "Knowledge Health" in report.read_text(encoding="utf-8")
 
 
+@pytest.mark.real
 def test_knowledge_health_cli_fail_closed_acceptance():
     import subprocess
     import sys

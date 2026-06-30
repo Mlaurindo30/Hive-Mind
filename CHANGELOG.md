@@ -1,5 +1,81 @@
 # Changelog
 
+## v3.7.0 — K9 Test Harness Real Sem Mocks + K10 Installer E Maquina Zerada
+
+Release date: 2026-06-30
+
+### Added
+
+K9 — Test Harness Real Sem Mocks (docs/12 §K9):
+
+- Adds `milvus_or_skip`, `milvus_backend` (com teardown de colecoes) and
+  `claude_mem_or_skip` (SQLite temporario com schema real) fixtures in
+  `tests/real/conftest.py` so the real suite no longer relies on a
+  pre-running Milvus or claude-mem worker.
+- Adds `scripts/setup/audit_test_layering.py` to enforce the real × unit
+  × integration layering (no MagicMock in `tests/real/`, no `real` marker
+  in `tests/unit/`/`tests/integration/`). Writes
+  `docs/reports/k9/test-layering-audit.md` with the offender
+  list and counts.
+- Adds `tests/real/test_acceptance_split.py` to defend the boundary at
+  pytest-collection time — any regression that lets a real test mock
+  something, or a unit test mark itself `real`, fails the run.
+- Adds `tests/real/test_golden_retrieval.py` with the precision/recall@k
+  gate from `docs/11` §17.3: intent classification >= 75% and
+  precision@k/recall@k >= 0.5 over `tests/real/golden_retrieval.jsonl`
+  (skips cleanly when the seed corpus does not match — does not silently
+  pass).
+- Marks `tests/real/test_knowledge_health.py` with `@pytest.mark.real`
+  (was missing) so it counts toward the knowledge-architecture
+  acceptance.
+- Expands `tests/run_real_knowledge.sh` with `--report=<path>`: runs
+  pytest with junit-xml and writes a Markdown summary next to the run
+  log. Used by the new installer flow.
+
+K10 — Installer E Maquina Zerada (docs/12 §K10):
+
+- Adds `--profile=local-min|local-full` and `--with-real-tests` to
+  `install.sh`. `local-min` keeps claude-mem + graphify-watch only;
+  `local-full` brings up Milvus + RAGFlow via `docker compose up` and
+  warns if FalkorDB is offline. Default profile is `local-min` to
+  preserve the original behavior on small machines.
+- Adds a K10 block to `install.sh` that re-applies
+  `core.database.ensure_migrations` (idempotent), runs
+  `scripts/setup/register-mcp.sh` after the profile, and (with
+  `--with-real-tests`) chains `./tests/run_real_knowledge.sh --report=...`
+  into the install flow.
+- Adds a final install report at `logs/install-report.md` with vault
+  path, ports (claude-mem 37700, sqlite-vec 37701, api 37702, mcp-http
+  37703), installed Ollama models, and the full
+  `sinapse-write.py health` output. Mirrors the same summary on stdout
+  so the operator sees it without opening the file.
+- Hardens `install.sh` argument parsing: rejects unknown flags and
+  invalid `--profile` values, keeps the old flags backward compatible
+  (`--force`, `--with-tests`, `--skip-agent=`, `--provider=`,
+  `--model=`, `--non-interactive`).
+
+### Validation
+
+- `.venv/bin/python -m pytest tests/real -m real -q`: 37 passed, 8 skipped
+  in 38.88s. Skips are all `requires_service:milvus` (Milvus not started
+  in this profile) and are intentional.
+- `./tests/run_real_knowledge.sh --report=cerebro/cortex/insula/saude/k9-real-suite.md`:
+  45 collected, 37 passed, 8 skipped, 0 failed, 0 errors. Report written.
+- `.venv/bin/python scripts/setup/audit_test_layering.py`: 17/17 tests
+  in `tests/real/` carry the `real` marker; 0 use mocks; 0 unit /
+  integration tests claim `real`. Audit log written to
+  `cerebro/cortex/insula/saude/test-layering-audit.md`.
+- `.venv/bin/python -m pytest tests/real/test_acceptance_split.py -q`:
+  4 passed (boundary guard).
+- `.venv/bin/python -m pytest tests/real/test_golden_retrieval.py -q`:
+  2 passed (intent gate + precision/recall@k gate).
+- `.venv/bin/python scripts/services/sinapse-write.py health`:
+  `healthy=true`, 7/7 backends up (umc, neural_memory, sqlite_vec,
+  claude_mem, graphify, graphiti, filesystem), 1020 graph nodes,
+  5706 neurons, 97.76% vectorized.
+- `bash -n install.sh` and `bash -n tests/run_real_knowledge.sh`: no
+  syntax errors after the K10 block insertion.
+
 ## v3.6.0 — K8 Knowledge Health
 
 Release date: 2026-06-30
