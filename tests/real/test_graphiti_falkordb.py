@@ -30,31 +30,25 @@ def test_graphiti_available_against_real_falkordb(falkordb_or_skip):
     """`graphiti_available()` reflete o estado real do FalkorDB."""
     from integrations.graphiti import graphiti_available
 
-    host, port = falkordb_or_skip
+    host, port, database = falkordb_or_skip
     # graphiti_available() consulta o servico via TCP (nao usa o fixture
     # diretamente). Se o fixture passou, a checagem tem que bater.
-    assert graphiti_available(), f"FalkorDB offline em {host}:{port}"
+    assert graphiti_available(), f"FalkorDB offline em {host}:{port}/{database}"
 
 
 @pytest.mark.real
 @pytest.mark.requires_service("falkordb")
 def test_graphiti_push_neuron_writes_to_real_backend(falkordb_or_skip):
-    """`push_neuron()` grava no FalkorDB real e devolve `True`."""
-    from integrations.graphiti import push_neuron, search_graph
+    """`push_neuron()` grava no FalkorDB real e devolve `True`.
 
+    Isolamento: a fixture `falkordb_or_skip` cria um `FALKORDB_DB`
+    unico por teste (`hm_test_<uuid12>`) e o dropa no teardown. O
+    caller NAO precisa limpar nada — basta usar o namespace.
+    """
+    from integrations.graphiti import push_neuron
+
+    host, port, database = falkordb_or_skip
     neuron_id = f"test-neuron-{uuid.uuid4().hex[:12]}"
     content = "FalkorDB fixture real grava neuronio via push_neuron."
-    try:
-        ok = push_neuron(neuron_id, content, source="tests/real")
-        assert ok, f"push_neuron falhou em {falkordb_or_skip}"
-    finally:
-        # Limpa o neuronio criado para nao poluir o grafo entre runs.
-        try:
-            from integrations.graphiti import _graphiti
-
-            if _graphiti() is not None:
-                _graphiti().driver.execute_query(
-                    "MATCH (n {id: $id}) DETACH DELETE n", id=neuron_id
-                )
-        except Exception:
-            pass
+    ok = push_neuron(neuron_id, content, source="tests/real")
+    assert ok, f"push_neuron falhou em {host}:{port}/{database}"

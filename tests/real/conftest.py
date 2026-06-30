@@ -174,21 +174,55 @@ def claude_mem_or_skip(tmp_path, monkeypatch):
     yield bridge
 
 @pytest.fixture
-def falkordb_or_skip() -> tuple[str, int]:
-    """Retorna (host, port) do FalkorDB ou pula o teste se offline.
+def falkordb_or_skip(monkeypatch) -> tuple[str, int, str]:
+    """Retorna (host, port, database) do FalkorDB ou pula o teste se offline.
 
-    FalkorDB nao precisa de fixture persistente: cada teste cria o proprio
-    namespace e limpa. Caller deve usar `graphiti_available()` (ou o modulo
+    Cada teste ganha um `FALKORDB_DB` proprio (`hm_test_<uuid12>`) via
+    `monkeypatch.setenv`, isolando o namespace sem o caller precisar de
+    `DETACH DELETE`. FalkorDB suporta multi-database, entao criar um DB
+    novo por teste eh barato e seguro. No teardown o DB eh dropado e o
+    env restaurado.
+
+    Caller deve usar `graphiti_available()` (ou o modulo
     `integrations.graphiti`) para chamar o servico; o teste e considerado
     real apenas quando o servico responde ao TCP probe.
     """
     import os
+    import uuid
+    import falkordb
+
     status = check_service("falkordb")
     if not status.ok:
         pytest.skip(f"{status.reason} (requires_service:falkordb)")
     host = os.environ.get("FALKORDB_HOST", "localhost")
     port = int(os.environ.get("FALKORDB_PORT", "6379"))
-    return host, port
+    database = f"hm_test_{uuid.uuid4().hex[:12]}"
+    monkeypatch.setenv("FALKORDB_DB", database)
+
+    # Limpa o singleton do Graphiti (se o teste anterior construiu um cliente
+    # contra um DB diferente, o cache precisa ser invalidado).
+    try:
+        import integrations.graphiti as graphiti_module
+        graphiti_module._graphiti = None
+    except Exception:
+        pass
+
+    yield host, port, database
+
+    # Teardown: dropa o DB unico e invalida o cache do Graphiti.
+    try:
+        client = falkordb.FalkorDB(host=host, port=port)
+        try:
+            client.delete_database(database)
+        finally:
+            client.close()
+    except Exception:
+        pass
+    try:
+        import integrations.graphiti as graphiti_module
+        graphiti_module._graphiti = None
+    except Exception:
+        pass
 
 
 @pytest.fixture

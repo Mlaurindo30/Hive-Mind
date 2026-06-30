@@ -1,5 +1,54 @@
 # Changelog
 
+## v3.7.3 — K9 Namespace-per-test, RAGFlow upload+list, CI local-full
+
+Release date: 2026-06-30
+
+### Added
+
+- Refactors `falkordb_or_skip` in `tests/real/conftest.py` to give each
+  test a unique `FALKORDB_DB` (`hm_test_<uuid12>`) via `monkeypatch`,
+  isolating the namespace without callers needing `DETACH DELETE`.
+  Teardown drops the database and invalidates the Graphiti singleton
+  cache.
+- Drops the `DETACH DELETE` cleanup from
+  `tests/real/test_graphiti_falkordb.py::test_graphiti_push_neuron_writes_to_real_backend`
+  — the namespace isolation is now the fixture's job.
+- Adds 2 real RAGFlow tests in `tests/real/test_ragflow_real.py`:
+  `test_ragflow_create_and_list_dataset` (create + list + delete
+  dataset) and `test_ragflow_upload_then_list_documents` (upload
+  markdown + list documents). When RAGFlow is offline, both skip
+  with a named reason.
+- Adds `tests/run_real_knowledge_local_full.sh` — idempotent helper
+  that brings up FalkorDB + Milvus + RAGFlow via `docker compose`,
+  waits for healthchecks, runs the K9 suite with `--report`, and
+  invokes `audit_test_layering.py`. Use this for "cobertura 100%
+  na maquina de referencia" without CI.
+- Adds a `real-suite` job to `.github/workflows/test.yml` that runs
+  the K9 gate in CI with FalkorDB + RAGFlow (and Claude-Mem worker)
+  actually online. Uploads `docs/reports/k9-real-suite-ci.md` and
+  the audit as artifacts.
+
+### Validation
+
+- `.venv/bin/python -m pytest tests/real/test_graphiti_falkordb.py -v`:
+  3 passed in 5.85s (FalkorDB online; namespace per test verified).
+- `.venv/bin/python -m pytest tests/real/test_ragflow_real.py -v`:
+  5 skipped in 0.03s (RAGFlow offline; logic covered by skip path).
+- `./tests/run_real_knowledge.sh --report=docs/reports/k9-real-suite-report.md`:
+  **53 collected, 40 passed, 13 skipped, 0 failed, 0 errors** in
+  188.40s. Was 51/40/11 in v3.7.2; +2 RAGFlow tests, both behaving
+  as expected (RAGFlow offline -> skip).
+- `.venv/bin/python scripts/setup/audit_test_layering.py`:
+  20/20 tests in `tests/real/` carry the `real` marker; 0 use
+  mocks; 0 unit/integration tests claim `real`.
+- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/test.yml'))"`:
+  CI YAML valid.
+- `bash -n tests/run_real_knowledge_local_full.sh`: no syntax error.
+- Cobertura esperada em CI / `local-full`: 53/53 (0 skipped) na
+  maquina de referencia; 40/53 (13 skipped por servico offline) na
+  maquina do desenvolvedor sem docker.
+
 ## v3.7.2 — K9 FalkorDB & RAGFlow Fixtures + Secao 10 Estado Real
 
 Release date: 2026-06-30

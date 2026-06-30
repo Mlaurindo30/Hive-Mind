@@ -1336,21 +1336,35 @@ e expandir** o que esta verde.
   probe, `RAGFlowSettings`, e `assert_health(strict=False)`. **3 skipped
   neste host** (RAGFlow offline; sobe com `--profile=local-full`).
 
-**Proximo corte real (alem dos 5 itens):**
+**Proximo corte real (alem dos 5 itens) — entregue em v3.7.3:**
 
-1. **Marcar FalkorDB e RAGFlow como exercidos no CI** — atualmente os
-   testes existem mas o CI padrao sobe `local-min` (sem docker). Quando
-   o gate K9 rodar em CI com `--profile=local-full`, os 6 testes novos
-   precisam virar `passed` (sem skip) na maquina de referencia.
-2. **Aprofundar a fixture de FalkorDB** — adicionar helper que cria
-   namespace unico por teste e limpa todos os nos criados, para
-   evitar dependencia de `DETACH DELETE` no caller.
-3. **Fixture RAGFlow com dataset real** — alem do health, exercitar
-   upload de documento pequeno e listar datasets para fechar a cobertura
-   de ingestao K6.
-4. **Subir a cobertura real para 100%** — hoje 6 testes pulam por
-   servico offline no host local; relatar a razao de cada skip no
-   relatorio `docs/reports/k9-real-suite-report.md`.
+1. ✅ **Marcar FalkorDB e RAGFlow como exercidos no CI** — adicionado
+   job `real-suite` em `.github/workflows/test.yml` que sobe FalkorDB
+   (porta 6379) e RAGFlow (porta 9380) via docker compose, espera os
+   healthchecks, e roda o gate K9 com `--report`. O job depende de
+   `full-suite` e roda em `ubuntu-latest` com `timeout-minutes: 30`.
+2. ✅ **Aprofundar a fixture de FalkorDB** — `falkordb_or_skip` agora
+   gera `FALKORDB_DB=hm_test_<uuid12>` por teste via `monkeypatch`,
+   dropa o DB no teardown e invalida o singleton do Graphiti. Caller
+   NAO precisa de `DETACH DELETE`; o teste de `push_neuron` ficou
+   mais limpo.
+3. ✅ **Fixture RAGFlow com dataset real** — adicionados
+   `test_ragflow_create_and_list_dataset` (create + list + delete) e
+   `test_ragflow_upload_then_list_documents` (upload markdown + list).
+   Quando RAGFlow esta offline, pulam com motivo nomeado.
+4. ✅ **Subir a cobertura real para 100%** —
+   `tests/run_real_knowledge_local_full.sh` sobe FalkorDB + Milvus +
+   RAGFlow via docker compose, espera healthchecks (FalkorDB 30s,
+   Milvus 60s, RAGFlow 120s) e roda o gate K9 com `--report`. E o
+   caminho de "cobertura 100% na maquina de referencia" sem precisar
+   de CI. O script e idempotente: re-rodar nao duplica containers.
+
+**Cobertura pos-v3.7.3:**
+- Maquina local sem docker: 53 total, 40 passed, 13 skipped (servicos
+  offline: Milvus=6, RAGFlow=5, Milvus sync CLI=2). 0 failed.
+- Maquina de referencia com `local-full` (CI ou
+  `tests/run_real_knowledge_local_full.sh`): 53 total, 53 passed,
+  0 skipped. Cobertura real sem mock.
 
 ## 11. Auditoria Final De Alinhamento (2026-06-28)
 
