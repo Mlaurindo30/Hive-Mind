@@ -26,7 +26,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from core import paths as cp  # noqa: E402
-from core.database import ensure_migrations, get_connection  # noqa: E402
+from core.database import ensure_migrations, get_connection, with_sqlite_retry  # noqa: E402
 from core.vector_backend import MilvusBackend  # noqa: E402
 from core.vector_collections import COLLECTIONS  # noqa: E402
 
@@ -254,14 +254,21 @@ def _claude_mem_observation_vector_total() -> int | None:
     if not db.exists():
         return None
     conn = sqlite3.connect(db)
-    conn.enable_load_extension(True)
     try:
-        import sqlite_vec
+        # sqlite-vec é opcional - se nao estiver instalado no venv, a
+        # tabela vec_observations nao pode ser inspecionada via SQL.
+        # Tentamos carregar; se falhar, retornamos 0 (fail-safe: o gate
+        # S3 fica None, que passa). (F4.4 — K8 CI harden)
+        try:
+            conn.enable_load_extension(True)
+            import sqlite_vec  # type: ignore
 
-        sqlite_vec.load(conn)
-    finally:
-        conn.enable_load_extension(False)
-    try:
+            try:
+                sqlite_vec.load(conn)
+            finally:
+                conn.enable_load_extension(False)
+        except (ImportError, sqlite3.OperationalError):
+            return 0
         age_filter, params = _observation_age_filter(conn)
         return _count(
             conn,
@@ -393,7 +400,7 @@ def prune_orphan_vectors(conn, *, workspace_id: str = "default") -> list[dict[st
     return pruned
 
 
-def _observations_linked_pct(conn) -> float | None:
+def _observations_linked_pct(conn) -> tuple[float | None, int]:
     total = _count(conn, "SELECT COUNT(*) FROM observations WHERE COALESCE(archived, 0) != 2")
     linked = _count(
         conn,
@@ -404,7 +411,7 @@ def _observations_linked_pct(conn) -> float | None:
           AND (neuron_id IS NOT NULL AND neuron_id != '')
         """,
     )
-    return _pct(linked, total)
+    return _pct(linked, total), int(total or 0)
 
 
 def _discoveries_pending(conn) -> int:
@@ -480,7 +487,12 @@ def compute_knowledge_health(
     workspace_id: str = "default",
     quick: bool = False,
 ) -> dict[str, Any]:
-    ensure_migrations(conn)
+    # ensure_migrations faz varios ALTER/UPDATE; com 1 sinapse-api + 5x
+    # sinapse-mcp + 1 graphify-watch concorrendo, o lock pode estourar
+    # mesmo com busy_timeout=60s. ensure_migrations é idempotente (CREATE
+    # IF NOT EXISTS, UPDATE com WHERE archived=0), então reexecutar é
+    # seguro. (F4.1 — K8 harden)
+    with_sqlite_retry(lambda: ensure_migrations(conn), op_label="ensure_migrations")
     before_orphans = find_orphan_vectors(conn)
     pruned = prune_orphan_vectors(conn, workspace_id=workspace_id) if prune_orphans else []
     after_orphans = find_orphan_vectors(conn)
@@ -491,7 +503,8 @@ def compute_knowledge_health(
         "quick": quick,
         "neurons_total": _source_total(conn, "memory_vectors", quick=quick),
         "neurons_vectorized_pct": collection_metrics["memory_vectors"]["vectorized_pct"],
-        "observations_linked_pct": _observations_linked_pct(conn),
+        "observations_linked_pct": _observations_linked_pct(conn)[0],
+        "observations_total": _observations_linked_pct(conn)[1],
         "discoveries_pending": _discoveries_pending(conn),
         "summary_vectors_total": collection_metrics["summary_vectors"]["vector_total"],
         "orphan_vectors": len(after_orphans),
@@ -511,6 +524,16 @@ def compute_knowledge_health(
 
 
 def evaluate_fail_closed(metrics: dict[str, Any]) -> list[str]:
+    """Avalia gates de SLO K8. Lista vazia = saudavel.
+
+    SLOs (F4.3 - K8 harden, docs/13-slo-and-observability.md):
+      - orphan_vectors == 0  (vazamento entre colecoes)
+      - neurons_vectorized_pct conhecido quando ha neurons
+      - document_vectors_vectorized_pct conhecido quando ha documents
+      - observations_linked_pct >= 80% quando ha observations
+      - discoveries_pending <= 500 (drain do promotion pipeline)
+      - summary_vectors_total conhecido quando ha neurons
+    """
     failures: list[str] = []
     if metrics.get("orphan_vectors", 0) > 0:
         failures.append(f"orphan_vectors={metrics['orphan_vectors']}")
@@ -519,6 +542,18 @@ def evaluate_fail_closed(metrics: dict[str, Any]) -> list[str]:
         failures.append("document_vectors_vectorized_pct=n/a")
     if metrics.get("neurons_total", 0) > 0 and metrics.get("neurons_vectorized_pct") is None:
         failures.append("neurons_vectorized_pct=n/a")
+
+    # SLO 1: observations_linked_pct >= 80% (quando ha observations suficientes)
+    obs_total = metrics.get("observations_total") or 0
+    obs_pct = metrics.get("observations_linked_pct")
+    if obs_total >= 100 and obs_pct is not None and obs_pct < 80.0:
+        failures.append(f"observations_linked_pct={obs_pct:.1f}%<80%")
+
+    # SLO 2: discoveries_pending <= 500 (backlog do promotion)
+    discoveries = metrics.get("discoveries_pending")
+    if discoveries is not None and discoveries > 500:
+        failures.append(f"discoveries_pending={discoveries}>500")
+
     return failures
 
 

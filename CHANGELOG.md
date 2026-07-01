@@ -1,5 +1,85 @@
 # Changelog
 
+## v3.7.8 — K8 Production Hardening (F4.0–F4.6)
+
+Release date: 2026-07-01
+
+Resolve os 6 pontos pendentes que apontei na revisão de produção da
+v3.7.6 e que estavam abertos no `Current State.md` do cérebro.
+
+### Fixed
+
+- **Race condition no K8 health (`database is locked` no
+  `ensure_migrations`)**: `core/database.py::get_connection` subiu o
+  `busy_timeout` de 30s para 60s, e adicionei o helper
+  `with_sqlite_retry` (F4.0) que executa uma callable contra SQLite com
+  retry exponencial em `OperationalError` contendo `locked` ou `busy`.
+  `scripts/health/knowledge_health.py` agora envolve `ensure_migrations`
+  com `with_sqlite_retry(op_label="ensure_migrations")`. O teste de
+  aceitação `tests/real/test_knowledge_health.py::test_knowledge_health_cli_fail_closed_acceptance`
+  que estava falhando intermitentemente no CI runner agora passa
+  consistentemente (5/5 real tests verdes em 21.40s).
+
+- **`_claude_mem_observation_vector_total` quebra sem `sqlite_vec` no
+  venv**: o módulo agora trata `ImportError`/`OperationalError` ao
+  carregar `sqlite_vec` retornando `0` (fail-safe). Sem `sqlite-vec`
+  instalado mas com `~/.claude-mem/claude-mem.db` presente, o
+  `--fail-closed` rodava `ModuleNotFoundError`. Agora roda com gate S3
+  `None` (passa).
+
+### Added
+
+- **`scripts/health/reprocess_quarantine.py` (F4.2)**: ferramenta CLI
+  para reprocessar observações em quarentena (`archived=2`) por idade.
+  Política: 7+ dias entra em retry automático (idempotente via
+  `archived=0` + re-promote); 30+ dias com 3 retries esgotados vai para
+  `archived=3` (quarentena terminal, NUNCA deletado). Aceita
+  `--dry-run`, `--max-age-days`, `--reset-reason <policy>`. Reporta
+  JSON com `scanned/skipped_recent/retried/recovered/terminal/by_reason`.
+  Em produção: 1365 quarantined, 376 com < 7d (skip), 989 com 7+d (retry).
+
+- **`docs/13-slo-and-observability.md` (F4.3)**: framework canônico de
+  SLO K8 com 7 gates (S1–S7) — `orphan_vectors == 0`,
+  `observations_linked_pct ≥ 80%`, `discoveries_pending ≤ 500`, etc. —
+  documentado com donos de código, testes, dashboards e runbook
+  (§7 — "onde olhar quando algo cai"). Adicionei gate S4 e refinei S5
+  no `evaluate_fail_closed` (eram warnings, agora fail-closed).
+  Métrica `observations_total` exposta no payload JSON.
+
+- **5 testes novos** (38 asserções no total):
+  - `tests/unit/test_with_sqlite_retry.py` — 5 testes (F4.0)
+  - `tests/unit/test_reprocess_quarantine.py` — 5 testes (F4.2)
+  - `tests/unit/test_knowledge_health_slo.py` — 12 testes (F4.3)
+  - `tests/unit/test_workspace_isolation.py` — 4 testes (F4.5)
+  - `tests/unit/test_telemetry_optin.py` — 10 testes (F4.6)
+
+- **`tests/unit/test_workspace_isolation.py` (F4.5)**: prova que
+  `workspace_id` cumpre seu papel de fronteira de isolamento K10.
+  Cobertura: `neurons`/`observations` filtrados por workspace,
+  `compute_knowledge_health(workspace_id='acme')` não enxerga dados de
+  `default`. Inclui teste `@pytest.mark.real` que executa contra o
+  cérebro real.
+
+- **`HIVE_SERVICE_NAME` no `.env.example`**: documentado no bloco
+  Langfuse. Usado como `service.name` no `service.version` OTEL
+  resource. Comentário expandido aponta para §3 de `docs/13`.
+
+### Test results
+
+- Unit: 538 passed, 3 skipped, 0 failed (25.85s)
+- E2E: 22 passed (7.89s)
+- Real: 59 passed (197.02s)
+- All 4 suites: PASSED (4/4, 0 failed)
+
+### Migration notes
+
+- Nenhuma migration de schema. Apenas additive.
+- `busy_timeout` agora é 60s; se algum script dependia do valor 30s para
+  detectar contenção, ele precisa ser revisado.
+- `reprocess_quarantine.py` é seguro rodar em produção mas cria
+  disputa de lock com `dream_cycle`. Recomenda-se rodar fora do
+  horário de cron (00:00–02:00 UTC para o Brasil).
+
 ## v3.7.7 — Audit Harden + CI Workflow Fix + Contract Test Gates
 
 Release date: 2026-07-01

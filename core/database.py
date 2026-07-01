@@ -2,6 +2,7 @@ import sqlite3
 import os
 import json
 import struct
+import time
 import uuid
 import sys
 from pathlib import Path
@@ -146,7 +147,12 @@ def get_connection():
     # abortava com 'database is locked'. WAL é persistente (setar 1x basta, mas
     # é idempotente). Falha do PRAGMA não é fatal (DB read-only/legado).
     conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA busy_timeout = 30000;")
+    # 60s absorve contenção prolongada de scripts que seguram transactions
+    # longas (knowledge_health --fail-closed, dream_cycle, watcher reindex).
+    # Subiu de 30s em 2026-07-01 após race entre sinapse-api (PID 102020) +
+    # graphify-watch + 5x sinapse-mcp causarem 'database is locked' no
+    # ensure_migrations. (F4.1 — K8 harden)
+    conn.execute("PRAGMA busy_timeout = 60000;")
     try:
         conn.execute("PRAGMA journal_mode = WAL;")
     except sqlite3.OperationalError:
@@ -183,6 +189,50 @@ def get_connection():
                 file=sys.stderr,
             )
     return conn
+
+
+def with_sqlite_retry(
+    fn,
+    *,
+    retries: int = 6,
+    initial_delay: float = 0.25,
+    max_delay: float = 5.0,
+    op_label: str = "sqlite_op",
+):
+    """Executa uma callable contra SQLite com retry exponencial para locks.
+
+    Uso:
+        with_sqlite_retry(lambda: conn.execute("UPDATE ..."), op_label="backfill")
+
+    Resolve o caso onde um writer (dream_cycle, knowledge_health, watch
+    reindex) segura uma transacao longa enquanto o sinapse-api + 5x
+    sinapse-mcp + graphify-watch mantem conexoes abertas. Com 60s de
+    busy_timeout + retry exponencial ate 6 tentativas (cumulativo ate ~16s
+    adicionais), a chance de falha no ensure_migrations cai a virtualmente
+    zero em operacoes concorrentes normais.
+
+    Outros OperationalError (corrupted DB, schema missing) nao sao
+    recuperados - sao bugs reais que devem aparecer.
+    """
+    delay = initial_delay
+    last_exc: Exception | None = None
+    for attempt in range(retries):
+        try:
+            return fn()
+        except sqlite3.OperationalError as exc:
+            msg = str(exc).lower()
+            if "locked" not in msg and "busy" not in msg:
+                raise
+            last_exc = exc
+            if attempt == retries - 1:
+                break
+            time.sleep(delay)
+            delay = min(delay * 2, max_delay)
+    raise sqlite3.OperationalError(
+        f"[{op_label}] sqlite lock persistente apos {retries} tentativas "
+        f"(~{initial_delay + max_delay * 2:.1f}s): {last_exc}"
+    )
+
 
 def execute_insert(conn, table, data):
     """
