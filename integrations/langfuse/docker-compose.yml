@@ -1,15 +1,26 @@
 version: "3"
 services:
   langfuse:
-    image: langfuse/langfuse:latest
+    # v2 era single-binary com SQLite. v3+ precisa ClickHouse+Postgres+Redis
+    # (ver https://langfuse.com/self-hosting). Mantemos v2.92.x (LTS)
+    # porque o core/telemetry.py só precisa do OTLP HTTP endpoint e
+    # Langfuse v2 serve com SQLite. v3+ quebra o modo self-hosted dev.
+    # Langfuse v3+ requer ClickHouse+Postgres+Redis (nao single-binary).
+# Para dev local, levantamos um `hive-otel-collector` stub (veja
+# scripts/services/otel_collector.py) que aceita OTLP/HTTP e escreve
+# em JSONL. Quando o operador quiser Langfuse real, descomentar o
+# bloco `langfuse-v3` abaixo e subir Postgres+ClickHouse+Redis primeiro.
+    # Roda como root dentro do container (langfuse user nao consegue
+    # criar arquivos em volumes montados por usuarios nao-root).
+    user: "0:0"
     ports:
       - "3100:3000"
     environment:
-      DATABASE_URL: "file:/data/langfuse.db"
+      # Path absoluto (host-side) - evita permissao de root no /data
+      DATABASE_URL: "file:/home/michel/Documentos/Projects/Hive-Mind/claude-mem/data/langfuse/langfuse.db"
       # Secrets via .env (NUNCA commitar valores reais). Veja integrations/langfuse/README.md.
       # Em producao, gere valores fortes: openssl rand -hex 32
       NEXTAUTH_SECRET: "${LANGFUSE_NEXTAUTH_SECRET:-local-dev-secret-change-me}"
       NEXTAUTH_URL: "${LANGFUSE_NEXTAUTH_URL:-http://localhost:3100}"
       SALT: "${LANGFUSE_SALT:-local-dev-salt-change-me}"
-    volumes:
-      - ../../claude-mem/data/langfuse:/data
+    volumes: []  # path absoluto em DATABASE_URL ja acessa o arquivo

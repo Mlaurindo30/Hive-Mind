@@ -252,6 +252,29 @@ def execute_insert(conn, table, data):
     data_copy = dict(data)
     if 'id' not in data_copy or not data_copy['id']:
         data_copy['id'] = generate_uuid()
+
+    # K10 (v3.7.9+): injetar workspace_id automaticamente do contextvar
+    # se a tabela aceita e o caller nao passou. Tabelas em ALLOWED_TABLES
+    # abaixo estao confirmadas no schema com coluna workspace_id. Para
+    # outras tabelas (e.g. vault), nao tenta injetar — caller explicito.
+    _WORKSPACE_TABLES = {
+        "neurons", "observations", "visual_memories",
+        "document_memories", "query_route_log", "knowledge_tombstones",
+    }
+    if table in _WORKSPACE_TABLES and "workspace_id" not in data_copy:
+        try:
+            from core.workspace import current_workspace_id
+            workspace_id = current_workspace_id()
+        except ImportError:
+            workspace_id = "default"
+        # So' injeta se a coluna workspace_id EXISTE na tabela.
+        # Tabelas legadas/testes sem migracao nao quebram. (v3.7.9+)
+        try:
+            cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+            if "workspace_id" in cols:
+                data_copy["workspace_id"] = workspace_id
+        except sqlite3.OperationalError:
+            pass  # tabela nao existe - deixa INSERT falhar normalmente
     
     # Valida se os nomes das colunas são identificadores válidos para evitar injeção
     for col in data_copy.keys():

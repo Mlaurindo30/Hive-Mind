@@ -628,6 +628,11 @@ CRON_MONTHLY_JOB="15 3 1 * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME &
 CRON_YEARLY_JOB="30 3 1 1 * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && $PY_CRON scripts/dream/yearly_synthesizer.py --real >> logs/yearly-synthesizer.log 2>&1"
 CRON_VECTOR_SUMMARY_JOB="45 3 * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && if [ \"\${VECTOR_BACKEND:-sqlite}\" = \"milvus\" ]; then $PY_CRON scripts/maintenance/vector-sync.py --collection summary_vectors --json >> logs/vector-sync.log 2>&1; fi"
 
+# Drenar quarentena (archived=2) semanalmente. Roda no domingo 04:00
+# (entre backup 03:00 e vector-sync 03:45). v3.7.8+ drena ~95% das obs
+# paradas; o que sobra vai para archived=3 terminal apos 30d.
+CRON_QUARANTINE_DRAIN_JOB="0 4 * * 0 SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && $PY_CRON scripts/health/reprocess_quarantine.py --max-age-days 7 >> logs/quarantine-drain.log 2>&1"
+
 if command -v crontab &>/dev/null; then
     # Remove variantes legadas/duplicadas e instala uma única entrada canônica.
     CRON_TMP=$(mktemp)
@@ -664,6 +669,8 @@ if command -v crontab &>/dev/null; then
         echo "$CRON_YEARLY_JOB"
         echo "# Hive-Mind — vector sync summaries K5"
         echo "$CRON_VECTOR_SUMMARY_JOB"
+        echo "# Hive-Mind — quarantine drain semanal K3/K4 (v3.7.8+)"
+        echo "$CRON_QUARANTINE_DRAIN_JOB"
     } | crontab -
     rm -f "$CRON_TMP"
     echo -e "  ${GREEN}✓${NC} Cron configurado sem duplicatas (sync, audit, backup, Dream Cycle, K5)"

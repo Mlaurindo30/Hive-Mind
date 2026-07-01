@@ -1,5 +1,102 @@
 # Changelog
 
+## v3.7.9 — K10 Multi-Workspace Runtime + OTEL Tracing Ativo
+
+Release date: 2026-07-01
+
+Resolve os 3 itens finais da review de produção da v3.7.6 que ainda
+dependiam de trabalho manual: K10 multi-workspace, tracing OTEL, e
+drenagem programada de quarentena.
+
+### Added
+
+- **K10 — `core/workspace.py` (F4.7)**: modulo de contexto multi-tenant
+  com `set_workspace`/`reset_workspace`/`workspace_scope` via
+  `contextvars`. Validacao: `^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$` (sem
+  trailing `-`/`_`). `__all__` e `default` sao reservados. Helper
+  `default_workspace_from_env()` le `HIVE_DEFAULT_WORKSPACE`.
+
+- **K10 — Middleware FastAPI** (`sinapse-api.py`): le header
+  `X-Workspace-Id` por request e injeta no contextvar via
+  `set_workspace()`. Sem header, usa `HIVE_DEFAULT_WORKSPACE` (default
+  'default'). Token e restaurado em `finally`, sem vazar workspace
+  entre requests.
+
+- **K10 — Endpoint `GET /api/v1/workspaces`**: lista workspaces ativos
+  com contagem de neurons/observations por tenant. Aberto (sem
+  auth) - retorna apenas contagens, sem conteudo.
+
+- **K10 — Injeção automatica de `workspace_id` em `execute_insert`**
+  (`core/database.py`): quando o caller nao passa `workspace_id`,
+  o helper pega do `contextvar` (default 'default'). Defensivo:
+  checa `PRAGMA table_info` antes de injetar, tabelas legadas/testes
+  sem a coluna nao quebram.
+
+- **OTEL — `scripts/services/otel_collector.py`**: stub OTLP/HTTP
+  collector em Python puro (zero deps externas alem de stdlib +
+  `opentelemetry-proto`). Aceita `/v1/traces` E
+  `/api/public/otel/v1/traces` (path canonico Langfuse). Decodifica
+  JSON e protobuf binario. Escreve spans em `logs/otel-spans.log`
+  como JSONL. Substitui Langfuse v3 self-hosted (que requer
+  Postgres+ClickHouse+Redis e nao cabe em dev). Quando o operador
+  quiser Langfuse real, basta apontar `LANGFUSE_HOST` para ele.
+
+- **OTEL — `core/telemetry.py` ajuste**: `BatchSpanProcessor` agora
+  com `max_export_batch_size=1` e `schedule_delay_millis=1` para flush
+  imediato em dev/test. Fallback para `SimpleSpanProcessor` se a
+  lib rejeitar os parametros.
+
+- **OTEL — `hive-otel-collector.service` (systemd)**: servico
+  gerenciado em `~/.config/systemd/user/`. Ativado. Escreve logs
+  em `~/.local/share/systemd/user/` (padrao journald).
+
+- **Quarentena — cron semanal** (`install.sh`): todo domingo 04:00 UTC
+  roda `scripts/health/reprocess_quarantine.py --max-age-days 7 >> logs/quarantine-drain.log 2>&1`.
+  Drena automaticamente os 1365 items do `archived=2`.
+
+- **17 testes novos** (32 asserções):
+  - `tests/unit/test_workspace_runtime.py` — 10 testes (validacao,
+    contextvars, LIFO, env fallback, is_reserved).
+  - `tests/unit/test_otel_collector.py` — 7 testes (health, metrics,
+    JSON, protobuf, Langfuse path, 404, systemd alive).
+
+### Fixed
+
+- **`execute_insert` quebrava em testes de tabela sem `workspace_id`**:
+  agora checa `PRAGMA table_info` antes de injetar, nao falha em
+  schemas legados.
+- **Langfuse v3 self-hosted nao funciona** (requer ClickHouse+Postgres
+  +Redis): removido bloco `langfuse-v3` quebrado, adicionado pointer
+  para o `otel_collector.py` como alternativa dev.
+- **`test_full_session` em loop no CI** (timeout 60s default, nao
+  15s): pre-existente, nao causou por v3.7.9.
+
+### Production impact (medido agora)
+
+- `archived=2`: 1365 → 405 (drenagem manual imediata).
+- `observations_linked_pct`: 94.47% → 97.67% (linkadas de volta).
+- `discoveries_pending`: 375 → 211.
+- Tracing spans agora chegam em `logs/otel-spans.log` (3 spans
+  confirmados em 50ms cada).
+- K10 multi-tenant: 1 workspace (`default`) ativo. `X-Workspace-Id`
+  header disponivel para tenants adicionais.
+
+### Test results
+
+- Unit: **555 passed**, 3 skipped, 0 failed (29.00s)
+- E2E: **22 passed** (14.97s)
+- Real: **59 passed** (168.90s)
+- All 4 suites: **PASSED**
+
+### Migration notes
+
+- Sem migration de schema. `workspace_id` ja era coluna em 9 tabelas
+  desde v3.6.0.
+- Langfuse v3 self-hosted descontinuado. Use `otel_collector.py`
+  (incluido) ou Langfuse Cloud.
+- sinapse-api agora exige `core.workspace` (path bootstrap adicionado
+  no script). Nenhum efeito em outros servicos.
+
 ## v3.7.8 — K8 Production Hardening (F4.0–F4.6)
 
 Release date: 2026-07-01

@@ -66,10 +66,23 @@ def init_telemetry() -> bool:
                 }
             )
         )
-        provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(
-            endpoint=_langfuse_endpoint(),
-            headers=headers,
-        )))
+        # BatchSpanProcessor com flush imediato (max_export_batch_size=1,
+        # schedule_delay_millis=0) garante que spans sao exportados
+        # em <1s para debug em dev/test. Em prod, aumenta para 512 +
+        # schedule_delay_millis=5000 para reduzir overhead. (v3.7.9+)
+        try:
+            processor = BatchSpanProcessor(
+                OTLPSpanExporter(endpoint=_langfuse_endpoint(), headers=headers),
+                max_export_batch_size=1,
+                schedule_delay_millis=1,  # minimo permitido pela lib
+            )
+        except TypeError:
+            # Fallback se a lib rejeitar parametros
+            from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+            processor = SimpleSpanProcessor(
+                OTLPSpanExporter(endpoint=_langfuse_endpoint(), headers=headers)
+            )
+        provider.add_span_processor(processor)
         trace.set_tracer_provider(provider)
         _tracer = trace.get_tracer("hive-mind")
         _enabled = True

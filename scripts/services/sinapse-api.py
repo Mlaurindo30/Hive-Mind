@@ -16,10 +16,26 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
 
+# Garante que a raiz do projeto esta no sys.path quando executado
+# via systemd ou via `python scripts/services/sinapse-api.py` (caminho
+# absoluto). Sem isto, `from core.workspace import ...` falha porque
+# cwd nao e' adicionado ao sys.path automaticamente.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, status, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+# K10 multi-workspace (v3.7.9+): contextvar propagation por request
+from core.workspace import (
+    current_workspace_id,
+    default_workspace_from_env,
+    set_workspace,
+    reset_workspace,
+)
 
 # Criptografia e Segurança
 from cryptography.fernet import Fernet
@@ -107,6 +123,30 @@ app = FastAPI(
     description="Interface com Criptografia de Segredos para o Cérebro de IA",
     version="1.4.0",
 )
+
+
+# K10 multi-workspace (v3.7.9+): middleware que propaga X-Workspace-Id
+# ao contextvar. Sem header, usa HIVE_DEFAULT_WORKSPACE do env (default: 'default').
+# Tokens sao restaurados em finally, evitando vazar workspace entre requests.
+@app.middleware("http")
+async def workspace_middleware(request: "Request", call_next):
+    header_ws = request.headers.get("X-Workspace-Id", "").strip()
+    if not header_ws:
+        header_ws = default_workspace_from_env()
+    token = None
+    try:
+        # default sempre passa (e' reservado); outros workspace_ids sao
+        # validados pelo helper. Em caso de ValueError, cai para default
+        # e segue — o endpoint especifico pode endurecer a politica.
+        from core.workspace import is_valid_workspace_id
+        if is_valid_workspace_id(header_ws):
+            token = set_workspace(header_ws)
+        response = await call_next(request)
+        return response
+    finally:
+        if token is not None:
+            reset_workspace(token)
+
 PROCESS_STARTED_AT = time.monotonic()
 
 app.state.limiter = limiter
@@ -120,6 +160,11 @@ _cors_origins = [
     ).split(",")
     if o.strip()
 ]
+
+
+def is_valid_workspace_id(workspace_id: str) -> bool:
+    """Wrapper publico para validacao. Retorna True se o nome e' valido."""
+    return _is_valid_workspace(workspace_id)
 # Regra do CORS: wildcard "*" é incompatível com allow_credentials=True
 _cors_allow_credentials = "*" not in _cors_origins
 
@@ -184,6 +229,41 @@ def _require_crdt_enabled():
 @limiter.limit("60/minute")
 def get_health(request: Request):
     return {"status": "online", "engine": "Hive-Mind Vault Ready"}
+
+
+# K10 (v3.7.9+): lista workspaces ativos com contagem por tabela.
+# Util para operators ver quantos neurons/observations cada tenant tem
+# sem precisar SQL direto. Aberto (sem auth) porque retorna apenas
+# contagens — sem conteudo.
+@app.get("/api/v1/workspaces")
+@limiter.limit("30/minute")
+def get_workspaces(request: Request):
+    conn = get_connection()
+    try:
+        rows = conn.execute("""
+            SELECT workspace_id,
+                   (SELECT COUNT(*) FROM neurons WHERE workspace_id = w.workspace_id) AS neurons,
+                   (SELECT COUNT(*) FROM observations WHERE workspace_id = w.workspace_id) AS observations
+            FROM (
+                SELECT DISTINCT workspace_id FROM neurons
+                UNION
+                SELECT DISTINCT workspace_id FROM observations
+            ) w
+            ORDER BY workspace_id
+        """).fetchall()
+        return {
+            "current_workspace": current_workspace_id(),
+            "workspaces": [
+                {
+                    "workspace_id": r["workspace_id"],
+                    "neurons": r["neurons"],
+                    "observations": r["observations"],
+                }
+                for r in rows
+            ],
+        }
+    finally:
+        conn.close()
 
 
 @app.get("/api/v1/metrics", dependencies=[Depends(verify_api_key)])
