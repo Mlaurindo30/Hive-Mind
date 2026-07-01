@@ -1,11 +1,17 @@
 # Estudo de Integração e Melhorias — Hive-Mind
-**Data:** 2026-06-21 | **Fonte:** pesquisa online com WebSearch/WebFetch em 26 fontes
+**Data:** 2026-06-21 (origem) · **Última revisão:** 2026-06-30 — consolidação com frente de Conhecimento Born-Large (K0–K10)
+**Fonte:** pesquisa online com WebSearch/WebFetch em 26 fontes
+
+> **Conexão com a frente de Conhecimento Born-Large (K0–K10):** este estudo é a **base de pesquisa** que motivou a [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md). As integrações listadas aqui aparecem como **órgãos canônicos do cérebro** em [`01-architecture.md` §2.6](01-architecture.md#26-ferramentas-externas-como-órgãos-do-cérebro): RAGFlow (K6), Milvus (K1), LlamaIndex (K7 rerank), Graphiti (causalidade), Graphify (estrutural), claude-mem (hipocampo), NeuralMemory (associação), LightRAG (multi-hop). O **`components.lock.json`** ([`01-architecture.md` §2.6](01-architecture.md#26-ferramentas-externas-como-órgãos-do-cérebro), ADR-018) é o **contrato negativo de vendorização**: clones (`graphify`, `neural-memory`, `rtk`, `omniparser`, `crsqlite`) e wrappers (Milvus, RAGFlow, Graphiti) têm local canônico. Pip cobre LlamaIndex. Se Milvus, RAGFlow ou LlamaIndex aparecerem em `components.lock.json` nesta frente, a implementação está errada.
 
 ---
 
 ## Sumário Executivo
 
-- **Graphiti (Zep)** é a integração de maior impacto arquitetural: grafo de conhecimento temporal com janelas de validade de fatos, 27.7k stars, backend FalkorDB (open-source local), MCP server pronto — complementa diretamente o grafo neurônios/sinapses atual com semântica temporal que o Hive-Mind ainda não tem.
+- **Graphiti (Zep)** é a integração de maior impacto arquitetural: grafo de conhecimento temporal com janelas de validade de fatos, 27.7k stars, backend FalkorDB (open-source local), MCP server pronto — complementa diretamente o grafo neurônios/sinapses atual com semântica temporal que o Hive-Mind ainda não tem. **Status (K10):** wrapper em `integrations/graphiti/` (FalkorDB + docker-compose com imagem pinada por digest).
+- **RAGFlow** (front-end canônico) entra como **adapter headless** para ingestão documental (K6), preservando a anatomia do Hive-Mind. **Status:** wrapper em `integrations/ragflow/` + `ragflow-sdk`. Saída flui para `document_memories` + `document_chunks` + `document_vectors` (K6). RAGFlow **nunca** é fonte de verdade; o store dele é cache de ingestão.
+- **Milvus** é o **backend vetorial de produção** (K1) que substitui `sqlite-vec` em escala. Contrato `VectorBackend` (`core/vector_backend.py`) é único; sqlite_vec e milvus são backends oficiais. Partição por `workspace_id` em produção (K10).
+- **LlamaIndex** entra como **adapter opcional de rerank** no `RetrievalRouter` (K7). **Status:** pip (`llama-index` em `pyproject.toml`). Não decide rota nem vira fonte de verdade.
 - **Screenpipe** (19.4k stars, YC S26) substitui o Deep Portal com captura orientada a eventos (não contínua), SQLite+FTS5, MCP nativo em localhost:3030 e transcrição Whisper local — sobreposição arquitetural quase total, tornando integração via API mais viável que reimplementação.
 - **sqlite-lembed + sqlite-vec** formam um duo nativo: gerar e armazenar embeddings 100% dentro do SQLite sem processo externo, usando modelos GGUF locais — upgrade direto sobre a abordagem sqlite-vec atual sem mudar o stack.
 - **CR-SQLite** (vlcn-io) adiciona sincronização multi-writer CRDT ao `hive_mind.db` sem mudar o schema — habilita instâncias Hive-Mind em múltiplas máquinas convergirem automaticamente, hoje impossível sem cópia manual.

@@ -28,6 +28,8 @@ cerebro/cortex/temporal/openclaw-crestodian-planner-NyDaMs/
 # ── Graphify output (artefatos runtime — regenerados, não commitar) ──
 cerebro/graphify-out/
 graphify-out/
+# Cache AST do graphify (indexação por hash de arquivo)
+cerebro/cortex/occipital/grafo/cache/ast/
 
 # ── Dependências ───────────────────────────────────────────────────
 node_modules/
@@ -123,3 +125,12 @@ cerebro/BenchMark.md
 cerebro/portal.canvas
 cerebro/inbox/
 cerebro/conflicts/
+cerebro/cortex/occipital/grafo/cache
+
+# Codex/Copilot agent hooks locais (working copies — canonico em cerebro/tronco/infra/agentes/)
+.codex/hooks.json
+# .github/copilot-instructions.md (canonical — committed)
+.agents/
+
+# Runtime graphify output (generated, not canonical)
+/GEMINI.md

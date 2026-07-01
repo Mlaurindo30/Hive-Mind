@@ -1,5 +1,6 @@
 # Roadmap de Implementação — Hive-Mind Integrações
-**Data:** 2026-06-25 | **Base anatômica:** `docs/01-architecture.md` §2 e `AGENTS.md` §2 | **Base de pesquisa:** `docs/09-integration-study.md`
+**Data:** 2026-06-25 (origem) · **Base anatômica:** `docs/01-architecture.md` §2 e `AGENTS.md` §2 · **Base de pesquisa:** `docs/09-integration-study.md`
+**Última revisão:** 2026-06-30 — consolidação com frente de Conhecimento Born-Large (K0–K10).
 
 > Documento de engenharia orientado pela **anatomia do cérebro**. Cada fase adiciona
 > ou reforça um órgão. Clones de projetos externos vivem em `integrations/<nome>/`;
@@ -7,6 +8,9 @@
 > vão no `install.sh`. Nomes em `cerebro/` (projetos, tópicos, setores) são fictícios —
 > projetos reais são instalados pelo usuário em `cerebro/cortex/temporal/<projeto>/`.
 >
+> **Conexão com a frente K0–K10:** o **eixo de conhecimento** (VectorBackend/Milvus, Knowledge Intake K3, Promotion Layer K4, cadência K5, DocumentPipeline K6, RetrievalRouter K7, métricas K8, harness K9, escala K10) vive em [`12-knowledge-implementation-plan.md`](12-knowledge-implementation-plan.md), com referência normativa em [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md). Este roadmap (fases P0–P13) cobre o **eixo de integrações e órgãos**. Mapa de equivalência: **P0 ≡ K1 (parcial: 1024d), P10 ≡ K5 mensal/anual (RAPTOR), P11 (LanceDB) ≡ K1 (K10 visual_vectors produção), P13 (OmniParser) ≡ K6 (parser opcional)**. Demais fases K (Knowledge Intake K3, Promotion Layer K4, DocumentPipeline K6, RetrievalRouter K7) **não vivem aqui** — vivem em `docs/12` por serem contrato de produto, não integração de vendor.
+>
+> **5ª passada (2026-06-30):** marcação consolidada das fases P/K (K0–K8 concluídas, K9/K10 contrato).
 > **4ª passada (2026-06-25):** marcação da Fase P8 (CR-SQLite) como **em implementação**.
 > **3ª passada de validação (2026-06-25) + refinamento posterior (sessão #S2864):** cada afirmação abaixo foi verificada
 > contra código real (ver §0.6 "Metodologia de validação"). A 2ª passada listava 13
@@ -806,7 +810,9 @@ irreversível uma vez que triggers internos estão ativos.
 
 **Origem:** `09` §6 — RAPTOR (Stanford 2024).
 **Lobo:** Córtex frontal (síntese hierárquica multi-nível).
-**ROI:** Médio | **Esforço:** Alto | **Status:** 🔜 Pendente
+**ROI:** Médio | **Esforço:** Alto | **Status:** 🔜 Pendente (entrega parcial em K5 — ver [`11-knowledge-promotion-architecture.md` §14](11-knowledge-promotion-architecture.md#14-cadencia-hierarquica-de-escrita))
+
+> **Status 2026-06-30:** K5 entregou `monthly_synthesizer.py` e `yearly_synthesizer.py` com `MonthlySummaryModel`/`YearlySummaryModel`, `source_id`, `parent_summary_id`, período, papel e modelo resolvido. `core/vector_sync.py` tem `index_summary_file_to_sqlite()` para indexação imediata. P10 (busca hierárquica top-down) **ainda** pendente — tool `sinapse_hierarchical_search` no MCP.
 
 **Estado atual (verificado):**
 - `scripts/dream/daily_writer.py` — nível 1 (diário) ✅ existe
@@ -884,7 +890,9 @@ irreversível uma vez que triggers internos estão ativos.
 
 **Origem:** `09` §3 — LanceDB (embedded columnar + vector, multimodal).
 **Lobo:** Córtex occipital (storage multimodal). Suporta embeddings de imagens/vídeos (CLIP), não só texto.
-**ROI:** Médio | **Esforço:** Alto | **Status:** 🔜 Pendente
+**ROI:** Médio | **Esforço:** Alto | **Status:** 🔜 Pendente (entrega parcial em K1/K6 — ver [`01-architecture.md` §24.2](01-architecture.md#242-coleções-canônicas))
+
+> **Status 2026-06-30:** K1 introduziu `visual_vectors` como coleção canônica ([`01-architecture.md` §24.2](01-architecture.md#242-coleções-canônicas)); metadata canônica cobre `parent_id`, `brain_lobe=occipital`, `knowledge_type=visual_observation`, `workspace_id`. O caminho local-first usa `vec_visual` (sqlite-vec 1024d com embedding textual via `snowflake-arctic-embed2`); o caminho de produção (K1) usa Milvus. **Embedding CLIP** de pixels ainda não foi entregue — P11 cobre o `parent_type=visual` com embedding de texto (que já funciona) e adiciona o embedding visual CLIP como enriquecimento.
 
 **Estado atual (verificado):**
 - `core/database.py:221` `add_visual_memory(image_path, description, ocr_text, neuron_id, metadata)` existe
@@ -1403,3 +1411,38 @@ P11 (LanceDB multimodal), P13 (OmniParser). P6 e P12 mortos (ver §3).
 **Próximo sugerido — P9 (Langfuse):** adicionar deps em `pyproject.toml` +
 instrumentar 4+ pontos do pipeline (Dream Cycle, capture_core, sinapse-mcp).
 Independente das demais; aguarda confirmação do usuário.
+
+---
+
+## 12. Eixo de Conhecimento (K0–K10) — Resumo de Status
+
+Esta seção é a **ponte operacional** com [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md) (normativo) e [`12-knowledge-implementation-plan.md`](12-knowledge-implementation-plan.md) (plano detalhado). Em caso de divergência, **prevalece** o `01-architecture.md` §22–§31.
+
+| Fase K | Nome | Status (2026-06-30) | Onde mora | Equivalência P |
+|---|---|---|---|---|
+| K0 | `VectorBackend` contrato (sqlite-vec + adapter Milvus) | ✅ Concluída | `core/vector_backend.py` | P0 (1024d) + P11 (produção) |
+| K1 | Coleções canônicas + metadata canônica | ✅ Concluída | `core/vector_backend.py`, `vector_metadata` UMC | P0/P11 |
+| K2 | — (parte de K1) | ✅ Concluída | `core/vector_backend.py` | — |
+| K3 | Knowledge Intake (intake.py) | ✅ Concluída (2026-06-28) | `core/knowledge/intake.py` | — |
+| K4 | Promotion Layer (promotion.py) + bridge claude-mem | ✅ Concluída (2026-06-29) | `core/knowledge/promotion.py`, `core/knowledge/claude_mem_bridge.py` | — |
+| K5 | Cadência hierárquica sessão→anual | ✅ Concluída (parcial) | `scripts/dream/{session_consolidator,daily_writer,weekly_synthesizer,monthly_synthesizer,yearly_synthesizer}.py` | P10 (busca hierárquica ainda pendente) |
+| K6 | `DocumentPipeline` parent/chunk/citation | ✅ Concluída | `core/knowledge/document_pipeline.py`, `scripts/knowledge/document_ingest.py` | P13 (OmniParser é parser opcional) |
+| K7 | `RetrievalRouter` (router.py) | ✅ Concluída (v3.5.0) | `core/retrieval/router.py`, `core/search.py` | — |
+| K8 | Métricas de saúde (knowledge_health.py) | ✅ Concluída (v3.6.0) | `scripts/health/knowledge_health.py` | — |
+| K9 | Harness real de aceite (`tests/real/`) | ✅ Contrato (implementação) | `tests/real/service_registry.py`, `tests/real/conftest.py` | — |
+| K10 | Born-large (workspace, federação, embedding versionado) | ✅ Contrato | `core/vector_backend.py` + DDL | — |
+
+**Contrato negativo de vendorização (ADR-018):** `components.lock.json` aceita apenas **clones** (`graphify`, `neural-memory`, `rtk`, `omniparser`, `crsqlite`). **Wrappers** (Milvus, RAGFlow, Graphiti) entram por container/SDK; **pip** cobre apenas LlamaIndex e utilitários. Se Milvus, RAGFlow ou LlamaIndex aparecerem em `components.lock.json` nesta frente, a implementação está errada.
+
+**Gate de produção K8:**
+
+```text
+neurons_vectorized_pct >= 99%
+observations_linked_pct crescente por ciclo
+discoveries_pending dentro do SLA
+0 orphan vectors
+todos os chunks com parent_id
+citations presentes nas respostas documentais
+```
+
+Aceite de fase: `./tests/run_all.sh` verde + smoke do caminho real (não-mock) com serviços online; skip explícito (com nome do serviço) se serviço offline (`tests/real/service_registry.py`).

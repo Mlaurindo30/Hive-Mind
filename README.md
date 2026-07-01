@@ -6,7 +6,7 @@
   [![Status](https://img.shields.io/badge/status-Phase%20HM--12%20(Federated%20Swarm)-blue)]()
   [![Python](https://img.shields.io/badge/python-3.12-green)]()
   [![License](https://img.shields.io/badge/license-Apache%202.0-lightgrey)]()
-  [![Tests](https://img.shields.io/badge/tests-211%20passing-brightgreen)]()
+  [![Tests](https://img.shields.io/badge/tests-run_all%20%2B%20real%20suites-brightgreen)]()
 </div>
 
 ---
@@ -30,13 +30,17 @@ Copy a prompt below and paste it into your agent (Claude Code, Codex CLI, Gemini
 ```
 Clone and install Hive-Mind on this machine.
 
-  git clone https://github.com/Mlaurindo30/sinapse_agent.git ~/hive-mind
-  cd ~/hive-mind
-  ./install.sh --with-tests
+  git clone https://github.com/Mlaurindo30/Hive-Mind.git ~/Hive-Mind
+  cd ~/Hive-Mind
+  ./install.sh --profile=local-min --with-tests
 
 Prerequisites: Linux with user systemd, Git, curl, uv, Node 18+, Bun and internet access.
 The installer provisions Python 3.12 (managed by uv), .venv, Graphify, claude-mem,
-NeuralMemory, RTK, services, indexes and MCP registrations.
+NeuralMemory, RTK, services, indexes, MCP registrations and the local model stack.
+The default profile pulls `snowflake-arctic-embed2:latest` for every embedding path,
+`qwen2.5:3b`, `qwen2.5-coder:3b` and `minicpm-v4.6:latest` for local vision when
+Ollama is new enough. On older Ollama daemons it falls back to `gemma3:4b`. The
+heavy legacy `llava:7b` model is not part of the installer.
 
 When it finishes, the installer asks whether to configure the LLM provider
 (Gemini, OpenAI, Anthropic, Ollama, ...) via setup-brain.sh. Answer Y and follow
@@ -45,6 +49,9 @@ the menu to pick provider, model and API keys.
 Headless / CI (no interactive terminal):
   HIVE_DREAMER_PROVIDER=google HIVE_DREAMER_MODEL=gemini-2.0-flash \
   GOOGLE_API_KEY=<your_key> ./install.sh --non-interactive
+
+Full local validation profile:
+  ./install.sh --profile=local-full --with-real-tests
 
 After install, restart this agent. Only the orchestrator MCP `sinapse-memory` is
 registered — it exposes Hive-Mind's 15 unified tools and federates global claude-mem
@@ -57,7 +64,7 @@ registered — it exposes Hive-Mind's 15 unified tools and federates global clau
 Register Hive-Mind as an MCP server FOR YOURSELF — the agent reading this prompt.
 Register only YOUR config, not anyone else's.
 
-  cd ~/hive-mind
+  cd ~/Hive-Mind
   ./scripts/setup/register-mcp.sh --only <your-agent>
 
 Replace <your-agent> with your identity. Valid keys:
@@ -157,8 +164,10 @@ cross-cutting execution layer. Full anatomy: [`docs/01-architecture.md` §2](doc
 | `sinapse_rag_query` | LightRAG multi-hop query |
 | `search_memories` | HNSW/text search over consolidated neurons |
 
-Per-agent MCP config templates live in `mcp/` (e.g. Claude Code → `<project>/.mcp.json`,
-Codex → `~/.codex/mcp.json`, Cursor → `.cursor/mcp.json`, Gemini → `~/.gemini/settings.json`).
+Project-managed MCP templates live in `config/mcp/`; generated per-agent runtime
+configs are written by `scripts/setup/register-mcp.sh` into each agent's own config
+location (for example Codex `~/.codex/mcp.json`, Cursor `.cursor/mcp.json`, Gemini
+`~/.gemini/settings.json`).
 
 ---
 
@@ -225,6 +234,11 @@ cp .env.example .env
 | `HIVE_DREAMER_MODEL` | For Dream Cycle | Model (`deepseek-chat`, `gemini-2.0-flash`, ...) |
 | `HIVE_{GRAPHIFY,VISION,SYNTHESIS}_PROVIDER/MODEL` | No (inherit from Dreamer) | Per-role LLM |
 | `HIVE_{ROLE}_FALLBACK_PROVIDER/MODEL` | No (opt-in) | Explicit fallback if the primary fails |
+| `OLLAMA_EMBED_MODEL` | Local embeddings | Default `snowflake-arctic-embed2:latest` (1024d) |
+| `HIVE_VISION_PROVIDER` / `HIVE_VISION_MODEL` | Vision | Default `ollama/minicpm-v4.6:latest` |
+| `HIVE_VISION_FALLBACK_PROVIDER` / `HIVE_VISION_FALLBACK_MODEL` | Vision fallback | Default `ollama/gemma3:4b` |
+| `HIVE_OCR_PROVIDER` / `HIVE_OCR_MODEL` | Optional OCR | `ollama/deepseek-ocr:latest`, opt-in for dedicated OCR |
+| `VECTOR_BACKEND` | Vector store | `sqlite` by default, `milvus` when enabled |
 | `HIVE_MIND_API_KEY` | For REST API | Bearer token — API will not start without it (fail-closed) |
 | `HIVE_MIND_API_PORT` | No (default 37702) | REST API port |
 | `HIVE_MIND_MASTER_KEY` | For secret vault | Field-level encryption key |
@@ -294,7 +308,9 @@ Full setup: [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md).
 | E2E | Full session, degradation, concurrency, recovery | Real backends |
 | Synthesis (`test_synthesis.py`) | `run_synthesis_cycle()` end to end | **Yes** |
 
-**211 tests passing.** Unit tests never call an LLM — they test the logic around the model, not the model.
+The repository currently contains hundreds of test functions across smoke, unit,
+integration, E2E and real knowledge suites. Unit tests do not call an LLM; real
+model/runtime validation lives in integration/E2E suites and `tests/run_real_knowledge.sh`.
 
 ---
 
@@ -335,6 +351,9 @@ Full setup: [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md).
 | [`docs/04-infrastructure.md`](docs/04-infrastructure.md) | Infrastructure, ports, services, security |
 | [`docs/05-blueprints.md`](docs/05-blueprints.md) | ASCII diagrams of every flow |
 | [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md) | P2P synchronization setup |
+| [`docs/11-knowledge-promotion-architecture.md`](docs/11-knowledge-promotion-architecture.md) | Knowledge promotion architecture |
+| [`docs/12-knowledge-implementation-plan.md`](docs/12-knowledge-implementation-plan.md) | K0-K10 implementation plan |
+| [`docs/reports/k9-real-suite-report.md`](docs/reports/k9-real-suite-report.md) | Latest real-suite evidence report |
 | [`AGENTS.md`](AGENTS.md) | Guide for AI agents |
 
 ---

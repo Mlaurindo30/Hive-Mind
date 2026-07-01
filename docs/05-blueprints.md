@@ -1,6 +1,7 @@
 # 05 — Blueprints e Fluxogramas
 
 > **Hive-Mind v3.0.0** — Diagramas de arquitetura e fluxos em ASCII (compatível com qualquer editor Markdown).
+> Última revisão: 2026-06-30. Inclui o **fluxo canônico de 9 etapas** (K0–K10), `RetrievalRouter` (K7), `DocumentPipeline` (K6), cadência hierárquica (K5) e a anatomia estendida com `workspace_id` (K10). Referência normativa em [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md); arquitetura destilada em [`01-architecture.md`](01-architecture.md).
 
 ---
 
@@ -255,10 +256,10 @@
          ▼
   ┌──────────────────┐
   │  EMBEDDING       │
-  │  all-MiniLM-L6   │  384 dimensões, local
-  │  -v2 (fastembed) │
+  │  snowflake-      │  1024 dimensões, Ollama local
+  │  arctic-embed2   │
   └──────┬───────────┘
-         │ vetor 384d
+         │ vetor 1024d
          ▼
   ┌────────────────────────────────────────────┐
   │  hive_mind.db                              │
@@ -455,7 +456,7 @@ Componentes envolvidos:
 | sinapse-api | `scripts/services/sinapse-api.py` | base | REST :37702 |
 | sinapse-mcp | `scripts/services/sinapse-mcp.py` | base | MCP stdio (15 tools) |
 | sinapse-hook | `cerebro/tronco/infra/agentes/.claude/scripts/sinapse-hook.py` | base | Hooks universais |
-| HNSW Index | `core/hnsw_index.py` | HM-11 | Indice incremental fastembed 384d |
+| HNSW Index | `core/hnsw_index.py` | HM-11 | Indice incremental 1024d com embedding canônico `snowflake-arctic-embed2` |
 | Planner | `scripts/analytics/planner.py` | HM-11 | Decompositor de objetivos via LLM |
 | Signing | `core/signing.py` | HM-12 | Ed25519 assinatura/verificacao |
 | Redactor | `core/redactor.py` | HM-12 | Remocao irreversivel de PII |
@@ -494,3 +495,326 @@ Componentes envolvidos:
                                                    │  (Syncthing) │
                                                    └─────────────┘
 ```
+
+---
+
+## 13. Fluxo Canônico de 9 Etapas (K0–K10)
+
+Versão completa do fluxo de conhecimento ([`11-knowledge-promotion-architecture.md` §2](11-knowledge-promotion-architecture.md#2-fluxo-completo), [`01-architecture.md` §23](01-architecture.md#23-fluxo-de-captura--promoção--recuperação)):
+
+```text
+  Agente / Humano / Sistema
+          |
+          v
+  [1] Capture Layer
+      hooks · MCP · CLI · browser · documentos · codigo · screenshots · runtime
+          |
+          v
+  [2] Temporal Hippocampus (claude-mem)
+      user_prompts · observations · discoveries · session_summaries
+      facts / narrative / concepts · files_read / files_modified
+          |
+          v
+  [3] Knowledge Intake (core/knowledge/intake.py — K3)
+      normaliza · classifica · deduplica · preserva evidência
+          |
+          v
+  [4] Promotion Layer (core/knowledge/promotion.py — K4)
+      Distiller → Validator → Router
+      raw -> summary -> fact / learning / decision / preference / task / rationale
+          |
+          v
+  [5] Anatomical Memory
+      cerebro/ + UMC:
+        cortex temporal · frontal · parietal · occipital · insula
+        cerebelo · diencefalo · tronco
+          |
+          v
+  [6] Index Layer
+      FTS · sqlite-vec · Milvus · vec_observations · Graphify · Graphiti · LightRAG
+      (7 coleções canônicas — K1)
+          |
+          v
+  [7] Retrieval Router (core/retrieval/router.py — K7)
+      classifica intent → escolhe temporal · memoria · documento · codigo · grafo · chunk · hibrido
+          |
+          v
+  [8] Answer + Citation
+      resposta com source · evidência · caminho · data
+      (citations[{source_uri, offset_start, offset_end, score, parent}])
+          |
+          v
+  [9] Feedback
+      nova observação, decisão, aprendizado ou tarefa
+```
+
+**Regra de borda:** cada etapa é fracamente acoplada. Falha em [4] não bloqueia [1]–[3] (a observação volta com `archived=0` ou `archived=2`). Nada é deletado por falha de promoção (ADR-016).
+
+---
+
+## 14. RetrievalRouter (K7) — Roteamento por Intenção
+
+```text
+                            query
+                              |
+                              v
+                +----------- RetrievalRouter ----------+
+                |          (K7, classifica intent)      |
+                |                                      |
+                v                                      v
+      intenção classificada                  confiança baixa?
+                |                                      |
+        +-------+-------+-------+-------+             v
+        |       |       |       |       |       fallback para
+        v       v       v       v       v       sinapse_query
+   temporal  memoria  doc     code    grafo   (Context Fusion)
+   (claude-  (memory  (doc    (code   (Graphiti/
+    mem)    vectors) vectors) vectors) LightRAG)
+                |
+                v
+       resposta com
+       retrieval_path + citations + confidence + missing_context
+```
+
+**Rotas canônicas (de [`01-architecture.md` §26](01-architecture.md#26-retrievalrouter-k7--roteamento-por-intenção)):**
+
+- recente / "o que aconteceu" → claude-mem temporal
+- decisão / preferência → memory_vectors + FTS
+- aprendizado → learning atoms + Patterns parent
+- documento → document_vectors + parent context
+- código → code_vectors + Graphify
+- causalidade / quando era verdade → Graphiti
+- pergunta global / multi-hop → LightRAG/GraphRAG
+- saúde / autoconsciência → Ínsula (saúde/conflitos)
+- config / operacional / modelo → Tronco (operational_fact)
+- setor / cross-projeto → Diencéfalo + Graphiti
+- ambígua → hybrid + reranker (opcional, §31.1)
+
+**Contrato de retorno** (toda consulta K7 devolve):
+
+```json
+{
+  "answer_context": [],
+  "citations": [],
+  "retrieval_path": [],
+  "confidence": 0.0,
+  "missing_context": []
+}
+```
+
+Telemetria `query_route_distribution` (hash da query, não texto) é gravada em `query_route_log` para alimentar a métrica de saúde K8.
+
+---
+
+## 15. DocumentPipeline (K6) — Ingestão Born-Large
+
+Inspirado em RAGFlow, mas **preservando a anatomia do Hive-Mind**:
+
+```text
+  documento (.md / .txt / .pdf / .docx)
+              |
+              v
+  parse layout-aware
+  (RAGFlow headless OU parser local)
+              |
+              v
+  normalize
+              |
+              v
+  chunk by structure
+  (300-800 tokens; por seção para MD; por símbolo para código)
+              |
+              v
+  metadata + citations
+  (parent_id, offsets, source_uri, hash, heading, workspace_id)
+              |
+              v
+  embedding 1024d
+  (snowflake-arctic-embed2)
+              |
+              v
+  document_memories (pai) + document_chunks (átomos) + document_vectors
+              |
+              v
+  opcional: KnowledgePromotionPipeline (K3/K4)
+            -> fact / learning / decision / preference / rationale
+```
+
+**Três níveis para evitar "texto solto" (K6):**
+
+| Nível | Tabela/coleção | Conteúdo | Por que existe |
+|---|---|---|---|
+| Documento-pai | `document_memories` | `document_id`, `source_uri`, `file_hash`, `project`, `workspace_id`, metadata | Prova de origem e unidade de reingestão |
+| Chunk | `document_chunks` | `parent_id`, `parent_type=document`, `chunk_index`, `heading`, offsets, `hash`, metadata | Unidade atômica recuperável |
+| Vetor | `document_vectors` | embedding do chunk + metadata canônica | Busca semântica local/Milvus sem perder parent context |
+
+**RAGFlow:** adapter/headless opcional; nunca fonte de verdade. Saída aproveitada precisa ser normalizada para UMC antes de ser recuperável. Indisponibilidade do RAGFlow **não** quebra o caminho local-first.
+
+---
+
+## 16. VectorBackend — 7 Coleções Canônicas (K1)
+
+```text
+                          VectorBackend
+                       (contrato único, §24)
+                              |
+        +---------+-----------+-----------+-----------+---------+--------+
+        |         |           |           |           |         |        |
+        v         v           v           v           v         v        v
+   memory    observation  document    code      visual    graph   summary
+   _vectors  _vectors     _vectors    _vectors   _vectors  _vectors _vectors
+   (facts)   (claude-mem) (chunks)   (symbols)  (shots)   (entities)(session
+                                                          +rels    ->anual)
+        |         |           |           |           |         |        |
+        v         v           v           v           v         v        v
+   sqlite-vec  sqlite-vec   sqlite-vec   sqlite-vec  sqlite-vec sqlite-vec sqlite-vec
+   (UMC)       (claude-mem) (UMC)        (UMC)       (UMC)      (UMC)     (UMC)
+   (local)     (read-only)  (local)      (local)     (local)    (local)   (local)
+                                                                     
+   ─────────────────────────────────────────────────────────────────────
+                              Milvus (produção)
+                              partition_key = workspace_id
+```
+
+**Metadata canônica por item vetorial** (obrigatória em todas as coleções):
+
+- `parent_id`, `parent_type`
+- `brain_lobe` (cortex temporal / frontal / parietal / occipital / insula / cerebelo / diencefalo / tronco)
+- `knowledge_type` (event_raw, user_prompt, fact, decision, learning, document_chunk, code_symbol, visual_observation, …)
+- `project`, `workspace_id` (K10)
+- `source_uri`, `hash`, `valid_at`
+
+**Identidade da coleção** = `(name, embedding_model, dim)`. Migração de embedding (K10): re-embed online por workspace, dual-write até cutover, métrica `vectors_model_mismatch` = 0 dentro de uma coleção.
+
+---
+
+## 17. Cadência Hierárquica (K5) — Sessão → Anual
+
+```text
+  +---------------+     +-----------------+     +-----------------+
+  |   sessao       |     |   diario         |     |   semanal       |
+  | session_       |     |  daily_writer    |     |  weekly_        |
+  | summarizer     |     |  (pequeno/médio) |     |  synthesizer    |
+  | (pequeno)      |     |                 |     |  (médio/forte)  |
+  +-------+--------+     +--------+--------+     +--------+---------+
+          |                       |                       |
+          v                       v                       v
+  cerebelo/sessoes/         cerebelo/diario/         cerebelo/semanal/
+  YYYY/MM/YYYY-MM-          YYYY/MM/YYYY-MM-          YYYY-Wxx.md
+  DD-HHMM-{slug}.md        DD.md
+  summary_vectors          summary_vectors           summary_vectors
+
+  +---------------+     +-----------------+
+  |   mensal      |     |   anual         |
+  |  monthly_     |     |  yearly_        |
+  |  synthesizer  |     |  synthesizer    |
+  |  (forte)      |     |  (forte/batch)  |
+  +-------+-------+     +--------+--------+
+          |                       |
+          v                       v
+  cerebelo/mensal/         cerebelo/anual/
+  YYYY-MM.md               YYYY.md
+  summary_vectors          summary_vectors
+```
+
+**Regra de ouro:** quanto mais alta a cadência, menos ela copia texto e mais ela consolida causalidade, decisão, padrão e consequência.
+
+**Regra de promoção por cadência (de [`01-architecture.md` §29.2](01-architecture.md#292-contrato-de-promoção-por-cadência)):**
+
+- **Permitida:** `decision`, `learning`, `project_status`, `operational_fact`, `goal/task`, `rationale` — todos com fonte rastreável.
+- **Proibida:** transformar todo bullet em fact; criar neurônio sem fonte; vetorizar duplicatas sem `parent_id`; promover opinião temporária como decisão arquitetural; sobrescrever decisões anteriores sem criar conflito ou `invalid_at`.
+
+**Fail-closed:** papel sem modelo próprio nem herança do `dreamer` registra falha auditável e não inventa síntese.
+
+---
+
+## 18. Escala e Isolamento (K10) — Workspace e Federação
+
+```text
+  ┌──────────────────────────┐        ┌──────────────────────────┐
+  │ Instância A (workspace= │  P2P   │ Instância B (workspace= │
+  │ "default")               │  ───►  │ "team-1")                │
+  │                          │  ◄───  │                          │
+  │  todas as tabelas:       │        │  todas as tabelas:       │
+  │   workspace_id = 'default'│        │   workspace_id = 'team-1'│
+  │                          │        │                          │
+  │  Milvus:                 │        │  Milvus:                 │
+  │   partition_key =        │        │   partition_key =        │
+  │   workspace_id           │        │   workspace_id           │
+  │                          │        │                          │
+  │  export:                 │        │  import:                 │
+  │   visibility in          │        │   verify_neuron()        │
+  │   (shared, public)       │        │   workspace_id do destino│
+  │   + redact + sign        │        │   origin_instance        │
+  │                          │        │   origin_signature       │
+  └──────────────────────────┘        └──────────────────────────┘
+```
+
+**Regra crítica:** nenhum neurônio/vetor/edge cruza `workspace_id` sem passar pela camada de federação. Vazamento cross-workspace é bug de segurança, não de ranking.
+
+---
+
+## 19. VectorBackend & Vector Migration (K10)
+
+```text
+  coleção carrega (embedding_model, dim) na identidade
+  ex.:  memory_vectors  ·  snowflake-arctic-embed2:latest  ·  1024
+
+  +---------------------------+
+  | migração de embedding     |
+  +---------------------------+
+  1. cria nova coleção com (name, novo_modelo, nova_dim)
+  2. dual-write (antigo + novo) durante cutover
+  3. backfill de embeddings antigos em batch (offline)
+  4. cutover: sinapse_query + RetrievalRouter passam a consultar a nova
+  5. forget() na coleção antiga (motivo 'superseded' — tombstone, sem delete físico)
+```
+
+**Contrato de borda:** `vectors_model_mismatch` = 0 dentro de uma coleção após cutover.
+
+---
+
+## 20. Knowledge Promotion Pipeline (K3/K4) — Camadas
+
+```text
+  claude-mem (observations, discoveries, session_summaries, facts, narrative, concepts, files_*)
+        |
+        v
+  Knowledge Intake (K3) — core/knowledge/intake.py
+    - normaliza campos
+    - preserva source_id (claude-mem:<table>:<id>)
+    - extrai evidência (arquivos, timestamps, project, workspace_id)
+    - classifica knowledge_type
+    - deduplica por source_id + hash de conteúdo
+        |
+        v
+  Promotion Layer (K4) — core/knowledge/promotion.py
+    Distiller  (DistillerOutput Pydantic)         "extraia fatos estruturados"
+        |
+        v
+    Validator  (ValidatorOutput Pydantic)         "estes fatos são suportados pelos logs?"
+        | aprovado         | reprovado → feedback → Distiller
+        v
+    Router  (RouterOutput Pydantic)              "para qual projeto/tópico vai?"
+        |
+        +-- falha transitória → archived=0 (retry)
+        +-- falha estrutural   → archived=2 (quarentena com motivo)
+        +-- sucesso
+              v
+        Persistência Anatômica (cerebro/ + UMC)
+              v
+        Indexação Multi-Coleção (K1)
+          - FTS5
+          - VectorBackend.upsert() em memory/observation/summary_vectors
+          - Graphiti: push_neuron (causal_edges)
+          - LightRAG: index_memory (entidades + relações)
+          - Graphify: reindexa grafo estrutural
+              v
+        observation.neuron_id = neuron.id
+        archived=1
+```
+
+**Regra de promoção automática:**
+
+- **Permitida:** `decision`, `learning`, `project_status`, `operational_fact`, `goal/task`, `rationale` — todos com fonte rastreável.
+- **Proibida:** transformar todo bullet em fact; criar neurônio sem fonte; vetorizar duplicatas sem `parent_id` e hash; promover opinião temporária como decisão arquitetural; sobrescrever decisões anteriores sem criar conflito ou `invalid_at`.

@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Modelo local padrão de visão alterado de `glm-ocr:latest` para
+  `minicpm-v4.6:latest`, com `gemma3:4b` como fallback em perfil
+  `local-full` ou em hosts com Ollama < 0.30.
+- `install.sh` deixa de baixar `glm-ocr:latest` por padrão e passa a baixar
+  `minicpm-v4.6:latest` no `local-min`; `gemma3:4b` entra no `local-full`.
+  Se o daemon Ollama ainda não suportar o manifesto MiniCPM, o instalador
+  baixa `gemma3:4b` como visão local funcional.
+- `deepseek-ocr:latest` foi documentado como OCR dedicado opcional, baixado
+  somente com `SINAPSE_PULL_DEEPSEEK_OCR=1` ou
+  `HIVE_OCR_MODEL=deepseek-ocr:latest`.
+
 ## v3.7.5 — K9/K10 Final Acceptance Hardening
 
 Release date: 2026-06-30
@@ -12,12 +27,10 @@ Release date: 2026-06-30
 - O instalador ficou idempotente em reexecução: copia `bun` por arquivo
   temporário + rename atômico, preserva checkout Graphify sujo em bootstrap
   não estrito e reconstrói HNSW após backfill de vetores canônicos ausentes.
-- O instalador K10 passa a baixar `glm-ocr:latest` como modelo local leve
-  para Vision/OCR, além de `snowflake-arctic-embed2`, `qwen2.5:3b` e
-  `qwen2.5-coder:3b`.
-- `.env.example` passa a documentar Vision local em
-  `ollama/glm-ocr:latest`, evitando o default pesado `llava:7b` que pode
-  estourar VRAM em hosts menores.
+- O instalador K10 passa a baixar um modelo local leve para Vision/OCR,
+  além de `snowflake-arctic-embed2`, `qwen2.5:3b` e `qwen2.5-coder:3b`.
+- `.env.example` passa a documentar Vision local leve, evitando defaults
+  pesados que podem estourar VRAM em hosts menores.
 - Wrappers `integrations.ragflow` e `integrations.milvus` agora exportam
   suas APIs públicas via `__init__.py`, cobrindo os imports usados pelas
   fixtures reais K9.
@@ -46,8 +59,8 @@ Release date: 2026-06-30
   2 skipped; E2E 22 passed.
 - Targeted regression:
   `tests/unit/test_sinapse_write_cli.py::TestSinapseWriteCLI::test_health_command`
-  passed, and Vision real fallback/direct tests passed with
-  `glm-ocr:latest`.
+  passed, and Vision real fallback/direct tests passed with the configured
+  local Ollama vision model.
 
 ## v3.7.3 — K9 Namespace-per-test FalkorDB + RAGFlow Upload/List
 
@@ -402,8 +415,8 @@ Release date: 2026-06-29
 
 - Fixes the real vision integration test to respect the active `setup-brain`
   configuration (`HIVE_VISION_*`) instead of forcing `ollama-cloud/gemma3:4b`.
-  On this runtime the active path is local Ollama `llava:7b` with local fallback
-  `qwen3.5:9b`.
+  The active runtime path is local Ollama and must be controlled by
+  `HIVE_VISION_*`.
 - Removes the false external-billing assumption from the K4 validation notes:
   the vision path is local and must pass locally when the configured Ollama
   model is installed.

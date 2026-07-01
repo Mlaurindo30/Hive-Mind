@@ -134,7 +134,8 @@ fi
 OLLAMA_OK=false
 if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
     OLLAMA_MODELS=$(curl -s http://localhost:11434/api/tags | "$BOOTSTRAP_PYTHON" -c "import json,sys; print(len(json.load(sys.stdin)['models']))" 2>/dev/null || echo "?")
-    echo -e "  ${GREEN}✓${NC} Ollama detectado ($OLLAMA_MODELS modelos)"
+    OLLAMA_VERSION=$(curl -s http://localhost:11434/api/version | "$BOOTSTRAP_PYTHON" -c "import json,sys; print(json.load(sys.stdin).get('version','0.0.0'))" 2>/dev/null || echo "0.0.0")
+    echo -e "  ${GREEN}✓${NC} Ollama detectado ($OLLAMA_MODELS modelos, v$OLLAMA_VERSION)"
     OLLAMA_OK=true
 else
     echo -e "  ${YELLOW}⊘${NC}  Ollama não detectado (opcional para extração semântica local). Instale: curl -fsSL https://ollama.com/install.sh | sh"
@@ -143,27 +144,60 @@ fi
 # Baixa os modelos locais que o Hive-Mind precisa (idempotente: pula os já presentes).
 # - snowflake-arctic-embed2 embeddings 1024d (core/database.py, LightRAG, Graphiti)
 # - qwen2.5:3b        extração de entidades Graphiti + LightRAG (default novo)
-# - qwen2.5-coder:3b  extração semântica do Graphify
-# - glm-ocr:latest    visão/OCR local leve para Deep Portal e testes vision
+# - qwen2.5-coder:3b      extração semântica do Graphify
+# - minicpm-v4.6:latest   visão local compacta para Deep Portal e testes vision
 # Opcional (gate SINAPSE_PULL_QWEN7B=1): qwen2.5:7b para o Graphiti local de
 # alta qualidade (HIVE_GRAPHITI_MODEL=qwen2.5:7b). ~4.7GB, exige folga de VRAM.
+# Opcional (local-full): gemma3:4b como fallback de visão/raciocínio visual.
+# Opcional (SINAPSE_PULL_DEEPSEEK_OCR=1 ou HIVE_OCR_MODEL=deepseek-ocr:latest):
+# deepseek-ocr:latest para OCR dedicado.
+# Nota: MiniCPM-V 4.6 exige Ollama >= 0.30; em versões anteriores o instalador
+# baixa gemma3:4b como fallback funcional para não deixar o papel vision quebrado.
 if $OLLAMA_OK; then
+    version_ge() {
+        [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
+    }
+
     ollama_pull_if_missing() {
         local model="$1"; local note="$2"
         if curl -s http://localhost:11434/api/tags 2>/dev/null | grep -q "\"$model\""; then
             echo -e "  ${GREEN}✓${NC} $model já presente ${note:+($note)}"
+            return 0
         else
             echo -e "  ${BLUE}↓${NC} baixando $model ${note:+($note)}..."
-            ollama pull "$model" 2>&1 | tail -1 || echo -e "  ${YELLOW}⊘${NC} falha ao baixar $model (siga manualmente: ollama pull $model)"
+            if ollama pull "$model" 2>&1 | tail -1; then
+                return 0
+            fi
+            echo -e "  ${YELLOW}⊘${NC} falha ao baixar $model (siga manualmente: ollama pull $model)"
+            return 1
         fi
     }
     echo -e "  ${BOLD}Modelos locais do Hive-Mind:${NC}"
-    ollama_pull_if_missing "snowflake-arctic-embed2" "embeddings 1024d"
-    ollama_pull_if_missing "qwen2.5:3b"       "extração Graphiti/LightRAG"
-    ollama_pull_if_missing "qwen2.5-coder:3b" "extração Graphify"
-    ollama_pull_if_missing "glm-ocr:latest"   "visão/OCR local leve"
+    ollama_pull_if_missing "snowflake-arctic-embed2" "embeddings 1024d" || true
+    ollama_pull_if_missing "qwen2.5:3b"       "extração Graphiti/LightRAG" || true
+    ollama_pull_if_missing "qwen2.5-coder:3b" "extração Graphify" || true
+    if version_ge "$OLLAMA_VERSION" "0.30.0"; then
+        VISION_PRIMARY="minicpm-v4.6:latest"
+    else
+        VISION_PRIMARY="gemma3:4b"
+        echo -e "  ${YELLOW}⊘${NC}  minicpm-v4.6 exige Ollama >=0.30 (atual: $OLLAMA_VERSION); usando gemma3:4b como visão local"
+    fi
+    if ! ollama_pull_if_missing "$VISION_PRIMARY" "visão local"; then
+        echo -e "  ${YELLOW}⊘${NC}  $VISION_PRIMARY indisponível; baixando gemma3:4b como fallback funcional"
+        ollama_pull_if_missing "gemma3:4b" "fallback visão/raciocínio visual" || true
+    fi
+    if [ "$INSTALL_PROFILE" = "local-full" ]; then
+        ollama_pull_if_missing "gemma3:4b" "fallback visão/raciocínio visual" || true
+    else
+        echo -e "  ${YELLOW}⊘${NC}  gemma3:4b pulado (local-full). Para fallback de visão: ./install.sh --profile=local-full"
+    fi
+    if [ "${SINAPSE_PULL_DEEPSEEK_OCR:-0}" = "1" ] || [ "${HIVE_OCR_MODEL:-}" = "deepseek-ocr:latest" ]; then
+        ollama_pull_if_missing "deepseek-ocr:latest" "OCR dedicado opcional" || true
+    else
+        echo -e "  ${YELLOW}⊘${NC}  deepseek-ocr:latest pulado (opcional). Para OCR dedicado: SINAPSE_PULL_DEEPSEEK_OCR=1 ./install.sh"
+    fi
     if [ "${SINAPSE_PULL_QWEN7B:-0}" = "1" ] || [ "${HIVE_GRAPHITI_MODEL:-}" = "qwen2.5:7b" ]; then
-        ollama_pull_if_missing "qwen2.5:7b"   "Graphiti local alta qualidade"
+        ollama_pull_if_missing "qwen2.5:7b"   "Graphiti local alta qualidade" || true
     else
         echo -e "  ${YELLOW}⊘${NC}  qwen2.5:7b pulado (opcional). Para o Graphiti local de alta qualidade: SINAPSE_PULL_QWEN7B=1 ./install.sh"
     fi
@@ -912,7 +946,9 @@ echo -e "  ${BOLD}Ollama (modelos — baixados automaticamente acima quando dete
 echo -e "         ollama pull snowflake-arctic-embed2 # Embeddings 1024d (core/LightRAG/Graphiti)"
 echo -e "         ollama pull qwen2.5:3b           # Extração Graphiti + LightRAG (~1.9GB)"
 echo -e "         ollama pull qwen2.5-coder:3b     # Extração semântica do Graphify"
-echo -e "         ollama pull glm-ocr:latest       # Visão/OCR local leve"
+echo -e "         ollama pull minicpm-v4.6:latest  # Visão local compacta (default)"
+echo -e "         ollama pull gemma3:4b            # Fallback visão/raciocínio visual (local-full)"
+echo -e "         ollama pull deepseek-ocr:latest  # OCR dedicado opcional (SINAPSE_PULL_DEEPSEEK_OCR=1)"
 echo -e "         ollama pull qwen2.5:7b           # Graphiti local alta qualidade (opcional, ~4.7GB)"
 echo -e "         ollama pull nomic-embed-text     # Embeddings leve (alternativo)"
 echo ""

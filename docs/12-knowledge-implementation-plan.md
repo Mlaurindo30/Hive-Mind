@@ -133,21 +133,32 @@ instalacao deve baixar modelos pequenos suficientes:
 ollama pull snowflake-arctic-embed2:latest
 ollama pull qwen2.5:3b
 ollama pull qwen2.5-coder:3b
-ollama pull glm-ocr:latest
+ollama pull minicpm-v4.6:latest
 ```
+
+`minicpm-v4.6:latest` exige Ollama >= 0.30. Em hosts com daemon antigo,
+o instalador deve usar `gemma3:4b` como fallback funcional de visão até
+a atualização do Ollama.
 
 Perfil recomendado para maquina com mais folga:
 
 ```bash
 ollama pull qwen2.5:7b
+ollama pull gemma3:4b
+```
+
+OCR dedicado e opcional para pipelines com muito texto em imagem:
+
+```bash
+SINAPSE_PULL_DEEPSEEK_OCR=1 ollama pull deepseek-ocr:latest
 ```
 
 ### 4.3 Perfis De Execucao
 
 | Perfil | Objetivo | Modelos obrigatorios | Backends |
 |---|---|---|---|
-| `local-min` | laptop simples | snowflake embedder, qwen2.5:3b, qwen2.5-coder:3b, glm-ocr | SQLite, sqlite-vec, Graphify AST, claude-mem, visão/OCR local |
-| `local-full` | maquina de dev completa | local-min + qwen2.5:7b | Graphiti, LightRAG, Milvus local, RAGFlow adapter |
+| `local-min` | laptop simples | snowflake embedder, qwen2.5:3b, qwen2.5-coder:3b, minicpm-v4.6 (ou gemma3:4b se Ollama <0.30) | SQLite, sqlite-vec, Graphify AST, claude-mem, visão local compacta |
+| `local-full` | maquina de dev completa | local-min + qwen2.5:7b + gemma3:4b | Graphiti, LightRAG, Milvus local, RAGFlow adapter, fallback visão |
 | `prod-local` | VPS/desktop sempre ligado | local-full | Milvus Docker, API REST, watcher, metrics |
 | `cloud-optional` | qualidade maior sob escolha | qualquer provider configurado | nunca obrigatorio |
 
@@ -619,8 +630,9 @@ python3 scripts/services/sinapse-write.py query "ultimos discoveries promovidos"
 > - [x] Verificacao global final: `./tests/run_all.sh` verde em 2026-06-29
 >   (Smoke 19 passed; Unit 496 passed / 3 skipped; Integration 109 passed /
 >   2 skipped; E2E 22 passed). O teste de visao real usa a configuracao ativa
->   do `setup-brain`/`.env` (`HIVE_VISION_*`), que neste runtime aponta para
->   Ollama local (`llava:7b`), e passou sem depender de Ollama Cloud.
+>   do `setup-brain`/`.env` (`HIVE_VISION_*`), que neste runtime deve apontar
+>   para Ollama local compacto (`minicpm-v4.6:latest`) com fallback opcional
+>   `gemma3:4b`, sem depender de Ollama Cloud nem de modelos legados pesados.
 
 ---
 
@@ -1294,7 +1306,11 @@ maquina nova. Sem K10, cada deploy exige um manual tribal.
 1. `install.sh` baixa modelos locais obrigatorios via Ollama:
    `snowflake-arctic-embed2:latest` (1024d, modelo unificado), `qwen2.5:3b`
    (graphiti/lightrag default), `qwen2.5-coder:3b` (zettelkasten split)
-   e `glm-ocr:latest` (visão/OCR local leve).
+   `minicpm-v4.6:latest` (visão local compacta, Ollama >=0.30) e, em
+   `local-full` ou em hosts com Ollama antigo, `gemma3:4b` como fallback
+   de visão/raciocínio visual.
+   O `deepseek-ocr:latest` e opt-in via `SINAPSE_PULL_DEEPSEEK_OCR=1`
+   ou `HIVE_OCR_MODEL=deepseek-ocr:latest` para OCR dedicado.
    O modelo `qwen2.5:7b` (alta qualidade Graphiti) so e puxado quando
    `SINAPSE_PULL_QWEN7B=1`.
 2. `scripts/setup/components.py bootstrap` clona apenas os componentes git
@@ -1340,7 +1356,7 @@ maquina nova. Sem K10, cada deploy exige um manual tribal.
      |
      +-- uv sync --frozen --all-groups
      |
-     +-- ollama pull <modelos locais>   (snowflake-arctic-embed2, qwen2.5:3b, qwen2.5-coder:3b, glm-ocr)
+     +-- ollama pull <modelos locais>   (snowflake-arctic-embed2, qwen2.5:3b, qwen2.5-coder:3b, minicpm-v4.6 se Ollama >=0.30; fallback gemma3:4b)
      |
      +-- profile=full: docker compose up em integrations/milvus e integrations/ragflow
      |                (espera healthchecks: Milvus 60s, RAGFlow 120s)
@@ -1364,7 +1380,7 @@ maquina nova. Sem K10, cada deploy exige um manual tribal.
 | Entry-point | `install.sh` | runner canonico; respeita flags v3.6.x; encadeia profile + tests + saude |
 | Bootstrap de componentes | `scripts/setup/components.py` | clona apenas graphify/neural-memory/rtk; idempotente; respeita `components.lock.json` |
 | Sincronizacao Python | `uv sync --frozen --all-groups` | reprodutivel; ragflow-sdk/pymilvus/llama-index vindos do `pyproject.toml` |
-| Stack de modelos | Ollama | snowflake-arctic-embed2, qwen2.5:3b, qwen2.5-coder:3b, glm-ocr; qwen2.5:7b so se `SINAPSE_PULL_QWEN7B=1` |
+| Stack de modelos | Ollama | snowflake-arctic-embed2, qwen2.5:3b, qwen2.5-coder:3b, minicpm-v4.6 quando Ollama >=0.30; gemma3:4b em `local-full` ou fallback de daemon antigo; qwen2.5:7b so se `SINAPSE_PULL_QWEN7B=1`; deepseek-ocr so se opt-in |
 | Stack de servicos | `integrations/milvus/docker-compose.yml`, `integrations/ragflow/docker-compose.yml` | `local-full` sobe Milvus 19530 e RAGFlow 9380 via compose |
 | Migracao zero-machine | `core.database.ensure_migrations` | re-aplicado antes do smoke real; CRR-safe; backup de `hive_mind.db` em maquina com DB pre-existente |
 | Registro MCP | `scripts/setup/register-mcp.sh` | idempotente; detecta 12 agentes; NAO sobrescreve MCPs externos |
@@ -1428,8 +1444,10 @@ maquina nova. Sem K10, cada deploy exige um manual tribal.
 
 > **Entregue (2026-06-30) — `v3.7.0` instalador zero-machine:**
 > - [x] `install.sh` baixa modelos locais obrigatorios (snowflake-arctic-embed2,
->   qwen2.5:3b, qwen2.5-coder:3b, glm-ocr) e respeita `SINAPSE_PULL_QWEN7B=1` para o
+>   qwen2.5:3b, qwen2.5-coder:3b, minicpm-v4.6) e respeita `SINAPSE_PULL_QWEN7B=1` para o
 >   modelo Graphiti de alta qualidade.
+>   Em `local-full`, baixa `gemma3:4b` para fallback de visão; `deepseek-ocr`
+>   permanece opt-in para OCR dedicado.
 > - [x] `scripts/setup/components.py bootstrap` clona apenas
 >   graphify/neural-memory/rtk; `install.sh` chama `docker compose up` em
 >   `integrations/milvus` e `integrations/ragflow` apenas quando
@@ -1467,8 +1485,10 @@ maquina nova. Sem K10, cada deploy exige um manual tribal.
 Tasks (entregues em v3.7.0):
 
 1. [x] `install.sh` baixa modelos locais obrigatorios (snowflake-arctic-embed2,
-   qwen2.5:3b, qwen2.5-coder:3b, glm-ocr) e respeita `SINAPSE_PULL_QWEN7B=1` para o
+   qwen2.5:3b, qwen2.5-coder:3b, minicpm-v4.6) e respeita `SINAPSE_PULL_QWEN7B=1` para o
    modelo Graphiti de alta qualidade.
+   Em `local-full`, baixa `gemma3:4b` para fallback de visão; `deepseek-ocr`
+   permanece opt-in para OCR dedicado.
 2. [x] `scripts/setup/components.py bootstrap` clona apenas
    graphify/neural-memory/rtk; `install.sh` chama `docker compose up` em
    `integrations/milvus` e `integrations/ragflow` apenas quando
@@ -1718,7 +1738,8 @@ verificados em 2026-06-30 contra o estado real do repo.
 - **K10** coberto: instalador zero-machine com `--profile=local-min|local-full`
   e `--with-real-tests`; idempotente; backward-compat das flags v3.6.x;
   re-aplica `core.database.ensure_migrations`; baixa tambem
-  `glm-ocr:latest` para visão/OCR local leve; relatorio em
+  `minicpm-v4.6:latest` para visão local compacta e `gemma3:4b`
+  em `local-full` como fallback visual; relatorio em
   `logs/install-report.md` e, com `--with-real-tests`,
   `logs/k9-real-suite-report.md`. v3.7.5 torna o gate K9 fail-closed
   dentro do instalador, corrige bootstrap idempotente de Bun/componentes,
