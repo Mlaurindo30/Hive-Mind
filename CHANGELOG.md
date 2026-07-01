@@ -1,19 +1,56 @@
 # Changelog
 
-## Unreleased
+## v3.7.6 — Local Vision Stack Refresh + Knowledge Born-Large Documentation
+
+Release date: 2026-06-30
 
 ### Changed
 
-- Modelo local padrão de visão alterado de `glm-ocr:latest` para
-  `minicpm-v4.6:latest`, com `gemma3:4b` como fallback em perfil
-  `local-full` ou em hosts com Ollama < 0.30.
-- `install.sh` deixa de baixar `glm-ocr:latest` por padrão e passa a baixar
-  `minicpm-v4.6:latest` no `local-min`; `gemma3:4b` entra no `local-full`.
-  Se o daemon Ollama ainda não suportar o manifesto MiniCPM, o instalador
-  baixa `gemma3:4b` como visão local funcional.
-- `deepseek-ocr:latest` foi documentado como OCR dedicado opcional, baixado
-  somente com `SINAPSE_PULL_DEEPSEEK_OCR=1` ou
-  `HIVE_OCR_MODEL=deepseek-ocr:latest`.
+- **Local vision stack (Codex):** `install.sh` agora baixa
+  `minicpm-v4.6:latest` no `local-min` quando Ollama >= 0.30. Em Ollama
+  antigo, o instalador usa `gemma3:4b` como fallback funcional. `gemma3:4b`
+  entra como fallback no `local-full`. `deepseek-ocr:latest` opt-in para
+  OCR dedicado (`SINAPSE_PULL_DEEPSEEK_OCR=1` ou
+  `HIVE_OCR_MODEL=deepseek-ocr:latest`). `llava:7b` removido do instalador.
+- `.env.example`, `config/env.roles.example`, `README.md`,
+  `.github/copilot-instructions.md`, `docs/01`, `docs/04`, `docs/05`,
+  `docs/12` e este `CHANGELOG.md` atualizados para não guiarem agente
+  para modelo antigo/pesado.
+- **Knowledge Born-Large (K0–K10) documentation:** `docs/01-architecture.md`
+  consolidado como referência canônica destilada de
+  `docs/11-knowledge-promotion-architecture.md` (normativo) e
+  `docs/12-knowledge-implementation-plan.md` (plano). Novas seções §22–§31:
+  fluxo de 9 etapas, `VectorBackend` com 7 coleções canônicas, `DocumentPipeline`
+  (K6), `RetrievalRouter` (K7), `Knowledge Promotion Pipeline` (K3/K4),
+  métricas K8, cadência hierárquica sessão→anual (K5), escala/isolamento
+  (K10) e contratos pendentes (Reranker, Forget, Eval, Harness). ADRs 001–009
+  herdadas + **010–018** criadas pela frente Born-Large. 8 documentos do
+  diretório `docs/` sincronizados.
+- K5 cadência outputs (`cerebro/cerebelo/anual/2026.md`, `mensal/2026-06.md`,
+  `diario/2026/06/2026-06-29.md`) e K9 test reports (`docs/reports/k9-*`)
+  commitados como evidência de validação do contrato v3.7.5.
+- `.gitignore` atualizado: cache AST do graphify, working copies de hooks de
+  agente (`.codex/hooks.json`, `.agents/`) e output runtime do graphify na
+  raiz (`/GEMINI.md`) excluídos. Arquivos canônicos (`cerebro/GEMINI.md`,
+  `.github/copilot-instructions.md`) continuam tracked.
+
+### Validation
+
+- `ollama pull minicpm-v4.6:latest` passou.
+- `ollama rm llava:7b` passou.
+- `core.auth.get_role_config("vision")` resolveu para
+  `ollama/minicpm-v4.6:latest` com fallback `ollama/gemma3:4b`.
+- `bash -n install.sh` e `git diff --check` passaram.
+- Teste real de visão: 2 passed in 21.74s.
+- Validação herdada de v3.7.5: K9 real suite 53 collected, 48 passed,
+  5 skipped, 0 failed; `run_all` Smoke 19 / Unit 497+3 skipped /
+  Integration 111+2 skipped / E2E 22.
+
+### Note
+
+- `glm-ocr:latest` ainda existe instalado localmente, mas não é mais
+  default nem instalado pelo instalador. Mantido por compatibilidade;
+  o pedido explícito foi remover o `llava:7b`.
 
 ## v3.7.5 — K9/K10 Final Acceptance Hardening
 
