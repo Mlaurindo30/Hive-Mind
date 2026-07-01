@@ -1,5 +1,73 @@
 # Changelog
 
+## v3.7.7 — Audit Harden + CI Workflow Fix + Contract Test Gates
+
+Release date: 2026-07-01
+
+### Changed
+
+- **CI workflow (`.github/workflows/test.yml`):** corrigidos os caminhos
+  `scripts/components.py` → `scripts/setup/components.py`. Pipeline
+  estava falhando no bootstrap por caminho obsoleto.
+- **Audit memory (K8 hygiene):** `scripts/health/audit_memory.py` agora
+  aceita `--exclude` (csv e `SINAPSE_AUDIT_EXCLUDE`) para pular projetos
+  gitignored (`Thoth`, `ComfyUI`, `OpenAlice`, `agent-langgraph`,
+  `openclaw-crestodian-planner-NyDaMs`, `michel`, `e2e-chatbot-app-next`,
+  `open-design`) que vivem no vault local mas não fazem parte desta
+  instância. O audit agora reflete **o estado real do cérebro desta
+  máquina**, não 526 falsos positivos. Cobre o problema de produção
+  que eu apontei na revisão de ponta a ponta da v3.7.6.
+- **Vision bug7 gating:** `_needs_bug7()` em
+  `tests/integration/vision/test_bug7_ollama_local.py` agora honra
+  `HIVE_RUN_BUG7=1` corretamente. Antes rodava sempre; agora só roda
+  quando explicitamente habilitado. Resolve o falso positivo de "53
+  collected, 48 passed" reportado pelo K9.
+- **Knowledge health (K8):** `scripts/health/knowledge_health.py`
+  refinado — telemetria adicional de cadência, leitura de índice
+  de embeddings por coleção canônica, gates de produção mais claros.
+- **Vector sync (K1):** `core/vector_sync.py` agora usa
+  `core.indexing.upsert_search_vec` ao invés de `INSERT … ON CONFLICT`
+  inline. Centraliza o contrato de upsert.
+- **`scripts/setup/components.py`:** endurecido — `verify` rejeita
+  wrappers (Milvus, RAGFlow, Graphiti, LlamaIndex) em
+  `components.lock.json` por padrão, conforme ADR-018.
+- **AGENTS.md:** atualizado para refletir o fluxo canônico de
+  conhecimento (Capture → Intake → Promotion → Anatomical → Index →
+  Retrieval Router → Answer+Citation → Feedback) e o stack born-large
+  com `VectorBackend` (sqlite-vec / Milvus).
+- **`tests/unit/test_audit_memory_cli.py` (novo):** cobre o split de
+  excludes (csv + env) e o matching prefix/glob.
+- **`tests/unit/test_components_contract.py` (novo):** cobre ADR-018 —
+  rejeita Milvus/RAGFlow em `components.lock.json` automaticamente.
+- **`tests/real/test_knowledge_health.py`:** +170 linhas, cobre mais
+  métricas K8 com serviços reais.
+- **`tests/real/test_retrieval_router_real.py`:** +109 linhas, cobre
+  mais rotas K7 (multi-hop, causal, sector).
+- **`tests/run_real_knowledge.sh`:** relatório Markdown mais claro
+  com K9 totals e skipped por service name.
+- **`install.sh` / `pyproject.toml`:** atualizações secundárias
+  (ver `git diff`).
+
+### Validation
+
+- CI workflow corrigido — `python3 scripts/setup/components.py bootstrap --strict` agora
+  é o caminho canônico.
+- `_needs_bug7()` honra env var. Test bug7 suite roda só sob
+  `HIVE_RUN_BUG7=1` e não inflates mais o total do K9 report.
+- `audit_memory.py --exclude=Thoth,ComfyUI,…` filtra projetos gitignored.
+- `components.lock.json` lint rejeita wrappers via
+  `scripts/setup/components.py verify`.
+
+### Note
+
+- Esta versão fecha os bloqueantes #1 (audit drift), #2 (`--exclude`
+  para audit), #7 (`_needs_bug7` gating) e #15 (relatório K9 mais
+  honesto) da lista de produção que eu apontei na revisão de
+  v3.7.6. Demais itens (cron de produção, K3/K4 local-only,
+  backup automático, K6/Milvus/RAGFlow via `install.sh`) continuam
+  como melhorias incrementais.
+
+
 ## v3.7.6 — Local Vision Stack Refresh + Knowledge Born-Large Documentation
 
 Release date: 2026-06-30

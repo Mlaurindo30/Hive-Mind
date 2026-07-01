@@ -3,7 +3,7 @@
 
   **Universal, persistent, local-first memory layer for swarms of AI agents.**
 
-  [![Status](https://img.shields.io/badge/status-Phase%20HM--12%20(Federated%20Swarm)-blue)]()
+  [![Status](https://img.shields.io/badge/status-HM--12%20%2B%20Knowledge%20K0--K10%20(Born--Large)-blue)]()
   [![Python](https://img.shields.io/badge/python-3.12-green)]()
   [![License](https://img.shields.io/badge/license-Apache%202.0-lightgrey)]()
   [![Tests](https://img.shields.io/badge/tests-run_all%20%2B%20real%20suites-brightgreen)]()
@@ -181,6 +181,42 @@ REST. The diagram below shows how the agents, the UMC and the federated organs f
   <br><sub><i>End-to-end architecture: agents → MCP / CLI / REST → Unified Memory Core → federated organs</i></sub>
 </div>
 
+### 📈 Knowledge Architecture (K0-K10)
+
+Hive-Mind is **born-large**: local-first by execution, built from day one for scale, pluggable
+by contract. Every piece of knowledge moves through the same canonical pipeline:
+
+```
+Capture (hooks/MCP/CLI/browser/docs/code/screenshots)
+  → Temporal Hippocampus (claude-mem: observations, discoveries, summaries)
+  → Knowledge Intake (normalize, classify, dedupe)
+  → Promotion Layer (raw → fact/decision/learning/preference/task)
+  → Anatomical Memory (cerebro/ + UMC)
+  → Index Layer (FTS, sqlite-vec/Milvus, Graphify, Graphiti, LightRAG)
+  → Retrieval Router (intent-based routing with citations)
+  → Answer + Citation → Feedback
+```
+
+<div align="center">
+  <img src="docs/assets/image/architecture-diagram-complet.png" alt="Hive-Mind knowledge architecture K0-K10" width="760">
+  <br><sub><i>Full K0-K10 pipeline: capture → temporal hippocampus → intake → promotion → anatomical memory → index → retrieval router → answer + citation → feedback</i></sub>
+</div>
+
+- **`VectorBackend`** (K2): one contract (`upsert/delete/query/hybrid_query/count/health`) over
+  7 canonical collections (`memory_vectors`, `observation_vectors`, `document_vectors`,
+  `code_vectors`, `visual_vectors`, `graph_vectors`, `summary_vectors`) — `sqlite-vec` locally,
+  Milvus in production (`VECTOR_BACKEND=milvus`).
+- **`DocumentPipeline`** (K6): ingests documents into parent + auditable chunks + citations.
+  RAGFlow runs headless as an optional parsing adapter — never the source of truth.
+- **`RetrievalRouter`** (K7, `core/retrieval/router.py`): routes by intent and always returns
+  `retrieval_path`, `citations`, `confidence` and `missing_context`. LlamaIndex plugs in as an
+  optional reranker adapter, never as the routing decision-maker.
+- Neither Milvus, RAGFlow nor LlamaIndex ever replace the brain: the vault (`cerebro/`) and the
+  UMC stay the source of truth (`docs/11` §16).
+
+Full design: [`docs/11-knowledge-promotion-architecture.md`](docs/11-knowledge-promotion-architecture.md) ·
+phase-by-phase backlog: [`docs/12-knowledge-implementation-plan.md`](docs/12-knowledge-implementation-plan.md).
+
 ### Memory dimensions
 
 One store, queried across seven dimensions:
@@ -189,7 +225,7 @@ One store, queried across seven dimensions:
 |-----------|---------------------|----------------|---------|
 | **Structural** | What exists? How is it connected? | `neurons`/`synapses` in UMC | < 5 ms |
 | **Temporal** | Who did what, and when? | `observations` via claude-mem | < 500 ms |
-| **Vector** | What is semantically similar? | `sqlite-vec` (1024d, snowflake-arctic-embed2 via Ollama) | < 100 ms |
+| **Vector** | What is semantically similar? | `VectorBackend`: `sqlite-vec` local or Milvus production (1024d, snowflake-arctic-embed2 via Ollama) | < 100 ms |
 | **Textual** | Where does this term appear? | FTS5 `unicode61` with triggers | < 50 ms |
 | **Visual** | What did the agent see? | `visual_memories` + LLM Vision | offline (Dreamer) |
 | **Documental** | What did the agent read? | `document_memories` (PDF/DOCX) | offline (Dreamer) |
@@ -238,7 +274,8 @@ cp .env.example .env
 | `HIVE_VISION_PROVIDER` / `HIVE_VISION_MODEL` | Vision | Default `ollama/minicpm-v4.6:latest` |
 | `HIVE_VISION_FALLBACK_PROVIDER` / `HIVE_VISION_FALLBACK_MODEL` | Vision fallback | Default `ollama/gemma3:4b` |
 | `HIVE_OCR_PROVIDER` / `HIVE_OCR_MODEL` | Optional OCR | `ollama/deepseek-ocr:latest`, opt-in for dedicated OCR |
-| `VECTOR_BACKEND` | Vector store | `sqlite` by default, `milvus` when enabled |
+| `VECTOR_BACKEND` | Vector store | `sqlite_vec` by default, `milvus` when enabled (K2 `VectorBackend` contract) |
+| `RAGFLOW_BASE` | Optional document ingestion (K6) | `http://localhost:9380`, headless adapter — never the source of truth |
 | `HIVE_MIND_API_KEY` | For REST API | Bearer token — API will not start without it (fail-closed) |
 | `HIVE_MIND_API_PORT` | No (default 37702) | REST API port |
 | `HIVE_MIND_MASTER_KEY` | For secret vault | Field-level encryption key |
@@ -252,7 +289,7 @@ cp .env.example .env
 ```bash
 ./scripts/services/start-watcher.sh             # Real-time sync (Obsidian → SQLite)
 python3 scripts/dream/dream_cycle.py            # Consolidation cycle
-python3 scripts/health/audit_memory.py --fix    # Vault ↔ SQLite audit
+python3 scripts/health/audit_memory.py --fix    # Temporal neurons ↔ SQLite + search_vec audit
 python3 scripts/health/validate_hive_mind.py    # System-wide validation
 ```
 
@@ -287,7 +324,7 @@ python3 scripts/services/sinapse-api.py    # port 37702
 
 - UUID v4 on every PK — no cross-machine collisions
 - SHA-256 content hash in `neurons.hash` — deterministic detection
-- `audit_memory.py --fix` — reconciles vault ↔ SQLite
+- `audit_memory.py --fix` — reconciles temporal neurons ↔ SQLite, validates `search_vec`, and keeps generated MOCs out of the neuron index
 - Dialectic Synthesis in the Dream Cycle resolves conflicts via LLM
 
 Full setup: [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md).

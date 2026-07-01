@@ -39,12 +39,12 @@ def create_client(settings: RAGFlowSettings | None = None):
 
 
 def _http_health(settings: RAGFlowSettings) -> tuple[bool, str]:
-    for path in ("/api/v1/health", "/"):
+    for path in ("/api/v1/system/healthz", "/api/v1/system/ping"):
         url = f"{settings.base_url}{path}"
         try:
             req = urllib.request.Request(url, method="GET")
             with urllib.request.urlopen(req, timeout=settings.timeout) as response:
-                if 200 <= response.status < 500:
+                if 200 <= response.status < 300:
                     return True, f"HTTP {response.status} em {url}"
         except Exception as exc:
             last = f"{type(exc).__name__}: {exc}"
@@ -55,14 +55,16 @@ def assert_health(*, strict: bool = True, settings: RAGFlowSettings | None = Non
     """Return real RAGFlow wrapper health; raise only when `strict=True`."""
     s = settings or settings_from_env()
     try:
-        client = create_client(s)
         http_ok, reason = _http_health(s)
+        sdk_client = None
+        if s.api_key:
+            sdk_client = create_client(s).__class__.__name__
         result = {
             "ok": http_ok,
             "service": "ragflow",
             "endpoint": s.base_url,
             "version": s.version,
-            "sdk_client": client.__class__.__name__,
+            "sdk_client": sdk_client,
             "reason": reason,
         }
         if strict and not http_ok:

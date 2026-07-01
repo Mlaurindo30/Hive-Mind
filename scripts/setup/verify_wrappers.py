@@ -34,14 +34,16 @@ def _load_compose(path: Path) -> dict[str, Any]:
     return data
 
 
-def _first_service_image(compose: dict[str, Any]) -> str:
+def _service_images(compose: dict[str, Any]) -> dict[str, str]:
     services = compose.get("services")
     if not isinstance(services, dict) or not services:
         raise ValueError("compose sem services")
-    first = next(iter(services.values()))
-    if not isinstance(first, dict) or not first.get("image"):
-        raise ValueError("service sem image")
-    return str(first["image"])
+    images: dict[str, str] = {}
+    for service_name, service in services.items():
+        if not isinstance(service, dict) or not service.get("image"):
+            raise ValueError(f"service sem image: {service_name}")
+        images[str(service_name)] = str(service["image"])
+    return images
 
 
 def _docker_compose_config(path: Path) -> tuple[bool, str]:
@@ -66,6 +68,7 @@ def verify_wrapper(root: Path, name: str) -> dict[str, Any]:
         "compose": str(compose_path),
         "ok": False,
         "image": "",
+        "images": {},
         "image_has_digest": False,
         "compose_config_ok": False,
         "errors": [],
@@ -74,11 +77,17 @@ def verify_wrapper(root: Path, name: str) -> dict[str, Any]:
         if not compose_path.is_file():
             raise FileNotFoundError(compose_path)
         compose = _load_compose(compose_path)
-        image = _first_service_image(compose)
-        report["image"] = image
-        report["image_has_digest"] = bool(_DIGEST_RE.search(image))
-        if not report["image_has_digest"]:
-            report["errors"].append("image sem digest sha256 pinado")
+        images = _service_images(compose)
+        report["images"] = images
+        report["image"] = ", ".join(f"{service}={image}" for service, image in images.items())
+        unpinned = [
+            f"{service}={image}"
+            for service, image in images.items()
+            if not _DIGEST_RE.search(image)
+        ]
+        report["image_has_digest"] = not unpinned
+        if unpinned:
+            report["errors"].append("images sem digest sha256 pinado: " + ", ".join(unpinned))
 
         config_ok, config_output = _docker_compose_config(compose_path)
         report["compose_config_ok"] = config_ok

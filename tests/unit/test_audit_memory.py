@@ -60,6 +60,11 @@ def _make_audit_db():
             status TEXT DEFAULT 'pending',
             detected_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE search_vec (
+            neuron_id TEXT PRIMARY KEY,
+            embedding BLOB
+        );
     """)
     conn.commit()
     return conn
@@ -230,6 +235,32 @@ class TestSyncConflictDetection:
         register.assert_not_called()
         assert conflict_path.exists()
         assert not (tmp_path / "cerebro" / "cortex" / "insula" / "conflitos" / conflict_name).exists()
+
+    def test_fix_removes_legacy_moc_index_entry(self, tmp_path):
+        atlas = _make_vault(tmp_path)
+        moc = atlas / "Project" / "topic" / "_topic.md"
+        moc.parent.mkdir(parents=True)
+        moc.write_text(
+            "---\ntype: moc\nscope: topic\nproject: Project\ntopic: topic\n---\n# topic\n",
+            encoding="utf-8",
+        )
+
+        rel = moc.relative_to(tmp_path).as_posix()
+        mem_conn = _make_audit_db()
+        mem_conn.execute(
+            "INSERT INTO neurons (id, label, type, source_file, content, hash) VALUES (?, ?, ?, ?, ?, ?)",
+            ("_topic", "topic", "moc", rel, "# topic", "oldhash"),
+        )
+        mem_conn.execute("INSERT INTO search_vec (neuron_id, embedding) VALUES (?, ?)", ("_topic", b"old"))
+        mem_conn.commit()
+
+        with patch("scripts.health.audit_memory.get_connection", return_value=mem_conn):
+            from scripts.health import audit_memory
+            audit_memory.SINAPSE_HOME = str(tmp_path)
+            stats = audit_memory.run_audit(fix=True)
+
+        assert stats["ignored_non_neuron"] == 1
+        assert stats["removed_non_neuron"] == 1
 
 
 class TestConflictFileNaming:

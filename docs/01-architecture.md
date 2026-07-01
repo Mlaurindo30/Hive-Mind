@@ -887,7 +887,11 @@ Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiL
 | E2E | `tests/e2e/` | Backends reais | Sessão completa, degradação graceful, concorrência, recovery, edge cases |
 | Síntese | `tests/test_synthesis.py` | **Sim** | `run_synthesis_cycle()` com modelo real do `.env` |
 
-**534 funções em 89 arquivos** cobrindo todo o pipeline de sinapse (cognitivo, vetorial, grafo, FTS5, temporal). Regra: testes unitários nunca chamam LLM — testam a lógica ao redor do modelo, não o modelo.
+O conjunto de testes é dinâmico; em 2026-07-01 havia **706 funções `test_`
+em 123 arquivos com testes**. Use `rg -n "^\s*(async\s+def|def)\s+test_"
+tests | wc -l` e `rg -l "^\s*(async\s+def|def)\s+test_" tests | wc -l`
+para medir o estado atual. Regra: testes unitários nunca chamam LLM —
+testam a lógica ao redor do modelo, não o modelo.
 
 ---
 
@@ -1694,21 +1698,33 @@ métrica: promotion_lag e promotion_cost por workspace
 
 Capacidades **já existentes** (não reimplementar): merge/dedup na promoção (Dream Cycle Router `append|create_new|merge` + tabela `ambiguities` + `register_ambiguity` + dedup de learning por título + dedup cross-backend em `context_fusion`); redação de PII/segredo (`core/redactor.py`, no export federado).
 
-As lacunas abaixo não têm implementação hoje e nascem como contrato.
+As lacunas abaixo são contratos evolutivos. Quando uma primeira fatia já existe,
+o texto explicita o que está entregue e o que continua pendente.
 
 ### 31.1 Reranker (reordenação por relevância)
 
-Hoje `context_fusion._fuse_contexts` dedupa e **trunca** por ordem de backend — não reordena pelo que responde a query. Contrato:
+Hoje `context_fusion._fuse_contexts` dedupa e **trunca** por ordem de backend.
+Dentro do `RetrievalRouter`, o reranker já está entregue:
+`HIVE_RETRIEVAL_RERANKER=1` aciona `integrations/llama_index/client.py::rerank`.
+Por padrão, ele usa rerank lexical determinístico/fail-open gated por
+`assert_health()` do LlamaIndex. Com
+`HIVE_RERANKER_PROVIDER=sentence-transformers` + `HIVE_RERANKER_MODEL`, tenta
+cross-encoder local opt-in. Contrato:
 
 ```text
 rerank(query, candidates[]) -> candidates[] reordenados
   entra: top-N bruto da fusão (ex.: 30)
-  modelo: cross-encoder pequeno local (env HIVE_RERANKER_PROVIDER/MODEL); papel opcional
+  ativacao atual: HIVE_RETRIEVAL_RERANKER=1 (lexical local deterministico)
+  cross-encoder opt-in: env HIVE_RERANKER_PROVIDER/MODEL + extra reranker
   sai: top-K (ex.: 5) ordenado por score de relevância
   fail-open: sem modelo/erro -> ordem atual (dedup+truncate), sem quebrar
 ```
 
-Plugar entre a fusão e o retorno do `RetrievalRouter` (§26). Off por padrão em `local-min`.
+O hook já está plugado entre a fusão e o retorno do `RetrievalRouter` (§26),
+off por padrão em `local-min`. Cobertura real permanente:
+`tests/real/test_retrieval_router_real.py` valida reordenação por overlap,
+configuração opt-in do cross-encoder e `retrieval_path` com
+`reranker/llama_index: hit`.
 
 ### 31.2 Esquecimento intencional (forget / retention)
 

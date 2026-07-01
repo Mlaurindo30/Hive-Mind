@@ -33,6 +33,7 @@ AUXILIARY_COLLECTIONS = (
     "graph_vectors",
     "summary_vectors",
 )
+BATCH_SIZE = 256
 
 
 @dataclass
@@ -133,6 +134,56 @@ def _already_synced(backend: VectorBackend, collection: str, item_id: str, metad
     ) == 1
 
 
+def _flush_sync_batch(
+    backend: VectorBackend,
+    collection: str,
+    rows: list[dict[str, Any]],
+    report: VectorSyncReport,
+) -> None:
+    if not rows:
+        return
+    try:
+        if isinstance(backend, MilvusBackend):
+            existing = backend.existing_hashes(collection, [str(row["id"]) for row in rows])
+            pending = []
+            for row in rows:
+                key = (str(row["id"]), str(row["workspace_id"]))
+                if existing.get(key) == str(row["hash"]):
+                    report.skipped += 1
+                else:
+                    pending.append(row)
+            backend.upsert_many(collection, pending)
+            report.upserted += len(pending)
+            return
+
+        for row in rows:
+            if _already_synced(backend, collection, str(row["id"]), row):
+                report.skipped += 1
+                continue
+            backend.upsert(collection, str(row["id"]), row["vector"], row)
+            report.upserted += 1
+    except Exception as exc:
+        report.failed += len(rows)
+        sample = ", ".join(str(row.get("id")) for row in rows[:5])
+        report.errors.append(f"{sample}: {type(exc).__name__}: {exc}")
+
+
+def _queue_sync_row(
+    backend: VectorBackend,
+    collection: str,
+    batch: list[dict[str, Any]],
+    report: VectorSyncReport,
+    *,
+    item_id: str,
+    vector: list[float],
+    metadata: dict[str, str],
+) -> None:
+    batch.append({"id": item_id, "vector": vector, **metadata})
+    if len(batch) >= BATCH_SIZE:
+        _flush_sync_batch(backend, collection, batch, report)
+        batch.clear()
+
+
 def iter_memory_vector_rows(conn, *, limit: int | None = None):
     sql = """
     SELECT
@@ -168,6 +219,7 @@ def sync_memory_vectors_to_milvus(
     """
     backend = backend or MilvusBackend()
     report = VectorSyncReport(collection="memory_vectors")
+    batch: list[dict[str, Any]] = []
 
     for row in iter_memory_vector_rows(conn, limit=limit):
         report.scanned += 1
@@ -175,14 +227,19 @@ def sync_memory_vectors_to_milvus(
         try:
             vector = _decode_f32(row["embedding"])
             metadata = _metadata_for_memory_vector(row)
-            if _already_synced(backend, "memory_vectors", neuron_id, metadata):
-                report.skipped += 1
-                continue
-            backend.upsert("memory_vectors", neuron_id, vector, metadata)
-            report.upserted += 1
+            _queue_sync_row(
+                backend,
+                "memory_vectors",
+                batch,
+                report,
+                item_id=neuron_id,
+                vector=vector,
+                metadata=metadata,
+            )
         except Exception as exc:
             report.failed += 1
             report.errors.append(f"{neuron_id}: {type(exc).__name__}: {exc}")
+    _flush_sync_batch(backend, "memory_vectors", batch, report)
     return report
 
 
@@ -297,7 +354,8 @@ def _embedding_for_text(text: str) -> list[float]:
 
 def _backfill_neuron_collection(conn, collection: str, neuron_type: str, *, limit: int | None = None) -> VectorSyncReport:
     report = VectorSyncReport(collection=collection)
-    for row in _iter_neuron_type_vectors(conn, neuron_type, limit=limit):
+    rows = list(_iter_neuron_type_vectors(conn, neuron_type, limit=limit))
+    for row in rows:
         report.scanned += 1
         item_id = str(row["id"])
         try:
@@ -321,7 +379,8 @@ def _backfill_visual_vectors(conn, *, limit: int | None = None) -> VectorSyncRep
     if limit is not None:
         sql += " LIMIT ?"
         params = (int(limit),)
-    for row in conn.execute(sql, params):
+    rows = list(conn.execute(sql, params))
+    for row in rows:
         report.scanned += 1
         item_id = str(row["id"])
         text = "\n".join(str(row[key] or "") for key in ("image_path", "description", "ocr_text"))
@@ -356,7 +415,8 @@ def _backfill_graph_vectors(conn, *, limit: int | None = None) -> VectorSyncRepo
     if limit is not None:
         sql += " LIMIT ?"
         params = (int(limit),)
-    for row in conn.execute(sql, params):
+    rows = list(conn.execute(sql, params))
+    for row in rows:
         report.scanned += 1
         item_id = str(row["id"])
         text = f"{row['cause_neuron_id']} {row['label'] or 'relates_to'} {row['effect_neuron_id']} source={row['source'] or ''}"
@@ -510,6 +570,7 @@ def sync_auxiliary_vectors_to_milvus(
         if collection not in AUXILIARY_COLLECTIONS:
             raise ValueError(f"colecao auxiliar K2 desconhecida: {collection}")
         report = VectorSyncReport(collection=collection)
+        batch: list[dict[str, Any]] = []
         for row in _iter_vector_metadata_rows(conn, collection, limit=limit):
             report.scanned += 1
             item_id = str(row["id"])
@@ -519,14 +580,19 @@ def sync_auxiliary_vectors_to_milvus(
                     for field in MilvusBackend.METADATA_FIELDS
                 }
                 vector = _decode_f32(row["embedding"])
-                if _already_synced(backend, collection, item_id, metadata):
-                    report.skipped += 1
-                    continue
-                backend.upsert(collection, item_id, vector, metadata)
-                report.upserted += 1
+                _queue_sync_row(
+                    backend,
+                    collection,
+                    batch,
+                    report,
+                    item_id=item_id,
+                    vector=vector,
+                    metadata=metadata,
+                )
             except Exception as exc:
                 report.failed += 1
                 report.errors.append(f"{item_id}: {type(exc).__name__}: {exc}")
+        _flush_sync_batch(backend, collection, batch, report)
         reports.append(report)
     return reports
 
@@ -590,6 +656,7 @@ def sync_observation_vectors_to_milvus(
     backend = backend or MilvusBackend()
     report = VectorSyncReport(collection="observation_vectors")
     conn = _open_claude_mem_connection(claude_mem_db)
+    batch: list[dict[str, Any]] = []
     try:
         for row in iter_observation_vector_rows(conn, limit=limit):
             report.scanned += 1
@@ -597,14 +664,19 @@ def sync_observation_vectors_to_milvus(
             try:
                 vector = _decode_f32(row["embedding"])
                 metadata = _metadata_for_observation_vector(row)
-                if _already_synced(backend, "observation_vectors", obs_key, metadata):
-                    report.skipped += 1
-                    continue
-                backend.upsert("observation_vectors", obs_key, vector, metadata)
-                report.upserted += 1
+                _queue_sync_row(
+                    backend,
+                    "observation_vectors",
+                    batch,
+                    report,
+                    item_id=obs_key,
+                    vector=vector,
+                    metadata=metadata,
+                )
             except Exception as exc:
                 report.failed += 1
                 report.errors.append(f"{obs_key}: {type(exc).__name__}: {exc}")
+        _flush_sync_batch(backend, "observation_vectors", batch, report)
     finally:
         conn.close()
     return report

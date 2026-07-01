@@ -7,12 +7,31 @@ serviço está offline (marker `requires_service`), nunca falham por ambiente.
 from __future__ import annotations
 
 from pathlib import Path
+import os
 
 import pytest
 
 from tests.real.service_registry import check_service
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_project_env() -> None:
+    env_path = ROOT / ".env"
+    if not env_path.is_file():
+        return
+    for raw in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+        os.environ[key] = value.strip().strip('"').strip("'")
+
+
+_load_project_env()
 
 
 def pytest_runtest_setup(item):
@@ -231,7 +250,7 @@ def ragflow_or_skip():
 
     Caller deve usar `RAGFlowSettings`, `assert_health` ou `create_client`
     do modulo `integrations.ragflow`. O servico so e considerado real
-    quando responde em `/api/v1/health` ou `/`. Caso o modulo nao
+    quando responde em `/api/v1/system/healthz` ou `/api/v1/system/ping`. Caso o modulo nao
     esteja instalado, pula explicito (RAGFlow e opcional no gate K9).
     """
     try:
@@ -242,4 +261,3 @@ def ragflow_or_skip():
     if not status.ok:
         pytest.skip(f"{status.reason} (requires_service:ragflow)")
     return RAGFlowSettings, assert_health
-

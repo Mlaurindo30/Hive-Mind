@@ -30,6 +30,11 @@ cerebro/graphify-out/
 graphify-out/
 # Cache AST do graphify (indexação por hash de arquivo)
 cerebro/cortex/occipital/grafo/cache/ast/
+# Bookkeeping de reindexação incremental (mtime/hash por arquivo — regenerável,
+# sincronizado entre máquinas via Syncthing, não via git; ver docs/04 §4.3)
+cerebro/cortex/occipital/grafo/manifest.json
+cerebro/cortex/occipital/grafo/.rebuild.lock
+cerebro/cortex/occipital/grafo/.pending_changes
 
 # ── Dependências ───────────────────────────────────────────────────
 node_modules/

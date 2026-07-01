@@ -4,13 +4,14 @@
 Sem o fix, o parser Pydantic aceita ``description: str`` como string vazia e
 o resultado fica silenciosamente errado.
 
-Estes testes exigem:
+Estes testes rodam apenas com HIVE_RUN_BUG7=1 e exigem:
   - Ollama local em :11434
   - gemma4:26b E/OU qwen3.5:9b instalados (`ollama pull ...`)
 
 Origem: /tmp/smoke_bug7.py
 """
 import pytest
+import os
 from pydantic import BaseModel
 
 from core.auth import load_env
@@ -47,7 +48,7 @@ def _looks_red(r: VisionResponse) -> bool:
 
 
 def _needs_bug7():
-    return True  # gating via env: HIVE_RUN_BUG7=1
+    return os.environ.get("HIVE_RUN_BUG7") == "1"
 
 
 def test_bug7_gemma4_local_reasoning_fallback(saved_env, ollama_local_alive, ollama_model_available, vision_png):

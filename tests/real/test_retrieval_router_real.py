@@ -89,6 +89,115 @@ def test_retrieval_router_routes_document_to_document_pipeline(real_db, tmp_path
 
 
 @pytest.mark.real
+def test_llama_index_reranker_reorders_by_query_overlap():
+    from integrations.llama_index.client import assert_health, rerank
+
+    health = assert_health(strict=False)
+    assert health.get("ok"), health
+
+    candidates = [
+        {
+            "id": "low-overlap",
+            "content": "Syncthing P2P cuida de sincronizacao entre maquinas.",
+            "score": 0.9,
+        },
+        {
+            "id": "mid-overlap",
+            "content": "O modelo de embeddings usado no projeto foi padronizado.",
+            "score": 0.5,
+        },
+        {
+            "id": "high-overlap",
+            "content": "snowflake-arctic-embed2 gera embeddings com 1024 dimensoes.",
+            "score": 0.1,
+        },
+    ]
+
+    ranked = rerank("embeddings snowflake arctic 1024 dimensoes", candidates)
+    ranked_ids = [item["id"] for item in ranked]
+
+    assert ranked_ids[0] == "high-overlap"
+    assert ranked_ids.index("mid-overlap") < ranked_ids.index("low-overlap")
+    assert ranked_ids[-1] == "low-overlap"
+
+
+@pytest.mark.real
+def test_llama_index_reranker_health_reports_cross_encoder_opt_in(monkeypatch):
+    from integrations.llama_index.client import assert_health
+
+    monkeypatch.setenv("HIVE_RERANKER_PROVIDER", "sentence-transformers")
+    monkeypatch.setenv("HIVE_RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+    health = assert_health(strict=False)
+
+    assert health.get("ok"), health
+    assert health["reranker_provider"] == "sentence-transformers"
+    assert health["reranker_model"] == "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    assert isinstance(health["reranker_available"], bool)
+
+
+@pytest.mark.real
+@pytest.mark.requires_service("ollama")
+def test_retrieval_router_records_reranker_hit_when_enabled(real_db, monkeypatch):
+    from core.database import embed_text
+    from core.retrieval.router import RetrievalRouter
+    from core.vector_backend import SQLiteVecBackend
+
+    monkeypatch.setenv("HIVE_RETRIEVAL_RERANKER", "1")
+    backend = SQLiteVecBackend(real_db)
+    rows = [
+        (
+            "rerank-low-overlap",
+            "Rerank low overlap",
+            "decision",
+            "cerebro/cortex/frontal/decisoes/rerank-low.md",
+            "Syncthing P2P cuida de sincronizacao entre maquinas.",
+            "hash-rerank-low",
+        ),
+        (
+            "rerank-mid-overlap",
+            "Rerank mid overlap",
+            "decision",
+            "cerebro/cortex/frontal/decisoes/rerank-mid.md",
+            "O modelo de embeddings usado no projeto foi padronizado.",
+            "hash-rerank-mid",
+        ),
+        (
+            "rerank-high-overlap",
+            "Rerank high overlap",
+            "decision",
+            "cerebro/cortex/frontal/decisoes/rerank-high.md",
+            "snowflake-arctic-embed2 gera embeddings com 1024 dimensoes.",
+            "hash-rerank-high",
+        ),
+    ]
+    for row in rows:
+        real_db.execute(
+            """
+            INSERT INTO neurons(id, label, type, source_file, content, hash, workspace_id)
+            VALUES (?, ?, ?, ?, ?, ?, 'default')
+            """,
+            row,
+        )
+        backend.upsert("memory_vectors", row[0], embed_text(row[4]))
+
+    result = RetrievalRouter(conn=real_db).route(
+        "qual decisao sobre embeddings snowflake arctic 1024 dimensoes?",
+        top_k=3,
+        intent="decision",
+    )
+
+    reranker_steps = [
+        step
+        for step in result["retrieval_path"]
+        if step["route"] == "reranker" and step["backend"] == "llama_index"
+    ]
+    assert reranker_steps, result["retrieval_path"]
+    assert reranker_steps[-1]["status"] == "hit"
+    assert result["answer_context"][0]["id"] == "rerank-high-overlap"
+
+
+@pytest.mark.real
 def test_retrieval_router_golden_intents():
     from core.retrieval.router import RetrievalRouter
 

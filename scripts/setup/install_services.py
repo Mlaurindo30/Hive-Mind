@@ -147,14 +147,17 @@ ExecStart={path}/.venv/bin/python {path}/scripts/capture/capture-tailer.py --all
 """,
         "sinapse-capture-realtime.service": f"""[Unit]
 Description=Hive-Mind capture realtime (inotify -> claude-mem, tempo real p/ copilot)
-After=network.target sinapse-claude-mem.service
+Wants=sinapse-sqlite-vec.service
+After=network.target sinapse-claude-mem.service sinapse-sqlite-vec.service
 {common_unit}
 
 [Service]
 Type=simple
 UMask=0077
 WorkingDirectory={path}
+EnvironmentFile={path}/.env
 Environment=CLAUDE_MEM_DATA_DIR={claude_mem_data}
+Environment=VEC_WORKER_URL=http://127.0.0.1:37701
 Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart={path}/.venv/bin/python {path}/scripts/capture/capture-realtime.py
 Restart=always

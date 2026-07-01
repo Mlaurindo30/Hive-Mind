@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import sqlite3
 import sys
+import time
 from typing import Any
 import uuid
 
@@ -26,7 +27,7 @@ if str(ROOT) not in sys.path:
 
 from core import paths as cp  # noqa: E402
 from core.database import ensure_migrations, get_connection  # noqa: E402
-from core.vector_backend import MilvusBackend, SQLiteVecBackend  # noqa: E402
+from core.vector_backend import MilvusBackend  # noqa: E402
 from core.vector_collections import COLLECTIONS  # noqa: E402
 
 
@@ -38,10 +39,30 @@ VECTOR_PARENT_SQL: dict[str, str] = {
         WHERE n.id IS NULL
     """,
     "document_vectors": """
-        SELECT vd.chunk_id AS id, 'document_chunk' AS parent_type, vd.chunk_id AS parent_id
+        SELECT vd.chunk_id AS id,
+               COALESCE(vm.parent_type, 'vector_metadata') AS parent_type,
+               COALESCE(vm.parent_id, vd.chunk_id) AS parent_id,
+               vm.source_uri AS source_uri
         FROM vec_documents vd
-        LEFT JOIN document_chunks dc ON dc.id = vd.chunk_id
-        WHERE dc.id IS NULL
+        LEFT JOIN vector_metadata vm
+          ON vm.collection = 'document_vectors' AND vm.id = vd.chunk_id
+        LEFT JOIN document_chunks dc_by_id
+          ON dc_by_id.id = vd.chunk_id
+        LEFT JOIN document_chunks dc_by_parent
+          ON dc_by_parent.id = vm.parent_id
+        LEFT JOIN document_memories dm
+          ON dm.id = vm.parent_id
+        LEFT JOIN neurons n
+          ON n.id = vm.parent_id
+        WHERE vm.id IS NULL
+           OR (vm.parent_type = 'neuron' AND (n.id IS NULL OR n.type != 'document'))
+           OR (
+                vm.parent_type IN ('document_chunk', 'document')
+                AND dc_by_id.id IS NULL
+                AND dc_by_parent.id IS NULL
+                AND dm.id IS NULL
+              )
+           OR vm.parent_type NOT IN ('neuron', 'document_chunk', 'document')
     """,
     "visual_vectors": """
         SELECT vv.image_id AS id, 'visual_memory' AS parent_type, vv.image_id AS parent_id
@@ -100,6 +121,13 @@ def _table_exists(conn, table: str) -> bool:
     return row is not None
 
 
+def _table_columns(conn, table: str) -> set[str]:
+    try:
+        return {str(row[1]) for row in conn.execute(f"PRAGMA table_info({table})")}
+    except sqlite3.OperationalError:
+        return set()
+
+
 def _count(conn, sql: str, params: tuple[Any, ...] = ()) -> int:
     try:
         return int(conn.execute(sql, params).fetchone()[0])
@@ -129,11 +157,31 @@ def _summary_files() -> list[Path]:
     return files
 
 
+def _document_source_total(conn) -> int:
+    """Count all current valid source units for `document_vectors`.
+
+    K6 writes atomic chunks to `document_chunks`. The existing vault backfill
+    also indexes legacy `neurons.type=document` rows so the current corpus is
+    searchable before every document has been reingested through K6.
+    """
+    return _count(
+        conn,
+        """
+        SELECT COUNT(*)
+        FROM (
+            SELECT id FROM document_chunks
+            UNION
+            SELECT id FROM neurons WHERE type = 'document'
+        )
+        """,
+    )
+
+
 def _source_total(conn, collection: str, *, quick: bool = False) -> int | None:
     if collection == "memory_vectors":
         return _count(conn, "SELECT COUNT(*) FROM neurons")
     if collection == "document_vectors":
-        return _count(conn, "SELECT COUNT(*) FROM document_chunks")
+        return _document_source_total(conn)
     if collection == "code_vectors":
         return _count(conn, "SELECT COUNT(*) FROM neurons WHERE type = 'code'")
     if collection == "visual_vectors":
@@ -153,25 +201,79 @@ def _vector_count(conn, collection: str, *, quick: bool = False) -> int | None:
     if collection == "observation_vectors":
         if quick:
             return None
-        try:
-            return SQLiteVecBackend(conn=conn).count(collection)
-        except Exception:
-            return 0
+        return _claude_mem_observation_vector_total()
     c = COLLECTIONS[collection]
     return _count(conn, f"SELECT COUNT(*) FROM {c.table}")
 
 
-def _claude_mem_observation_total() -> int | None:
-    db = Path(
-        __import__("os").environ.get(
+def _claude_mem_db_path() -> Path:
+    return Path(
+        os.environ.get(
             "CLAUDE_MEM_DB", str(Path.home() / ".claude-mem" / "claude-mem.db")
         )
     ).expanduser()
+
+
+def _observation_age_filter(conn: sqlite3.Connection) -> tuple[str, tuple[Any, ...]]:
+    columns = _table_columns(conn, "observations")
+    grace_seconds = max(
+        0,
+        int(os.environ.get("HIVE_OBSERVATION_VECTOR_GRACE_SECONDS", "60")),
+    )
+    if not grace_seconds or "created_at_epoch" not in columns:
+        return "", ()
+    max_epoch = _count(conn, "SELECT COALESCE(MAX(created_at_epoch), 0) FROM observations")
+    multiplier = 1000 if max_epoch > 10_000_000_000 else 1
+    now_epoch = time.time() * multiplier
+    return " AND o.created_at_epoch <= ?", (int(now_epoch - (grace_seconds * multiplier)),)
+
+
+def _claude_mem_observation_total() -> int | None:
+    db = _claude_mem_db_path()
     if not db.exists():
         return None
     conn = sqlite3.connect(db)
     try:
-        return _count(conn, "SELECT COUNT(*) FROM observations")
+        age_filter, params = _observation_age_filter(conn)
+        return _count(
+            conn,
+            f"""
+            SELECT COUNT(*)
+            FROM observations o
+            WHERE TRIM(COALESCE(o.narrative, o.text, '')) != ''
+            {age_filter}
+            """,
+            params,
+        )
+    finally:
+        conn.close()
+
+
+def _claude_mem_observation_vector_total() -> int | None:
+    db = _claude_mem_db_path()
+    if not db.exists():
+        return None
+    conn = sqlite3.connect(db)
+    conn.enable_load_extension(True)
+    try:
+        import sqlite_vec
+
+        sqlite_vec.load(conn)
+    finally:
+        conn.enable_load_extension(False)
+    try:
+        age_filter, params = _observation_age_filter(conn)
+        return _count(
+            conn,
+            f"""
+            SELECT COUNT(*)
+            FROM vec_observations v
+            JOIN observations o ON o.id = v.rowid
+            WHERE TRIM(COALESCE(o.narrative, o.text, '')) != ''
+            {age_filter}
+            """,
+            params,
+        )
     finally:
         conn.close()
 

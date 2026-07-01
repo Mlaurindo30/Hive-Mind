@@ -2,13 +2,14 @@
 
 - Fonte: tests/run_real_knowledge.sh
 - Spec: docs/12-knowledge-implementation-plan.md §K9
+- Status: **pass**
 
 | Metrica | Valor |
 |---|---:|
-| total | 53 |
-| passed | 48 |
+| total | 59 |
+| passed | 59 |
 | failed | 0 |
 | errors | 0 |
-| skipped | 5 |
+| skipped | 0 |
 
 _Skips = servicos nomeados em `requires_service` que estao offline (intencional)._

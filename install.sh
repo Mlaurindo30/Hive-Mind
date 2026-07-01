@@ -99,6 +99,39 @@ fi
 uv python install 3.12
 BOOTSTRAP_PYTHON="$(uv python find 3.12)"
 
+# Produção exige .env local e HIVE_MIND_API_KEY para a REST API fail-closed.
+# O instalador cria um token local se o operador ainda não preencheu, sem
+# commitar segredo e sem sobrescrever valor existente.
+if [ -f "$PROJECT_ROOT/.env.example" ]; then
+    [ -f "$PROJECT_ROOT/.env" ] || cp "$PROJECT_ROOT/.env.example" "$PROJECT_ROOT/.env"
+    "$BOOTSTRAP_PYTHON" - "$PROJECT_ROOT/.env" <<'PY'
+import secrets
+import sys
+from pathlib import Path
+
+env_path = Path(sys.argv[1])
+lines = env_path.read_text(encoding="utf-8").splitlines()
+found = False
+changed = False
+for idx, line in enumerate(lines):
+    if line.startswith("HIVE_MIND_API_KEY="):
+        found = True
+        key = line.split("=", 1)[1].strip().strip('"').strip("'")
+        if not key:
+            lines[idx] = "HIVE_MIND_API_KEY=" + secrets.token_urlsafe(32)
+            changed = True
+        break
+if not found:
+    lines.append("HIVE_MIND_API_KEY=" + secrets.token_urlsafe(32))
+    changed = True
+if changed:
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("  OK: HIVE_MIND_API_KEY gerado em .env local")
+else:
+    print("  OK: HIVE_MIND_API_KEY ja existe em .env local")
+PY
+fi
+
 # Node 18+ é requisito do runtime completo e dos smoke tests.
 if command -v node &>/dev/null; then
     NODE_VERSION=$(node --version | sed 's/v//')
@@ -586,25 +619,56 @@ echo ""
 # =============================================================================
 echo -e "${BOLD}[9/12] Configurando cron de sync...${NC}"
 
-CRON_JOB="0 */6 * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && ./scripts/graph/build-graph.sh >> logs/sync.log 2>&1"
+PY_CRON=".venv/bin/python"
+CRON_SYNC_JOB="0 */6 * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && ./scripts/graph/build-graph.sh >> logs/sync.log 2>&1"
+CRON_AUDIT_JOB="0 * * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && $PY_CRON scripts/health/audit_memory.py --fix >> logs/audit.log 2>&1"
+CRON_BACKUP_JOB="0 3 * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && $PY_CRON scripts/health/backup_databases.py >> logs/backup.log 2>&1"
+CRON_DREAM_JOB="0 2 * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && $PY_CRON scripts/dream/dream_cycle.py --once --real >> logs/dream-cycle.log 2>&1"
+CRON_MONTHLY_JOB="15 3 1 * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && $PY_CRON scripts/dream/monthly_synthesizer.py --real >> logs/monthly-synthesizer.log 2>&1"
+CRON_YEARLY_JOB="30 3 1 1 * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && $PY_CRON scripts/dream/yearly_synthesizer.py --real >> logs/yearly-synthesizer.log 2>&1"
+CRON_VECTOR_SUMMARY_JOB="45 3 * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && if [ \"\${VECTOR_BACKEND:-sqlite}\" = \"milvus\" ]; then $PY_CRON scripts/maintenance/vector-sync.py --collection summary_vectors --json >> logs/vector-sync.log 2>&1; fi"
 
 if command -v crontab &>/dev/null; then
     # Remove variantes legadas/duplicadas e instala uma única entrada canônica.
     CRON_TMP=$(mktemp)
     crontab -l 2>/dev/null \
         | grep -vF "# Hive-Mind — sync vault → graph a cada 6h" \
+        | grep -vF "# Hive-Mind — audit vault → SQLite hourly" \
+        | grep -vF "# Hive-Mind — backup SQLite diario" \
+        | grep -vF "# Hive-Mind — Dream Cycle diario" \
+        | grep -vF "# Hive-Mind — sintese mensal K5" \
+        | grep -vF "# Hive-Mind — sintese anual K5" \
+        | grep -vF "# Hive-Mind — vector sync summaries K5" \
         | grep -vF "# sinapse_agent — sync vault → graph a cada 6h" \
         | grep -vF "./scripts/graph/build-graph.sh" \
+        | grep -vF "scripts/health/audit_memory.py --fix" \
+        | grep -vF "scripts/health/backup_databases.py" \
+        | grep -vF "scripts/dream/dream_cycle.py --once --real" \
+        | grep -vF "scripts/dream/monthly_synthesizer.py --real" \
+        | grep -vF "scripts/dream/yearly_synthesizer.py --real" \
+        | grep -vF "scripts/maintenance/vector-sync.py --collection summary_vectors" \
         > "$CRON_TMP" || true
     {
         cat "$CRON_TMP"
         echo "# Hive-Mind — sync vault → graph a cada 6h"
-        echo "$CRON_JOB"
+        echo "$CRON_SYNC_JOB"
+        echo "# Hive-Mind — audit vault → SQLite hourly"
+        echo "$CRON_AUDIT_JOB"
+        echo "# Hive-Mind — backup SQLite diario"
+        echo "$CRON_BACKUP_JOB"
+        echo "# Hive-Mind — Dream Cycle diario"
+        echo "$CRON_DREAM_JOB"
+        echo "# Hive-Mind — sintese mensal K5"
+        echo "$CRON_MONTHLY_JOB"
+        echo "# Hive-Mind — sintese anual K5"
+        echo "$CRON_YEARLY_JOB"
+        echo "# Hive-Mind — vector sync summaries K5"
+        echo "$CRON_VECTOR_SUMMARY_JOB"
     } | crontab -
     rm -f "$CRON_TMP"
-    echo -e "  ${GREEN}✓${NC} Cron configurado sem duplicatas (a cada 6h)"
+    echo -e "  ${GREEN}✓${NC} Cron configurado sem duplicatas (sync, audit, backup, Dream Cycle, K5)"
 else
-    echo -e "  ${YELLOW}⊘${NC}  crontab não disponível. Use ./scripts/graph/build-graph.sh manualmente."
+    echo -e "  ${YELLOW}⊘${NC}  crontab não disponível. Use scripts/graph/build-graph.sh, scripts/health/backup_databases.py e scripts/dream/dream_cycle.py manualmente."
 fi
 
 echo ""

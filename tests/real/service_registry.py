@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import socket
+from urllib.parse import urlparse
 import urllib.request
 
 
@@ -63,7 +64,10 @@ def _ollama() -> ServiceStatus:
 def _milvus() -> ServiceStatus:
     uri = os.environ.get("MILVUS_URI")
     if uri:
-        ok = http_ok(uri.rstrip("/"))
+        parsed = urlparse(uri)
+        host = parsed.hostname or "localhost"
+        port = parsed.port or 19530
+        ok = tcp_ok(host, port)
         return ServiceStatus("milvus", ok, f"Milvus offline em {uri}")
     host = os.environ.get("MILVUS_HOST", "localhost")
     port = int(os.environ.get("MILVUS_PORT", "19530"))
@@ -96,7 +100,7 @@ def _claude_mem() -> ServiceStatus:
 
 def _ragflow() -> ServiceStatus:
     base = os.environ.get("RAGFLOW_BASE", os.environ.get("RAGFLOW_API_URL", "http://localhost:9380")).rstrip("/")
-    ok = http_ok(f"{base}/api/v1/health") or http_ok(base)
+    ok = http_ok(f"{base}/api/v1/system/healthz") or http_ok(f"{base}/api/v1/system/ping")
     return ServiceStatus("ragflow", ok, f"RAGFlow offline em {base}")
 
 

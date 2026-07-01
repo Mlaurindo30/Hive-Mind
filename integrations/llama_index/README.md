@@ -10,4 +10,7 @@ Runtime:
 
 - package dependency: `llama-index` from `pyproject.toml`;
 - health: `integrations.llama_index.client.assert_health()`;
-- reranker: enabled only when `HIVE_RETRIEVAL_RERANKER` is set.
+- reranker: enabled only when `HIVE_RETRIEVAL_RERANKER` is set;
+- default reranker: deterministic lexical overlap, fail-open;
+- optional strong reranker: `uv sync --extra reranker`, then set
+  `HIVE_RERANKER_PROVIDER=sentence-transformers` and `HIVE_RERANKER_MODEL`.

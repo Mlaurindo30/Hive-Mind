@@ -1,8 +1,8 @@
 # Hive-Mind — Documentação Técnica
 
-> **Versão:** 3.0.0 | **Atualizado:** 2026-06-30
+> **Versão:** 3.0.0 | **Atualizado:** 2026-07-01
 > **Stack:** Python 3.10+ (core/pipeline) · TypeScript/Bun (claude-mem) · Rust (RTK) · SQLite (`sqlite-vec` + FTS5) · Milvus (produção, opcional) · RAGFlow (adapter headless, opcional) · LlamaIndex (adapter, opcional)
-> **Status:** Fase HM-12 (Federated Swarm) entregue · **Fase K (Conhecimento Born-Large)**: K0–K8 concluídas (K0-K6 entregues, K7 e K8 entregues em v3.5.0/v3.6.0 em 2026-06-30) · **Testes:** 534 funções em 89 arquivos (0 skipped) — suíte `./tests/run_all.sh` verde em 2026-06-29
+> **Status:** Fase HM-12 (Federated Swarm) entregue · **Fase K (Conhecimento Born-Large)**: K0–K10 implementadas e revalidadas em local-full · **Testes:** 706 funções `test_` em 123 arquivos com testes (contagem 2026-07-01); gate K9 real separado em `tests/run_real_knowledge.sh` com 59/59 passed, 0 skipped
 
 ---
 
@@ -23,7 +23,7 @@
 | 5 | [Blueprints e Fluxogramas](05-blueprints.md) | Diagramas ASCII de arquitetura, fluxo de 9 etapas, Dream Cycle, P2P, cadência, RetrievalRouter | Todos |
 | 6 | [Análise de Gaps — install.sh](06-gap-analysis.md) | Auditoria técnica (C1-C5), gaps do instalador, métricas de testes | Desenvolvedores |
 | 7 | [Setup de Sincronização P2P](07-p2p-sync-setup.md) | Syncthing, UUID v4, SHA-256, Síntese Dialética (Phase 9) | DevOps |
-| 11 | [Arquitetura de Conhecimento e Promoção](11-knowledge-promotion-architecture.md) | **Normativo** — fluxo ideal de promoção, preenchimento por parte do cérebro, tipos canônicos, chunks, vector search, Milvus/RAGFlow/LlamaIndex born-large, DocumentPipeline, RetrievalRouter, métricas, contratos pendentes (Reranker, Forget, Eval) | Arquitetos / Data Engineers |
+| 11 | [Arquitetura de Conhecimento e Promoção](11-knowledge-promotion-architecture.md) | **Normativo** — fluxo ideal de promoção, preenchimento por parte do cérebro, tipos canônicos, chunks, vector search, Milvus/RAGFlow/LlamaIndex born-large, DocumentPipeline, RetrievalRouter, métricas, contratos evolutivos (Reranker, Forget, Eval) | Arquitetos / Data Engineers |
 | 12 | [Plano de Implementação da Arquitetura de Conhecimento](12-knowledge-implementation-plan.md) | Fases K0–K10, tasks, integrações em `integrations/`, modelos locais pequenos por papel, env vars, testes reais sem mocks como critério de aceite | Engenharia |
 
 > Todos os documentos 01–07 foram reescritos para v3.0.0 em 2026-06-13. Em 2026-06-30, a frente de Conhecimento Born-Large (K0–K10) foi consolidada no canônico: o **`01-architecture.md` §22–§31** destila a referência normativa de [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md), e **`[12-knowledge-implementation-plan.md](12-knowledge-implementation-plan.md)** é o plano operacional por fase. Em caso de conflito entre eles, **[01-architecture.md](01-architecture.md) prevalece**.

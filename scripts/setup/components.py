@@ -16,6 +16,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 LOCK = ROOT / "config" / "components.lock.json"
 BACKUPS = ROOT / "config" / "component-lock-backups"
+FORBIDDEN_LOCK_COMPONENTS = {
+    "milvus": "wrapper/container via integrations/milvus, nunca clone em components.lock.json",
+    "ragflow": "wrapper/headless via integrations/ragflow, nunca clone em components.lock.json",
+    "llamaindex": "dependência pip opcional, nunca clone em components.lock.json",
+    "llama-index": "dependência pip opcional, nunca clone em components.lock.json",
+    "llama_index": "dependência pip opcional, nunca clone em components.lock.json",
+}
 
 
 def _prune_backups(directory: Path, pattern: str, keep_last: int) -> None:
@@ -52,6 +59,15 @@ def load_lock(path: Path = LOCK) -> dict:
     data = json.loads(path.read_text())
     if data.get("schema_version") != 1 or not data.get("components"):
         raise SystemExit(f"invalid component manifest: {path}")
+    forbidden = [
+        f"{name} ({FORBIDDEN_LOCK_COMPONENTS[name.lower()]})"
+        for name in data["components"]
+        if name.lower() in FORBIDDEN_LOCK_COMPONENTS
+    ]
+    if forbidden:
+        raise SystemExit(
+            "components.lock.json viola ADR-018; remova: " + ", ".join(forbidden)
+        )
     return data
 
 
@@ -79,7 +95,14 @@ def component_patch(spec: dict) -> Path | None:
 
 def patch_is_applied(target: Path, patch: Path) -> bool:
     return succeeds(
-        "git", "apply", "--unidiff-zero", "--reverse", "--check", str(patch),
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "--ignore-space-change",
+        "--ignore-whitespace",
+        "--reverse",
+        "--check",
+        str(patch),
         cwd=target,
     )
 
@@ -94,7 +117,14 @@ def apply_component_patch(name: str, spec: dict, *, strict: bool = True) -> None
     if patch_is_applied(target, patch):
         return
     if not succeeds(
-        "git", "apply", "--unidiff-zero", "--check", str(patch), cwd=target
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "--ignore-space-change",
+        "--ignore-whitespace",
+        "--check",
+        str(patch),
+        cwd=target,
     ):
         if not strict and is_dirty(target):
             print(
@@ -106,7 +136,15 @@ def apply_component_patch(name: str, spec: dict, *, strict: bool = True) -> None
         raise SystemExit(
             f"{name}: pinned patch does not apply to commit {head(target)}"
         )
-    run("git", "apply", "--unidiff-zero", str(patch), cwd=target)
+    run(
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "--ignore-space-change",
+        "--ignore-whitespace",
+        str(patch),
+        cwd=target,
+    )
     print(f"[components] applied {patch.relative_to(ROOT)} to {name}")
 
 
@@ -117,7 +155,16 @@ def remove_component_patch(name: str, spec: dict) -> None:
     target = component_target(name, spec)
     if not patch_is_applied(target, patch):
         raise SystemExit(f"{name}: expected pinned patch is not applied")
-    run("git", "apply", "--unidiff-zero", "--reverse", str(patch), cwd=target)
+    run(
+        "git",
+        "apply",
+        "--unidiff-zero",
+        "--ignore-space-change",
+        "--ignore-whitespace",
+        "--reverse",
+        str(patch),
+        cwd=target,
+    )
 
 
 def clone_pinned(name: str, spec: dict) -> None:

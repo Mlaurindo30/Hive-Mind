@@ -51,7 +51,9 @@ verdade (§16). Fork da UI do RAGFlow = trilha futura separada
 
 `components.lock.json` também é um **contrato negativo**: se Milvus, RAGFlow ou
 LlamaIndex aparecerem ali nesta frente, a implementação está errada. Eles entram
-respectivamente por wrapper/compose+SDK e pip.
+respectivamente por wrapper/compose+SDK e pip. Esse contrato é validado por
+`scripts/setup/components.py`: `load_lock()` falha fechado quando encontra esses
+nomes no lock.
 
 ---
 
@@ -341,6 +343,11 @@ O Hive-Mind deve suportar colecoes separadas. Nao colocar tudo no mesmo ranking.
 `sqlite-vec` continua obrigatorio para local-first/offline. Milvus e backend
 de producao, nao substitui a fonte de verdade.
 
+Arquivos `type: moc` são artefatos de navegação regeneráveis. Eles não são
+neurônios, não entram em `memory_vectors` e não devem ser gravados em
+`hive_mind.db/search_vec`. A auditoria `audit_memory.py --fix` remove entradas
+legadas de MOCs indexados pelo `source_file`.
+
 Cada item vetorial precisa carregar metadados canônicos: `parent_id`,
 `parent_type`, `brain_lobe`, `knowledge_type`, `project`, `source_uri`, `hash`,
 `valid_at` e `workspace_id`. No UMC, coleções auxiliares guardam esses campos em
@@ -626,6 +633,10 @@ K8 mede as sete colecoes canonicas: `memory_vectors`,
 `neurons_vectorized_pct`: document/code/visual/graph/summary tambem precisam
 aparecer explicitamente.
 
+`memory_vectors` mede neurônios reais do córtex temporal. MOCs, dashboards,
+templates e outros artefatos regeneráveis devem aparecer no grafo/vault, mas
+não como neurônios vetoriais.
+
 `query_route_distribution` vem de `query_route_log`, preenchida pelo
 `RetrievalRouter` em modo best-effort. A query gravada e sempre hash; o texto
 bruto da pergunta nao entra na telemetria.
@@ -810,7 +821,7 @@ escalam ou especializam indices. A verdade continua no vault anatomico e no UMC.
 
 ---
 
-## 17. Contratos Pendentes (lacunas verificadas)
+## 17. Contratos Evolutivos (lacunas verificadas)
 
 Capacidades **ja existentes** (nao reimplementar): merge/dedup na promocao
 (Dream Cycle Router `append|create_new|merge` + tabela `ambiguities` +
@@ -821,19 +832,31 @@ As lacunas abaixo nao tem implementacao hoje e nascem como contrato.
 
 ### 17.1 Reranker (reordenacao por relevancia)
 
-Hoje `context_fusion._fuse_contexts` dedupa e **trunca** por ordem de backend —
-nao reordena pelo que responde a query. Contrato:
+`context_fusion._fuse_contexts` (fora do `RetrievalRouter`) continua apenas
+dedupando e **truncando** por ordem de backend. Dentro do `RetrievalRouter`
+(K7), porem, ja existe uma primeira fatia real deste contrato:
 
-```text
-rerank(query, candidates[]) -> candidates[] reordenados
-  entra: top-N bruto da fusao (ex.: 30)
-  modelo: cross-encoder pequeno local (env HIVE_RERANKER_PROVIDER/MODEL); papel opcional
-  sai: top-K (ex.: 5) ordenado por score de relevancia
-  fail-open: sem modelo/erro -> ordem atual (dedup+truncate), sem quebrar
-```
-
-Plugar entre a fusao e o retorno do `RetrievalRouter` (§11). Off por padrao em
-`local-min`.
+- `core/retrieval/router.py::_reranker_enabled()`/`_rerank()` plugam entre a
+  fusao de candidatos e o retorno do router, atras da flag `HIVE_RETRIEVAL_RERANKER`
+  (off por padrao, inclusive em `local-min`).
+- `_rerank()` chama `integrations/llama_index/client.py::rerank()`: por padrao,
+  um rerank lexical deterministico (overlap de termos + score de entrada),
+  gated por `assert_health()` do LlamaIndex. Quando
+  `HIVE_RERANKER_PROVIDER=sentence-transformers` e `HIVE_RERANKER_MODEL` estao
+  definidos, tenta um cross-encoder local opt-in. Fail-open: sem LlamaIndex,
+  sem extra `reranker`, sem modelo ou qualquer excecao, devolve lexical/origem
+  sem quebrar o router.
+- Cobertura real permanente:
+  `tests/real/test_retrieval_router_real.py::test_llama_index_reranker_reorders_by_query_overlap`
+  prova que o candidato com forte overlap textual sobe acima de candidatos
+  com score-base maior; `test_retrieval_router_records_reranker_hit_when_enabled`
+  prova o caminho publico `RetrievalRouter.route()` com
+  `HIVE_RETRIEVAL_RERANKER=1` e `retrieval_path` contendo
+  `reranker/llama_index` com status `hit`.
+- Cross-encoder local forte esta implementado como opt-in via
+  `HIVE_RERANKER_PROVIDER/MODEL` + `uv sync --extra reranker`. Ele nao e
+  requisito do K9 local-full para nao transformar download/cache HuggingFace em
+  dependencia obrigatoria do `local-min`.
 
 ### 17.2 Esquecimento intencional (forget / retention)
 
@@ -860,16 +883,21 @@ mesma tabela de tombstone.
 
 ### 17.3 Avaliacao de recuperacao (eval)
 
-§13 mede **cobertura** (plumbing), nao **qualidade** da resposta. Contrato:
+§13 mede **cobertura** (plumbing); qualidade da resposta ja tem uma primeira
+fatia real:
 
-```text
-golden set: tests/real/golden_retrieval.jsonl
-  cada caso: {query, expected_source_ids[], expected_intent}
-metricas: precision@k, recall@k, citation_correctness, intent_accuracy
-gate: regressao acima de limiar reprova a frente (junto do harness real K9)
-```
+- `tests/real/golden_retrieval.jsonl` existe como golden set curado a mao
+  (`{query, expected_source_ids[], expected_intent}`).
+- `tests/real/test_golden_retrieval.py` implementa dois gates reais contra o
+  `RetrievalRouter`: `test_golden_intent_classification_gate` (intent_accuracy
+  >= 0.75) e `test_golden_retrieval_precision_recall_at_k` (precision@k >= 0.5
+  e recall@k >= 0.5), ambos `@pytest.mark.real` com skip explicito quando
+  Ollama/corpus minimo estao ausentes.
 
-Pequeno e curado a mao; cresce a cada bug de recuperacao reproduzido como caso.
+O que falta para o contrato completo: `citation_correctness` ainda nao e
+medido (os gates hoje cobrem intent_accuracy e precision/recall@k, nao a
+corretude da citacao retornada), e o golden set continua pequeno — cresce a
+cada bug de recuperacao reproduzido como caso.
 
 ### 17.4 Harness real e skip de servicos
 
@@ -891,6 +919,9 @@ Implementação atual: `tests/real/service_registry.py` + hook em
 `tests/real/conftest.py`. Serviços conhecidos: `ollama`, `milvus`, `falkordb`,
 `claude_mem`, `ragflow`. Serviço desconhecido é erro de teste; serviço offline é
 skip explícito com nome e motivo.
+
+Aceite local-full verificado em 2026-07-01: os cinco servicos conhecidos estavam
+online e o gate K9 executou com 59 passed, 0 skipped, 0 failed.
 
 ---
 

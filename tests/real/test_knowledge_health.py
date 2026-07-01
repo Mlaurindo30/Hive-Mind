@@ -123,6 +123,176 @@ def test_knowledge_health_prunes_orphan_vectors_and_writes_tombstones(real_db, t
 
 
 @pytest.mark.real
+def test_knowledge_health_accepts_document_vectors_backfilled_from_neurons(real_db):
+    from scripts.health.knowledge_health import compute_knowledge_health, evaluate_fail_closed
+
+    real_db.execute(
+        """
+        INSERT INTO neurons(id, label, type, source_file, content, hash, workspace_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "doc-neuron-k8",
+            "Documento legado",
+            "document",
+            "cerebro/cortex/parietal/inbox/doc.md",
+            "Documento legado do vault indexado antes do pipeline K6.",
+            "hash-doc-neuron-k8",
+            "default",
+        ),
+    )
+    real_db.execute(
+        "INSERT INTO vec_documents(chunk_id, embedding) VALUES (?, ?)",
+        ("doc-neuron-k8", _zero_vector_blob()),
+    )
+    real_db.execute(
+        """
+        INSERT INTO vector_metadata(
+            collection, id, parent_id, parent_type, brain_lobe,
+            knowledge_type, project, source_uri, hash, valid_at, workspace_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "document_vectors",
+            "doc-neuron-k8",
+            "doc-neuron-k8",
+            "neuron",
+            "parietal",
+            "document",
+            "default",
+            "cerebro/cortex/parietal/inbox/doc.md",
+            "hash-doc-neuron-k8",
+            "2026-07-01T00:00:00Z",
+            "default",
+        ),
+    )
+    real_db.commit()
+
+    metrics = compute_knowledge_health(real_db)
+
+    assert evaluate_fail_closed(metrics) == []
+    assert metrics["orphan_vectors"] == 0
+    assert metrics["collections"]["document_vectors"]["source_total"] == 1
+    assert metrics["collections"]["document_vectors"]["vectorized_pct"] == 100.0
+
+
+@pytest.mark.real
+def test_knowledge_health_prunes_document_vector_for_non_document_neuron(real_db):
+    from scripts.health.knowledge_health import compute_knowledge_health, evaluate_fail_closed
+
+    real_db.execute(
+        """
+        INSERT INTO neurons(id, label, type, source_file, content, hash, workspace_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "summary-neuron-k8",
+            "Resumo anual",
+            "summary",
+            "cerebro/cerebelo/anual/2026.md",
+            "Resumo anual nao deve morar em document_vectors.",
+            "hash-summary-neuron-k8",
+            "default",
+        ),
+    )
+    real_db.execute(
+        "INSERT INTO vec_documents(chunk_id, embedding) VALUES (?, ?)",
+        ("summary-neuron-k8", _zero_vector_blob()),
+    )
+    real_db.execute(
+        """
+        INSERT INTO vector_metadata(
+            collection, id, parent_id, parent_type, brain_lobe,
+            knowledge_type, project, source_uri, hash, valid_at, workspace_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "document_vectors",
+            "summary-neuron-k8",
+            "summary-neuron-k8",
+            "neuron",
+            "cerebelo",
+            "summary",
+            "default",
+            "cerebro/cerebelo/anual/2026.md",
+            "hash-summary-neuron-k8",
+            "2026-07-01T00:00:00Z",
+            "default",
+        ),
+    )
+    real_db.commit()
+
+    metrics = compute_knowledge_health(real_db, prune_orphans=True)
+
+    assert evaluate_fail_closed(metrics) == []
+    assert metrics["orphan_vectors_before_prune"] == 1
+    assert metrics["orphan_vectors_pruned"] == 1
+    assert metrics["orphan_vectors"] == 0
+    assert real_db.execute(
+        "SELECT COUNT(*) FROM vec_documents WHERE chunk_id='summary-neuron-k8'"
+    ).fetchone()[0] == 0
+
+
+@pytest.mark.real
+def test_knowledge_health_counts_only_vectorizable_claude_mem_observations(tmp_path, monkeypatch):
+    import sqlite3
+    import time
+
+    from core.database import serialize_f32
+    from scripts.health.knowledge_health import (
+        _claude_mem_observation_total,
+        _claude_mem_observation_vector_total,
+    )
+
+    db = tmp_path / "claude-mem.db"
+    now = int(time.time())
+    conn = sqlite3.connect(db)
+    conn.enable_load_extension(True)
+    try:
+        import sqlite_vec
+
+        sqlite_vec.load(conn)
+    finally:
+        conn.enable_load_extension(False)
+    conn.execute(
+        """
+        CREATE TABLE observations(
+            id INTEGER PRIMARY KEY,
+            narrative TEXT,
+            text TEXT,
+            facts TEXT,
+            created_at_epoch INTEGER
+        )
+        """
+    )
+    conn.execute("CREATE VIRTUAL TABLE vec_observations USING vec0(embedding float[1024])")
+    conn.executemany(
+        "INSERT INTO observations(id, narrative, text, facts, created_at_epoch) VALUES (?, ?, ?, ?, ?)",
+        [
+            (1, "narrativa", None, None, now - 120),
+            (2, None, "texto", None, now - 120),
+            (3, None, None, "[\"facts only\"]", now - 120),
+            (4, "", "   ", None, now - 120),
+            (5, "recente em processamento", None, None, now),
+        ],
+    )
+    for rowid in (1, 2, 5):
+        conn.execute(
+            "INSERT INTO vec_observations(rowid, embedding) VALUES (?, ?)",
+            (rowid, serialize_f32([0.0] * 1024)),
+        )
+    conn.commit()
+    conn.close()
+    monkeypatch.setenv("CLAUDE_MEM_DB", str(db))
+    monkeypatch.setenv("HIVE_OBSERVATION_VECTOR_GRACE_SECONDS", "60")
+
+    assert _claude_mem_observation_total() == 2
+    assert _claude_mem_observation_vector_total() == 2
+
+
+@pytest.mark.real
 def test_knowledge_health_cli_fail_closed_acceptance():
     import subprocess
     import sys

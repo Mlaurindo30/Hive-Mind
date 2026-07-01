@@ -76,7 +76,8 @@ Cada papel tem primário e fallback opcionais; papel sem par completo PROVIDER+M
 | `HIVE_MONTHLY_SYNTHESIZER_PROVIDER` / `HIVE_MONTHLY_SYNTHESIZER_MODEL` | monthly_synthesizer (K5) | Síntese mensal (forte) |
 | `HIVE_YEARLY_SYNTHESIZER_PROVIDER` / `HIVE_YEARLY_SYNTHESIZER_MODEL` | yearly_synthesizer (K5) | Síntese anual (forte/batch) |
 | `HIVE_LIGHTRAG_PROVIDER` / `HIVE_LIGHTRAG_MODEL` | lightrag (P4) | Default `ollama/qwen2.5:3b` local |
-| `HIVE_RERANKER_PROVIDER` / `HIVE_RERANKER_MODEL` | reranker (K7, opcional) | Cross-encoder local; off por padrão em `local-min` ([`01-architecture.md` §31.1](01-architecture.md#311-reranker-reordenação-por-relevância)) |
+| `HIVE_RETRIEVAL_RERANKER` | reranker (K7, opcional) | Rerank lexical local/fail-open via LlamaIndex; off por padrão em `local-min` ([`01-architecture.md` §31.1](01-architecture.md#311-reranker-reordenação-por-relevância)) |
+| `HIVE_RERANKER_PROVIDER` / `HIVE_RERANKER_MODEL` | reranker forte (K7, opcional) | Cross-encoder local opt-in; requer `uv sync --extra reranker`; off por padrão |
 | `OLLAMA_LOCAL` | — | URL base do Ollama (`http://localhost:11434`) |
 | `OLLAMA_EMBED_MODEL` | Embeddings | Default canônico `snowflake-arctic-embed2:latest`, **1024d** (K1/K10) |
 | `VECTOR_BACKEND` | Vetores | `sqlite` por padrão; `milvus` quando a integração estiver habilitada (K1) |
@@ -98,7 +99,27 @@ o manifesto MiniCPM. O modelo pesado legado `llava:7b` não faz parte da pilha.
 > re-embed online por workspace, dual-write até cutover, métrica `vectors_model_mismatch` = 0
 > dentro de uma coleção.
 
-### 2.3 API Keys por Provider
+### 2.3 Vetores e Ingestão — Milvus (K1/K2) e RAGFlow (K6)
+
+| Variável | Descrição | Padrão |
+|----------|-----------|--------|
+| `VECTOR_BACKEND` | Backend vetorial ativo: `sqlite_vec` (local-first) ou `milvus` (produção) | `sqlite_vec` |
+| `MILVUS_URI` | Endpoint gRPC/HTTP do container Milvus | `http://localhost:19530` |
+| `MILVUS_COLLECTION_PREFIX` | Prefixo das 7 coleções canônicas dentro do Milvus | `hm_` |
+| `HIVE_KNOWLEDGE_HEALTH_MILVUS` | `1` para o K8 `knowledge_health` medir `milvus_sync_lag` real em vez de reportar `milvus_not_enabled` | `0` |
+| `RAGFLOW_BASE` | URL base do container headless RAGFlow (K6, ingestão de documentos) | `http://localhost:9380` |
+| `RAGFLOW_API_KEY` | Chave da API do RAGFlow (gerada no primeiro boot do container) | sem padrão |
+
+> Ambos os serviços rodam como containers Docker (`docker compose` em
+> `integrations/ragflow/docker-compose.yml` e equivalente para Milvus) e são
+> **opcionais**: sem `VECTOR_BACKEND=milvus`, o sistema usa `sqlite_vec` local
+> e o K8 `knowledge_health` reporta `milvus_sync_lag.available=false` com
+> `reason=milvus_not_enabled` (comportamento esperado, não é uma falha).
+> `scripts/setup/components.py` recusa clonar `milvus`/`ragflow` como
+> componente pinado em `components.lock.json` (ADR-018) — ambos só entram
+> como container/wrapper via `integrations/`.
+
+### 2.4 API Keys por Provider
 
 | Variável | Provider |
 |----------|---------|
@@ -126,7 +147,7 @@ o manifesto MiniCPM. O modelo pesado legado `llava:7b` não faz parte da pilha.
 | MCP Server (sinapse-mcp) | stdio | JSON-RPC | processo do agente | `scripts/services/sinapse-mcp.py` | base |
 | Syncthing UI | 8384 | HTTP | localhost | `syncthing` | base |
 | Milvus (K1, opcional) | 19530 (gRPC) + 9091 (HTTP) | gRPC/HTTP | localhost ou VPS | container pinado por digest | K1 |
-| RAGFlow (K6, opcional) | 9385 (HTTP) | HTTP | localhost ou VPS | container headless + `ragflow-sdk` | K6 |
+| RAGFlow (K6, opcional) | 9380 (HTTP) | HTTP | localhost ou VPS | container headless + `ragflow-sdk` | K6 |
 | FalkorDB (Graphiti) | 6379 | Redis | localhost | container | base + K10 |
 | LightRAG/P4 | local (`claude-mem/data/lightrag/`) | arquivos | local | `core/lightrag_index.py` | P4 |
 
@@ -178,17 +199,32 @@ syncthing &       # inicia daemon
 ## 5. Cron Jobs
 
 ```cron
-# Auditoria P2P de integridade + reindexação de arquivos recebidos (a cada hora)
-0 * * * * cd $SINAPSE_HOME && python3 scripts/health/audit_memory.py --fix >> logs/audit.log 2>&1
+# Rebuild estrutural do grafo a cada 6h
+0 */6 * * * cd $SINAPSE_HOME && ./scripts/graph/build-graph.sh >> logs/sync.log 2>&1
 
-# Backup do UMC (diário às 3am)
-0 3 * * * cp $SINAPSE_HOME/hive_mind.db $SINAPSE_HOME/backups/hive_mind_$(date +\%F).db
+# Auditoria P2P dos neurônios temporais + validação search_vec (a cada hora)
+0 * * * * cd $SINAPSE_HOME && .venv/bin/python scripts/health/audit_memory.py --fix >> logs/audit.log 2>&1
 
-# Limpeza de backups antigos (mantém 30 dias)
-0 4 * * * find $SINAPSE_HOME/backups/ -name "*.db" -mtime +30 -delete
+# Backup consistente dos bancos SQLite críticos (diário às 3am)
+0 3 * * * cd $SINAPSE_HOME && .venv/bin/python scripts/health/backup_databases.py >> logs/backup.log 2>&1
+
+# Dream Cycle e cadência K5
+0 2 * * * cd $SINAPSE_HOME && .venv/bin/python scripts/dream/dream_cycle.py --once --real >> logs/dream-cycle.log 2>&1
+15 3 1 * * cd $SINAPSE_HOME && .venv/bin/python scripts/dream/monthly_synthesizer.py --real >> logs/monthly-synthesizer.log 2>&1
+30 3 1 1 * cd $SINAPSE_HOME && .venv/bin/python scripts/dream/yearly_synthesizer.py --real >> logs/yearly-synthesizer.log 2>&1
+
+# Sync Milvus de summary_vectors apenas quando VECTOR_BACKEND=milvus
+45 3 * * * cd $SINAPSE_HOME && if [ "${VECTOR_BACKEND:-sqlite}" = "milvus" ]; then .venv/bin/python scripts/maintenance/vector-sync.py --collection summary_vectors --json >> logs/vector-sync.log 2>&1; fi
 ```
 
-O cron de rebuild a cada 6h da v1.x foi **removido** — o Watcher cobre a atualização em tempo real para mudanças locais.
+O `install.sh` instala esse bloco de forma idempotente quando `crontab` está
+disponível. Em ambiente sem cron, os mesmos comandos devem ser executados pelo
+orquestrador do host.
+
+`audit_memory.py --fix` audita apenas neurônios reais do córtex temporal.
+Arquivos gerados com `type: moc` são artefatos de navegação e ficam fora do
+índice de neurônios; se uma versão antiga os indexou, o fix remove essas linhas
+legadas e seus vetores.
 
 ---
 

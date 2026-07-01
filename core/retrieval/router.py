@@ -23,7 +23,7 @@ from urllib.request import Request, urlopen
 from pydantic import BaseModel, Field
 
 from core.database import embed_text, get_connection
-from core.vector_backend import get_vector_backend
+from core.vector_backend import SQLiteVecBackend, get_vector_backend
 
 
 Intent = Literal[
@@ -100,7 +100,9 @@ class RetrievalRouter:
         self.project = project
         self.sinapse_query_fn = sinapse_query_fn
         self.claude_mem_url = (claude_mem_url or os.environ.get("CLAUDE_MEM_URL") or "http://127.0.0.1:37700").rstrip("/")
-        self.vector_backend = get_vector_backend(conn=self.conn)
+        # Explicit connections are usually scoped DBs (tests, maintenance,
+        # route_retrieval(conn=...)); querying global Milvus would mix states.
+        self.vector_backend = SQLiteVecBackend(conn=self.conn) if conn is not None else get_vector_backend(conn=self.conn)
 
     def close(self) -> None:
         if self._owns_conn:

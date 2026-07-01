@@ -352,7 +352,7 @@ A partir da frente K0–K10, a consulta canônica passa pelo **`RetrievalRouter`
 | Saúde / autoconsciência | Ínsula (saúde/conflitos) | operational_fact + ambiguities |
 | Config / operacional / modelo | Tronco | operational_fact |
 | Setor / cross-projeto | Diencéfalo + Graphiti | Setores MOC |
-| Ambigua | hybrid + reranker (§31.1) | Fallback + cross-encoder local opcional |
+| Ambigua | hybrid + reranker (§31.1) | Fallback + rerank lexical local opcional; cross-encoder é evolução futura |
 
 ### 7.1 Backends Paralelos (sinapse_query / Context Fusion)
 
@@ -385,7 +385,7 @@ def _query_vault_knowledge(query: str, timeout=8.0) -> Optional[str]:
 
     # Fusão e deduplicação + rerank opcional (§31.1)
     deduped = dedup(results, key=lambda r: (r.source_file, r.title, r.content))
-    reranked = rerank(query, deduped) if HIVE_RERANKER_PROVIDER else deduped
+    reranked = rerank(query, deduped) if HIVE_RETRIEVAL_RERANKER else deduped
     return format(top_n=5, max_chars=3000, results=reranked)
 ```
 

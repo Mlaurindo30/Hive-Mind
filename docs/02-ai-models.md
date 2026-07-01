@@ -64,7 +64,7 @@ Os papéis abaixo são canônicos no código (case-insensitive, `-` vira `_`); n
 | `conflict_detector` | Detecção de conflitos na Ínsula | Barato |
 | `graphiti` | Extração causal Graphiti/FalkorDB | Barato |
 | `lightrag` | Extração LightRAG (entidades + relações) | `qwen2.5:3b` local (ver §4) |
-| **`reranker`** (opcional, §31.1) | Cross-encoder local — só se `HIVE_RERANKER_PROVIDER/MODEL` definido | Pequeno local; off por padrão em `local-min` |
+| **`reranker`** (opcional, §31.1) | Rerank lexical local via `HIVE_RETRIEVAL_RERANKER=1`; cross-encoder local opt-in via `HIVE_RERANKER_PROVIDER/MODEL` + extra `reranker` | Pequeno local; off por padrão em `local-min` |
 
 **Regra de cadência** (K5): sessão e diário podem usar modelo pequeno (compressão local); semanal usa modelo médio/forte; mensal e anual **não** devem ser rebaixados automaticamente sem aviso. Fail-closed: papel sem modelo próprio nem herança do `dreamer` registra falha auditável e não inventa síntese.
 
@@ -295,7 +295,8 @@ Variáveis de ambiente relevantes:
 |---|---|---|
 | `HNSW_DIM` | Dimensão do HNSW (sqlite-vec) | `1024` |
 | `OLLAMA_EMBED_MODEL` | Modelo Ollama para embeddings | `snowflake-arctic-embed2:latest` |
-| `HIVE_RERANKER_PROVIDER` / `HIVE_RERANKER_MODEL` | Cross-encoder local opcional para rerank (§31.1) | off (sem rerank) |
+| `HIVE_RETRIEVAL_RERANKER` | Ativa rerank lexical determinístico no `RetrievalRouter` via adapter LlamaIndex (§31.1) | off (sem rerank) |
+| `HIVE_RERANKER_PROVIDER` / `HIVE_RERANKER_MODEL` | Ativa cross-encoder local forte quando a extra `reranker` estiver instalada (`uv sync --extra reranker`) (§31.1) | off |
 | `HIVE_PROMOTION_BUDGET_*` | Teto de custo de promoção por workspace (§30.5) | sem teto |
 
 **Plano de migração típico:**
@@ -320,4 +321,4 @@ se o teste não depende de serviço externo: roda sempre
 
 Serviços conhecidos hoje: `ollama`, `milvus`, `falkordb`, `claude_mem`, `ragflow`. Cada novo backend real precisa registrar sua fixture ou service registry antes de virar gate de fase.
 
-A suíte `./tests/run_all.sh` cobre Smoke → Unit → Integration → E2E; **534 funções em 89 arquivos** (0 skipped, contagem 2026-06-25), `./tests/run_all.sh` verde em 2026-06-29 com bridge real do claude-mem, pipeline SQLite, Dream Cycle `--once --real`, query via CLI e suite completa.
+A suíte `./tests/run_all.sh` cobre Smoke → Unit → Integration → E2E. Em 2026-07-01 o repo tinha **706 funções `test_` em 123 arquivos com testes**; a suíte real K9 (`tests/run_real_knowledge.sh`) é separada e, no perfil `local-full` validado, executa Milvus, RAGFlow, FalkorDB, claude-mem e Ollama reais com 59/59 passed e 0 skipped.

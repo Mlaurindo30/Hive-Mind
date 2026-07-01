@@ -1,7 +1,7 @@
 """K9 fixtures reais para RAGFlow (wrapper headless).
 
 Valida que o wrapper RAGFlow em `integrations/ragflow/` consegue
-instanciar `RAGFlowSettings` e bater em `/api/v1/health` ou `/`. Em
+instanciar `RAGFlowSettings` e bater em `/api/v1/system/healthz`. Em
 modo offline, pula limpo com motivo nomeado. Este teste fecha o item
 4 do Proximo Corte Recomendado (`docs/12` §10): fixtures reais
 reutilizaveis para RAGFlow.
@@ -151,4 +151,3 @@ def test_ragflow_upload_then_list_documents(ragflow_or_skip, tmp_path):
                 client.delete_datasets(ids=[listed[0].id])
         except Exception:
             pass
-

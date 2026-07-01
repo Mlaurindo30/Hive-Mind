@@ -42,8 +42,8 @@ jobs:
 
       - name: Bootstrap pinned components
         run: |
-          python3 scripts/components.py bootstrap --strict
-          python3 scripts/components.py verify
+          python3 scripts/setup/components.py bootstrap --strict
+          python3 scripts/setup/components.py verify
 
       - name: Synchronize project environment
         run: uv sync --frozen --all-groups
@@ -81,4 +81,3 @@ jobs:
         with:
           name: hive-mind-ci-logs
           path: logs/
-

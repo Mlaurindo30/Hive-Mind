@@ -117,7 +117,7 @@ def parse(path: Path):
             elif item_type == "function_call_output":
                 call_id = pl.get("call_id") or ""
                 call = pending.pop(call_id, None)
-                output = _strip_metadata(pl.get("output") or "")
+                output = _strip_metadata(_content_text(pl.get("output")))
                 if call:
                     turns.append({
                         "tool_name": call["name"],

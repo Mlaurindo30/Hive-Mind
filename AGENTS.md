@@ -2,21 +2,40 @@
 
 > Guia para agentes de IA que trabalham **neste repositório**.
 > Formato cross-agent: Hermes, Claude Code, Codex CLI, Kilo Code, OpenClaw, Copilot, Gemini CLI.
-> Última revisão: 2026-06-12 · Referência canônica de arquitetura: [`docs/01-architecture.md`](docs/01-architecture.md)
+> Última revisão: 2026-07-01 · Referência canônica de arquitetura: [`docs/01-architecture.md`](docs/01-architecture.md)
 
 ---
 
 ## 1. O que é o Hive-Mind v3.0.0
 
-Infraestrutura de **inteligência coletiva e multimodal**: unifica o que o agente faz, vê e lê em um único cérebro persistente e distribuído.
+Infraestrutura de **inteligência coletiva e multimodal**: unifica o que o agente faz, vê e lê em um único cérebro persistente e distribuído, organizado como uma arquitetura de conhecimento **born-large** (nasce pronta para escala, local-first por execução, plugável por contrato — ver [`docs/11-knowledge-promotion-architecture.md`](docs/11-knowledge-promotion-architecture.md) e o backlog de fases K0-K10 em [`docs/12-knowledge-implementation-plan.md`](docs/12-knowledge-implementation-plan.md)).
+
+Fluxo canônico de conhecimento:
+
+```
+Captura (hooks/MCP/CLI/browser/docs/código/screenshots)
+  → Hipocampo Temporal (claude-mem: observations, discoveries, summaries)
+  → Knowledge Intake (normaliza, classifica, deduplica)
+  → Promotion Layer (raw → fact/decision/learning/preference/task)
+  → Memória Anatômica (cerebro/ + UMC)
+  → Index Layer (FTS, sqlite-vec/Milvus, Graphify, Graphiti, LightRAG)
+  → Retrieval Router (core/retrieval/router.py, K7)
+  → Resposta com citação
+  → Feedback
+```
 
 | Camada | Ferramenta | O que faz | Tecnologia |
 |--------|-----------|-----------|------------|
 | **Cérebro** | UMC (`hive_mind.db`) | Centraliza grafo, logs, vetores, FTS e visão | SQLite + `sqlite-vec` + FTS5 |
 | **Memória** | Atlas (`cerebro/`) | Fonte única de verdade em Markdown | Obsidian + Syncthing |
 | **Visão** | Deep Portal | Captura de tela e indexação visual | `mss` + LLM Vision |
-| **Consolidação** | Hive-Dreamer | Logs/arquivos → conhecimento validado | `dream_cycle.py` (Pydantic) |
+| **Consolidação** | Hive-Dreamer | Logs/arquivos → conhecimento validado (Knowledge Intake + Promotion, K3/K4) | `dream_cycle.py` (Pydantic) |
+| **Vetores** | `VectorBackend` (K2) | Contrato único `upsert/delete/query/hybrid_query/count/health` sobre 7 coleções canônicas | `sqlite_vec` (local) · Milvus (produção) |
+| **Documentos** | `DocumentPipeline` (K6) | Ingestão com parent/chunk/citação auditável | RAGFlow (adapter headless opcional) |
+| **Recuperação** | `RetrievalRouter` (K7) | Roteia por intenção com `retrieval_path`/`citations`/`confidence` | LlamaIndex (adapter opcional de rerank) |
 | **Acesso** | MCP / Plugin / CLI / REST | Conecta qualquer agente ao cérebro | stdio JSON-RPC · FastAPI :37702 |
+
+Embedding canônico: `snowflake-arctic-embed2:latest`, 1024 dimensões, salvo override explícito por env (`OLLAMA_EMBED_MODEL`). Milvus, RAGFlow e LlamaIndex são órgãos/adapters — nunca fonte de verdade; o vault anatômico (`cerebro/`) e o UMC continuam sendo a fonte de verdade (`docs/11` §16).
 
 ---
 
@@ -317,7 +336,7 @@ bash tests/smoke/test_smoke.sh        # mínimo aceitável se a suíte for longa
 | Integration | `python3 -m pytest tests/integration/ -v` | Backends reais |
 | E2E | `python3 -m pytest tests/e2e/ -v` | Sistema completo |
 
-**534 funções de teste em 89 arquivos** (contagem de 2026-06-25, 0 skipped) cobrindo todo o pipeline de sinapse (cognitivo, vetorial, grafo, FTS5, temporal).
+Em 2026-07-01 havia **706 funções `test_` em 123 arquivos com testes**. Meça o estado atual com `rg -n "^\s*(async\s+def|def)\s+test_" tests | wc -l` e `rg -l "^\s*(async\s+def|def)\s+test_" tests | wc -l`. A suíte real K9 é separada e skips nomeados de serviço offline indicam estado `degraded`, não sucesso completo.
 
 ### Disaster recovery
 

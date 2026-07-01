@@ -17,9 +17,11 @@ import glob
 import os
 import select
 import struct
+import subprocess
 import sys
 import time
 from pathlib import Path
+from urllib import request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import capture_core as core                       # noqa: E402
@@ -29,6 +31,7 @@ ADAPTERS = adapters_by_owner("realtime")
 
 WINDOW_S = 2 * 3600          # só sessões ativas nesta janela (DBs multi-sessão)
 LIVE_MAX_AGE_S = 120.0       # em evento ao vivo, só re-parseia fontes recém-tocadas
+ROOT = Path(__file__).resolve().parents[2]
 
 _libc = ctypes.CDLL("libc.so.6", use_errno=True)
 IN_MODIFY = 0x2; IN_CLOSE_WRITE = 0x8; IN_MOVED_TO = 0x80; IN_CREATE = 0x100
@@ -94,6 +97,53 @@ def ingest_platform(plat: str, store: "core.SeenStore", max_age: float = LIVE_MA
     return sent
 
 
+def _sync_observation_vectors() -> None:
+    """Materialize new claude-mem observations and mirror them to Milvus when enabled."""
+    if os.environ.get("HIVE_CAPTURE_SYNC_OBSERVATIONS", "1").lower() in {"0", "false", "no"}:
+        return
+
+    vec_worker_url = os.environ.get("VEC_WORKER_URL", "http://127.0.0.1:37701").rstrip("/")
+    payload = b'{"query":"Hive-Mind realtime capture observation sync"}'
+    try:
+        req = request.Request(
+            f"{vec_worker_url}/api/context/semantic",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(req, timeout=float(os.environ.get("HIVE_CAPTURE_VEC_TIMEOUT", "120"))):
+            pass
+    except Exception as exc:
+        print(f"  ⚠ observation vectorize falhou: {exc}", flush=True)
+        return
+
+    if os.environ.get("VECTOR_BACKEND", "").lower() != "milvus":
+        return
+
+    cmd = [
+        sys.executable,
+        str(ROOT / "scripts" / "maintenance" / "vector-sync.py"),
+        "--collection",
+        "observation_vectors",
+        "--json",
+    ]
+    try:
+        subprocess.run(
+            cmd,
+            cwd=str(ROOT),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=float(os.environ.get("HIVE_CAPTURE_MILVUS_SYNC_TIMEOUT", "240")),
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip().splitlines()[-1:] or ["sem stderr"]
+        print(f"  ⚠ observation Milvus sync falhou: {stderr[0]}", flush=True)
+    except Exception as exc:
+        print(f"  ⚠ observation Milvus sync erro: {exc}", flush=True)
+
+
 def main() -> int:
     while not core.worker_alive():
         print(f"aguardando worker em {core.BASE}...", flush=True)
@@ -137,10 +187,14 @@ def main() -> int:
         return added_platforms
 
     refresh()
+    startup_ingested = 0
     for plat in ADAPTERS:                 # catch-up histórico no startup
         n = ingest_platform(plat, store, max_age=WINDOW_S)
+        startup_ingested += n
         if n:
             print(f"  🔄 {plat} catch-up: {n} turn(s)", flush=True)
+    if startup_ingested:
+        _sync_observation_vectors()
     last_refresh = time.time()
     print("capture-realtime ativo (inotify, modelo unificado por content-hash).", flush=True)
 
@@ -149,14 +203,21 @@ def main() -> int:
     # pesada de SQLite (kilo/mimo) é coalescida para ≤1 reparse/MIN_INTERVAL,
     # limitando a CPU sem dropar eventos (pendências são flushadas após o cooldown).
     MIN_INTERVAL = 0.4
+    OBS_SYNC_INTERVAL = float(os.environ.get("HIVE_CAPTURE_OBSERVATION_SYNC_INTERVAL", "15"))
     last_ingest: dict[str, float] = {}
     pending: dict[str, float] = {}
+    last_observation_sync = 0.0
 
     def _do_ingest(plat: str) -> None:
+        nonlocal last_observation_sync
         n = ingest_platform(plat, store)
         last_ingest[plat] = time.time()
         if n:
             print(f"  ⚡ {plat} → {n} turn(s) novo(s)", flush=True)
+            now = time.time()
+            if now - last_observation_sync >= OBS_SYNC_INTERVAL:
+                _sync_observation_vectors()
+                last_observation_sync = time.time()
 
     while True:
         timeout = max(0.05, MIN_INTERVAL) if pending else 5.0

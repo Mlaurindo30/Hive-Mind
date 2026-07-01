@@ -1,16 +1,108 @@
 services:
+  ragflow-mysql:
+    image: mysql:8.0.33@sha256:ea68e51ffe9b96fef6076f1218af11301aeaf13c6201e0ec9aaef5791d5ddc5d
+    container_name: hive-mind-ragflow-mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_connections=900
+    environment:
+      MYSQL_ROOT_PASSWORD: "${RAGFLOW_MYSQL_PASSWORD:-ragflow}"
+      MYSQL_DATABASE: "${RAGFLOW_MYSQL_DATABASE:-rag_flow}"
+    volumes:
+      - ragflow-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  es01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3@sha256:2892d2363c3c12c5ed54c64faf89e3a19d633d8dd0d190d0bffe03035ff099b3
+    container_name: es01
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - ragflow-es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  redis:
+    image: redis:7.2-alpine@sha256:dfa18828cbc07b3ae6a95ec7343f6c214fdee2d836197b4be8e9904420762cd8
+    container_name: redis
+    command:
+      - redis-server
+      - --requirepass
+      - "${RAGFLOW_REDIS_PASSWORD:-infini_rag_flow}"
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${RAGFLOW_REDIS_PASSWORD:-infini_rag_flow}\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  minio:
+    image: quay.io/minio/minio:latest@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    container_name: minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: "${RAGFLOW_MINIO_USER:-rag_flow}"
+      MINIO_ROOT_PASSWORD: "${RAGFLOW_MINIO_PASSWORD:-infini_rag_flow}"
+    ports:
+      - "${RAGFLOW_MINIO_PORT:-9000}:9000"
+      - "${RAGFLOW_MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - ragflow-minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
   ragflow:
     image: infiniflow/ragflow:v0.26.1@sha256:1281817d496e25d3d9fca55df8a6b195e056fd467a2030ec950bbb654df0f362
     container_name: hive-mind-ragflow
+    depends_on:
+      ragflow-mysql:
+        condition: service_healthy
+      es01:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     ports:
       - "${RAGFLOW_PORT:-9380}:9380"
     environment:
       RAGFLOW_HOST: "0.0.0.0"
       RAGFLOW_PORT: "9380"
+      MYSQL_HOST: "ragflow-mysql"
+      MYSQL_PORT: "3306"
+      MYSQL_USER: "root"
+      MYSQL_PASSWORD: "${RAGFLOW_MYSQL_PASSWORD:-ragflow}"
+      MYSQL_DATABASE: "${RAGFLOW_MYSQL_DATABASE:-rag_flow}"
+      ES_HOSTS: "http://es01:9200"
+      REDIS_HOST: "redis"
+      REDIS_PASSWORD: "${RAGFLOW_REDIS_PASSWORD:-infini_rag_flow}"
+      MINIO_HOST: "minio:9000"
+      MINIO_USER: "${RAGFLOW_MINIO_USER:-rag_flow}"
+      MINIO_PASSWORD: "${RAGFLOW_MINIO_PASSWORD:-infini_rag_flow}"
     volumes:
       - ragflow-data:/ragflow
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:9380/api/v1/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:9380/api/v1/system/healthz"]
       interval: 15s
       timeout: 5s
       retries: 20
@@ -18,3 +110,6 @@ services:
 
 volumes:
   ragflow-data:
+  ragflow-mysql-data:
+  ragflow-es-data:
+  ragflow-minio-data:

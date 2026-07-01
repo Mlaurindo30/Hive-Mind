@@ -70,7 +70,7 @@ def scan_neurons() -> list[dict]:
             continue
         project, topic = rel[0], rel[1]
         fm = _frontmatter(md)
-        if fm.get("type") == "redirect":
+        if fm.get("type") in {"redirect", "moc"}:
             continue
         raw = fm.get("sectors", [])
         if isinstance(raw, list):

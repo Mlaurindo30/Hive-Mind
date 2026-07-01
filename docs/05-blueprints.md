@@ -264,6 +264,7 @@
   ┌────────────────────────────────────────────┐
   │  hive_mind.db                              │
   │  INSERT/UPDATE neurons (id, title, hash)   │
+  │  (MOCs type:moc ficam fora do índice)      │
   │  INSERT/UPDATE synapses (source, target)   │
   │  UPDATE search_fts (trigger automático)    │
   │  UPDATE search_vec (vec0 HNSW)             │
@@ -482,8 +483,13 @@ Componentes envolvidos:
   │    ollama.service             (:11434)                   │
   │                                                          │
   │  cron:                                                   │
+  │    0 */6 * * * build-graph.sh                            │
   │    0 * * * * audit_memory.py --fix                       │
-  │    0 3 * * * backup hive_mind.db                         │
+  │    0 2 * * * dream_cycle.py --once --real                │
+  │    0 3 * * * backup_databases.py                         │
+  │    15 3 1 * * monthly_synthesizer.py --real              │
+  │    30 3 1 1 * yearly_synthesizer.py --real               │
+  │    45 3 * * * vector-sync summary_vectors (se Milvus)    │
   │                                                          │
   │  hive_mind.db ← Watcher ← cerebro/ ← Syncthing ──────┐ │
   │                                                       │ │

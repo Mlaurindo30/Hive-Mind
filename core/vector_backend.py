@@ -160,8 +160,7 @@ class SQLiteVecBackend:
 
     @staticmethod
     def _write_vector_metadata(conn, collection: str, id: str, metadata: Optional[dict]) -> None:
-        if not metadata:
-            return
+        metadata = metadata or {}
         required = (
             "parent_id",
             "parent_type",
@@ -415,8 +414,8 @@ class MilvusBackend:
         "workspace_id",
     )
     _MAX_LENGTH = {
-        "id": 256,
-        "parent_id": 256,
+        "id": 1024,
+        "parent_id": 1024,
         "parent_type": 64,
         "brain_lobe": 64,
         "knowledge_type": 64,
@@ -493,6 +492,45 @@ class MilvusBackend:
         self._client.flush(name)
         self._client.load_collection(name)
 
+    def upsert_many(self, collection: str, rows: list[dict[str, Any]]) -> None:
+        """Batch upsert rows already shaped as `{id, vector, metadata...}`.
+
+        The public `upsert()` path remains available for single writes/tests,
+        but production sync must not flush/load once per vector.
+        """
+        if not rows:
+            return
+        name = self._ensure_collection(collection)
+        data = []
+        for row in rows:
+            vector = row["vector"]
+            self._validate_vector(vector)
+            meta = self._validate_metadata(row)
+            data.append({"id": str(row["id"]), "vector": vector, **meta})
+        self._client.upsert(name, data)
+        self._client.flush(name)
+        self._client.load_collection(name)
+
+    def existing_hashes(self, collection: str, ids: list[str]) -> dict[tuple[str, str], str]:
+        """Return `{(id, workspace_id): hash}` for existing Milvus rows."""
+        if not ids:
+            return {}
+        name = self._collection_name(collection)
+        if not self._client.has_collection(name):
+            return {}
+        self._client.load_collection(name)
+        found: dict[tuple[str, str], str] = {}
+        for start in range(0, len(ids), 256):
+            batch = [str(item) for item in ids[start:start + 256]]
+            expr = "id in [" + ", ".join(f'"{self._escape(item)}"' for item in batch) + "]"
+            for row in self._client.query(
+                name,
+                filter=expr,
+                output_fields=["id", "hash", "workspace_id"],
+            ):
+                found[(str(row["id"]), str(row.get("workspace_id") or "default"))] = str(row.get("hash") or "")
+        return found
+
     def delete(self, collection, id):
         name = self._collection_name(collection)
         if not self._client.has_collection(name):
@@ -533,6 +571,12 @@ class MilvusBackend:
         name = self._collection_name(collection)
         if not self._client.has_collection(name):
             return 0
+        if not filters:
+            try:
+                stats = self._client.get_collection_stats(name)
+                return int(stats.get("row_count", 0))
+            except Exception:
+                pass
         expr = self._filter_expr(filters) or 'id != ""'
         rows = self._client.query(name, filter=expr, output_fields=["id"])
         return len(rows)
