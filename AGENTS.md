@@ -6,9 +6,9 @@
 
 ---
 
-## 1. What Hive-Mind v3.0.0 is
+## 1. What Hive-Mind is
 
-A **collective and multimodal intelligence** infrastructure: it unifies what the agent does, sees, and reads into a single persistent and distributed brain, organized as a **born-large** knowledge architecture (born ready to scale, local-first by execution, pluggable by contract — see [`docs/11-knowledge-promotion-architecture.md`](docs/11-knowledge-promotion-architecture.md) and the K0–K10 phase backlog in [`docs/12-knowledge-implementation-plan.md`](docs/12-knowledge-implementation-plan.md)).
+A **collective and multimodal intelligence** infrastructure: it unifies what the agent does, sees, and reads into a single persistent and distributed brain, organized as a **born-large** knowledge architecture (born ready to scale, local-first by execution, pluggable by contract — see [`docs/11-knowledge-promotion-architecture.md`](docs/11-knowledge-promotion-architecture.md) and the phase backlog in [`docs/12-knowledge-implementation-plan.md`](docs/12-knowledge-implementation-plan.md)).
 
 Canonical knowledge flow:
 
@@ -19,7 +19,7 @@ Capture (hooks/MCP/CLI/browser/docs/code/screenshots)
   → Promotion Layer (raw → fact/decision/learning/preference/task)
   → Anatomical Memory (cerebro/ + UMC)
   → Index Layer (FTS, sqlite-vec/Milvus, Graphify, Graphiti, LightRAG)
-  → Retrieval Router (core/retrieval/router.py, K7)
+  → Retrieval Router (core/retrieval/router.py)
   → Answer with citation
   → Feedback
 ```
@@ -29,10 +29,10 @@ Capture (hooks/MCP/CLI/browser/docs/code/screenshots)
 | **Brain** | UMC (`hive_mind.db`) | Centralizes graph, logs, vectors, FTS, and vision | SQLite + `sqlite-vec` + FTS5 |
 | **Memory** | Atlas (`cerebro/`) | Single source of truth in Markdown | Obsidian + Syncthing |
 | **Vision** | Deep Portal | Screen capture and visual indexing | `mss` + LLM Vision |
-| **Consolidation** | Hive-Dreamer | Logs/files → validated knowledge (Knowledge Intake + Promotion, K3/K4) | `dream_cycle.py` (Pydantic) |
-| **Vectors** | `VectorBackend` (K2) | Single `upsert/delete/query/hybrid_query/count/health` contract over 7 canonical collections | `sqlite_vec` (local) · Milvus (production) |
-| **Documents** | `DocumentPipeline` (K6) | Ingestion with parent/chunk/auditable citation | RAGFlow (optional headless adapter) |
-| **Retrieval** | `RetrievalRouter` (K7) | Routes by intent with `retrieval_path`/`citations`/`confidence` | LlamaIndex (optional rerank adapter) |
+| **Consolidation** | Hive-Dreamer | Logs/files → validated knowledge (Knowledge Intake + Promotion) | `dream_cycle.py` (Pydantic) |
+| **Vectors** | `VectorBackend` | Single `upsert/delete/query/hybrid_query/count/health` contract over 7 canonical collections | `sqlite_vec` (local) · Milvus (production) |
+| **Documents** | `DocumentPipeline` | Ingestion with parent/chunk/auditable citation | RAGFlow (optional headless adapter) |
+| **Retrieval** | `RetrievalRouter` | Routes by intent with `retrieval_path`/`citations`/`confidence` | LlamaIndex (optional rerank adapter) |
 | **Access** | MCP / Plugin / CLI / REST | Connects any agent to the brain | stdio JSON-RPC · FastAPI :37702 |
 
 Canonical embedding: `snowflake-arctic-embed2:latest`, 1024 dimensions, unless explicitly overridden via env (`OLLAMA_EMBED_MODEL`). Milvus, RAGFlow, and LlamaIndex are organs/adapters — never the source of truth; the anatomical vault (`cerebro/`) and UMC remain the source of truth (`docs/11` §16).
@@ -336,7 +336,7 @@ bash tests/smoke/test_smoke.sh        # minimum acceptable if the suite is too l
 | Integration | `python3 -m pytest tests/integration/ -v` | Real backends |
 | E2E | `python3 -m pytest tests/e2e/ -v` | Full system |
 
-As of 2026-07-01 there were **706 `test_` functions in 123 files with tests**. Measure the current state with `rg -n "^\s*(async\s+def|def)\s+test_" tests | wc -l` and `rg -l "^\s*(async\s+def|def)\s+test_" tests | wc -l`. The real K9 suite is separate, and service-offline named skips indicate a `degraded` state, not full success.
+As of 2026-07-01 there were **706 `test_` functions in 123 files with tests**. Measure the current state with `rg -n "^\s*(async\s+def|def)\s+test_" tests | wc -l` and `rg -l "^\s*(async\s+def|def)\s+test_" tests | wc -l`. The real knowledge suite is separate, and service-offline named skips indicate a `degraded` state, not full success.
 
 ### Disaster recovery
 

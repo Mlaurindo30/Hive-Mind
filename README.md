@@ -3,7 +3,7 @@
 
   **Universal, persistent, local-first memory layer for swarms of AI agents.**
 
-  [![Status](https://img.shields.io/badge/status-HM--12%20%2B%20Knowledge%20K0--K10%20(Born--Large)-blue)]()
+  [![Status](https://img.shields.io/badge/status-Knowledge%20Architecture%20(Born--Large)-blue)]()
   [![Python](https://img.shields.io/badge/python-3.12-green)]()
   [![License](https://img.shields.io/badge/license-Apache%202.0-lightgrey)]()
   [![Tests](https://img.shields.io/badge/tests-run_all%20%2B%20real%20suites-brightgreen)]()
@@ -182,7 +182,7 @@ cross-cutting execution layer. Full anatomy: [`docs/01-architecture.md` §2](doc
 | `sinapse_query` | RetrievalRouter query with audited path, citations and hybrid fallback |
 | `sinapse_save_decision` | Save a decision to the vault (`cortex/frontal/trabalho/ativo/`) |
 | `sinapse_save_learning` | Save a learning/insight to `cerebelo/padroes/Patterns.md` |
-| `sinapse_health` | Health of the 7 read-backends, auxiliary components and K8 knowledge coverage |
+| `sinapse_health` | Health of the 7 read-backends, auxiliary components and knowledge coverage |
 | `sinapse_session_end` | End the session, update Current State |
 | `sinapse_temporal_search` | claude-mem step 1: textual index with IDs |
 | `sinapse_temporal_timeline` | claude-mem step 2: chronological window by ID/query |
@@ -212,7 +212,7 @@ REST. The diagram below shows how the agents, the UMC and the federated organs f
   <br><sub><i>End-to-end architecture: agents → MCP / CLI / REST → Unified Memory Core → federated organs</i></sub>
 </div>
 
-### 📈 Knowledge Architecture (K0-K10)
+### 📈 Knowledge Architecture
 
 Hive-Mind is **born-large**: local-first by execution, built from day one for scale, pluggable
 by contract. Every piece of knowledge moves through the same canonical pipeline:
@@ -229,17 +229,17 @@ Capture (hooks/MCP/CLI/browser/docs/code/screenshots)
 ```
 
 <div align="center">
-  <img src="docs/assets/image/architecture-diagram-complet.png" alt="Hive-Mind knowledge architecture K0-K10" width="760">
-  <br><sub><i>Full K0-K10 pipeline: capture → temporal hippocampus → intake → promotion → anatomical memory → index → retrieval router → answer + citation → feedback</i></sub>
+  <img src="docs/assets/image/architecture-diagram-complet.png" alt="Hive-Mind knowledge architecture" width="760">
+  <br><sub><i>Full knowledge pipeline: capture → temporal hippocampus → intake → promotion → anatomical memory → index → retrieval router → answer + citation → feedback</i></sub>
 </div>
 
-- **`VectorBackend`** (K2): one contract (`upsert/delete/query/hybrid_query/count/health`) over
+- **`VectorBackend`**: one contract (`upsert/delete/query/hybrid_query/count/health`) over
   7 canonical collections (`memory_vectors`, `observation_vectors`, `document_vectors`,
   `code_vectors`, `visual_vectors`, `graph_vectors`, `summary_vectors`) — `sqlite-vec` locally,
   Milvus in production (`VECTOR_BACKEND=milvus`).
-- **`DocumentPipeline`** (K6): ingests documents into parent + auditable chunks + citations.
+- **`DocumentPipeline`**: ingests documents into parent + auditable chunks + citations.
   RAGFlow runs headless as an optional parsing adapter — never the source of truth.
-- **`RetrievalRouter`** (K7, `core/retrieval/router.py`): routes by intent and always returns
+- **`RetrievalRouter`** (`core/retrieval/router.py`): routes by intent and always returns
   `retrieval_path`, `citations`, `confidence` and `missing_context`. LlamaIndex plugs in as an
   optional reranker adapter, never as the routing decision-maker.
 - Neither Milvus, RAGFlow nor LlamaIndex ever replace the brain: the vault (`cerebro/`) and the
@@ -305,8 +305,8 @@ cp .env.example .env
 | `HIVE_VISION_PROVIDER` / `HIVE_VISION_MODEL` | Vision | Default `ollama/minicpm-v4.6:latest` |
 | `HIVE_VISION_FALLBACK_PROVIDER` / `HIVE_VISION_FALLBACK_MODEL` | Vision fallback | Default `ollama/gemma3:4b` |
 | `HIVE_OCR_PROVIDER` / `HIVE_OCR_MODEL` | Optional OCR | `ollama/deepseek-ocr:latest`, opt-in for dedicated OCR |
-| `VECTOR_BACKEND` | Vector store | `sqlite_vec` by default, `milvus` when enabled (K2 `VectorBackend` contract) |
-| `RAGFLOW_BASE` | Optional document ingestion (K6) | `http://localhost:9380`, headless adapter — never the source of truth |
+| `VECTOR_BACKEND` | Vector store | `sqlite_vec` by default, `milvus` when enabled (`VectorBackend` contract) |
+| `RAGFLOW_BASE` | Optional document ingestion | `http://localhost:9380`, headless adapter — never the source of truth |
 | `HIVE_MIND_API_KEY` | For REST API | Bearer token — API will not start without it (fail-closed) |
 | `HIVE_MIND_API_HOST` | No (default `127.0.0.1`) | REST API bind host. Public binds make `/api/v1/workspaces` require Bearer auth. |
 | `HIVE_MIND_API_PORT` | No (default 37702) | REST API port |
@@ -343,7 +343,7 @@ python3 scripts/services/sinapse-api.py    # port 37702
 | `/api/v1/health` | GET | No | 60/min | Health check |
 | `/api/v1/workspaces` | GET | Conditional | 30/min | Workspace counts. Open on loopback; Bearer required on public bind. |
 | `/api/v1/metrics` | GET | Bearer | 30/min | Operational metrics without memory contents |
-| `/api/v1/knowledge/health` | GET | Bearer | 30/min | K8 coverage metrics, optional orphan-vector pruning |
+| `/api/v1/knowledge/health` | GET | Bearer | 30/min | Knowledge coverage metrics, optional orphan-vector pruning |
 | `/api/v1/observations` | POST | Bearer | 20/min | Register a remote observation |
 | `/api/v1/query` | POST | Bearer | 30/min | Remote hybrid search through RetrievalRouter + Context Fusion |
 | `/api/v1/semantic/related` | GET | Bearer | — | Semantic neighbors of a file |
@@ -428,7 +428,7 @@ model/runtime validation lives in integration/E2E suites and `tests/run_real_kno
 | [`docs/05-blueprints.md`](docs/05-blueprints.md) | ASCII diagrams of every flow |
 | [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md) | P2P synchronization setup |
 | [`docs/11-knowledge-promotion-architecture.md`](docs/11-knowledge-promotion-architecture.md) | Knowledge promotion architecture |
-| [`docs/12-knowledge-implementation-plan.md`](docs/12-knowledge-implementation-plan.md) | K0-K10 implementation plan |
+| [`docs/12-knowledge-implementation-plan.md`](docs/12-knowledge-implementation-plan.md) | Knowledge implementation plan |
 | [`docs/reports/k9-real-suite-report.md`](docs/reports/k9-real-suite-report.md) | Latest real-suite evidence report |
 | [`AGENTS.md`](AGENTS.md) | Guide for AI agents |
 

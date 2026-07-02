@@ -23,7 +23,7 @@
 #   --force              Reinstalls components even if they already exist
 #   --skip-agent=X       Skips configuration of a specific agent
 #   --with-tests         Runs unit tests after installation
-#   --with-real-tests    Chains the real knowledge suite (K9) at the end
+#   --with-real-tests    Chains the real knowledge suite at the end
 #   --profile=<profile>  Services profile: local-min (default) or local-full
 #   --provider=X         Dreamer provider (gemini|openai|ollama|...)
 #   --model=X            Dreamer model
@@ -67,7 +67,7 @@ for arg in "$@"; do
     esac
 done
 
-# Defaults for K10 (docs/12 §K10). --profile chooses how far the installer
+# Default validation settings (see docs/12). --profile chooses how far the installer
 # goes on a "fresh machine"; --with-real-tests chains the real suite at the end.
 INSTALL_PROFILE="${INSTALL_PROFILE:-local-min}"
 WITH_REAL_TESTS="${WITH_REAL_TESTS:-false}"
@@ -268,7 +268,7 @@ GRAPHIFY="$PROJECT_ROOT/.venv/bin/graphify"
 NMEM="$PROJECT_ROOT/.venv/bin/nmem"
 export PATH="$PROJECT_ROOT/.venv/bin:$PROJECT_ROOT/integrations/rtk/target/release:$PATH"
 "$PYTHON" -c "import fastapi, yaml, pydantic, graphify, neural_memory, sqlite_vec, pymilvus, llama_index, ragflow_sdk"
-# K1 (Milvus/RAGFlow) wrappers only come up under local-full; docker is only required there.
+# Milvus/RAGFlow wrappers only come up under local-full; docker is only required there.
 if [ "$INSTALL_PROFILE" = "local-full" ]; then
     "$PYTHON" "$PROJECT_ROOT/scripts/setup/verify_wrappers.py" --require-docker
 else
@@ -743,7 +743,7 @@ CRON_YEARLY_JOB="30 3 1 1 * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME &&
 CRON_VECTOR_SUMMARY_JOB="45 3 * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && if [ \"\${VECTOR_BACKEND:-sqlite}\" = \"milvus\" ]; then $PY_CRON scripts/maintenance/vector-sync.py --collection summary_vectors --json >> logs/vector-sync.log 2>&1; fi"
 
 # Drain quarantine (archived=2) weekly. Runs Sunday at 04:00
-# (between backup 03:00 and vector-sync 03:45). v3.7.8+ drains ~95% of stuck
+# (between backup 03:00 and vector-sync 03:45). This drains ~95% of stuck
 # obs; what remains goes to archived=3 terminal after 30d.
 CRON_QUARANTINE_DRAIN_JOB="0 4 * * 0 SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && $PY_CRON scripts/health/reprocess_quarantine.py --max-age-days 7 >> logs/quarantine-drain.log 2>&1"
 
@@ -755,9 +755,9 @@ if command -v crontab &>/dev/null; then
         | grep -vF "# Hive-Mind — audit vault → SQLite hourly" \
         | grep -vF "# Hive-Mind — backup SQLite diario" \
         | grep -vF "# Hive-Mind — Dream Cycle diario" \
-        | grep -vF "# Hive-Mind — sintese mensal K5" \
-        | grep -vF "# Hive-Mind — sintese anual K5" \
-        | grep -vF "# Hive-Mind — vector sync summaries K5" \
+        | grep -vF "# Hive-Mind — sintese mensal" \
+        | grep -vF "# Hive-Mind — sintese anual" \
+        | grep -vF "# Hive-Mind — vector sync summaries" \
         | grep -vF "# sinapse_agent — sync vault → graph a cada 6h" \
         | grep -vF "./scripts/graph/build-graph.sh" \
         | grep -vF "scripts/health/audit_memory.py --fix" \
@@ -777,17 +777,17 @@ if command -v crontab &>/dev/null; then
         echo "$CRON_BACKUP_JOB"
         echo "# Hive-Mind — Dream Cycle diario"
         echo "$CRON_DREAM_JOB"
-        echo "# Hive-Mind — sintese mensal K5"
+        echo "# Hive-Mind — sintese mensal"
         echo "$CRON_MONTHLY_JOB"
-        echo "# Hive-Mind — sintese anual K5"
+        echo "# Hive-Mind — sintese anual"
         echo "$CRON_YEARLY_JOB"
-        echo "# Hive-Mind — vector sync summaries K5"
+        echo "# Hive-Mind — vector sync summaries"
         echo "$CRON_VECTOR_SUMMARY_JOB"
-        echo "# Hive-Mind — quarantine drain semanal K3/K4 (v3.7.8+)"
+        echo "# Hive-Mind — quarantine drain semanal"
         echo "$CRON_QUARANTINE_DRAIN_JOB"
     } | crontab -
     rm -f "$CRON_TMP"
-    echo -e "  ${GREEN}✓${NC} Cron configured without duplicates (sync, audit, backup, Dream Cycle, K5)"
+    echo -e "  ${GREEN}✓${NC} Cron configured without duplicates (sync, audit, backup, Dream Cycle, vector sync)"
 else
     echo -e "  ${YELLOW}⊘${NC}  crontab not available. Run scripts/graph/build-graph.sh, scripts/health/backup_databases.py and scripts/dream/dream_cycle.py manually."
 fi
@@ -946,9 +946,9 @@ fi
 echo ""
 
 # =============================================================================
-# K10 — Validation per profile and real suite (docs/12 §K10)
+# Validation per profile and real suite (see docs/12)
 # =============================================================================
-echo -e "${BOLD}[K10] Profile=${INSTALL_PROFILE} — validating services...${NC}"
+echo -e "${BOLD}[Validation] Profile=${INSTALL_PROFILE} — validating services...${NC}"
 
 # Enable additional local services under local-full. local-min keeps only
 # claude-mem (already started by install_services.py) and the graphify
@@ -1002,12 +1002,12 @@ if $WITH_TESTS; then
 fi
 
 if $WITH_REAL_TESTS; then
-    echo -e "${BOLD}Running real knowledge suite (K9) — real backends, no mock...${NC}"
+    echo -e "${BOLD}Running real knowledge suite — real backends, no mock...${NC}"
     if [ -x "$PROJECT_ROOT/tests/run_real_knowledge.sh" ]; then
         if "$PROJECT_ROOT/tests/run_real_knowledge.sh" --report "$PROJECT_ROOT/logs/k9-real-suite-report.md" 2>&1 | tail -40; then
             echo -e "  ${GREEN}OK${NC} real knowledge suite executed"
         else
-            echo -e "  ${RED}ERROR${NC} real suite returned !=0; fix the K9 gate before considering the install valid"
+            echo -e "  ${RED}ERROR${NC} real suite returned !=0; fix the real knowledge suite before considering the install valid"
             exit 1
         fi
     else
@@ -1018,7 +1018,7 @@ if $WITH_REAL_TESTS; then
 fi
 
 # =============================================================================
-# K10 Task 8 — Final report with paths, ports, models, and health
+# Final report with paths, ports, models, and health
 # =============================================================================
 REPORT="$PROJECT_ROOT/logs/install-report.md"
 mkdir -p "$(dirname "$REPORT")"
@@ -1074,11 +1074,11 @@ for m in data.get("models", []):
         echo "_Health check returned !=0 (see logs/install-report.md.health)._"
     fi
     echo ""
-    echo "## Real validation (K9)"
+    echo "## Real validation"
     echo ""
     if $WITH_REAL_TESTS; then
         echo "- \`./tests/run_real_knowledge.sh --report logs/k9-real-suite-report.md\` executed with exit 0."
-        echo "- K9 report: \`logs/k9-real-suite-report.md\`."
+        echo "- Real suite report: \`logs/k9-real-suite-report.md\`."
     else
         echo "- Pass \`--with-real-tests\` to run the real knowledge suite."
         echo "- Command: \`./tests/run_real_knowledge.sh\`"
