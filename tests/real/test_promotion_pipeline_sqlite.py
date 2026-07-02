@@ -171,22 +171,50 @@ def test_promotion_pipeline_promotes_claude_mem_change_observation(real_db):
 
     report = promote_pending_observations(real_db, limit=10, apply=True)
 
+    # Governança: change do bridge sem artefatos (files/commands/source_uri)
+    # classifica como hypothesis e aguarda a drenagem — não promove na hora.
     assert report["observations"] == 1
     assert report["quarantined"] == 0
-    assert report["promoted"] == 1
+    assert report["promoted"] == 0
+    assert report["held_hypothesis"] == 1
     obs = real_db.execute(
         "SELECT archived, neuron_id FROM observations WHERE id = ?",
         ("cm-change-observation",),
     ).fetchone()
     assert obs["archived"] == 1
-    assert obs["neuron_id"]
+    assert obs["neuron_id"] is None
 
     candidate = real_db.execute(
-        "SELECT knowledge_type, source_id FROM knowledge_candidates WHERE source_id = ?",
+        """
+        SELECT knowledge_type, source_id, status, confidence, risk
+        FROM knowledge_candidates WHERE source_id = ?
+        """,
         ("cm-change-observation",),
     ).fetchone()
     assert candidate is not None
     assert candidate["knowledge_type"] == "operational_fact"
+    assert candidate["status"] == "held"
+    assert candidate["confidence"] == "hypothesis"
+    assert candidate["risk"] == "low"
+
+    # Drenagem (janela zerada) promove o candidato held e materializa o neuron.
+    from core.knowledge.promotion import promote_held_candidates
+
+    drain = promote_held_candidates(real_db, min_age_days=0)
+    assert drain["promoted"] == 1
+    promoted = real_db.execute(
+        "SELECT status, neuron_id, ttl_review FROM knowledge_candidates WHERE source_id = ?",
+        ("cm-change-observation",),
+    ).fetchone()
+    assert promoted["status"] == "promoted"
+    assert promoted["neuron_id"]
+    assert promoted["ttl_review"]
+    neuron = real_db.execute(
+        "SELECT type, metadata FROM neurons WHERE id = ?",
+        (promoted["neuron_id"],),
+    ).fetchone()
+    assert neuron["type"] == "operational_fact"
+    assert json.loads(neuron["metadata"])["governance"]["confidence"] == "hypothesis"
 
 
 @pytest.mark.real

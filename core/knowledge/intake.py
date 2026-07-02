@@ -29,6 +29,70 @@ CANONICAL_TYPES = {
     "visual_observation",
 }
 
+VALID_CONFIDENCE = {"verified", "hypothesis"}
+VALID_RISK = {"low", "high"}
+
+# Conteúdo que exige revisão explícita antes de virar memória permanente:
+# segredos/credenciais e operações destrutivas. Marcadores deliberadamente
+# específicos ("auth token" e não "token") para não capturar o vocabulário
+# operacional normal do projeto (tokens de LLM, token counts etc.).
+HIGH_RISK_MARKERS = (
+    "password",
+    "senha",
+    "credential",
+    "credencial",
+    "secret",
+    "segredo",
+    "api key",
+    "api_key",
+    "apikey",
+    "auth token",
+    "access token",
+    "bearer token",
+    "private key",
+    "chave privada",
+    "rm -rf",
+    "drop table",
+    "delete from",
+    "truncate table",
+    "chmod 777",
+)
+
+
+def classify_governance(
+    *,
+    title: str,
+    content: str,
+    evidence: dict[str, Any],
+    metadata: dict[str, Any],
+) -> tuple[str, str]:
+    """Classifica um candidato nos dois eixos de governança.
+
+    confidence: `verified` quando a evidência aponta artefatos concretos
+    (arquivos lidos/modificados, comandos executados, source_uri); caso
+    contrário `hypothesis` (inferência de LLM sem artefato).
+
+    risk: `high` quando o conteúdo menciona segredos/credenciais ou operações
+    destrutivas; caso contrário `low`. Declaração explícita em
+    `metadata.governance` tem precedência (valores inválidos são ignorados).
+    """
+    declared = metadata.get("governance") if isinstance(metadata, dict) else None
+    declared = declared if isinstance(declared, dict) else {}
+
+    confidence = str(declared.get("confidence", "")).strip().lower()
+    if confidence not in VALID_CONFIDENCE:
+        has_artifact = bool(
+            evidence.get("files") or evidence.get("commands") or evidence.get("source_uri")
+        )
+        confidence = "verified" if has_artifact else "hypothesis"
+
+    risk = str(declared.get("risk", "")).strip().lower()
+    if risk not in VALID_RISK:
+        haystack = f"{title}\n{content}".lower()
+        risk = "high" if any(marker in haystack for marker in HIGH_RISK_MARKERS) else "low"
+
+    return confidence, risk
+
 
 class StructuralIntakeError(ValueError):
     """Input sem estrutura minima para virar candidato de conhecimento."""
@@ -48,12 +112,18 @@ class KnowledgeCandidate:
     metadata: dict[str, Any] = field(default_factory=dict)
     hash: str = ""
     created_at: str = ""
+    confidence: str = "hypothesis"
+    risk: str = "low"
 
     def __post_init__(self) -> None:
         if self.knowledge_type not in CANONICAL_TYPES:
             raise ValueError(f"tipo canonico desconhecido: {self.knowledge_type}")
         if not self.title.strip() or not self.content.strip():
             raise StructuralIntakeError("candidato sem título ou sem conteúdo")
+        if self.confidence not in VALID_CONFIDENCE:
+            raise ValueError(f"confidence inválida: {self.confidence}")
+        if self.risk not in VALID_RISK:
+            raise ValueError(f"risk inválido: {self.risk}")
 
 
 def _json_loads(value: Any) -> Any:
@@ -127,6 +197,9 @@ def _candidate(
     created_at: str,
 ) -> KnowledgeCandidate:
     digest = _stable_hash(workspace_id, source_type, source_id, knowledge_type, title, content)
+    confidence, risk = classify_governance(
+        title=title, content=content, evidence=evidence, metadata=metadata
+    )
     return KnowledgeCandidate(
         id=f"kc-{digest[:24]}",
         source_type=source_type,
@@ -140,6 +213,8 @@ def _candidate(
         metadata=metadata,
         hash=digest,
         created_at=created_at or datetime.now(timezone.utc).isoformat(),
+        confidence=confidence,
+        risk=risk,
     )
 
 
@@ -224,6 +299,9 @@ def normalize_observation(row: Any) -> list[KnowledgeCandidate]:
         "source_kind": source_type,
         "concepts": _as_list(concepts),
     }
+    governance = payload.get("governance") or metadata.get("governance")
+    if isinstance(governance, dict):
+        common_meta["governance"] = governance
 
     candidates: list[KnowledgeCandidate] = []
 

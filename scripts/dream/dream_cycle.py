@@ -91,7 +91,14 @@ def _run_k3_candidate_intake(conn, observations: list) -> Dict[str, int]:
     from core.knowledge.promotion import ensure_knowledge_schema, store_candidates
 
     ensure_knowledge_schema(conn)
-    report = {"observations": len(observations), "candidates": 0, "skipped": 0}
+    report = {
+        "observations": len(observations),
+        "candidates": 0,
+        "skipped": 0,
+        "verified_low": 0,
+        "hypothesis": 0,
+        "high_risk": 0,
+    }
     for row in observations:
         try:
             candidates = normalize_observation(row)
@@ -99,6 +106,13 @@ def _run_k3_candidate_intake(conn, observations: list) -> Dict[str, int]:
             report["skipped"] += 1
             continue
         report["candidates"] += store_candidates(conn, candidates)
+        for candidate in candidates:
+            if candidate.risk == "high":
+                report["high_risk"] += 1
+            elif candidate.confidence == "hypothesis":
+                report["hypothesis"] += 1
+            else:
+                report["verified_low"] += 1
     conn.commit()
     return report
 

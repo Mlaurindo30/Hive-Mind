@@ -45,6 +45,7 @@ sys.path.insert(0, str(ROOT))
 
 from core.database import get_connection, with_sqlite_retry  # noqa: E402
 from core.knowledge.promotion import (  # noqa: E402
+    promote_held_candidates,
     promote_pending_observations,
     quarantine_observation,
 )
@@ -160,6 +161,20 @@ def main() -> int:
         default=5000,
         help="Limite de linhas a processar por execucao (default 5000).",
     )
+    parser.add_argument(
+        "--include-high-risk",
+        action="store_true",
+        help="Promove tambem candidatos held com risk=high (aprovacao "
+        "explicita da fila de revisao de governanca). Sem esta flag, "
+        "high-risk nunca e promovido automaticamente.",
+    )
+    parser.add_argument(
+        "--held-min-age-days",
+        type=int,
+        default=7,
+        help="Idade minima (dias) para drenar candidatos held "
+        "hypothesis+low (default 7).",
+    )
     args = parser.parse_args()
 
     conn = get_connection()
@@ -253,6 +268,23 @@ def main() -> int:
         except Exception as exc:
             report["errors"] += 1
             report["promote_error"] = f"{type(exc).__name__}: {exc}"
+
+    # Drena a fila de revisao de governanca (candidatos status='held').
+    # hypothesis+low promove apos a janela de idade; risk=high exige
+    # --include-high-risk (nunca automatico).
+    try:
+        report["held"] = with_sqlite_retry(
+            lambda: promote_held_candidates(
+                conn,
+                min_age_days=args.held_min_age_days,
+                include_high_risk=args.include_high_risk,
+                apply=not args.dry_run,
+            ),
+            op_label="drain_held_candidates",
+        )
+    except Exception as exc:
+        report["errors"] += 1
+        report["held_error"] = f"{type(exc).__name__}: {exc}"
 
     print(json.dumps(report, indent=2, ensure_ascii=False, sort_keys=True))
     return 0

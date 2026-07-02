@@ -431,6 +431,24 @@ def _discoveries_pending(conn) -> int:
     return pending_candidates + pending_observations
 
 
+def _governance_review_queue(conn) -> dict[str, int]:
+    """Fila de revisão de governança (candidatos held por confidence×risk)."""
+    counts = {"held_total": 0, "held_high_risk": 0, "held_hypothesis": 0}
+    if not _table_exists(conn, "knowledge_candidates"):
+        return counts
+    if "risk" not in _table_columns(conn, "knowledge_candidates"):
+        return counts
+    for risk, n in conn.execute(
+        "SELECT risk, COUNT(*) FROM knowledge_candidates WHERE status='held' GROUP BY risk"
+    ).fetchall():
+        counts["held_total"] += int(n)
+        if str(risk) == "high":
+            counts["held_high_risk"] += int(n)
+        else:
+            counts["held_hypothesis"] += int(n)
+    return counts
+
+
 def _query_route_distribution(conn) -> dict[str, int]:
     if not _table_exists(conn, "query_route_log"):
         return {}
@@ -506,6 +524,7 @@ def compute_knowledge_health(
         "observations_linked_pct": _observations_linked_pct(conn)[0],
         "observations_total": _observations_linked_pct(conn)[1],
         "discoveries_pending": _discoveries_pending(conn),
+        "governance_review_queue": _governance_review_queue(conn),
         "summary_vectors_total": collection_metrics["summary_vectors"]["vector_total"],
         "orphan_vectors": len(after_orphans),
         "orphan_vectors_before_prune": len(before_orphans),

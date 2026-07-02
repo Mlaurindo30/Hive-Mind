@@ -7,12 +7,14 @@ contrato basico de promocao.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
+import os
 from pathlib import Path
 import sqlite3
 from typing import Iterable, Any
 
+from core.database import add_column_if_missing
 from core.knowledge.intake import (
     CANONICAL_TYPES,
     KnowledgeCandidate,
@@ -23,6 +25,30 @@ from core.knowledge.intake import (
 
 
 NEURON_TYPES = CANONICAL_TYPES - {"next_step"}
+
+# Governança proporcional ao risco (federated-memory GOVERNANCE.md):
+# verified+low promove imediato com TTL de revisão; hypothesis+low aguarda a
+# drenagem periódica; risk=high só promove com aprovação explícita.
+TTL_REVIEW_DAYS = 90
+HELD_MIN_AGE_DAYS = 7
+
+
+def governance_enabled() -> bool:
+    """Kill-switch: HIVE_GOVERNANCE_RISK=0/false/off volta ao promote-all."""
+    return os.environ.get("HIVE_GOVERNANCE_RISK", "1").strip().lower() not in {
+        "0", "false", "off", "no",
+    }
+
+
+def _governance_action(candidate: KnowledgeCandidate) -> str:
+    """'promote' ou 'hold' segundo os eixos confidence × risk."""
+    if not governance_enabled():
+        return "promote"
+    if candidate.risk == "high":
+        return "hold"
+    if candidate.confidence == "hypothesis":
+        return "hold"
+    return "promote"
 
 
 def ensure_knowledge_schema(conn) -> None:
@@ -62,6 +88,15 @@ def ensure_knowledge_schema(conn) -> None:
         ON knowledge_candidates(knowledge_type, workspace_id, status)
         """
     )
+    add_column_if_missing(conn, "knowledge_candidates", "confidence TEXT NOT NULL DEFAULT 'verified'")
+    add_column_if_missing(conn, "knowledge_candidates", "risk TEXT NOT NULL DEFAULT 'low'")
+    add_column_if_missing(conn, "knowledge_candidates", "ttl_review TEXT")
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_knowledge_candidates_held
+        ON knowledge_candidates(status, risk)
+        """
+    )
 
 
 def _json(data: dict[str, Any]) -> str:
@@ -82,6 +117,8 @@ def _candidate_row(candidate: KnowledgeCandidate) -> tuple:
         _json(candidate.metadata),
         candidate.hash,
         candidate.created_at,
+        candidate.confidence,
+        candidate.risk,
     )
 
 
@@ -94,9 +131,9 @@ def store_candidates(conn, candidates: Iterable[KnowledgeCandidate]) -> int:
             INSERT INTO knowledge_candidates(
                 id, source_type, source_id, knowledge_type, title, content,
                 project, workspace_id, evidence_json, metadata_json, hash,
-                created_at
+                created_at, confidence, risk
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 title=excluded.title,
                 content=excluded.content,
@@ -104,7 +141,9 @@ def store_candidates(conn, candidates: Iterable[KnowledgeCandidate]) -> int:
                 workspace_id=excluded.workspace_id,
                 evidence_json=excluded.evidence_json,
                 metadata_json=excluded.metadata_json,
-                hash=excluded.hash
+                hash=excluded.hash,
+                confidence=excluded.confidence,
+                risk=excluded.risk
             """,
             _candidate_row(candidate),
         )
@@ -116,6 +155,14 @@ def _neuron_id(candidate: KnowledgeCandidate) -> str:
     return f"k3-{candidate.knowledge_type}-{candidate.hash[:16]}"
 
 
+def _ttl_review(candidate: KnowledgeCandidate) -> str:
+    try:
+        base = datetime.fromisoformat(candidate.created_at.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        base = datetime.now(timezone.utc)
+    return (base + timedelta(days=TTL_REVIEW_DAYS)).isoformat()
+
+
 def _candidate_metadata(candidate: KnowledgeCandidate) -> dict[str, Any]:
     return {
         "source": "knowledge_promotion",
@@ -125,6 +172,11 @@ def _candidate_metadata(candidate: KnowledgeCandidate) -> dict[str, Any]:
         "source_observation_id": candidate.source_id if candidate.source_type != "file" else None,
         "evidence": candidate.evidence,
         "candidate_metadata": candidate.metadata,
+        "governance": {
+            "confidence": candidate.confidence,
+            "risk": candidate.risk,
+            "ttl_review": _ttl_review(candidate),
+        },
     }
 
 
@@ -196,22 +248,41 @@ def promote_candidate(conn, candidate: KnowledgeCandidate) -> str | None:
         conn.execute(
             """
             UPDATE knowledge_candidates
-            SET status='promoted', promoted_at=?, neuron_id=NULL, error=NULL, retry_policy=NULL
+            SET status='promoted', promoted_at=?, ttl_review=?, neuron_id=NULL,
+                error=NULL, retry_policy=NULL
             WHERE id=?
             """,
-            (datetime.now(timezone.utc).isoformat(), candidate.id),
+            (datetime.now(timezone.utc).isoformat(), _ttl_review(candidate), candidate.id),
         )
         return None
     neuron_id = _promote_to_neuron(conn, candidate)
     conn.execute(
         """
         UPDATE knowledge_candidates
-        SET status='promoted', promoted_at=?, neuron_id=?, error=NULL, retry_policy=NULL
+        SET status='promoted', promoted_at=?, ttl_review=?, neuron_id=?,
+            error=NULL, retry_policy=NULL
         WHERE id=?
         """,
-        (datetime.now(timezone.utc).isoformat(), neuron_id, candidate.id),
+        (datetime.now(timezone.utc).isoformat(), _ttl_review(candidate), neuron_id, candidate.id),
     )
     return neuron_id
+
+
+def hold_candidate(conn, candidate: KnowledgeCandidate, *, reason: str) -> None:
+    """Segura o candidato na fila de revisão (status='held').
+
+    O raw em `observations` segue intocado; o candidato tipado É a fila de
+    revisão — `promote_held_candidates` (drenagem periódica) decide depois.
+    """
+    ensure_knowledge_schema(conn)
+    conn.execute(
+        """
+        UPDATE knowledge_candidates
+        SET status='held', error=?, retry_policy='governance_review'
+        WHERE id=? AND status != 'promoted'
+        """,
+        (reason, candidate.id),
+    )
 
 
 def _metadata_dict(raw: Any) -> dict[str, Any]:
@@ -255,11 +326,16 @@ def _pending_rows(conn, *, limit: int | None = None):
 
 
 def promote_pending_observations(conn, *, limit: int | None = None, apply: bool = True) -> dict[str, int]:
-    """Normaliza e promove observations pendentes.
+    """Normaliza e promove observations pendentes com governança por risco.
 
     `apply=False` executa a classificacao sem escrever. O raw em `observations`
     nunca e alterado exceto pelos marcadores operacionais `archived`,
     `neuron_id` e metadados de quarentena.
+
+    Cada candidato passa por `_governance_action`: verified+low promove na
+    hora; hypothesis ou risk=high fica `held` na fila de revisão (a
+    observation é marcada archived=1 mesmo assim — o candidato tipado carrega
+    a pendência, drenada por `promote_held_candidates`).
     """
     ensure_knowledge_schema(conn)
     rows = _pending_rows(conn, limit=limit)
@@ -267,6 +343,8 @@ def promote_pending_observations(conn, *, limit: int | None = None, apply: bool 
         "observations": len(rows),
         "candidates": 0,
         "promoted": 0,
+        "held_hypothesis": 0,
+        "held_high_risk": 0,
         "quarantined": 0,
         "skipped": 0,
     }
@@ -285,12 +363,18 @@ def promote_pending_observations(conn, *, limit: int | None = None, apply: bool 
             report["candidates"] += store_candidates(conn, candidates)
             first_neuron_id: str | None = None
             for candidate in candidates:
+                if _governance_action(candidate) == "hold":
+                    if candidate.risk == "high":
+                        hold_candidate(conn, candidate, reason="risk=high aguardando revisão")
+                        report["held_high_risk"] += 1
+                    else:
+                        hold_candidate(conn, candidate, reason="confidence=hypothesis aguardando drenagem")
+                        report["held_hypothesis"] += 1
+                    continue
                 neuron_id = promote_candidate(conn, candidate)
+                report["promoted"] += 1
                 if neuron_id:
-                    report["promoted"] += 1
                     first_neuron_id = first_neuron_id or neuron_id
-                else:
-                    report["promoted"] += 1
             if first_neuron_id:
                 conn.execute(
                     "UPDATE observations SET neuron_id = ? WHERE id = ? AND neuron_id IS NULL",
@@ -305,6 +389,104 @@ def promote_pending_observations(conn, *, limit: int | None = None, apply: bool 
             report["quarantined"] += 1
     conn.commit()
     return report
+
+
+def _row_to_candidate(row: Any) -> KnowledgeCandidate:
+    """Reconstrói um KnowledgeCandidate a partir da linha persistida."""
+    return KnowledgeCandidate(
+        id=str(row["id"]),
+        source_type=str(row["source_type"]),
+        source_id=str(row["source_id"]),
+        knowledge_type=str(row["knowledge_type"]),
+        title=str(row["title"]),
+        content=str(row["content"]),
+        project=str(row["project"] or "default"),
+        workspace_id=str(row["workspace_id"] or "default"),
+        evidence=_metadata_dict(row["evidence_json"]),
+        metadata=_metadata_dict(row["metadata_json"]),
+        hash=str(row["hash"]),
+        created_at=str(row["created_at"] or ""),
+        confidence=str(row["confidence"] or "hypothesis"),
+        risk=str(row["risk"] or "low"),
+    )
+
+
+def promote_held_candidates(
+    conn,
+    *,
+    min_age_days: int = HELD_MIN_AGE_DAYS,
+    include_high_risk: bool = False,
+    apply: bool = True,
+    limit: int | None = None,
+) -> dict[str, Any]:
+    """Drena a fila de revisão (status='held').
+
+    hypothesis+low promove após `min_age_days` (janela para o humano vetar via
+    revisão do relatório). risk=high só promove com `include_high_risk=True` —
+    aprovação explícita, nunca automática.
+    """
+    ensure_knowledge_schema(conn)
+    sql = "SELECT * FROM knowledge_candidates WHERE status='held' ORDER BY created_at, id"
+    params: tuple[Any, ...] = ()
+    if limit is not None:
+        sql += " LIMIT ?"
+        params = (int(limit),)
+    rows = conn.execute(sql, params).fetchall()
+    now = datetime.now(timezone.utc)
+    report: dict[str, Any] = {
+        "held": len(rows),
+        "promoted": 0,
+        "skipped_recent": 0,
+        "skipped_high_risk": 0,
+        "errors": 0,
+        "dry_run": not apply,
+    }
+    for row in rows:
+        risk = str(row["risk"] or "low")
+        if risk == "high" and not include_high_risk:
+            report["skipped_high_risk"] += 1
+            continue
+        if risk != "high":
+            try:
+                created = datetime.fromisoformat(str(row["created_at"]).replace("Z", "+00:00"))
+                if created.tzinfo is None:
+                    created = created.replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                created = now
+            if (now - created).days < min_age_days:
+                report["skipped_recent"] += 1
+                continue
+        if not apply:
+            report["promoted"] += 1
+            continue
+        try:
+            promote_candidate(conn, _row_to_candidate(row))
+            report["promoted"] += 1
+        except Exception as exc:
+            report["errors"] += 1
+            conn.execute(
+                "UPDATE knowledge_candidates SET error=? WHERE id=?",
+                (f"held drain failed: {type(exc).__name__}: {exc}", str(row["id"])),
+            )
+    if apply:
+        conn.commit()
+    return report
+
+
+def held_review_queue(conn) -> dict[str, int]:
+    """Contagem da fila de revisão por risco, para knowledge_health/relatórios."""
+    ensure_knowledge_schema(conn)
+    counts = {"held_total": 0, "held_high_risk": 0, "held_hypothesis": 0}
+    for row in conn.execute(
+        "SELECT risk, COUNT(*) AS n FROM knowledge_candidates WHERE status='held' GROUP BY risk"
+    ).fetchall():
+        n = int(row["n"])
+        counts["held_total"] += n
+        if str(row["risk"]) == "high":
+            counts["held_high_risk"] += n
+        else:
+            counts["held_hypothesis"] += n
+    return counts
 
 
 def promote_files(
@@ -344,8 +526,12 @@ def promote_files(
 
 __all__ = [
     "ensure_knowledge_schema",
+    "governance_enabled",
+    "held_review_queue",
+    "hold_candidate",
     "promote_files",
     "promote_candidate",
+    "promote_held_candidates",
     "promote_pending_observations",
     "quarantine_observation",
     "store_candidates",
