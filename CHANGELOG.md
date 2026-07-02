@@ -1,5 +1,52 @@
 # Changelog
 
+## v3.7.12 — Zero-to-green em máquina virgem + harness de instalação limpa
+
+Release date: 2026-07-02
+
+Instalação limpa comprovada de ponta a ponta: container virgem (Ubuntu 24.04 +
+systemd, apenas os pré-requisitos do README — uv, Node 18+, Bun; sem Docker,
+Ollama ou IDE) clonando o `main` publicado e rodando
+`./install.sh --profile=local-min --with-tests --non-interactive` → exit 0 com
+4/4 suítes verdes, API online (auth fail-closed) e serviços ativos.
+
+### Fixed
+
+- **`verify_wrappers` exigia Docker até no `local-min`** e abortava o install
+  no passo 2. A validação estática (compose parseável + imagens com digest
+  pinado) roda sempre; `docker compose config` só é obrigatório com
+  `--require-docker` (perfil `local-full`).
+- **Circuit breaker no `OllamaEmbedder`** (`core/database.py`): conexão
+  recusada abre o breaker (`EmbedderOffline`) em vez de pagar retry+backoff
+  por item — sem Ollama, o `graphify update` gastava ~2.5s × ~800 nós
+  (~40 min de install aparentemente travado).
+- **Export do Graphify** (patch pinado `graphify-hive-mind.patch`): desliga a
+  vetorização no primeiro `EmbedderOffline` com aviso único; o grafo
+  estrutural segue completo.
+- **`build_hnsw.py`**: preflight do backend de embedding — sem Ollama vira
+  skip com aviso (busca semântica degrada para texto) em vez de abortar o
+  install; fail-closed mantido quando o endpoint existe e os vetores faltam.
+- **`.env` recém-criado herdava `VECTOR_BACKEND=milvus`** do exemplo, causando
+  `MilvusException` em MCP/CLI/API sem Docker. Install fresco fora do
+  `local-full` força `sqlite_vec`; `.env` pré-existente nunca é alterado.
+- **Workers temporais sem plugin claude-mem crash-loopavam** no boot de
+  máquinas sem IDE/agente. `install_services.py` só habilita
+  `sinapse-claude-mem`/`sinapse-sqlite-vec` com o plugin presente (e desabilita
+  instalações antigas órfãs); smoke S0.3 e o capture doctor tratam o caso como
+  SKIP explícito.
+- **Testes dependentes do ambiente do host**: `test_llm_fallback` pina
+  `LLM_PROVIDER` (colidia com fallback quando o primário do host era ollama);
+  `test_metrics_endpoint_authenticated` compara `indexes.hnsw` com o estado
+  real do disco; testes de `embed_text` skipam sem backend real.
+
+### Added
+
+- **Harness de instalação limpa** (`tests/install/`): Dockerfile de máquina
+  virgem (systemd PID1) + `run-clean-install-test.sh`, que clona o repo
+  publicado e usa o exit code do installer (`--with-tests`) como gate.
+  Reutilizável como gate de release.
+- **Testes do circuit breaker** (`tests/unit/test_embedder_circuit_breaker.py`).
+
 ## v3.7.11 — Warmup da fusão + telemetria fora do request path
 
 Release date: 2026-07-02
