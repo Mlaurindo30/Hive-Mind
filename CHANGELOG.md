@@ -1,5 +1,26 @@
 # Changelog
 
+## v3.7.11 — Warmup da fusão + telemetria fora do request path
+
+Release date: 2026-07-02
+
+Elimina as duas ressalvas de performance da review da v3.7.10, medidas
+em execução real contra a API viva.
+
+### Performance
+
+- **Warmup da Context Fusion no startup** (`sinapse-api.py`): o
+  `api_lifespan` dispara uma thread daemon que pré-carrega a ponte de
+  fusão (imports, índices HNSW, caches de embedding) com uma query de
+  aquecimento. O readiness não é afetado (health em ~8ms pós-restart);
+  a primeira query híbrida REST caiu de ~19.5s para ~1.5s — paridade
+  com o caminho MCP.
+- **`flush_telemetry()` removido do caminho do request**: o
+  `BatchSpanProcessor` (`schedule_delay_millis=1`) já exporta spans em
+  thread própria, então o `force_flush` por request só bloqueava o
+  event loop. Spans verificados chegando ao collector sem ele; o flush
+  agora acontece apenas no shutdown do lifespan.
+
 ## v3.7.10 — Correções da auditoria E2E REST API
 
 Release date: 2026-07-01
