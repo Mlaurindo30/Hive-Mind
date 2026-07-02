@@ -417,12 +417,21 @@ consulted first.
 ## 3. Record immediately (when deciding, learning, or decomposing)
 | Need | Tool |
 |------|------|
-| Decision (choice between alternatives + reason) | `sinapse_save_decision(title, content)` |
-| Reusable pattern/insight/lesson | `sinapse_save_learning(title, content)` |
+| Decision (choice between alternatives + reason) | `sinapse_save_decision(title, content, evidence?)` |
+| Reusable pattern/insight/lesson | `sinapse_save_learning(title, content, evidence?)` |
 | Large goal → atomic steps (Intent Memory) | `sinapse_plan_goal(goal, context?)` |
 | Monolithic note (Patterns.md) → atomic Zettelkasten notes | `sinapse_zettelkasten_split(source_file, output_dir?)` |
 | Capture a screenshot of bug/visual progress (not in loop!) | `sinapse_capture_screen(description, monitor?)` |
 | Raw temporal observation (kind=change/decision/learning/event) | `sinapse_temporal_save(content, kind?)` |
+
+**Epistemic discipline (verified vs hypothesis):** when saving a decision or
+learning, pass `evidence` (the command you ran, the test that passed, the file
+you read) whenever the claim was actually verified — the note is stamped
+`confidence: verified`. Without evidence the note is a `hypothesis`: it still
+gets saved, but the RetrievalRouter demotes it in ranking until validated, and
+the audit lists it for review. If a hypothesis is later refuted, correct the
+note instead of leaving it — a refuted hypothesis left in place poisons future
+retrieval.
 
 ## 4. Consolidate when finished
 - `sinapse_session_end(summary)` — updates `brain/Current State.md` and

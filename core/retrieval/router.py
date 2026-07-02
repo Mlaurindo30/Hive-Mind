@@ -136,7 +136,7 @@ class RetrievalRouter:
             answer_context.extend(route_result["answer_context"])
             missing_context.extend(route_result["missing_context"])
 
-        answer_context = _dedupe_context(answer_context)[:top_k]
+        answer_context = _apply_governance_penalty(_dedupe_context(answer_context))[:top_k]
         citations = _dedupe_citations(citations)[:top_k]
         if _reranker_enabled():
             ranked = _rerank(query, answer_context, path)
@@ -643,6 +643,72 @@ def _norm(text: str) -> str:
 
     text = unicodedata.normalize("NFKD", text)
     return text.encode("ascii", "ignore").decode("ascii").lower()
+
+
+def _staleness_penalty_factor() -> float:
+    """Fator multiplicativo de score para itens vencidos/hipótese.
+
+    HIVE_STALENESS_PENALTY (default 0.85). 1.0 desliga o mecanismo.
+    """
+    raw = os.environ.get("HIVE_STALENESS_PENALTY", "0.85")
+    try:
+        factor = float(raw)
+    except ValueError:
+        return 0.85
+    return min(max(factor, 0.0), 1.0)
+
+
+def _governance_flags(item: dict[str, Any]) -> tuple[bool, bool]:
+    """(stale, hypothesis) a partir do metadata.governance do item.
+
+    stale: ttl_review/next_review no passado. hypothesis: confidence
+    declarada como hypothesis (carimbo do promotion pipeline ou frontmatter
+    sincronizado do vault). Ausência de governance = item neutro.
+    """
+    metadata = item.get("metadata")
+    governance = metadata.get("governance") if isinstance(metadata, dict) else None
+    if not isinstance(governance, dict):
+        return False, False
+    stale = False
+    deadline = governance.get("ttl_review") or governance.get("next_review")
+    if deadline:
+        try:
+            parsed = datetime.fromisoformat(str(deadline).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            stale = parsed < datetime.now(timezone.utc)
+        except ValueError:
+            stale = False
+    hypothesis = str(governance.get("confidence", "")).lower() == "hypothesis"
+    return stale, hypothesis
+
+
+def _apply_governance_penalty(context: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Rebaixa (nunca exclui) itens vencidos ou hipótese.
+
+    Score numérico é multiplicado pelo fator e o item é anotado; a ordem
+    relativa dos itens neutros é preservada (partição estável: neutros
+    primeiro, penalizados depois). Sem itens penalizados, é identidade.
+    """
+    factor = _staleness_penalty_factor()
+    if factor >= 1.0:
+        return context
+    fresh: list[dict[str, Any]] = []
+    penalized: list[dict[str, Any]] = []
+    for item in context:
+        stale, hypothesis = _governance_flags(item)
+        if not stale and not hypothesis:
+            fresh.append(item)
+            continue
+        item["governance_flags"] = {
+            "stale": stale,
+            "hypothesis": hypothesis,
+            "penalty": factor,
+        }
+        if isinstance(item.get("score"), (int, float)):
+            item["score"] = round(float(item["score"]) * factor, 6)
+        penalized.append(item)
+    return fresh + penalized
 
 
 def _metadata_context(collection: str, hit: dict[str, Any]) -> dict[str, Any] | None:

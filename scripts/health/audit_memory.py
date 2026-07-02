@@ -13,6 +13,7 @@ import yaml
 import re
 import shutil
 import argparse
+from datetime import datetime
 import fnmatch
 from pathlib import Path
 from datetime import datetime
@@ -267,7 +268,43 @@ def run_audit(fix=False, exclude: list[str] | None = None):
                 print(f"      [!] Erro ao mover arquivo de conflito: {e}")
 
     conn.close()
-    
+
+    # 3. Staleness Loop — validade temporal por nota (governança F3).
+    # Varre as áreas de conhecimento curado (frontal + cerebelo) procurando
+    # notas com next_review vencido ou notas de decisão sem next_review.
+    stats["stale_notes"] = 0
+    stats["missing_next_review"] = 0
+    today = datetime.now().date()
+    stale_examples: list[str] = []
+    for curated_root in (
+        Path(SINAPSE_HOME) / "cerebro" / "cortex" / "frontal",
+        Path(SINAPSE_HOME) / "cerebro" / "cerebelo",
+    ):
+        if not curated_root.exists():
+            continue
+        for md_file in curated_root.rglob("*.md"):
+            if ".sync-conflict-" in md_file.name or _is_excluded(md_file, exclude_patterns):
+                continue
+            frontmatter, _ = parse_markdown(md_file)
+            if not frontmatter:
+                continue
+            next_review = frontmatter.get("next_review")
+            if next_review:
+                try:
+                    due = datetime.strptime(str(next_review), "%Y-%m-%d").date()
+                except ValueError:
+                    continue
+                if due < today:
+                    stats["stale_notes"] += 1
+                    if len(stale_examples) < 10:
+                        stale_examples.append(str(md_file.relative_to(SINAPSE_HOME)))
+            else:
+                tags = frontmatter.get("tags") or []
+                if "decision" in (tags if isinstance(tags, list) else [tags]):
+                    stats["missing_next_review"] += 1
+    for example in stale_examples:
+        print(f"  [S] next_review vencido: {example}")
+
     print("\n--- Resultado da Auditoria ---")
     print(f"Total de arquivos:  {stats['total']}")
     print(f"Saudáveis:         {stats['healthy']}")
@@ -282,6 +319,9 @@ def run_audit(fix=False, exclude: list[str] | None = None):
     
     print(f"\nConflitos encontrados:  {stats['conflicts_found']}")
     print(f"Conflitos registrados: {stats['conflicts_registered']}")
+
+    print(f"\nNotas com next_review vencido: {stats['stale_notes']}")
+    print(f"Decisões sem next_review:      {stats['missing_next_review']}")
     
     if not fix and (stats['missing_db'] > 0 or stats['mismatch_hash'] > 0 or stats["missing_vector"] > 0):
         print("\nDica: Use --fix para sincronizar o banco com o Vault.")

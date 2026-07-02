@@ -69,7 +69,7 @@ TOOLS = [
     },
     {
         "name": "sinapse_save_decision",
-        "description": "Save a decision to the anatomical Obsidian vault at cerebro/cortex/frontal/trabalho/ativo/. Creates a markdown file with YAML frontmatter (tags, status, created, source). Decisions become nodes in the knowledge graph after next index.",
+        "description": "Save a decision to the anatomical Obsidian vault at cerebro/cortex/frontal/trabalho/ativo/. Creates a markdown file with YAML frontmatter (tags, status, confidence, created, review_date, next_review, source). Pass evidence (command run, test, file) to mark the note verified; without it the note is a hypothesis and the RetrievalRouter demotes it until validated. Decisions become nodes in the knowledge graph after next index.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -77,6 +77,10 @@ TOOLS = [
                 "content": {
                     "type": "string",
                     "description": "Decision content — full context, reasoning, and implications"
+                },
+                "evidence": {
+                    "type": "string",
+                    "description": "Concrete artifact validating the decision (command run, test, file path). Marks the note confidence=verified."
                 }
             },
             "required": ["title", "content"]
@@ -84,7 +88,7 @@ TOOLS = [
     },
     {
         "name": "sinapse_save_learning",
-        "description": "Save a learning, pattern, or insight to cerebro/cerebelo/padroes/Patterns.md. Automatically deduplicates — won't save if the same title already exists. Use for discovered patterns, lessons learned, or reusable insights.",
+        "description": "Save a learning, pattern, or insight to cerebro/cerebelo/padroes/Patterns.md. Automatically deduplicates — won't save if the same title already exists. Pass evidence (command run, test, file) to mark the entry verified; without it the entry is a hypothesis awaiting validation. Use for discovered patterns, lessons learned, or reusable insights.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -92,6 +96,10 @@ TOOLS = [
                 "content": {
                     "type": "string",
                     "description": "Learning content — what was discovered and why it matters"
+                },
+                "evidence": {
+                    "type": "string",
+                    "description": "Concrete artifact validating the learning (command run, test, file path). Marks the entry confidence=verified."
                 }
             },
             "required": ["title", "content"]
@@ -386,10 +394,14 @@ TOOLS = [
 HANDLERS = {
     "sinapse_query": lambda args: _sinapse_query_with_diagnostics(args.get("query", "")),
     "sinapse_save_decision": lambda args: {
-        "saved": sm._save_decision(args.get("title", ""), args.get("content", "")) is not None
+        "saved": sm._save_decision(
+            args.get("title", ""), args.get("content", ""), evidence=args.get("evidence")
+        ) is not None
     },
     "sinapse_save_learning": lambda args: {
-        "saved": sm._save_learning(args.get("title", ""), args.get("content", "")) is not None
+        "saved": sm._save_learning(
+            args.get("title", ""), args.get("content", ""), evidence=args.get("evidence")
+        ) is not None
     },
     "sinapse_health": lambda args: sm.health_check(),
     "sinapse_session_end": lambda args: _session_end(args.get("summary", "")),

@@ -24,6 +24,7 @@
 #   --skip-agent=X       Skips configuration of a specific agent
 #   --with-tests         Runs unit tests after installation
 #   --with-real-tests    Chains the real knowledge suite at the end
+#   --with-vault-enforcement  Applies OS-level vault write protection (needs sudo)
 #   --profile=<profile>  Services profile: local-min (default) or local-full
 #   --provider=X         Dreamer provider (gemini|openai|ollama|...)
 #   --model=X            Dreamer model
@@ -63,6 +64,7 @@ for arg in "$@"; do
         --model=*) MODEL="${arg#*=}" ;;
         --profile=*) INSTALL_PROFILE="${arg#*=}" ;;
         --with-real-tests) WITH_REAL_TESTS=true ;;
+        --with-vault-enforcement) WITH_VAULT_ENFORCEMENT=true ;;
         *) echo -e "${RED}Error:${NC} unknown argument: $arg"; exit 1 ;;
     esac
 done
@@ -71,6 +73,7 @@ done
 # goes on a "fresh machine"; --with-real-tests chains the real suite at the end.
 INSTALL_PROFILE="${INSTALL_PROFILE:-local-min}"
 WITH_REAL_TESTS="${WITH_REAL_TESTS:-false}"
+WITH_VAULT_ENFORCEMENT="${WITH_VAULT_ENFORCEMENT:-false}"
 case "$INSTALL_PROFILE" in
     local-min|local-full) ;;
     *) echo -e "${RED}Error:${NC} --profile invalid: $INSTALL_PROFILE (use local-min|local-full)"; exit 1 ;;
@@ -1013,6 +1016,25 @@ if $WITH_REAL_TESTS; then
     else
         echo -e "  ${RED}ERROR${NC} tests/run_real_knowledge.sh not found/executable"
         exit 1
+    fi
+    echo ""
+fi
+
+# =============================================================================
+# Vault write enforcement (opt-in) — OS-level protection for cerebro/
+# =============================================================================
+if $WITH_VAULT_ENFORCEMENT; then
+    echo -e "${BOLD}Applying vault write enforcement (needs sudo)...${NC}"
+    if sudo -n true 2>/dev/null || sudo -v; then
+        if sudo "$PROJECT_ROOT/scripts/setup/setup-vault-enforcement.sh"; then
+            echo -e "  ${GREEN}OK${NC} vault enforcement applied"
+        else
+            echo -e "  ${RED}ERROR${NC} vault enforcement failed; see output above"
+            exit 1
+        fi
+    else
+        echo -e "  ${YELLOW}⊘${NC}  sudo unavailable — skipping. Run manually:"
+        echo    "      sudo ./scripts/setup/setup-vault-enforcement.sh"
     fi
     echo ""
 fi

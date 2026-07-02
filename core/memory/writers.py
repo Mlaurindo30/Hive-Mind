@@ -11,8 +11,14 @@ import os
 import re
 import tempfile
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Callable, List, Optional
+
+
+# Validade temporal por nota (federated-memory): toda nota promovida carrega
+# a data da última revisão humana e o prazo da próxima; o audit sinaliza
+# vencidas e o RetrievalRouter rebaixa o score após o prazo.
+REVIEW_TTL_DAYS = 90
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +51,48 @@ def atomic_write(filepath: str, content: str) -> bool:
         return False
 
 
+def intake_fallback_dir(target_path: str) -> Optional[str]:
+    """Área de intake do vault para quando a escrita direta é negada.
+
+    Com o enforcement de vault ativo (setup-vault-enforcement.sh), agentes só
+    têm escrita em cerebro/90-intake/ — o Dream Cycle promove de lá para o
+    destino final. HIVE_INTAKE_DIR tem precedência; sem ela, deriva
+    <vault>/90-intake do próprio path de destino.
+    """
+    explicit = os.environ.get("HIVE_INTAKE_DIR", "").strip()
+    if explicit:
+        return explicit
+    parts = os.path.normpath(target_path).split(os.sep)
+    if "cerebro" not in parts:
+        return None
+    vault_root = os.sep.join(parts[: parts.index("cerebro") + 1])
+    return os.path.join(vault_root, "90-intake")
+
+
+def _write_with_intake_fallback(
+    filepath: str,
+    note: str,
+    *,
+    log_fn: Optional[Callable],
+    event: str,
+) -> Optional[str]:
+    """atomic_write com fallback para a área de intake em falha de escrita."""
+    if atomic_write(filepath, note):
+        return filepath
+    intake_dir = intake_fallback_dir(filepath)
+    if not intake_dir:
+        return None
+    intake_path = os.path.join(intake_dir, os.path.basename(filepath))
+    intake_note = note.replace(
+        "---\n", f"---\npromote_to: \"{filepath}\"\n", 1
+    ) if note.startswith("---\n") else note
+    if atomic_write(intake_path, intake_note):
+        if log_fn:
+            log_fn("info", event, file=intake_path, promote_to=filepath)
+        return intake_path
+    return None
+
+
 def validate_frontmatter_yaml(content: str) -> bool:
     """Verifica se o frontmatter YAML é válido."""
     if not content.startswith("---"):
@@ -74,6 +122,7 @@ def save_decision(
     cloud_enabled: bool = False,
     api_server_mode: bool = False,
     cloud_request_fn: Optional[Callable] = None,
+    evidence: Optional[str] = None,
 ) -> Optional[str]:
     """
     Salva uma decisão no diretório anatômico recebido pelo chamador
@@ -89,6 +138,8 @@ def save_decision(
         cloud_enabled: se True, usa cloud se não for API server mode.
         api_server_mode: se True, não redireciona para cloud.
         cloud_request_fn: callable(endpoint, method, data) para cloud.
+        evidence: artefato que valida a decisão (comando, teste, arquivo).
+            Com evidence a nota nasce confidence=verified; sem, hypothesis.
     """
     if cloud_enabled and not api_server_mode and cloud_request_fn is not None:
         if log_fn:
@@ -104,16 +155,23 @@ def save_decision(
         return "/dev/null/dry-run"
 
     today = datetime.now().strftime("%Y-%m-%d")
+    next_review = (datetime.now() + timedelta(days=REVIEW_TTL_DAYS)).strftime("%Y-%m-%d")
     slug = sanitize_slug(title)
     filename = f"{today}-{slug}.md"
     filepath = os.path.join(decisions_dir, filename)
 
+    confidence = "verified" if evidence else "hypothesis"
+    evidence_line = f"evidence: \"{evidence}\"\n" if evidence else ""
     note = (
         f"---\n"
         f"tags: [decision]\n"
         f"status: active\n"
+        f"confidence: {confidence}\n"
+        f"{evidence_line}"
         f"created: {today}\n"
         f"updated: {today}\n"
+        f"review_date: {today}\n"
+        f"next_review: {next_review}\n"
         f"source: hermes-session\n"
         f"---\n\n"
         f"# {title}\n\n"
@@ -123,12 +181,15 @@ def save_decision(
     if not validate_frontmatter_yaml(note) and log_fn:
         log_fn("error", "frontmatter_invalid", file=filepath)
 
-    if atomic_write(filepath, note):
+    saved_path = _write_with_intake_fallback(
+        filepath, note, log_fn=log_fn, event="decision_saved_intake"
+    )
+    if saved_path:
         if log_fn:
-            log_fn("info", "decision_saved", title=title[:60], file=filepath)
+            log_fn("info", "decision_saved", title=title[:60], file=saved_path)
         if umc_save_fn:
             umc_save_fn(title, content, "decision")
-        return filepath
+        return saved_path
 
     if log_fn:
         log_fn("error", "save_decision_failed", title=title[:60], file=filepath)
@@ -145,9 +206,13 @@ def save_learning(
     cloud_enabled: bool = False,
     api_server_mode: bool = False,
     cloud_request_fn: Optional[Callable] = None,
+    evidence: Optional[str] = None,
 ) -> Optional[str]:
     """
     Salva um aprendizado em cerebelo/padroes/Patterns.md com deduplicação.
+
+    Com `evidence` (comando, teste, arquivo) a entrada nasce
+    confidence=verified; sem, hypothesis — aguardando validação.
     """
     if cloud_enabled and not api_server_mode and cloud_request_fn is not None:
         if log_fn:
@@ -175,7 +240,12 @@ def save_learning(
     except FileNotFoundError:
         pass
 
-    entry = f"\n\n---\n\n## {title} ({today})\n\n{content}\n"
+    next_review = (datetime.now() + timedelta(days=REVIEW_TTL_DAYS)).strftime("%Y-%m-%d")
+    confidence = "verified" if evidence else "hypothesis"
+    governance_line = f"> confidence: {confidence} · next_review: {next_review}"
+    if evidence:
+        governance_line += f" · evidence: {evidence}"
+    entry = f"\n\n---\n\n## {title} ({today})\n\n{governance_line}\n\n{content}\n"
 
     try:
         existing = ""
@@ -191,6 +261,29 @@ def save_learning(
             if umc_save_fn:
                 umc_save_fn(title, content, "learning")
             return patterns_file
+
+        # Escrita direta negada (enforcement de vault): deposita a entrada
+        # como nota avulsa na área de intake para o Dream Cycle promover.
+        intake_dir = intake_fallback_dir(patterns_file)
+        if intake_dir:
+            intake_path = os.path.join(
+                intake_dir, f"{today}-learning-{sanitize_slug(title)}.md"
+            )
+            intake_note = (
+                f"---\n"
+                f"tags: [learning]\n"
+                f"status: intake\n"
+                f"confidence: {confidence}\n"
+                f"promote_to: \"{patterns_file}\"\n"
+                f"created: {today}\n"
+                f"---\n{entry}"
+            )
+            if atomic_write(intake_path, intake_note):
+                if log_fn:
+                    log_fn("info", "learning_saved_intake", title=title[:60], file=intake_path)
+                if umc_save_fn:
+                    umc_save_fn(title, content, "learning")
+                return intake_path
 
         if log_fn:
             log_fn("error", "save_learning_failed", title=title[:60], error="atomic_write returned False")

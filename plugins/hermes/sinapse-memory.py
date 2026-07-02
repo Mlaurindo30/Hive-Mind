@@ -406,17 +406,19 @@ from core.memory.writers import save_learning as _core_save_learning
 from core.memory.writers import update_current_state as _core_update_current_state
 
 
-def _save_decision(title: str, content: str) -> Optional[str]:
+def _save_decision(title: str, content: str, evidence: Optional[str] = None) -> Optional[str]:
     return _core_save_decision(
         title, content, DECISIONS_DIR, DRY_RUN, _log, _umc_save_observation,
         bool(_config.get("cloud", {}).get("enabled")), API_SERVER_MODE, _cloud_request,
+        evidence=evidence,
     )
 
 
-def _save_learning(title: str, content: str) -> Optional[str]:
+def _save_learning(title: str, content: str, evidence: Optional[str] = None) -> Optional[str]:
     return _core_save_learning(
         title, content, PATTERNS_FILE, DRY_RUN, _log, _umc_save_observation,
         bool(_config.get("cloud", {}).get("enabled")), API_SERVER_MODE, _cloud_request,
+        evidence=evidence,
     )
 
 

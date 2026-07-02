@@ -1,5 +1,65 @@
 # Changelog
 
+## v3.8.0 — Governança de conhecimento proporcional ao risco
+
+Release date: 2026-07-02
+
+Ciclo de vida do conhecimento inspirado no estudo federated-memory
+(whitepaper + EXP-001): promoção proporcional ao risco em vez de fila cega
+por idade, validade temporal por nota, disciplina epistêmica
+(verified × hypothesis) e enforcement físico opcional de escrita no vault.
+Suíte real do gate de release: **59/59 verdes** com backends reais
+(`logs/governance-real-suite-report.md`); 611 testes unit (42 novos).
+
+### Added
+
+- **Classificação confidence × risk no intake** (`core/knowledge/intake.py`):
+  todo `KnowledgeCandidate` nasce com `confidence`
+  (`verified` quando a evidência tem artefatos concretos — files/commands/
+  source_uri — senão `hypothesis`) e `risk` (`high` para segredos/credenciais
+  e operações destrutivas). Declaração explícita em `metadata.governance`
+  tem precedência. Determinístico, sem LLM.
+- **Política de promoção proporcional ao risco**
+  (`core/knowledge/promotion.py`): `verified+low` promove imediato com
+  `ttl_review` de 90 dias; `hypothesis` fica `held` e é drenado após 7 dias
+  (`promote_held_candidates`); `risk=high` só promove com aprovação explícita
+  (`reprocess_quarantine.py --include-high-risk`) — nunca automático.
+  Migração de schema idempotente e CRR-safe; kill-switch
+  `HIVE_GOVERNANCE_RISK=0` restaura o promote-all.
+- **Validade temporal por nota**: `save_decision`/`save_learning` gravam
+  `review_date`/`next_review` (+90d) e `confidence` no frontmatter; parâmetro
+  `evidence` marca a nota `verified` (exposto nas tools MCP
+  `sinapse_save_decision`/`sinapse_save_learning`). Backfill idempotente das
+  notas curadas existentes via data de commit git
+  (`scripts/maintenance/backfill_review_dates.py`, 230 notas atualizadas).
+- **Penalidade de staleness no RetrievalRouter** (`core/retrieval/router.py`):
+  itens com `ttl_review`/`next_review` vencido ou `confidence=hypothesis`
+  têm o score multiplicado por `HIVE_STALENESS_PENALTY` (default 0.85) e são
+  rebaixados — nunca excluídos — com anotação `governance_flags`.
+- **Staleness no audit** (`scripts/health/audit_memory.py`): varredura das
+  áreas curadas (frontal + cerebelo) listando notas com `next_review` vencido
+  e decisões sem `next_review`.
+- **Fila de revisão no knowledge health**: `governance_review_queue`
+  (held por risco) exposto em `knowledge_health.py`/`sinapse_health`.
+- **Enforcement físico de escrita no vault (opt-in)**
+  (`scripts/setup/setup-vault-enforcement.sh`, `install.sh
+  --with-vault-enforcement`): usuário de sistema dedicado dono de `cerebro/`,
+  agentes com escrita só em `cerebro/90-intake/`. Os writers caem para a área
+  de intake automaticamente quando a escrita direta é negada
+  (`promote_to` no frontmatter para o Dream Cycle rotear). Lição do EXP-001:
+  chmod pelo próprio dono não é enforcement — o agente roda como o dono.
+- **Contrato epistêmico** (`config/sinapse-agent-prompt.md`): ao salvar
+  decisão/learning, passar `evidence` quando a afirmação foi verificada;
+  hipótese refutada deve ser corrigida na nota.
+
+### Changed
+
+- `dream_cycle.py` (estágio de intake de candidatos): relatório com
+  contadores por classe (`verified_low`, `hypothesis`, `high_risk`).
+- Teste real do bridge claude-mem atualizado ao novo contrato: observação
+  `change` sem artefatos agora é `held_hypothesis` e o teste exercita o ciclo
+  completo hold → drain → promote.
+
 ## v3.7.12 — Zero-to-green em máquina virgem + harness de instalação limpa
 
 > **Publicação npm:** pacote `hive-sinapse-mind@3.7.12` publicado em
