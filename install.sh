@@ -289,6 +289,99 @@ GRAPHIFY_SRC="$PROJECT_ROOT/integrations/graphify"
 
 echo -e "  ${GREEN}✓${NC} graphify resolvido do source local ($GRAPHIFY_SRC)"
 
+# ── Materializa o vault Obsidian (cerebro/) a partir de templates shipped ────
+# Idempotente: pula se vault já existe. Cria 70+ diretórios vazios que são
+# preenchidos em uso pelos pipelines (sessoes/, decisoes/, inbox/, grafo/).
+# O source-of-truth do schema é templates/vault/vault-manifest.json.
+materialize_vault() {
+    if [ -f "$VAULT_DIR/vault-manifest.json" ] && [ -d "$VAULT_DIR/cortex/temporal" ]; then
+        echo -e "  ${GREEN}✓${NC} vault já materializado em $VAULT_DIR"
+        return 0
+    fi
+    echo -e "  Materializando vault obsidian-mind v6.1.0 em $VAULT_DIR..."
+
+    # 1. Shipped templates (hub docs, modelos, paineis, setores, subvaults, configs)
+    if [ -d "$PROJECT_ROOT/templates/vault" ]; then
+        cp -r "$PROJECT_ROOT/templates/vault/." "$VAULT_DIR/"
+    else
+        echo -e "  ${YELLOW}!${NC} templates/vault/ não encontrado; criando estrutura vazia"
+        mkdir -p "$VAULT_DIR"
+    fi
+
+    # 2. Estrutura de diretórios (criada vazia, populada em uso)
+    mkdir -p \
+        "$VAULT_DIR/cerebelo/anual" \
+        "$VAULT_DIR/cerebelo/diario" \
+        "$VAULT_DIR/cerebelo/mensal" \
+        "$VAULT_DIR/cerebelo/padroes" \
+        "$VAULT_DIR/cerebelo/semanal" \
+        "$VAULT_DIR/cerebelo/sessoes" \
+        "$VAULT_DIR/cortex/frontal/brain" \
+        "$VAULT_DIR/cortex/frontal/decisoes" \
+        "$VAULT_DIR/cortex/frontal/org/people" \
+        "$VAULT_DIR/cortex/frontal/org/teams" \
+        "$VAULT_DIR/cortex/frontal/projetos" \
+        "$VAULT_DIR/cortex/frontal/rascunhos" \
+        "$VAULT_DIR/cortex/frontal/trabalho/active" \
+        "$VAULT_DIR/cortex/frontal/trabalho/ativo" \
+        "$VAULT_DIR/cortex/frontal/trabalho/pipeline" \
+        "$VAULT_DIR/cortex/insula/conflitos" \
+        "$VAULT_DIR/cortex/insula/saude" \
+        "$VAULT_DIR/cortex/occipital/capturas-visuais" \
+        "$VAULT_DIR/cortex/occipital/grafo" \
+        "$VAULT_DIR/cortex/parietal/inbox/visual" \
+        "$VAULT_DIR/cortex/parietal/inbox/documents" \
+        "$VAULT_DIR/cortex/parietal/referencias/analises" \
+        "$VAULT_DIR/cortex/temporal/_global" \
+        "$VAULT_DIR/cortex/temporal/hipocampo" \
+        "$VAULT_DIR/cortex/temporal/arquivo" \
+        "$VAULT_DIR/cortex/temporal/Hive-Mind/agent_skills" \
+        "$VAULT_DIR/cortex/temporal/Hive-Mind/atlas" \
+        "$VAULT_DIR/cortex/temporal/Hive-Mind/atoms" \
+        "$VAULT_DIR/cortex/temporal/Hive-Mind/decision" \
+        "$VAULT_DIR/cortex/temporal/Hive-Mind/error_handling" \
+        "$VAULT_DIR/cortex/temporal/Hive-Mind/infrastructure" \
+        "$VAULT_DIR/cortex/temporal/Hive-Mind/preferences" \
+        "$VAULT_DIR/cortex/temporal/Hive-Mind/project_management" \
+        "$VAULT_DIR/cortex/temporal/Hive-Mind/security" \
+        "$VAULT_DIR/cortex/temporal/Hive-Mind/testing" \
+        "$VAULT_DIR/cortex/temporal/Hive-Mind/test_swarm" \
+        "$VAULT_DIR/cortex/temporal/Hive-Mind/test_topic" \
+        "$VAULT_DIR/diencefalo/roteamento" \
+        "$VAULT_DIR/tronco/infra/obsidian-trash" \
+        "$VAULT_DIR/attachments"
+
+    # 3. .gitignore do vault (runtime regenerado, nunca commitar)
+    if [ ! -f "$VAULT_DIR/.gitignore" ]; then
+        cat > "$VAULT_DIR/.gitignore" <<'VAULT_EOF'
+# Vault runtime — regenerado, não commitar
+.smart-env/
+.claude-flow/
+.obsidian/
+graphify-out/
+cortex/occipital/grafo/cache/
+cortex/occipital/grafo/graphify-out/
+cortex/occipital/grafo/manifest.json
+cortex/occipital/grafo/.rebuild.lock
+cortex/occipital/grafo/.pending_changes
+cortex/temporal/**/neuronio-*.md
+cerebelo/sessoes/
+cortex/frontal/decisoes/
+cortex/frontal/projetos/
+cortex/frontal/trabalho/
+cortex/insula/
+cortex/parietal/inbox/
+attachments/
+VAULT_EOF
+    fi
+
+    local n_files n_dirs
+    n_files=$(find "$VAULT_DIR" -type f 2>/dev/null | wc -l)
+    n_dirs=$(find "$VAULT_DIR" -type d 2>/dev/null | wc -l)
+    echo -e "  ${GREEN}✓${NC} vault materializado ($n_files arquivos shipped, $n_dirs diretórios)"
+}
+materialize_vault
+
 # Dependências Python (requirements.txt) já instaladas na etapa 2.
 
 # Indexar o vault com extração semântica se API key disponível, senão AST-only

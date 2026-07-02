@@ -1,0 +1,16 @@
+# Hive-Mind vault noise: agent configs, UI state and generated graph artifacts.
+.claude/
+.claude-flow/
+.codex/
+.gemini/
+.github/
+.obsidian/
+.openclaw/
+.roo/
+.smart-env/
+.trash/
+Chats/
+copilot/
+attachments/
+graphify-out/
+cortex/occipital/grafo/graphify-out/

@@ -1,6 +1,12 @@
 # Sinapse Agent — .gitignore
 
-# ── Vault Obsidian ─────────────────────────────────────────────────
+# ── Vault Obsidian (LOCAL — materializado pelo install.sh, nunca commitar) ──
+# Regra cega: nada do cerebro/ vai pro git. Shipped templates vivem em
+# templates/vault/ (whitelisted abaixo) e são copiados pelo install.sh.
+cerebro/
+!templates/vault/
+# Mantém o whitelist explícito (defesa em profundidade)
+!templates/vault/**
 cerebro/.obsidian/workspace.json
 cerebro/.obsidian/workspace-mobile.json
 cerebro/.trash/
