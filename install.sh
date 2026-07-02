@@ -103,13 +103,16 @@ BOOTSTRAP_PYTHON="$(uv python find 3.12)"
 # O instalador cria um token local se o operador ainda não preencheu, sem
 # commitar segredo e sem sobrescrever valor existente.
 if [ -f "$PROJECT_ROOT/.env.example" ]; then
-    [ -f "$PROJECT_ROOT/.env" ] || cp "$PROJECT_ROOT/.env.example" "$PROJECT_ROOT/.env"
-    "$BOOTSTRAP_PYTHON" - "$PROJECT_ROOT/.env" <<'PY'
+    ENV_FRESH=0
+    [ -f "$PROJECT_ROOT/.env" ] || { cp "$PROJECT_ROOT/.env.example" "$PROJECT_ROOT/.env"; ENV_FRESH=1; }
+    "$BOOTSTRAP_PYTHON" - "$PROJECT_ROOT/.env" "$INSTALL_PROFILE" "$ENV_FRESH" <<'PY'
 import secrets
 import sys
 from pathlib import Path
 
 env_path = Path(sys.argv[1])
+profile = sys.argv[2]
+env_fresh = sys.argv[3] == "1"
 lines = env_path.read_text(encoding="utf-8").splitlines()
 found = False
 changed = False
@@ -124,6 +127,19 @@ for idx, line in enumerate(lines):
 if not found:
     lines.append("HIVE_MIND_API_KEY=" + secrets.token_urlsafe(32))
     changed = True
+
+# .env recém-criado do exemplo fora do local-full: o backend vetorial precisa
+# ser o local (sqlite_vec). O exemplo pode trazer milvus, que só existe no
+# perfil local-full (docker) — sem ele, MCP/CLI/API quebram com MilvusException.
+# .env pré-existente nunca é alterado (escolha do operador).
+if env_fresh and profile != "local-full":
+    for idx, line in enumerate(lines):
+        if line.startswith("VECTOR_BACKEND=") and line.split("=", 1)[1].strip() != "sqlite_vec":
+            lines[idx] = "VECTOR_BACKEND=sqlite_vec"
+            changed = True
+            print("  OK: VECTOR_BACKEND=sqlite_vec (perfil sem Milvus)")
+            break
+
 if changed:
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("  OK: HIVE_MIND_API_KEY gerado em .env local")
@@ -252,7 +268,12 @@ GRAPHIFY="$PROJECT_ROOT/.venv/bin/graphify"
 NMEM="$PROJECT_ROOT/.venv/bin/nmem"
 export PATH="$PROJECT_ROOT/.venv/bin:$PROJECT_ROOT/integrations/rtk/target/release:$PATH"
 "$PYTHON" -c "import fastapi, yaml, pydantic, graphify, neural_memory, sqlite_vec, pymilvus, llama_index, ragflow_sdk"
-"$PYTHON" "$PROJECT_ROOT/scripts/setup/verify_wrappers.py"
+# Wrappers K1 (Milvus/RAGFlow) so sobem no local-full; docker so e' exigido la.
+if [ "$INSTALL_PROFILE" = "local-full" ]; then
+    "$PYTHON" "$PROJECT_ROOT/scripts/setup/verify_wrappers.py" --require-docker
+else
+    "$PYTHON" "$PROJECT_ROOT/scripts/setup/verify_wrappers.py"
+fi
 mkdir -p "$PROJECT_ROOT/integrations/neural-memory/data"
 "$PYTHON" "$PROJECT_ROOT/scripts/setup/setup_umc.py" >/dev/null
 echo -e "  ${GREEN}✓${NC} Python $("$PYTHON" -c 'import sys; print(sys.version.split()[0])') em $PROJECT_ROOT/.venv"

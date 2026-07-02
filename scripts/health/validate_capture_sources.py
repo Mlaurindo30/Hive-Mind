@@ -39,6 +39,18 @@ def _worker_ok() -> bool:
         return False
 
 
+def _service_enabled(name: str) -> bool:
+    try:
+        return subprocess.run(
+            ("systemctl", "--user", "is-enabled", "--quiet", name),
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode == 0
+    except Exception:
+        return False
+
+
 def _service_active(name: str) -> bool:
     try:
         return subprocess.run(
@@ -154,14 +166,23 @@ def run(max_sources: int) -> dict[str, Any]:
         for name, adapter in sorted(ADAPTERS.items())
     ]
     failures = [item for item in platforms if item["status"] == "FAIL"]
+    # Máquina sem IDE/agente: o installer não habilita o worker claude-mem
+    # (plugin ausente) — SKIP, não FAIL de ambiente.
+    worker_ok = _worker_ok()
+    if worker_ok:
+        worker_status = "OK"
+    elif not _service_enabled("sinapse-claude-mem.service"):
+        worker_status = "SKIP"
+    else:
+        worker_status = "FAIL"
     return {
-        "worker": {"status": "OK" if _worker_ok() else "FAIL", "url": core.BASE},
+        "worker": {"status": worker_status, "url": core.BASE},
         "capture_realtime": {
             "status": "OK" if _service_active("sinapse-capture-realtime.service") else "WARN",
             "service": "sinapse-capture-realtime.service",
         },
         "platforms": platforms,
-        "healthy": not failures and _worker_ok(),
+        "healthy": not failures and worker_status != "FAIL",
     }
 
 

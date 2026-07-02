@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from core.database import get_connection
+from core.database import get_connection, get_embedder
 from core.hnsw_index import rebuild_from_vectors
 from core.indexing import index_neuron_ids
 
@@ -49,7 +49,32 @@ def build(conn) -> int:
     return rebuild_from_vectors(conn, ordered_vectors)
 
 
+def _embedding_probe_error() -> Exception | None:
+    """Preflight do backend de embedding. Retorna a exceção se indisponível."""
+    try:
+        embedder = get_embedder()
+        if embedder is None:
+            return RuntimeError("nenhum backend de embedding configurado")
+        list(embedder.embed("hnsw preflight probe"))
+        return None
+    except Exception as exc:
+        return exc
+
+
 def main() -> int:
+    probe_error = _embedding_probe_error()
+    if probe_error is not None:
+        # Máquina sem Ollama/modelo: HNSW é opcional — search_memories degrada
+        # para busca textual. Fail-closed continua valendo quando o endpoint
+        # existe mas os vetores faltam (RuntimeError dentro de build()).
+        print(
+            "HNSW skip: backend de embedding indisponível "
+            f"({type(probe_error).__name__}: {probe_error}). "
+            "Busca semântica degrada para texto; rode scripts/graph/build_hnsw.py "
+            "após configurar o Ollama/modelo de embedding.",
+            file=sys.stderr,
+        )
+        return 0
     conn = get_connection()
     try:
         count = build(conn)

@@ -1,5 +1,5 @@
 diff --git a/graphify/__main__.py b/graphify/__main__.py
-index 157a48a..597baab 100644
+index 157a48a61856..597baabc18be 100644
 --- a/graphify/__main__.py
 +++ b/graphify/__main__.py
 @@ -3387,7 +3387,7 @@ def main() -> None:
@@ -44,7 +44,7 @@ index 157a48a..597baab 100644
              (graphify_out / ".graphify_semantic_marker").write_text(
                  json.dumps({"output_tokens": merged["output_tokens"]}), encoding="utf-8"
 diff --git a/graphify/extract.py b/graphify/extract.py
-index a618e68..90a0a90 100644
+index a618e68abd7e..90a0a90ee876 100644
 --- a/graphify/extract.py
 +++ b/graphify/extract.py
 @@ -9668,6 +9668,9 @@ def extract_markdown(path: Path) -> dict:
@@ -59,10 +59,10 @@ index a618e68..90a0a90 100644
      # Dedup link edges by resolved target node so a hub doc that links to the
 diff --git a/graphify/sqlite_export.py b/graphify/sqlite_export.py
 new file mode 100644
-index 0000000..64ec977
+index 000000000000..3a092ada41a7
 --- /dev/null
 +++ b/graphify/sqlite_export.py
-@@ -0,0 +1,132 @@
+@@ -0,0 +1,142 @@
 +import sqlite3
 +import json
 +import os
@@ -176,7 +176,17 @@ index 0000000..64ec977
 +                    vec = _embedding_to_list(list(embedder.embed(embedding_text[:5000]))[0])
 +                    upsert_search_vec(conn, node_id, serialize_f32(vec))
 +            except Exception as e:
-+                print(f"[umc] Warning: embedding failed for {node_id}: {e}", file=sys.stderr)
++                # Circuit breaker do embedder (ex.: Ollama ausente): desliga a
++                # vetorização do resto do export em vez de pagar retry por nó.
++                if e.__class__.__name__ == "EmbedderOffline" or getattr(embedder, "offline", False):
++                    print(
++                        "[umc] Warning: embedding endpoint offline — "
++                        "pulando embeddings dos nós restantes (grafo estrutural segue completo).",
++                        file=sys.stderr,
++                    )
++                    embedder = None
++                else:
++                    print(f"[umc] Warning: embedding failed for {node_id}: {e}", file=sys.stderr)
 +
 +    # Sincronizar Sinapses (Edges)
 +    print(f"[umc] Sincronizando {G.number_of_edges()} sinapses...")
@@ -196,7 +206,7 @@ index 0000000..64ec977
 +    conn.close()
 +    print("[umc] Sincronização estrutural e vetorial concluída.")
 diff --git a/graphify/watch.py b/graphify/watch.py
-index 046857b..d10430a 100644
+index 046857b86acd..d10430a8a67d 100644
 --- a/graphify/watch.py
 +++ b/graphify/watch.py
 @@ -4,6 +4,7 @@ import contextlib
@@ -352,7 +362,7 @@ index 046857b..d10430a 100644
      except KeyboardInterrupt:
          print("\n[graphify watch] Stopped.")
 diff --git a/tests/test_watch.py b/tests/test_watch.py
-index f1b8451..86760f9 100644
+index f1b845125eca..86760f994ffc 100644
 --- a/tests/test_watch.py
 +++ b/tests/test_watch.py
 @@ -4,6 +4,7 @@ import os

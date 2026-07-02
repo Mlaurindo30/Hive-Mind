@@ -46,6 +46,11 @@ assert 'links' in g, 'No links key'
 
 # S0.3 — Claude-mem worker
 echo "[S0.3] Claude-mem Worker:"
+# Máquina sem IDE/agente: o installer não habilita os workers temporais
+# (plugin claude-mem ausente). Skip explícito, não falha de ambiente.
+if ! systemctl --user is-enabled sinapse-claude-mem.service &>/dev/null; then
+    echo "  ⊘ worker não habilitado (claude-mem plugin ausente — liga junto com o primeiro agente registrado)"
+else
 HEALTH=$(curl -s --max-time 3 http://127.0.0.1:37700/health 2>/dev/null || echo '{"status":"down"}')
 echo "$HEALTH" | "$PYTHON" -c "import json,sys; assert json.load(sys.stdin).get('status')=='ok'" 2>/dev/null && echo "  ✓ worker healthy" && ((++PASS)) || { echo "  ✗ worker offline or unhealthy"; ((++FAIL)); }
 GLOBAL_CMEM_DB="$HOME/.claude-mem/claude-mem.db"
@@ -57,6 +62,7 @@ if [ -n "$PIDS" ]; then
 else
     echo "  ✗ could not resolve worker PID on 37700"
     ((++FAIL))
+fi
 fi
 
 # S0.4 — NeuralMemory

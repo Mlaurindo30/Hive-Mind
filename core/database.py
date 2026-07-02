@@ -34,6 +34,14 @@ OLLAMA_BASE = os.environ.get("OLLAMA_BASE", "http://localhost:11434")
 OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "snowflake-arctic-embed2:latest")
 
 
+class EmbedderOffline(RuntimeError):
+    """Endpoint de embedding inalcançável (circuit breaker aberto).
+
+    Sem isto, uma máquina sem Ollama paga retry+backoff por item em loops de
+    milhares de neurônios (~2.5s cada) — install/watcher parecem travados.
+    """
+
+
 class OllamaEmbedder:
     """Wraps Ollama /api/embed (batch, L2-normalized) to match the fastembed embed() interface.
 
@@ -41,6 +49,8 @@ class OllamaEmbedder:
     Retry com backoff p/ 500 transitório; em batch, isola item-a-item se algo falhar.
     Se um texto falhar de forma persistente, levanta erro claro (visível) em vez de
     mascarar o problema com vetor zero ou troca silenciosa de modelo.
+    Conexão recusada/host inalcançável abre o circuit breaker: chamadas
+    seguintes levantam EmbedderOffline imediatamente, sem retry.
     """
 
     def __init__(self, base_url: str, model: str) -> None:
@@ -48,10 +58,25 @@ class OllamaEmbedder:
         self._url = base_url.rstrip("/") + "/api/embed"
         self._model = model
         self._ur = _ur
+        self._offline = False
+
+    @property
+    def offline(self) -> bool:
+        return self._offline
+
+    @staticmethod
+    def _is_unreachable(exc: Exception) -> bool:
+        """Conexão recusada/host inexistente — não vale a pena retry."""
+        reason = getattr(exc, "reason", exc)
+        if isinstance(reason, TimeoutError):
+            return False
+        return isinstance(reason, (ConnectionRefusedError, ConnectionResetError, OSError))
 
     def _post(self, inputs):
         """POST /api/embed com retry+backoff. Retorna list[list[float]] ou None."""
         import time
+        if self._offline:
+            return None
         payload = json.dumps({"model": self._model, "input": inputs}).encode()
         for attempt in range(3):  # tolera 500 transitório
             req = self._ur.Request(
@@ -64,8 +89,10 @@ class OllamaEmbedder:
                 embs = data.get("embeddings")
                 if embs:
                     return embs
-            except Exception:  # noqa — retry no backoff abaixo
-                pass
+            except Exception as exc:  # noqa — retry no backoff abaixo
+                if self._is_unreachable(exc):
+                    self._offline = True
+                    return None
             time.sleep(0.4 * (attempt + 1))  # backoff: 0.4s, 0.8s, 1.2s
         return None
 
@@ -85,12 +112,20 @@ class OllamaEmbedder:
         if embs and len(embs) == len(cleaned) and all(self._finite(v) for v in embs):
             yield from embs
             return
+        if self._offline:
+            raise EmbedderOffline(
+                f"endpoint de embedding inalcançável: {self._url} (circuit breaker aberto)"
+            )
 
         # Batch falhou: reprocessa item-a-item p/ isolar o problemático.
         for text in cleaned:
             one = self._post([text])
             if one and self._finite(one[0]):
                 yield one[0]
+            elif self._offline:
+                raise EmbedderOffline(
+                    f"endpoint de embedding inalcançável: {self._url} (circuit breaker aberto)"
+                )
             else:
                 raise ValueError(
                     f"Ollama embedding falhou/NaN (modelo {self._model}) para input: {text[:80]!r}"

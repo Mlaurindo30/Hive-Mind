@@ -42,6 +42,15 @@ def _ollama_running() -> bool:
 # Testes do backend ativo (fastembed ou ollama)
 # ---------------------------------------------------------------------------
 
+# Backend ollama sem daemon rodando (ex.: máquina recém-instalada sem Ollama):
+# os testes de embed_text exigem backend real — skip, não falha de ambiente.
+requires_embedding_backend = pytest.mark.skipif(
+    EMBED_BACKEND == "ollama" and not _ollama_running(),
+    reason="Ollama offline — embed_text exige backend de embedding real",
+)
+
+
+@requires_embedding_backend
 def test_embed_text_retorna_lista_de_floats():
     vec = embed_text("teste de embedding")
     assert isinstance(vec, list), "embed_text deve retornar list"
@@ -49,6 +58,7 @@ def test_embed_text_retorna_lista_de_floats():
     assert len(vec) > 0
 
 
+@requires_embedding_backend
 def test_embed_text_dimensao_coerente():
     """Dimensão deve ser consistente entre chamadas (mesmo backend)."""
     v1 = embed_text("primeiro texto")
@@ -56,6 +66,7 @@ def test_embed_text_dimensao_coerente():
     assert len(v1) == len(v2), f"dimensões inconsistentes: {len(v1)} vs {len(v2)}"
 
 
+@requires_embedding_backend
 def test_embed_text_determinismo():
     """Mesmo texto → mesmo vetor."""
     text = "memória semântica determinística"
@@ -64,6 +75,7 @@ def test_embed_text_determinismo():
     assert v1 == v2, "embed_text deve ser determinístico"
 
 
+@requires_embedding_backend
 def test_embed_text_textos_distintos_diferem():
     """Textos diferentes devem gerar vetores distintos."""
     v1 = embed_text("python asyncio event loop")
@@ -71,6 +83,7 @@ def test_embed_text_textos_distintos_diferem():
     assert v1 != v2, "textos semanticamente diferentes não podem ter vetores idênticos"
 
 
+@requires_embedding_backend
 def test_embed_text_texto_longo_truncado():
     """Texto maior que 5000 chars não deve falhar."""
     long_text = "a" * 10_000

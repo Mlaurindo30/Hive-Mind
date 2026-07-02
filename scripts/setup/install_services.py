@@ -735,6 +735,19 @@ def api_enabled() -> bool:
     return bool(os.environ.get("HIVE_MIND_API_KEY"))
 
 
+def claude_mem_plugin_available() -> bool:
+    """Espelha a resolução de plugin do scripts/services/claude-mem-local.sh."""
+    home = Path.home()
+    candidates = [home / ".claude" / "plugins" / "marketplaces" / "thedotmack" / "plugin"]
+    cache_root = home / ".claude" / "plugins" / "cache" / "thedotmack" / "claude-mem"
+    if cache_root.is_dir():
+        candidates.extend(sorted((v / "plugin" for v in cache_root.iterdir()), reverse=True))
+    for candidate in candidates:
+        if (candidate / "scripts" / "worker-service.cjs").is_file():
+            return True
+    return False
+
+
 def systemctl(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(
         ("systemctl", "--user", *args),
@@ -784,8 +797,6 @@ def install(start: bool, with_tests: bool = False) -> int:
     USER_UNITS.mkdir(parents=True, exist_ok=True)
     definitions = unit_definitions()
     enabled = [
-        "sinapse-claude-mem.service",
-        "sinapse-sqlite-vec.service",
         "sinapse-graphify-watch.service",
         "sinapse-capture-realtime.service",
         "hive-otel-collector.service",
@@ -815,6 +826,21 @@ def install(start: bool, with_tests: bool = False) -> int:
     if api_enabled():
         enabled.append("sinapse-api.service")
 
+    # Workers temporais dependem do plugin claude-mem (worker-service.cjs),
+    # instalado via `npx claude-mem install` quando existe uma IDE/agente.
+    # Numa máquina sem agente, habilitá-los gera crash-loop no boot — a
+    # memória temporal só liga junto com o primeiro agente registrado.
+    if claude_mem_plugin_available():
+        enabled.insert(0, "sinapse-claude-mem.service")
+        enabled.insert(1, "sinapse-sqlite-vec.service")
+    else:
+        print(
+            "[services] claude-mem plugin ausente (nenhuma IDE/agente instalado) — "
+            "sinapse-claude-mem e sinapse-sqlite-vec NAO habilitados. "
+            "Instale um agente (ex.: Claude Code), rode `npx claude-mem install` "
+            "e reexecute `install_services.py install`."
+        )
+
     for name, content in definitions.items():
         destination = USER_UNITS / name
         if not destination.exists() or destination.read_text() != content:
@@ -823,6 +849,18 @@ def install(start: bool, with_tests: bool = False) -> int:
 
     systemctl("daemon-reload")
     systemctl("enable", *enabled)
+    if not claude_mem_plugin_available():
+        # Idempotência: desliga workers temporais habilitados por runs antigos.
+        systemctl(
+            "disable", "--now",
+            "sinapse-claude-mem.service", "sinapse-sqlite-vec.service",
+            check=False,
+        )
+        systemctl(
+            "reset-failed",
+            "sinapse-claude-mem.service", "sinapse-sqlite-vec.service",
+            check=False,
+        )
     systemctl("disable", "sinapse-api.service", check=False) if not api_enabled() else None
     if start:
         systemctl("restart", *enabled)

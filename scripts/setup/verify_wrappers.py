@@ -46,9 +46,10 @@ def _service_images(compose: dict[str, Any]) -> dict[str, str]:
     return images
 
 
-def _docker_compose_config(path: Path) -> tuple[bool, str]:
+def _docker_compose_config(path: Path) -> tuple[bool | None, str]:
+    """Valida o compose via docker. Retorna (None, msg) quando docker nao existe."""
     if not shutil.which("docker"):
-        return False, "docker nao encontrado"
+        return None, "docker nao encontrado"
     proc = subprocess.run(
         ["docker", "compose", "-f", str(path), "config", "--quiet"],
         cwd=str(path.parent),
@@ -61,7 +62,7 @@ def _docker_compose_config(path: Path) -> tuple[bool, str]:
     return proc.returncode == 0, output
 
 
-def verify_wrapper(root: Path, name: str) -> dict[str, Any]:
+def verify_wrapper(root: Path, name: str, *, require_docker: bool = False) -> dict[str, Any]:
     compose_path = _compose_file(root, name)
     report: dict[str, Any] = {
         "name": name,
@@ -71,7 +72,9 @@ def verify_wrapper(root: Path, name: str) -> dict[str, Any]:
         "images": {},
         "image_has_digest": False,
         "compose_config_ok": False,
+        "compose_config_skipped": False,
         "errors": [],
+        "warnings": [],
     }
     try:
         if not compose_path.is_file():
@@ -90,9 +93,21 @@ def verify_wrapper(root: Path, name: str) -> dict[str, Any]:
             report["errors"].append("images sem digest sha256 pinado: " + ", ".join(unpinned))
 
         config_ok, config_output = _docker_compose_config(compose_path)
-        report["compose_config_ok"] = config_ok
-        if not config_ok:
+        if config_ok is None and not require_docker:
+            # Docker so e' pre-requisito no perfil local-full. Sem ele, a
+            # verificacao estatica (compose parseavel + imagens pinadas por
+            # digest) continua valendo; o `docker compose config` fica adiado
+            # para quando o wrapper for realmente usado.
+            report["compose_config_ok"] = True
+            report["compose_config_skipped"] = True
+            report["warnings"].append(
+                "docker ausente: `docker compose config` adiado (wrappers sao opcionais fora do local-full)"
+            )
+        elif not config_ok:
+            report["compose_config_ok"] = False
             report["errors"].append(config_output or "docker compose config falhou")
+        else:
+            report["compose_config_ok"] = True
     except Exception as exc:
         report["errors"].append(f"{type(exc).__name__}: {exc}")
 
@@ -100,18 +115,25 @@ def verify_wrapper(root: Path, name: str) -> dict[str, Any]:
     return report
 
 
-def verify_all_wrappers(root: Path = ROOT) -> list[dict[str, Any]]:
-    return [verify_wrapper(root, name) for name in WRAPPERS]
+def verify_all_wrappers(root: Path = ROOT, *, require_docker: bool = False) -> list[dict[str, Any]]:
+    return [verify_wrapper(root, name, require_docker=require_docker) for name in WRAPPERS]
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify Hive-Mind K1 wrapper compose files")
     parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument(
+        "--require-docker",
+        action="store_true",
+        help="Falha se docker estiver ausente (perfil local-full, onde os wrappers sobem de fato)",
+    )
     args = parser.parse_args()
-    reports = verify_all_wrappers(args.root)
+    reports = verify_all_wrappers(args.root, require_docker=args.require_docker)
     for report in reports:
         status = "OK" if report["ok"] else "FAIL"
         print(f"{status} {report['name']} image={report['image'] or '-'} compose={report['compose']}")
+        for warning in report.get("warnings", []):
+            print(f"  ~ {warning}")
         for error in report["errors"]:
             print(f"  - {error}")
     return 0 if all(report["ok"] for report in reports) else 1

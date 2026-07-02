@@ -128,7 +128,11 @@ def test_metrics_endpoint_authenticated():
     assert data["uptime_seconds"] >= 0
     assert data["database"]["quick_check"] == "ok"
     assert data["database"]["foreign_key_violations"] == 0
-    assert data["indexes"]["hnsw"] is True
+    # O endpoint reporta a existência do arquivo HNSW no disco. Numa máquina
+    # sem backend de embedding (ex.: install recém-feito sem Ollama) o índice
+    # legitimamente não existe — o contrato é consistência com o disco.
+    hnsw_on_disk = (Path(__file__).resolve().parents[2] / "hnsw_neurons.idx").is_file()
+    assert data["indexes"]["hnsw"] == hnsw_on_disk
 
 
 def test_knowledge_health_endpoint_authenticated():

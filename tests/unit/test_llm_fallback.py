@@ -329,6 +329,11 @@ class TestLLMFallbackClassification:
         monkeypatch.setenv("HIVE_DREAMER_MODEL", "gpt-4o")
         monkeypatch.setenv("HIVE_DREAMER_FALLBACK_PROVIDER", "ollama")
         monkeypatch.setenv("HIVE_DREAMER_FALLBACK_MODEL", "llama3.2")
+        # LLM_PROVIDER é resolvido no import a partir do .env da máquina; sem
+        # este pin, num host cujo primário já é "ollama" o provider rastreado
+        # colide com o fallback e o assert final vira falso-negativo.
+        monkeypatch.setattr(dream_module, "LLM_PROVIDER", "openai", raising=False)
+        monkeypatch.setattr(dream_module, "LLM_MODEL", "gpt-4o", raising=False)
 
         providers_called = []
 
