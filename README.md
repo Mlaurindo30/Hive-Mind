@@ -27,13 +27,13 @@ MCP, native plugin, CLI or REST API — on one machine or across many, synced ov
 
 ```bash
 # Interactive setup wizard
-npx hive-mind@latest init wizard
+npx hive-sinapse-mind@latest init wizard
 
 # Non-interactive
-npx hive-mind@latest init
+npx hive-sinapse-mind@latest init
 
 # Or install the CLI globally
-npm install -g hive-mind
+npm install -g hive-sinapse-mind
 hive-mind init
 ```
 

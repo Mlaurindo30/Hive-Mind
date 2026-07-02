@@ -11,13 +11,13 @@ REST API, Dream Cycle).
 
 ```bash
 # Assistente interativo
-npx hive-mind@latest init wizard
+npx hive-sinapse-mind@latest init wizard
 
 # Não-interativo
-npx hive-mind@latest init
+npx hive-sinapse-mind@latest init
 
 # Ou global
-npm install -g hive-mind
+npm install -g hive-sinapse-mind
 hive-mind init
 ```
 

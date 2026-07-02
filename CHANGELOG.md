@@ -2,6 +2,16 @@
 
 ## v3.7.12 — Zero-to-green em máquina virgem + harness de instalação limpa
 
+> **Publicação npm:** pacote `hive-sinapse-mind@3.7.12` publicado em
+> 2026-07-02 (registry `npmjs.com`, owner `mlaurindo`, 8 arquivos, 7.6 kB).
+> O nome `hive-mind` foi rejeitado por colisão de similaridade com
+> `hivemind@0.1.2`; o nome `hive-sinapse-mind` amarra a marca ao produto
+> interno (Sinapse Memory) e preserva o binário `hive-mind` no PATH.
+> Instalação via `npm i -g hive-sinapse-mind` ou
+> `npx hive-sinapse-mind@latest init`.
+
+Release date: 2026-07-02
+
 Release date: 2026-07-02
 
 Instalação limpa comprovada de ponta a ponta: container virgem (Ubuntu 24.04 +

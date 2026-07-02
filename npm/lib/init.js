@@ -33,12 +33,12 @@ function init(options) {
     console.log('Windows nativo ainda usa o runtime via WSL2 (recomendado).');
     if (wslAvailableFromWindows()) {
       console.log('\nWSL detectado. Rode dentro do WSL:');
-      console.log('  npx hive-mind@latest init');
+      console.log('  npx hive-sinapse-mind@latest init');
       console.log('\nModo nativo (beta): após um install em WSL ou manual, o supervisor');
       console.log('gerencia os serviços com `hive-mind services start` (ver README).');
     } else {
       console.log('\nInstale o WSL2 primeiro:  wsl --install');
-      console.log('Depois, dentro do WSL:    npx hive-mind@latest init');
+      console.log('Depois, dentro do WSL:    npx hive-sinapse-mind@latest init');
     }
     return 1;
   }

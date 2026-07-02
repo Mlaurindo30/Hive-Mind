@@ -1,5 +1,5 @@
 {
-  "name": "hive-mind",
+  "name": "hive-sinapse-mind",
   "version": "3.7.12",
   "description": "Universal, persistent, local-first memory layer for swarms of AI agents — installer & runtime CLI",
   "bin": {
