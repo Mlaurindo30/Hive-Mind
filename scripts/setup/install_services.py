@@ -25,7 +25,7 @@ def unit_definitions() -> dict[str, str]:
     claude_mem_data = str(Path.home() / ".claude-mem")
     claude_mem_db = str(Path.home() / ".claude-mem" / "claude-mem.db")
     claude_mem_models = str(Path.home() / ".claude-mem" / "models")
-    common_unit = "StartLimitIntervalSec=60\nStartLimitBurst=3"
+    common_unit = "StartLimitIntervalSec=300\nStartLimitBurst=5"
     return {
         "sinapse-claude-mem.service": f"""[Unit]
 Description=Sinapse Agent - claude-mem Worker (global multi-project data)
@@ -45,7 +45,7 @@ Environment=FASTEMBED_CACHE_PATH={claude_mem_models}
 Environment=PATH={path}/.tools/bin:{path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart={path}/scripts/services/claude-mem-local.sh
 Restart=on-failure
-RestartSec=2
+RestartSec=15
 
 [Install]
 WantedBy=default.target
@@ -65,7 +65,7 @@ Environment=FASTEMBED_CACHE_PATH={claude_mem_models}
 Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart={path}/.venv/bin/python {path}/plugins/sqlite-vec-worker/worker.py
 Restart=on-failure
-RestartSec=5
+RestartSec=15
 
 [Install]
 WantedBy=default.target
@@ -85,7 +85,7 @@ Environment=PYTHONUNBUFFERED=1
 Environment=GRAPHIFY_WATCH_DEBOUNCE=30.0
 ExecStart={path}/scripts/services/start-watcher.sh
 Restart=on-failure
-RestartSec=10
+RestartSec=15
 
 [Install]
 WantedBy=default.target
@@ -105,7 +105,7 @@ Environment=HIVE_MIND_API_PORT=37702
 Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart={path}/.venv/bin/python {path}/scripts/services/sinapse-api.py
 Restart=on-failure
-RestartSec=5
+RestartSec=15
 
 [Install]
 WantedBy=default.target
@@ -127,7 +127,26 @@ Environment=SINAPSE_MCP_HTTP_PORT=37703
 Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart={path}/.venv/bin/python {path}/scripts/services/sinapse-mcp-http.py
 Restart=on-failure
-RestartSec=5
+RestartSec=15
+
+[Install]
+WantedBy=default.target
+""",
+        "hive-otel-collector.service": f"""[Unit]
+Description=Hive-Mind local OTLP collector
+After=network.target
+{common_unit}
+
+[Service]
+Type=simple
+UMask=0077
+WorkingDirectory={path}
+Environment=HIVE_OTEL_PORT=3100
+Environment=HIVE_OTEL_LOG={path}/logs/otel-spans.log
+Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart={path}/.venv/bin/python {path}/scripts/services/otel_collector.py --host 127.0.0.1
+Restart=on-failure
+RestartSec=15
 
 [Install]
 WantedBy=default.target
@@ -161,7 +180,7 @@ Environment=VEC_WORKER_URL=http://127.0.0.1:37701
 Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart={path}/.venv/bin/python {path}/scripts/capture/capture-realtime.py
 Restart=always
-RestartSec=3
+RestartSec=15
 
 [Install]
 WantedBy=default.target
@@ -769,6 +788,7 @@ def install(start: bool, with_tests: bool = False) -> int:
         "sinapse-sqlite-vec.service",
         "sinapse-graphify-watch.service",
         "sinapse-capture-realtime.service",
+        "hive-otel-collector.service",
         "sinapse-capture-tailer.timer",
         "sinapse-maintenance.timer",
         # Memória Viva (doc 08): cadências seguras. daily=markdown; weekly=resumo;

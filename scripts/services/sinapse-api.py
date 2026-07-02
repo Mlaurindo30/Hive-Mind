@@ -6,12 +6,14 @@ Implementa Criptografia Automática de Segredos (Vault) e Rate Limiting.
 """
 
 import json
+import ipaddress
 import os
 import re
 import secrets
 import sys
 import time
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
@@ -33,9 +35,11 @@ from pydantic import BaseModel
 from core.workspace import (
     current_workspace_id,
     default_workspace_from_env,
+    is_valid_workspace_id,
     set_workspace,
     reset_workspace,
 )
+from core.telemetry import flush_telemetry, init_telemetry, span
 
 # Criptografia e Segurança
 from cryptography.fernet import Fernet
@@ -118,11 +122,65 @@ def encrypt_and_vault(text: str) -> str:
 # Inicialização do Rate Limiter
 limiter = Limiter(key_func=get_remote_address)
 
+
+@asynccontextmanager
+async def api_lifespan(_app: FastAPI):
+    init_telemetry()
+    yield
+
+
 app = FastAPI(
     title="Hive-Mind Vault API",
     description="Interface com Criptografia de Segredos para o Cérebro de IA",
     version="1.4.0",
+    lifespan=api_lifespan,
 )
+
+
+def _is_truthy(value: Optional[str]) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _multi_tenant_enabled() -> bool:
+    """Feature flag K10 runtime.
+
+    Default = disabled (single-tenant obrigatório).
+    Quando ligado, o middleware permite workspace por header `X-Workspace-Id`.
+    """
+    return _is_truthy(os.environ.get("HIVE_MULTI_TENANT_ENABLED", "0"))
+
+
+def _workspace_from_request(request: "Request") -> str:
+    """Resolve o workspace efetivo sem ler body nem dados sensíveis."""
+    workspace_to_use = default_workspace_from_env()
+    if _multi_tenant_enabled():
+        header_ws = request.headers.get("X-Workspace-Id", "").strip()
+        if header_ws and is_valid_workspace_id(header_ws):
+            workspace_to_use = header_ws
+
+    # '__all__' é reservado para diagnósticos internos/admin e
+    # nunca deve ser aceito em requests HTTP comuns.
+    if workspace_to_use == "__all__":
+        workspace_to_use = "default"
+    return workspace_to_use if is_valid_workspace_id(workspace_to_use) else "default"
+
+
+def _api_bind_host() -> str:
+    return os.environ.get("HIVE_MIND_API_HOST", "127.0.0.1").strip() or "127.0.0.1"
+
+
+def _is_loopback_bind_host(host: str) -> bool:
+    clean_host = (host or "127.0.0.1").strip().strip("[]").lower()
+    if clean_host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(clean_host).is_loopback
+    except ValueError:
+        return False
+
+
+def _workspaces_requires_auth() -> bool:
+    return not _is_loopback_bind_host(_api_bind_host())
 
 
 # K10 multi-workspace (v3.7.9+): middleware que propaga X-Workspace-Id
@@ -130,22 +188,54 @@ app = FastAPI(
 # Tokens sao restaurados em finally, evitando vazar workspace entre requests.
 @app.middleware("http")
 async def workspace_middleware(request: "Request", call_next):
-    header_ws = request.headers.get("X-Workspace-Id", "").strip()
-    if not header_ws:
-        header_ws = default_workspace_from_env()
+    workspace_to_use = _workspace_from_request(request)
     token = None
     try:
-        # default sempre passa (e' reservado); outros workspace_ids sao
-        # validados pelo helper. Em caso de ValueError, cai para default
-        # e segue — o endpoint especifico pode endurecer a politica.
-        from core.workspace import is_valid_workspace_id
-        if is_valid_workspace_id(header_ws):
-            token = set_workspace(header_ws)
+        token = set_workspace(workspace_to_use)
         response = await call_next(request)
         return response
     finally:
         if token is not None:
             reset_workspace(token)
+
+
+@app.middleware("http")
+async def telemetry_middleware(request: "Request", call_next):
+    """Emit REST spans without logging auth headers, body or observation content."""
+    response = None
+    exc: Exception | None = None
+    status_code = 500
+    trace_id = uuid.uuid4().hex
+    workspace_id = _workspace_from_request(request)
+
+    with span(
+        f"api.{request.url.path}",
+        {
+            "method": request.method,
+            "path": request.url.path,
+            "workspace_id": workspace_id,
+        },
+    ) as s:
+        if s is not None:
+            trace_id = format(s.get_span_context().trace_id, "032x")
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+        except Exception as e:
+            exc = e
+        finally:
+            if s is not None:
+                s.set_attribute("status_code", status_code)
+
+    if response is not None:
+        response.headers["X-Trace-Id"] = trace_id
+        flush_telemetry()
+        return response
+
+    flush_telemetry()
+    if exc is not None:
+        raise exc
+    raise HTTPException(status_code=500, detail="Falha inesperada no middleware da API.")
 
 PROCESS_STARTED_AT = time.monotonic()
 
@@ -162,9 +252,6 @@ _cors_origins = [
 ]
 
 
-def is_valid_workspace_id(workspace_id: str) -> bool:
-    """Wrapper publico para validacao. Retorna True se o nome e' valido."""
-    return _is_valid_workspace(workspace_id)
 # Regra do CORS: wildcard "*" é incompatível com allow_credentials=True
 _cors_allow_credentials = "*" not in _cors_origins
 
@@ -204,6 +291,33 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)
     return token
 
 
+def _workspaces_dependencies():
+    return [Depends(verify_api_key)] if _workspaces_requires_auth() else []
+
+
+def _build_sinapse_query_fn():
+    """Lazy bridge to the federated sinapse_query implementation.
+
+    The API process must not import the full context-fusion stack at startup.
+    Build a per-request memoized callable instead, matching the MCP/CLI pattern
+    while keeping the router fail-open when the legacy adapter is unavailable.
+    """
+    try:
+        from plugins.hermes import sinapse_memory as _sinapse_memory_adapter  # noqa: F401
+        import sinapse_memory as sm
+    except Exception:
+        return lambda _query: None
+
+    legacy_holder = {"result": None}
+
+    def _legacy_query(query: str):
+        if legacy_holder["result"] is None:
+            legacy_holder["result"] = sm._query_vault_knowledge(query)
+        return legacy_holder["result"]
+
+    return _legacy_query
+
+
 # ---------------------------------------------------------------------------
 # Sync CRDT (P8) — reusa a lógica do módulo importável scripts.services.sinapse_sync.
 # Mantém uma única fonte de verdade para export/import de crsql_changes;
@@ -235,7 +349,7 @@ def get_health(request: Request):
 # Util para operators ver quantos neurons/observations cada tenant tem
 # sem precisar SQL direto. Aberto (sem auth) porque retorna apenas
 # contagens — sem conteudo.
-@app.get("/api/v1/workspaces")
+@app.get("/api/v1/workspaces", dependencies=_workspaces_dependencies())
 @limiter.limit("30/minute")
 def get_workspaces(request: Request):
     conn = get_connection()
@@ -402,7 +516,14 @@ def post_query(request: Request, body: Any = Body(...)):
         data = body.dict() if hasattr(body, "dict") else dict(body)
         from core.retrieval.router import route_query
 
-        routed = route_query(data.get("query", ""), top_k=int(data.get("limit", 5)))
+        routed = route_query(
+            data.get("query", ""),
+            top_k=int(data.get("limit", 5)),
+            intent=data.get("intent"),
+            project=data.get("project"),
+            workspace_id=current_workspace_id(),
+            sinapse_query_fn=_build_sinapse_query_fn(),
+        )
         return {
             "results": routed.get("answer_context", []),
             "retrieval_path": routed.get("retrieval_path", []),
