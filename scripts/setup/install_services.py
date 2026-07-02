@@ -13,6 +13,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -909,6 +910,200 @@ def arm_post_reboot() -> int:
     return 0
 
 
+# =============================================================================
+# Multiplataforma (F2/F3): fonte única de specs → launchd (macOS) e manifesto
+# JSON (supervisor Node no Windows). O gerador systemd (unit_definitions)
+# permanece a referência no Linux; tests/unit/test_service_backends.py trava a
+# consistência specs ↔ units.
+# =============================================================================
+
+def service_specs() -> list[dict]:
+    """Serviços daemon do runtime em formato neutro de plataforma."""
+    path = str(ROOT)
+    claude_mem_data = str(Path.home() / ".claude-mem")
+    claude_mem_db = str(Path.home() / ".claude-mem" / "claude-mem.db")
+    claude_mem_models = str(Path.home() / ".claude-mem" / "models")
+    venv_bin = f"{path}/.venv/bin"
+    py = f"{venv_bin}/python"
+    return [
+        {
+            "name": "sinapse-claude-mem",
+            "description": "Sinapse Agent - claude-mem Worker (global multi-project data)",
+            "command": [f"{path}/scripts/services/claude-mem-local.sh"],
+            "env": {
+                "CLAUDE_MEM_DATA_DIR": claude_mem_data,
+                "CLAUDE_MEM_WORKER_HOST": "127.0.0.1",
+                "CLAUDE_MEM_WORKER_PORT": "37700",
+                "CLAUDE_MEM_CHROMA_ENABLED": "false",
+                "CLAUDE_MEM_MANAGED": "true",
+                "FASTEMBED_CACHE_PATH": claude_mem_models,
+                "PATH": f"{path}/.tools/bin:{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+            },
+            "restart": "on-failure",
+            "restart_sec": 15,
+            "requires_claude_mem_plugin": True,
+        },
+        {
+            "name": "sinapse-sqlite-vec",
+            "description": "SQLite-Vec semantic search worker for Hive-Mind",
+            "command": [py, f"{path}/plugins/sqlite-vec-worker/worker.py"],
+            "env": {
+                "VEC_WORKER_PORT": "37701",
+                "CLAUDE_MEM_DB": claude_mem_db,
+                "FASTEMBED_CACHE_PATH": claude_mem_models,
+                "PATH": f"{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+            },
+            "restart": "on-failure",
+            "restart_sec": 15,
+            "requires_claude_mem_plugin": True,
+        },
+        {
+            "name": "sinapse-graphify-watch",
+            "description": "Hive-Mind Graphify vault watcher",
+            "command": [f"{path}/scripts/services/start-watcher.sh"],
+            "env": {
+                "SINAPSE_HOME": path,
+                "PATH": f"{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+                "PYTHONUNBUFFERED": "1",
+                "GRAPHIFY_WATCH_DEBOUNCE": "30.0",
+            },
+            "restart": "on-failure",
+            "restart_sec": 15,
+        },
+        {
+            "name": "sinapse-api",
+            "description": "Hive-Mind authenticated REST API",
+            "command": [py, f"{path}/scripts/services/sinapse-api.py"],
+            "env_file": f"{path}/.env",
+            "env": {
+                "HIVE_MIND_API_HOST": "127.0.0.1",
+                "HIVE_MIND_API_PORT": "37702",
+                "PATH": f"{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+            },
+            "restart": "on-failure",
+            "restart_sec": 15,
+        },
+        {
+            "name": "sinapse-mcp-http",
+            "description": "Hive-Mind MCP Streamable HTTP Server (spec 2025-03-26)",
+            "command": [py, f"{path}/scripts/services/sinapse-mcp-http.py"],
+            "env_file": f"{path}/.env",
+            "env": {
+                "SINAPSE_MCP_HTTP_HOST": "127.0.0.1",
+                "SINAPSE_MCP_HTTP_PORT": "37703",
+                "PATH": f"{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+            },
+            "restart": "on-failure",
+            "restart_sec": 15,
+            "optional": True,
+        },
+        {
+            "name": "hive-otel-collector",
+            "description": "Hive-Mind local OTLP collector",
+            "command": [py, f"{path}/scripts/services/otel_collector.py", "--host", "127.0.0.1"],
+            "env": {
+                "HIVE_OTEL_PORT": "3100",
+                "HIVE_OTEL_LOG": f"{path}/logs/otel-spans.log",
+                "PATH": f"{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+            },
+            "restart": "on-failure",
+            "restart_sec": 15,
+        },
+        {
+            "name": "sinapse-capture-realtime",
+            "description": "Hive-Mind capture realtime (inotify -> claude-mem, tempo real p/ copilot)",
+            "command": [py, f"{path}/scripts/capture/capture-realtime.py"],
+            "env_file": f"{path}/.env",
+            "env": {
+                "CLAUDE_MEM_DATA_DIR": claude_mem_data,
+                "VEC_WORKER_URL": "http://127.0.0.1:37701",
+                "PATH": f"{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+            },
+            "restart": "always",
+            "restart_sec": 15,
+        },
+    ]
+
+
+LAUNCHD_LABEL_PREFIX = "com.hivemind."
+LAUNCH_AGENTS = Path.home() / "Library" / "LaunchAgents"
+
+
+def _launchd_program(spec: dict) -> list[str]:
+    """launchd não tem EnvironmentFile: quando o serviço lê .env, embrulha em
+    sh para carregar o arquivo em runtime (valores nunca ficam congelados no
+    plist)."""
+    env_file = spec.get("env_file")
+    if not env_file:
+        return list(spec["command"])
+    quoted = " ".join(f"'{part}'" for part in spec["command"])
+    return ["/bin/sh", "-c", f"set -a; [ -f '{env_file}' ] && . '{env_file}'; set +a; exec {quoted}"]
+
+
+def launchd_definitions() -> dict[str, bytes]:
+    """Gera plists launchd (macOS) a partir de service_specs()."""
+    import plistlib
+
+    log_dir = ROOT / "logs" / "launchd"
+    plists: dict[str, bytes] = {}
+    for spec in service_specs():
+        label = LAUNCHD_LABEL_PREFIX + spec["name"]
+        payload: dict = {
+            "Label": label,
+            "ProgramArguments": _launchd_program(spec),
+            "WorkingDirectory": str(ROOT),
+            "EnvironmentVariables": dict(spec.get("env", {})),
+            "RunAtLoad": True,
+            # on-failure → reinicia só em saída com erro; always → sempre.
+            "KeepAlive": True if spec.get("restart") == "always" else {"SuccessfulExit": False},
+            "ThrottleInterval": int(spec.get("restart_sec", 15)),
+            "StandardOutPath": str(log_dir / f"{spec['name']}.log"),
+            "StandardErrorPath": str(log_dir / f"{spec['name']}.err.log"),
+            "Umask": 0o077,
+        }
+        plists[f"{label}.plist"] = plistlib.dumps(payload)
+    return plists
+
+
+def launchd_install(start: bool = True) -> int:
+    if sys.platform != "darwin":
+        print("[services] launchd backend requer macOS", file=sys.stderr)
+        return 1
+    (ROOT / "logs" / "launchd").mkdir(parents=True, exist_ok=True)
+    LAUNCH_AGENTS.mkdir(parents=True, exist_ok=True)
+    plugin_ok = claude_mem_plugin_available()
+    installed = []
+    for filename, content in launchd_definitions().items():
+        spec_name = filename[len(LAUNCHD_LABEL_PREFIX):-len(".plist")]
+        spec = next(s for s in service_specs() if s["name"] == spec_name)
+        if spec.get("requires_claude_mem_plugin") and not plugin_ok:
+            print(f"[services] {spec_name}: claude-mem plugin ausente — não habilitado")
+            continue
+        if spec.get("optional"):
+            continue
+        destination = LAUNCH_AGENTS / filename
+        destination.write_bytes(content)
+        destination.chmod(0o600)
+        if start:
+            subprocess.run(["launchctl", "unload", str(destination)], check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["launchctl", "load", str(destination)], check=False)
+        installed.append(filename)
+    print(f"[services] launchd instalado: {', '.join(installed)}")
+    return 0
+
+
+def manifest() -> dict:
+    """Manifesto JSON dos serviços para o supervisor Node (Windows/fallback)."""
+    return {
+        "manifest_version": 1,
+        "root": str(ROOT),
+        "log_dir": str(ROOT / "logs" / "supervisor"),
+        "claude_mem_plugin_available": claude_mem_plugin_available(),
+        "services": service_specs(),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
@@ -918,11 +1113,19 @@ def main() -> int:
                              help="run validate_capture_sources after install")
     sub.add_parser("check")
     sub.add_parser("arm-post-reboot")
+    sub.add_parser("manifest", help="imprime o manifesto JSON dos serviços (supervisor Node)")
+    launchd_cmd = sub.add_parser("launchd", help="instala LaunchAgents (macOS)")
+    launchd_cmd.add_argument("--no-start", action="store_true")
     args = parser.parse_args()
     if args.command == "install":
         return install(start=not args.no_start, with_tests=args.with_tests)
     if args.command == "arm-post-reboot":
         return arm_post_reboot()
+    if args.command == "manifest":
+        print(json.dumps(manifest(), indent=2, ensure_ascii=False))
+        return 0
+    if args.command == "launchd":
+        return launchd_install(start=not args.no_start)
     return check()
 
 
