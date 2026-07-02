@@ -277,7 +277,9 @@ cp .env.example .env
 | `VECTOR_BACKEND` | Vector store | `sqlite_vec` by default, `milvus` when enabled (K2 `VectorBackend` contract) |
 | `RAGFLOW_BASE` | Optional document ingestion (K6) | `http://localhost:9380`, headless adapter — never the source of truth |
 | `HIVE_MIND_API_KEY` | For REST API | Bearer token — API will not start without it (fail-closed) |
+| `HIVE_MIND_API_HOST` | No (default `127.0.0.1`) | REST API bind host. Public binds make `/api/v1/workspaces` require Bearer auth. |
 | `HIVE_MIND_API_PORT` | No (default 37702) | REST API port |
+| `HIVE_MIND_CORS_ORIGINS` | No | Comma-separated CORS allowlist. Default `http://localhost:37700,http://localhost:8000`. |
 | `HIVE_MIND_MASTER_KEY` | For secret vault | Field-level encryption key |
 | `<PROVIDER>_API_KEY` | Per provider | `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`, `NVIDIA_API_KEY`, ... |
 
@@ -305,14 +307,20 @@ export HIVE_MIND_API_KEY="<token>"
 python3 scripts/services/sinapse-api.py    # port 37702
 ```
 
-| Endpoint | Method | Rate | Description |
-|----------|--------|------|-------------|
-| `/api/v1/health` | GET | 60/min | Health check (no auth) |
-| `/api/v1/observations` | POST | 20/min | Register a remote observation |
-| `/api/v1/query` | POST | 30/min | Remote hybrid search |
-| `/api/v1/semantic/related` | GET | — | Semantic neighbors of a file |
-| `/api/v1/vault/{secret_id}` | GET | 10/min | Retrieve an encrypted secret |
-| `/api/v1/neurons/export` | POST | 20/min | Export neurons by visibility, with Ed25519 signature and PII redaction |
+| Endpoint | Method | Auth | Rate | Description |
+|----------|--------|------|------|-------------|
+| `/api/v1/health` | GET | No | 60/min | Health check |
+| `/api/v1/workspaces` | GET | Conditional | 30/min | Workspace counts. Open on loopback; Bearer required on public bind. |
+| `/api/v1/metrics` | GET | Bearer | 30/min | Operational metrics without memory contents |
+| `/api/v1/knowledge/health` | GET | Bearer | 30/min | K8 coverage metrics, optional orphan-vector pruning |
+| `/api/v1/observations` | POST | Bearer | 20/min | Register a remote observation |
+| `/api/v1/query` | POST | Bearer | 30/min | Remote hybrid search through RetrievalRouter + Context Fusion |
+| `/api/v1/semantic/related` | GET | Bearer | — | Semantic neighbors of a file |
+| `/api/v1/neurons/export` | POST | Bearer | 10/min | Export neurons by visibility, with Ed25519 signature and PII redaction |
+| `/api/v1/neurons/import` | POST | Bearer | 10/min | Import signed neurons from a trusted peer |
+| `/api/v1/sync/export` | GET | Bearer | 30/min | Export CRDT changes for P2P pull |
+| `/api/v1/sync/import` | POST | Bearer | 30/min | Import CRDT changes for P2P push |
+| `/api/v1/vault/{secret_id}` | GET | Bearer | 10/min | Retrieve an encrypted secret |
 
 ---
 

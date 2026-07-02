@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased — Correções da auditoria E2E REST API
+
+### Fixed
+
+- **REST `/api/v1/query` híbrido**: a API agora injeta `sinapse_query_fn`
+  no `RetrievalRouter` usando a ponte lazy para `sinapse_memory._query_vault_knowledge`,
+  preservando fallback sem 500 quando a fusão estiver indisponível.
+- **K10 workspace na busca REST**: `POST /api/v1/query` passa
+  `workspace_id=current_workspace_id()` ao router, mantendo isolamento
+  multi-tenant quando `HIVE_MULTI_TENANT_ENABLED=true`.
+- **Systemd crash-loop tolerance**: templates do instalador usam
+  `StartLimitIntervalSec=300`, `StartLimitBurst=5` e `RestartSec=15`
+  nos serviços críticos para evitar desistência permanente após rajadas curtas.
+
+### Added
+
+- **REST OTEL spans**: middleware HTTP emite spans `api.<path>` com
+  `method`, `path`, `status_code` e `workspace_id`, e retorna `X-Trace-Id`
+  sem registrar token, body ou conteúdo de observações.
+- **`hive-otel-collector.service` no instalador**: o collector local OTLP
+  passa a ter unit canônica e restart policy igual aos serviços críticos.
+
+### Security
+
+- **`GET /api/v1/workspaces` condicional**: permanece aberto em loopback
+  para operação local, mas exige Bearer auth quando `HIVE_MIND_API_HOST`
+  aponta para bind não-loopback.
+
 ## v3.7.9 — K10 Multi-Workspace Runtime + OTEL Tracing Ativo
 
 Release date: 2026-07-01
