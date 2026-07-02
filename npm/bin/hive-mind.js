@@ -5,26 +5,26 @@ const { spawnSync } = require('child_process');
 const pkg = require('../package.json');
 const { homeDir, which } = require('../lib/platform');
 
-const HELP = `hive-mind v${pkg.version} — memória local-first para agentes de IA
+const HELP = `hive-mind v${pkg.version} — local-first memory for AI agents
 
-Uso: hive-mind <comando> [opções]
+Usage: hive-mind <command> [options]
 
-Comandos:
+Commands:
   init [--profile=local-min|local-full] [--with-tests]
-                     Clona e instala o Hive-Mind (Linux/WSL/macOS)
-  init wizard        Assistente interativo de instalação
-  doctor             Health check do runtime (API, serviços)
+                     Clone and install Hive-Mind (Linux/WSL/macOS)
+  init wizard        Interactive installation wizard
+  doctor             Health check of the runtime (API, services)
   services start|stop|status|restart
-                     Gerencia os serviços (systemd/launchd/supervisor)
+                     Manage services (systemd/launchd/supervisor)
   mcp register --agent <claude|codex|gemini|cursor|...>
-                     Registra o MCP sinapse-memory no agente
-  update             Atualiza o checkout (git pull) e reinstala serviços
-  version            Mostra a versão
-  help               Esta ajuda
+                     Register the sinapse-memory MCP server in the agent
+  update             Update the checkout (git pull) and reinstall services
+  version            Show the version
+  help               This help
 
-Diretório de instalação: $HIVE_MIND_HOME (default ~/Hive-Mind)
-Backend de serviços:     systemd (Linux/WSL) · launchd (macOS) ·
-                         supervisor Node (Windows / HIVE_MIND_SUPERVISOR=1)
+Installation directory: $HIVE_MIND_HOME (default ~/Hive-Mind)
+Service backend:        systemd (Linux/WSL) · launchd (macOS) ·
+                        Node supervisor (Windows / HIVE_MIND_SUPERVISOR=1)
 `;
 
 function parseFlags(argv) {
@@ -40,7 +40,7 @@ function parseFlags(argv) {
 
 function doctor() {
   const root = homeDir();
-  console.log(`Hive-Mind em: ${root}`);
+  console.log(`Hive-Mind at: ${root}`);
   const health = spawnSync('curl', ['-s', '--max-time', '3', 'http://127.0.0.1:37702/api/v1/health'], { encoding: 'utf8' });
   console.log(`API :37702 → ${health.stdout || 'offline'}`);
   const { dispatch } = require('../lib/services');
@@ -50,7 +50,7 @@ function doctor() {
 function mcpRegister(flags) {
   const agent = flags.agent;
   if (!agent) {
-    console.error('uso: hive-mind mcp register --agent <claude|codex|gemini|cursor|...>');
+    console.error('usage: hive-mind mcp register --agent <claude|codex|gemini|cursor|...>');
     return 1;
   }
   return spawnSync('bash', ['./scripts/setup/register-mcp.sh', '--only', String(agent)], {
@@ -93,7 +93,7 @@ async function main() {
     case 'services': {
       const action = rest[0];
       if (!['start', 'stop', 'status', 'restart'].includes(action)) {
-        console.error('uso: hive-mind services start|stop|status|restart');
+        console.error('usage: hive-mind services start|stop|status|restart');
         return 1;
       }
       const { dispatch } = require('../lib/services');
@@ -101,7 +101,7 @@ async function main() {
     }
     case 'mcp':
       if (rest[0] === 'register') return mcpRegister(flags);
-      console.error('uso: hive-mind mcp register --agent <nome>');
+      console.error('usage: hive-mind mcp register --agent <name>');
       return 1;
     case 'update':
       return update();
@@ -117,7 +117,7 @@ async function main() {
       console.log(HELP);
       return 0;
     default:
-      console.error(`comando desconhecido: ${cmd}\n`);
+      console.error(`unknown command: ${cmd}\n`);
       console.log(HELP);
       return 1;
   }

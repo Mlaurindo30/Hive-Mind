@@ -1,8 +1,8 @@
 'use strict';
-// F3 — Supervisor multiplataforma: gerencia os serviços do manifesto
-// (install_services.py manifest) como processos filhos com auto-restart.
-// É o backend de serviços onde não há systemd/launchd (Windows nativo) e
-// pode ser forçado em qualquer OS com HIVE_MIND_SUPERVISOR=1.
+// F3 — Cross-platform supervisor: manages services from the manifest
+// (install_services.py manifest) as child processes with auto-restart.
+// It is the service backend where systemd/launchd is unavailable (Windows native)
+// and can be forced on any OS with HIVE_MIND_SUPERVISOR=1.
 const fs = require('fs');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
@@ -41,14 +41,14 @@ function loadManifest() {
   if (fs.existsSync(p.manifest)) {
     return JSON.parse(fs.readFileSync(p.manifest, 'utf8'));
   }
-  throw new Error(`não consegui obter o manifesto de serviços (${py} existe?)`);
+  throw new Error(`could not obtain the service manifest (does ${py} exist?)`);
 }
 
 function runnableServices(manifest) {
   return manifest.services.filter((s) => {
     if (s.optional) return false;
     if (s.requires_claude_mem_plugin && !manifest.claude_mem_plugin_available) return false;
-    // Scripts .sh não rodam em Windows nativo — pulados com aviso.
+    // .sh scripts do not run on Windows native — skipped with a warning.
     if (process.platform === 'win32' && s.command[0].endsWith('.sh')) return false;
     return true;
   });
@@ -78,7 +78,7 @@ function loadDotEnv(file) {
       const m = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/.exec(line.trim());
       if (m) env[m[1]] = m[2].replace(/^['"]|['"]$/g, '');
     }
-  } catch { /* .env opcional */ }
+  } catch { /* .env is optional */ }
   return env;
 }
 
@@ -97,7 +97,7 @@ function spawnService(svc, manifest, p) {
   return child;
 }
 
-// Daemon: fica em foreground supervisionando; respawna com restart_sec.
+// Daemon: runs in the foreground supervising; respawns with restart_sec.
 function daemon() {
   const p = paths();
   const manifest = loadManifest();
@@ -116,40 +116,40 @@ function daemon() {
     log(`start ${svc.name} pid=${child.pid}`);
     child.on('exit', (code) => {
       children.delete(svc.name);
-      try { fs.unlinkSync(p.pidFile(svc.name)); } catch { /* já removido */ }
+      try { fs.unlinkSync(p.pidFile(svc.name)); } catch { /* already removed */ }
       if (stopping) return;
       if (svc.restart === 'always' || (svc.restart === 'on-failure' && code !== 0)) {
-        log(`exit ${svc.name} code=${code} — restart em ${svc.restart_sec}s`);
+        log(`exit ${svc.name} code=${code} — restart in ${svc.restart_sec}s`);
         setTimeout(() => !stopping && startOne(svc), svc.restart_sec * 1000).unref?.();
       } else {
-        log(`exit ${svc.name} code=${code} — sem restart`);
+        log(`exit ${svc.name} code=${code} — no restart`);
       }
     });
   };
 
   const services = runnableServices(manifest);
   services.forEach(startOne);
-  log(`supervisor ativo com ${services.length} serviço(s)`);
+  log(`supervisor active with ${services.length} service(s)`);
 
   const shutdown = () => {
     stopping = true;
-    log('shutdown solicitado');
+    log('shutdown requested');
     for (const child of children.values()) {
-      try { child.kill('SIGTERM'); } catch { /* já morto */ }
+      try { child.kill('SIGTERM'); } catch { /* already dead */ }
     }
     try { fs.unlinkSync(p.daemonPid); } catch { /* ok */ }
     setTimeout(() => process.exit(0), 2000);
   };
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
-  setInterval(() => {}, 1 << 30); // mantém o event loop vivo
+  setInterval(() => {}, 1 << 30); // keep the event loop alive
 }
 
 function start() {
   const p = paths();
   const existing = readPid(p.daemonPid);
   if (existing && pidAlive(existing)) {
-    console.log(`supervisor já ativo (pid ${existing})`);
+    console.log(`supervisor already active (pid ${existing})`);
     return 0;
   }
   fs.mkdirSync(p.dir, { recursive: true });
@@ -160,7 +160,7 @@ function start() {
     stdio: ['ignore', out, out],
   });
   child.unref();
-  console.log(`supervisor iniciado (pid ${child.pid}); logs em ${p.daemonLog}`);
+  console.log(`supervisor started (pid ${child.pid}); logs at ${p.daemonLog}`);
   return 0;
 }
 
@@ -168,7 +168,7 @@ function stop() {
   const p = paths();
   const pid = readPid(p.daemonPid);
   if (!pid || !pidAlive(pid)) {
-    console.log('supervisor não está rodando');
+    console.log('supervisor is not running');
     return 0;
   }
   if (process.platform === 'win32') {
@@ -176,7 +176,7 @@ function stop() {
   } else {
     process.kill(pid, 'SIGTERM');
   }
-  console.log(`supervisor parado (pid ${pid})`);
+  console.log(`supervisor stopped (pid ${pid})`);
   return 0;
 }
 
@@ -185,11 +185,11 @@ function status() {
   const manifest = loadManifest();
   const daemonPid = readPid(p.daemonPid);
   console.log(
-    `supervisor: ${daemonPid && pidAlive(daemonPid) ? `ativo (pid ${daemonPid})` : 'parado'}`
+    `supervisor: ${daemonPid && pidAlive(daemonPid) ? `active (pid ${daemonPid})` : 'stopped'}`
   );
   for (const svc of runnableServices(manifest)) {
     const pid = readPid(p.pidFile(svc.name));
-    const state = pid && pidAlive(pid) ? `ativo (pid ${pid})` : 'parado';
+    const state = pid && pidAlive(pid) ? `active (pid ${pid})` : 'stopped';
     console.log(`  ${svc.name.padEnd(28)} ${state}`);
   }
   return 0;

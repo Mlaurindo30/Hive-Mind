@@ -1,38 +1,38 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Sinapse Agent — Script de Instalação Universal
+# Sinapse Agent — Universal Installation Script
 # =============================================================================
-# Detecta quais agentes estão instalados e configura cada um automaticamente.
-# Uso: ./install.sh [--force] [--skip-agent <nome>] [--with-tests]
+# Detects which agents are installed and configures each one automatically.
+# Usage: ./install.sh [--force] [--skip-agent <name>] [--with-tests]
 #
-# O que este script faz:
-#   1. Verifica dependências (uv, Node 18+, Bun, Ollama opcional)
-#   2. Sincroniza o ambiente Python local e reproduzível (.venv + uv.lock)
-#   3. Instala Graphify (graphifyy[all]) e indexa o vault cerebro/ (Gemini→Ollama→AST)
-#   4. Registra skills nos agentes detectados (Hermes, Claude, Codex, etc.)
-#   5. Instala claude-mem via npx nativo, com dados globais em ~/.claude-mem
-#   6. Instala NeuralMemory (nmem) — busca associativa com spreading activation
-#   7. Compila RTK do source (Rust) e instala plugin no Hermes
-#   8. Configura MCP servers (graphify + claude-mem) para Hermes
-#   9. Instala cron job de sync periódico (rebuild do graph.json a cada 6h)
-#  10. Instala/atualiza plugin sinapse-memory (multi-backend: nmem + claude-mem + graphify)
-#  11. Configura inteligência do Ciclo de Sonho (dream cycle)
-#  12. Configura agentes externos (MCP: Claude Code, Codex, Kilo Code, etc.)
+# What this script does:
+#   1. Checks dependencies (uv, Node 18+, Bun, Ollama optional)
+#   2. Syncs the local Python environment and reproducible (.venv + uv.lock)
+#   3. Installs Graphify (graphifyy[all]) and indexes the cerebro/ vault (Gemini→Ollama→AST)
+#   4. Registers skills in detected agents (Hermes, Claude, Codex, etc.)
+#   5. Installs claude-mem via native npx, with global data in ~/.claude-mem
+#   6. Installs NeuralMemory (nmem) — associative search with spreading activation
+#   7. Compiles RTK from source (Rust) and installs the plugin in Hermes
+#   8. Configures MCP servers (graphify + claude-mem) for Hermes
+#   9. Installs the periodic sync cron job (rebuild of graph.json every 6h)
+#  10. Installs/updates the sinapse-memory plugin (multi-backend: nmem + claude-mem + graphify)
+#  11. Configures Dream Cycle intelligence (dream cycle)
+#  12. Configures external agents (MCP: Claude Code, Codex, Kilo Code, etc.)
 #
 # Flags:
-#   --force              Reinstala componentes mesmo se ja existirem
-#   --skip-agent=X       Pula configuracao de um agente especifico
-#   --with-tests         Executa testes unitarios apos instalacao
-#   --with-real-tests    Encadeia a suite real de conhecimento (K9) no fim
-#   --profile=<perfil>   Perfil de servicos: local-min (padrao) ou local-full
-#   --provider=X         Provider do Dreamer (gemini|openai|ollama|...)
-#   --model=X            Modelo do Dreamer
-#   --non-interactive    Pula prompts interativos (CI/maquina zerada)
+#   --force              Reinstalls components even if they already exist
+#   --skip-agent=X       Skips configuration of a specific agent
+#   --with-tests         Runs unit tests after installation
+#   --with-real-tests    Chains the real knowledge suite (K9) at the end
+#   --profile=<profile>  Services profile: local-min (default) or local-full
+#   --provider=X         Dreamer provider (gemini|openai|ollama|...)
+#   --model=X            Dreamer model
+#   --non-interactive    Skips interactive prompts (CI/fresh machine)
 # =============================================================================
 
 set -euo pipefail
 
-# ── Cores ───────────────────────────────────────────────────────────────────
+# ── Colors ───────────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'
 BOLD='\033[1m'; NC='\033[0m'
 
@@ -63,45 +63,45 @@ for arg in "$@"; do
         --model=*) MODEL="${arg#*=}" ;;
         --profile=*) INSTALL_PROFILE="${arg#*=}" ;;
         --with-real-tests) WITH_REAL_TESTS=true ;;
-        *) echo -e "${RED}Erro:${NC} argumento desconhecido: $arg"; exit 1 ;;
+        *) echo -e "${RED}Error:${NC} unknown argument: $arg"; exit 1 ;;
     esac
 done
 
-# Defaults de K10 (docs/12 §K10). --profile escolhe até onde o instalador
-# vai em "maquina zerada"; --with-real-tests encadeia a suite real no fim.
+# Defaults for K10 (docs/12 §K10). --profile chooses how far the installer
+# goes on a "fresh machine"; --with-real-tests chains the real suite at the end.
 INSTALL_PROFILE="${INSTALL_PROFILE:-local-min}"
 WITH_REAL_TESTS="${WITH_REAL_TESTS:-false}"
 case "$INSTALL_PROFILE" in
     local-min|local-full) ;;
-    *) echo -e "${RED}Erro:${NC} --profile invalido: $INSTALL_PROFILE (use local-min|local-full)"; exit 1 ;;
+    *) echo -e "${RED}Error:${NC} --profile invalid: $INSTALL_PROFILE (use local-min|local-full)"; exit 1 ;;
 esac
 
 # ── Banner ──────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}${BLUE}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${BLUE}║          Hive-Mind — Instalação Universal        ║${NC}"
+echo -e "${BOLD}${BLUE}║          Hive-Mind — Universal Installation        ║${NC}"
 echo -e "${BOLD}${BLUE}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 
 # =============================================================================
-# 1. VERIFICAÇÃO DE DEPENDÊNCIAS
+# 1. DEPENDENCY CHECK
 # =============================================================================
-echo -e "${BOLD}[1/12] Verificando dependências...${NC}"
+echo -e "${BOLD}[1/12] Checking dependencies...${NC}"
 
-# uv é a única ferramenta de instalação Python aceita. O Python do sistema
-# não participa do runtime e nenhum fallback global é permitido.
+# uv is the only accepted Python installation tool. The system Python does
+# not participate in the runtime, and no global fallback is allowed.
 if command -v uv &>/dev/null; then
     echo -e "  ${GREEN}✓${NC} uv $(uv --version 2>/dev/null | awk '{print $2}')"
 else
-    echo -e "${RED}Erro:${NC} uv não encontrado. Instale uv antes de executar este instalador."
+    echo -e "${RED}Error:${NC} uv not found. Install uv before running this installer."
     exit 1
 fi
 uv python install 3.12
 BOOTSTRAP_PYTHON="$(uv python find 3.12)"
 
-# Produção exige .env local e HIVE_MIND_API_KEY para a REST API fail-closed.
-# O instalador cria um token local se o operador ainda não preencheu, sem
-# commitar segredo e sem sobrescrever valor existente.
+# Production requires a local .env and HIVE_MIND_API_KEY for the fail-closed REST API.
+# The installer creates a local token if the operator hasn't filled one in yet,
+# without committing a secret and without overwriting an existing value.
 if [ -f "$PROJECT_ROOT/.env.example" ]; then
     ENV_FRESH=0
     [ -f "$PROJECT_ROOT/.env" ] || { cp "$PROJECT_ROOT/.env.example" "$PROJECT_ROOT/.env"; ENV_FRESH=1; }
@@ -128,41 +128,41 @@ if not found:
     lines.append("HIVE_MIND_API_KEY=" + secrets.token_urlsafe(32))
     changed = True
 
-# .env recém-criado do exemplo fora do local-full: o backend vetorial precisa
-# ser o local (sqlite_vec). O exemplo pode trazer milvus, que só existe no
-# perfil local-full (docker) — sem ele, MCP/CLI/API quebram com MilvusException.
-# .env pré-existente nunca é alterado (escolha do operador).
+# .env newly created from the example outside local-full: the vector backend
+# must be local (sqlite_vec). The example may bring milvus, which only exists
+# in the local-full (docker) profile — without it, MCP/CLI/API break with MilvusException.
+# Pre-existing .env is never changed (operator's choice).
 if env_fresh and profile != "local-full":
     for idx, line in enumerate(lines):
         if line.startswith("VECTOR_BACKEND=") and line.split("=", 1)[1].strip() != "sqlite_vec":
             lines[idx] = "VECTOR_BACKEND=sqlite_vec"
             changed = True
-            print("  OK: VECTOR_BACKEND=sqlite_vec (perfil sem Milvus)")
+            print("  OK: VECTOR_BACKEND=sqlite_vec (profile without Milvus)")
             break
 
 if changed:
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print("  OK: HIVE_MIND_API_KEY gerado em .env local")
+    print("  OK: HIVE_MIND_API_KEY generated in local .env")
 else:
-    print("  OK: HIVE_MIND_API_KEY ja existe em .env local")
+    print("  OK: HIVE_MIND_API_KEY already exists in local .env")
 PY
 fi
 
-# Node 18+ é requisito do runtime completo e dos smoke tests.
+# Node 18+ is a requirement for the full runtime and smoke tests.
 if command -v node &>/dev/null; then
     NODE_VERSION=$(node --version | sed 's/v//')
     NODE_MAJOR="${NODE_VERSION%%.*}"
     if [ "$NODE_MAJOR" -lt 18 ]; then
-        echo -e "${RED}Erro:${NC} Node 18+ é obrigatório (encontrado: $NODE_VERSION)."
+        echo -e "${RED}Error:${NC} Node 18+ is required (found: $NODE_VERSION)."
         exit 1
     fi
     echo -e "  ${GREEN}✓${NC} Node $NODE_VERSION"
 else
-    echo -e "${RED}Erro:${NC} Node 18+ é obrigatório para o claude-mem."
+    echo -e "${RED}Error:${NC} Node 18+ is required for claude-mem."
     exit 1
 fi
 
-# Bun é copiado para .tools/bin (runtime gerenciado pelo projeto, scripts auxiliares).
+# Bun is copied to .tools/bin (project-managed runtime, helper scripts).
 if command -v bun &>/dev/null; then
     echo -e "  ${GREEN}✓${NC} Bun $(bun --version 2>/dev/null)"
     mkdir -p "$TOOLS_DIR"
@@ -175,33 +175,33 @@ if command -v bun &>/dev/null; then
     fi
     BUN_BIN="$TOOLS_DIR/bun"
 else
-    echo -e "${RED}Erro:${NC} Bun é obrigatório para o runtime gerenciado do claude-mem."
+    echo -e "${RED}Error:${NC} Bun is required for the claude-mem managed runtime."
     exit 1
 fi
 
-# Ollama (opcional, para extração semântica local)
+# Ollama (optional, for local semantic extraction)
 OLLAMA_OK=false
 if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
     OLLAMA_MODELS=$(curl -s http://localhost:11434/api/tags | "$BOOTSTRAP_PYTHON" -c "import json,sys; print(len(json.load(sys.stdin)['models']))" 2>/dev/null || echo "?")
     OLLAMA_VERSION=$(curl -s http://localhost:11434/api/version | "$BOOTSTRAP_PYTHON" -c "import json,sys; print(json.load(sys.stdin).get('version','0.0.0'))" 2>/dev/null || echo "0.0.0")
-    echo -e "  ${GREEN}✓${NC} Ollama detectado ($OLLAMA_MODELS modelos, v$OLLAMA_VERSION)"
+    echo -e "  ${GREEN}✓${NC} Ollama detected ($OLLAMA_MODELS models, v$OLLAMA_VERSION)"
     OLLAMA_OK=true
 else
-    echo -e "  ${YELLOW}⊘${NC}  Ollama não detectado (opcional para extração semântica local). Instale: curl -fsSL https://ollama.com/install.sh | sh"
+    echo -e "  ${YELLOW}⊘${NC}  Ollama not detected (optional for local semantic extraction). Install: curl -fsSL https://ollama.com/install.sh | sh"
 fi
 
-# Baixa os modelos locais que o Hive-Mind precisa (idempotente: pula os já presentes).
+# Download the local models that Hive-Mind needs (idempotent: skips those already present).
 # - snowflake-arctic-embed2 embeddings 1024d (core/database.py, LightRAG, Graphiti)
-# - qwen2.5:3b        extração de entidades Graphiti + LightRAG (default novo)
-# - qwen2.5-coder:3b      extração semântica do Graphify
-# - minicpm-v4.6:latest   visão local compacta para Deep Portal e testes vision
-# Opcional (gate SINAPSE_PULL_QWEN7B=1): qwen2.5:7b para o Graphiti local de
-# alta qualidade (HIVE_GRAPHITI_MODEL=qwen2.5:7b). ~4.7GB, exige folga de VRAM.
-# Opcional (local-full): gemma3:4b como fallback de visão/raciocínio visual.
-# Opcional (SINAPSE_PULL_DEEPSEEK_OCR=1 ou HIVE_OCR_MODEL=deepseek-ocr:latest):
-# deepseek-ocr:latest para OCR dedicado.
-# Nota: MiniCPM-V 4.6 exige Ollama >= 0.30; em versões anteriores o instalador
-# baixa gemma3:4b como fallback funcional para não deixar o papel vision quebrado.
+# - qwen2.5:3b        Graphiti + LightRAG entity extraction (new default)
+# - qwen2.5-coder:3b      Graphify semantic extraction
+# - minicpm-v4.6:latest   compact local vision for Deep Portal and vision tests
+# Optional (gate SINAPSE_PULL_QWEN7B=1): qwen2.5:7b for high-quality local Graphiti
+# (HIVE_GRAPHITI_MODEL=qwen2.5:7b). ~4.7GB, requires VRAM headroom.
+# Optional (local-full): gemma3:4b as a vision/visual reasoning fallback.
+# Optional (SINAPSE_PULL_DEEPSEEK_OCR=1 or HIVE_OCR_MODEL=deepseek-ocr:latest):
+# deepseek-ocr:latest for dedicated OCR.
+# Note: MiniCPM-V 4.6 requires Ollama >= 0.30; on earlier versions the installer
+# downloads gemma3:4b as a working fallback so the vision role doesn't break.
 if $OLLAMA_OK; then
     version_ge() {
         [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
@@ -210,65 +210,65 @@ if $OLLAMA_OK; then
     ollama_pull_if_missing() {
         local model="$1"; local note="$2"
         if curl -s http://localhost:11434/api/tags 2>/dev/null | grep -q "\"$model\""; then
-            echo -e "  ${GREEN}✓${NC} $model já presente ${note:+($note)}"
+            echo -e "  ${GREEN}✓${NC} $model already present ${note:+($note)}"
             return 0
         else
-            echo -e "  ${BLUE}↓${NC} baixando $model ${note:+($note)}..."
+            echo -e "  ${BLUE}↓${NC} downloading $model ${note:+($note)}..."
             if ollama pull "$model" 2>&1 | tail -1; then
                 return 0
             fi
-            echo -e "  ${YELLOW}⊘${NC} falha ao baixar $model (siga manualmente: ollama pull $model)"
+            echo -e "  ${YELLOW}⊘${NC} failed to download $model (follow up manually: ollama pull $model)"
             return 1
         fi
     }
-    echo -e "  ${BOLD}Modelos locais do Hive-Mind:${NC}"
+    echo -e "  ${BOLD}Hive-Mind local models:${NC}"
     ollama_pull_if_missing "snowflake-arctic-embed2" "embeddings 1024d" || true
-    ollama_pull_if_missing "qwen2.5:3b"       "extração Graphiti/LightRAG" || true
-    ollama_pull_if_missing "qwen2.5-coder:3b" "extração Graphify" || true
+    ollama_pull_if_missing "qwen2.5:3b"       "Graphiti/LightRAG extraction" || true
+    ollama_pull_if_missing "qwen2.5-coder:3b" "Graphify extraction" || true
     if version_ge "$OLLAMA_VERSION" "0.30.0"; then
         VISION_PRIMARY="minicpm-v4.6:latest"
     else
         VISION_PRIMARY="gemma3:4b"
-        echo -e "  ${YELLOW}⊘${NC}  minicpm-v4.6 exige Ollama >=0.30 (atual: $OLLAMA_VERSION); usando gemma3:4b como visão local"
+        echo -e "  ${YELLOW}⊘${NC}  minicpm-v4.6 requires Ollama >=0.30 (current: $OLLAMA_VERSION); using gemma3:4b as local vision"
     fi
-    if ! ollama_pull_if_missing "$VISION_PRIMARY" "visão local"; then
-        echo -e "  ${YELLOW}⊘${NC}  $VISION_PRIMARY indisponível; baixando gemma3:4b como fallback funcional"
-        ollama_pull_if_missing "gemma3:4b" "fallback visão/raciocínio visual" || true
+    if ! ollama_pull_if_missing "$VISION_PRIMARY" "local vision"; then
+        echo -e "  ${YELLOW}⊘${NC}  $VISION_PRIMARY unavailable; downloading gemma3:4b as a working fallback"
+        ollama_pull_if_missing "gemma3:4b" "vision/visual reasoning fallback" || true
     fi
     if [ "$INSTALL_PROFILE" = "local-full" ]; then
-        ollama_pull_if_missing "gemma3:4b" "fallback visão/raciocínio visual" || true
+        ollama_pull_if_missing "gemma3:4b" "vision/visual reasoning fallback" || true
     else
-        echo -e "  ${YELLOW}⊘${NC}  gemma3:4b pulado (local-full). Para fallback de visão: ./install.sh --profile=local-full"
+        echo -e "  ${YELLOW}⊘${NC}  gemma3:4b skipped (local-full). For vision fallback: ./install.sh --profile=local-full"
     fi
     if [ "${SINAPSE_PULL_DEEPSEEK_OCR:-0}" = "1" ] || [ "${HIVE_OCR_MODEL:-}" = "deepseek-ocr:latest" ]; then
-        ollama_pull_if_missing "deepseek-ocr:latest" "OCR dedicado opcional" || true
+        ollama_pull_if_missing "deepseek-ocr:latest" "optional dedicated OCR" || true
     else
-        echo -e "  ${YELLOW}⊘${NC}  deepseek-ocr:latest pulado (opcional). Para OCR dedicado: SINAPSE_PULL_DEEPSEEK_OCR=1 ./install.sh"
+        echo -e "  ${YELLOW}⊘${NC}  deepseek-ocr:latest skipped (optional). For dedicated OCR: SINAPSE_PULL_DEEPSEEK_OCR=1 ./install.sh"
     fi
     if [ "${SINAPSE_PULL_QWEN7B:-0}" = "1" ] || [ "${HIVE_GRAPHITI_MODEL:-}" = "qwen2.5:7b" ]; then
-        ollama_pull_if_missing "qwen2.5:7b"   "Graphiti local alta qualidade" || true
+        ollama_pull_if_missing "qwen2.5:7b"   "high-quality local Graphiti" || true
     else
-        echo -e "  ${YELLOW}⊘${NC}  qwen2.5:7b pulado (opcional). Para o Graphiti local de alta qualidade: SINAPSE_PULL_QWEN7B=1 ./install.sh"
+        echo -e "  ${YELLOW}⊘${NC}  qwen2.5:7b skipped (optional). For high-quality local Graphiti: SINAPSE_PULL_QWEN7B=1 ./install.sh"
     fi
 fi
 
 echo ""
 
-# Os componentes editáveis precisam existir antes do uv sync. O manifesto fixa
-# commits exatos e preserva checkouts locais já modificados.
+# Editable components must exist before uv sync. The manifest pins exact
+# commits and preserves already-modified local checkouts.
 "$BOOTSTRAP_PYTHON" "$PROJECT_ROOT/scripts/setup/components.py" bootstrap
 
 # =============================================================================
-# 2. AMBIENTE PYTHON LOCAL
+# 2. LOCAL PYTHON ENVIRONMENT
 # =============================================================================
-echo -e "${BOLD}[2/12] Sincronizando ambiente Python local (.venv)...${NC}"
+echo -e "${BOLD}[2/12] Syncing local Python environment (.venv)...${NC}"
 uv sync --frozen --all-groups
 PYTHON="$PROJECT_ROOT/.venv/bin/python"
 GRAPHIFY="$PROJECT_ROOT/.venv/bin/graphify"
 NMEM="$PROJECT_ROOT/.venv/bin/nmem"
 export PATH="$PROJECT_ROOT/.venv/bin:$PROJECT_ROOT/integrations/rtk/target/release:$PATH"
 "$PYTHON" -c "import fastapi, yaml, pydantic, graphify, neural_memory, sqlite_vec, pymilvus, llama_index, ragflow_sdk"
-# Wrappers K1 (Milvus/RAGFlow) so sobem no local-full; docker so e' exigido la.
+# K1 (Milvus/RAGFlow) wrappers only come up under local-full; docker is only required there.
 if [ "$INSTALL_PROFILE" = "local-full" ]; then
     "$PYTHON" "$PROJECT_ROOT/scripts/setup/verify_wrappers.py" --require-docker
 else
@@ -276,39 +276,39 @@ else
 fi
 mkdir -p "$PROJECT_ROOT/integrations/neural-memory/data"
 "$PYTHON" "$PROJECT_ROOT/scripts/setup/setup_umc.py" >/dev/null
-echo -e "  ${GREEN}✓${NC} Python $("$PYTHON" -c 'import sys; print(sys.version.split()[0])') em $PROJECT_ROOT/.venv"
+echo -e "  ${GREEN}✓${NC} Python $("$PYTHON" -c 'import sys; print(sys.version.split()[0])') at $PROJECT_ROOT/.venv"
 
 echo ""
 
 # =============================================================================
-# 3. INSTALAÇÃO DO GRAPHIFY (do source clonado, NÃO do PyPI)
+# 3. GRAPHIFY INSTALLATION (from cloned source, NOT from PyPI)
 # =============================================================================
-echo -e "${BOLD}[3/12] Instalando Graphify (source local)...${NC}"
+echo -e "${BOLD}[3/12] Installing Graphify (local source)...${NC}"
 
 GRAPHIFY_SRC="$PROJECT_ROOT/integrations/graphify"
 
-echo -e "  ${GREEN}✓${NC} graphify resolvido do source local ($GRAPHIFY_SRC)"
+echo -e "  ${GREEN}✓${NC} graphify resolved from local source ($GRAPHIFY_SRC)"
 
-# ── Materializa o vault Obsidian (cerebro/) a partir de templates shipped ────
-# Idempotente: pula se vault já existe. Cria 70+ diretórios vazios que são
-# preenchidos em uso pelos pipelines (sessoes/, decisoes/, inbox/, grafo/).
-# O source-of-truth do schema é templates/vault/vault-manifest.json.
+# ── Materialize the Obsidian vault (cerebro/) from shipped templates ────────
+# Idempotent: skips if the vault already exists. Creates 70+ empty directories
+# that are filled by the pipelines in use (sessoes/, decisoes/, inbox/, grafo/).
+# The schema's source of truth is templates/vault/vault-manifest.json.
 materialize_vault() {
     if [ -f "$VAULT_DIR/vault-manifest.json" ] && [ -d "$VAULT_DIR/cortex/temporal" ]; then
-        echo -e "  ${GREEN}✓${NC} vault já materializado em $VAULT_DIR"
+        echo -e "  ${GREEN}✓${NC} vault already materialized at $VAULT_DIR"
         return 0
     fi
-    echo -e "  Materializando vault obsidian-mind v6.1.0 em $VAULT_DIR..."
+    echo -e "  Materializing obsidian-mind v6.1.0 vault at $VAULT_DIR..."
 
-    # 1. Shipped templates (hub docs, modelos, paineis, setores, subvaults, configs)
+    # 1. Shipped templates (hub docs, models, panels, sectors, subvaults, configs)
     if [ -d "$PROJECT_ROOT/templates/vault" ]; then
         cp -r "$PROJECT_ROOT/templates/vault/." "$VAULT_DIR/"
     else
-        echo -e "  ${YELLOW}!${NC} templates/vault/ não encontrado; criando estrutura vazia"
+        echo -e "  ${YELLOW}!${NC} templates/vault/ not found; creating empty structure"
         mkdir -p "$VAULT_DIR"
     fi
 
-    # 2. Estrutura de diretórios (criada vazia, populada em uso)
+    # 2. Directory structure (created empty, populated in use)
     mkdir -p \
         "$VAULT_DIR/cerebelo/anual" \
         "$VAULT_DIR/cerebelo/diario" \
@@ -351,10 +351,10 @@ materialize_vault() {
         "$VAULT_DIR/tronco/infra/obsidian-trash" \
         "$VAULT_DIR/attachments"
 
-    # 3. .gitignore do vault (runtime regenerado, nunca commitar)
+    # 3. Vault .gitignore (runtime regenerated, never commit)
     if [ ! -f "$VAULT_DIR/.gitignore" ]; then
         cat > "$VAULT_DIR/.gitignore" <<'VAULT_EOF'
-# Vault runtime — regenerado, não commitar
+# Vault runtime — regenerated, do not commit
 .smart-env/
 .claude-flow/
 .obsidian/
@@ -378,30 +378,30 @@ VAULT_EOF
     local n_files n_dirs
     n_files=$(find "$VAULT_DIR" -type f 2>/dev/null | wc -l)
     n_dirs=$(find "$VAULT_DIR" -type d 2>/dev/null | wc -l)
-    echo -e "  ${GREEN}✓${NC} vault materializado ($n_files arquivos shipped, $n_dirs diretórios)"
+    echo -e "  ${GREEN}✓${NC} vault materialized ($n_files shipped files, $n_dirs directories)"
 }
 materialize_vault
 
-# Dependências Python (requirements.txt) já instaladas na etapa 2.
+# Python dependencies (requirements.txt) already installed in step 2.
 
-# Indexar o vault com extração semântica se API key disponível, senão AST-only
-echo -e "  Indexando vault cerebro/..."
+# Index the vault with semantic extraction if API key is available, otherwise AST-only
+echo -e "  Indexing cerebro/ vault..."
 if [ -n "${GOOGLE_API_KEY:-}" ] || [ -n "${GEMINI_API_KEY:-}" ]; then
-    echo -e "  Usando Gemini para extração semântica..."
+    echo -e "  Using Gemini for semantic extraction..."
     "$GRAPHIFY" "$VAULT_DIR" 2>&1 | tail -3
 elif [ "${SINAPSE_OLLAMA:-0}" = "1" ] && curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
-    echo -e "  Ollama detectado. Usando qwen2.5-coder:3b para extração semântica..."
+    echo -e "  Ollama detected. Using qwen2.5-coder:3b for semantic extraction..."
     OLLAMA_MODEL=qwen2.5-coder:3b "$GRAPHIFY" "$VAULT_DIR" --backend ollama 2>&1 | tail -3
 else
-    echo -e "  Usando AST-only rápido (tree-sitter + Leiden clustering)..."
+    echo -e "  Using fast AST-only (tree-sitter + Leiden clustering)..."
     "$GRAPHIFY" update "$VAULT_DIR" 2>&1 | tail -3
 fi
 
 if [ -f "$GRAPHIFY_OUT/graph.json" ]; then
     NODE_COUNT=$("$PYTHON" -c "import json; g=json.load(open('$GRAPHIFY_OUT/graph.json')); print(len(g.get('nodes',[])))" 2>/dev/null || echo "?")
-    echo -e "  ${GREEN}✓${NC} Knowledge graph gerado ($NODE_COUNT nodes)"
+    echo -e "  ${GREEN}✓${NC} Knowledge graph generated ($NODE_COUNT nodes)"
 else
-    echo -e "  ${RED}✗${NC} Falha ao gerar graph.json"
+    echo -e "  ${RED}✗${NC} Failed to generate graph.json"
     exit 1
 fi
 "$PYTHON" "$PROJECT_ROOT/scripts/graph/build_hnsw.py"
@@ -409,14 +409,14 @@ fi
 echo ""
 
 # =============================================================================
-# 4. REGISTRO NOS AGENTES DETECTADOS
+# 4. REGISTRATION IN DETECTED AGENTS
 # =============================================================================
-echo -e "${BOLD}[4/12] Registrando skills nos agentes...${NC}"
+echo -e "${BOLD}[4/12] Registering skills in agents...${NC}"
 
-# Array associativo: comando de detecção → plataforma graphify
-# Alguns agentes não têm CLI detectável (Cursor, Copilot) — usamos caminho de arquivo
+# Associative array: detection command → graphify platform
+# Some agents don't have a detectable CLI (Cursor, Copilot) — we use a file path
 declare -A AGENT_DETECTORS=(
-    # Comandos CLI detectáveis
+    # Detectable CLI commands
     ["hermes"]="hermes"
     ["claude"]="claude"
     ["codex"]="codex"
@@ -425,7 +425,7 @@ declare -A AGENT_DETECTORS=(
     ["aider"]="aider"
 )
 
-# Agentes por arquivo de configuração (sem CLI detectável)
+# Agents by configuration file (no detectable CLI)
 declare -A AGENT_CONFIG_FILES=(
     ["copilot"]="$HOME/.github-copilot/hosts.json"
     ["cursor"]="$HOME/.cursor/rules/"
@@ -435,76 +435,76 @@ declare -A AGENT_CONFIG_FILES=(
     ["antigravity"]="$HOME/.antigravity/config.json"
 )
 
-echo -e "  Detectando agentes..."
+echo -e "  Detecting agents..."
 
-# ── Agentes CLI ───────────────────────────────────────────────────────
+# ── CLI agents ───────────────────────────────────────────────────────
 for agent in "${!AGENT_DETECTORS[@]}"; do
     if [[ " ${SKIP_AGENTS[*]:-} " == *" $agent "* ]]; then
         continue
     fi
     if command -v "$agent" &>/dev/null; then
         platform="${AGENT_DETECTORS[$agent]}"
-        echo -e "  ${GREEN}✓${NC} $agent → registrando skill..."
+        echo -e "  ${GREEN}✓${NC} $agent → registering skill..."
         graphify install --platform "$platform" 2>&1 | tail -1
     fi
 done
 
-# ── Agentes por arquivo de config ──────────────────────────────────────
+# ── Config-file agents ──────────────────────────────────────────────
 for agent in "${!AGENT_CONFIG_FILES[@]}"; do
     if [[ " ${SKIP_AGENTS[*]:-} " == *" $agent "* ]]; then
         continue
     fi
     config_path="${AGENT_CONFIG_FILES[$agent]}"
     if [ -e "$config_path" ]; then
-        echo -e "  ${GREEN}✓${NC} $agent (detectado via config)"
+        echo -e "  ${GREEN}✓${NC} $agent (detected via config)"
         case "$agent" in
             copilot)
-                graphify install --platform copilot 2>/dev/null && echo -e "    ${GREEN}✓${NC} skill registrada" || echo -e "    ${YELLOW}⊘${NC} falha ao registrar"
+                graphify install --platform copilot 2>/dev/null && echo -e "    ${GREEN}✓${NC} skill registered" || echo -e "    ${YELLOW}⊘${NC} failed to register"
                 ;;
             cursor)
-                graphify cursor install 2>/dev/null && echo -e "    ${GREEN}✓${NC} skill registrada" || echo -e "    ${YELLOW}⊘${NC} falha ao registrar"
+                graphify cursor install 2>/dev/null && echo -e "    ${GREEN}✓${NC} skill registered" || echo -e "    ${YELLOW}⊘${NC} failed to register"
                 ;;
             openclaw)
-                graphify install --platform claw 2>/dev/null && echo -e "    ${GREEN}✓${NC} skill registrada" || echo -e "    ${YELLOW}⊘${NC} falha ao registrar"
+                graphify install --platform claw 2>/dev/null && echo -e "    ${GREEN}✓${NC} skill registered" || echo -e "    ${YELLOW}⊘${NC} failed to register"
                 ;;
             trae)
-                graphify install --platform trae 2>/dev/null && echo -e "    ${GREEN}✓${NC} skill registrada" || echo -e "    ${YELLOW}⊘${NC} falha ao registrar"
+                graphify install --platform trae 2>/dev/null && echo -e "    ${GREEN}✓${NC} skill registered" || echo -e "    ${YELLOW}⊘${NC} failed to register"
                 ;;
             kiro)
-                graphify kiro install 2>/dev/null && echo -e "    ${GREEN}✓${NC} skill registrada" || echo -e "    ${YELLOW}⊘${NC} falha ao registrar"
+                graphify kiro install 2>/dev/null && echo -e "    ${GREEN}✓${NC} skill registered" || echo -e "    ${YELLOW}⊘${NC} failed to register"
                 ;;
             antigravity)
-                graphify antigravity install 2>/dev/null && echo -e "    ${GREEN}✓${NC} skill registrada" || echo -e "    ${YELLOW}⊘${NC} falha ao registrar"
+                graphify antigravity install 2>/dev/null && echo -e "    ${GREEN}✓${NC} skill registered" || echo -e "    ${YELLOW}⊘${NC} failed to register"
                 ;;
         esac
     fi
 done
 echo ""
 
-# ── Configuração específica do Hermes ──────────────────────────────────
+# ── Hermes-specific configuration ──────────────────────────────────
 if command -v hermes &>/dev/null; then
-    echo -e "  ${BOLD}Configurando Hermes...${NC}"
+    echo -e "  ${BOLD}Configuring Hermes...${NC}"
     if [ -d "$HOME/.hermes/skills/" ]; then
         cp "$PROJECT_ROOT/docs/skills/sinapse-consulta.md" "$HOME/.hermes/skills/sinapse-consulta.md" 2>/dev/null && \
-            echo -e "    ${GREEN}✓${NC} skill sinapse-consulta"
+            echo -e "    ${GREEN}✓${NC} sinapse-consulta skill"
     fi
     if [ -d "$HOME/.hermes/plugins/" ]; then
         mkdir -p "$HOME/.hermes/plugins/sinapse-memory/"
         cp "$PROJECT_ROOT/plugins/hermes/sinapse-memory.py" "$HOME/.hermes/plugins/sinapse-memory/__init__.py" 2>/dev/null && \
-            echo -e "    ${GREEN}✓${NC} plugin sinapse-memory"
+            echo -e "    ${GREEN}✓${NC} sinapse-memory plugin"
     fi
 fi
 
 echo ""
 
 # =============================================================================
-# 5. INSTALAÇÃO DO CLAUDE-MEM (npx nativo, dados globais)
+# 5. CLAUDE-MEM INSTALLATION (native npx, global data)
 # =============================================================================
-echo -e "${BOLD}[5/12] Instalando claude-mem (npx nativo, dados globais)...${NC}"
+echo -e "${BOLD}[5/12] Installing claude-mem (native npx, global data)...${NC}"
 
-# O claude-mem usa a instalação nativa (npx/marketplace) para manter hooks e
-# worker compatíveis com upstream. O runtime temporal oficial é global e
-# multi-projeto, com dados em ~/.claude-mem.
+# claude-mem uses the native installation (npx/marketplace) to keep hooks and
+# worker compatible with upstream. The official temporal runtime is global and
+# multi-project, with data in ~/.claude-mem.
 
 CLAUDE_MEM_VERSION="13.6"
 CLAUDE_MEM_NPX="npx -y claude-mem@${CLAUDE_MEM_VERSION}"
@@ -513,8 +513,8 @@ CLAUDE_MEM_DB="$CLAUDE_MEM_DATA_DIR/claude-mem.db"
 CLAUDE_MEM_MODELS="$CLAUDE_MEM_DATA_DIR/models"
 mkdir -p "$CLAUDE_MEM_DATA_DIR" "$CLAUDE_MEM_MODELS"
 
-# Detecta IDEs instaladas (mesmos critérios do detectInstalledIDEs do claude-mem)
-# e roda o install nativo para CADA uma. Ids nativos: claude-code, gemini-cli,
+# Detects installed IDEs (same criteria as claude-mem's detectInstalledIDEs)
+# and runs the native install for EACH. Native ids: claude-code, gemini-cli,
 # codex-cli, cursor, windsurf, opencode, openclaw, goose.
 INSTALLED_IDES=()
 command -v claude &>/dev/null                                  && INSTALLED_IDES+=("claude-code")
@@ -529,40 +529,40 @@ command -v claude &>/dev/null                                  && INSTALLED_IDES
 [ -d "$HOME/.gemini/antigravity-cli" ] || [ -d "$HOME/.antigravity" ] && INSTALLED_IDES+=("antigravity")
 
 if [ ${#INSTALLED_IDES[@]} -eq 0 ]; then
-    echo -e "  ${YELLOW}⊘${NC}  Nenhuma IDE detectada (Claude Code, Gemini, Codex, Cursor, Windsurf, OpenCode, OpenClaw...)."
+    echo -e "  ${YELLOW}⊘${NC}  No IDE detected (Claude Code, Gemini, Codex, Cursor, Windsurf, OpenCode, OpenClaw...)."
 else
-    echo -e "  IDEs detectadas: ${INSTALLED_IDES[*]}"
+    echo -e "  IDEs detected: ${INSTALLED_IDES[*]}"
     
-    # Detecção inteligente do provedor de memória (evita bloqueios de cota do Claude)
+    # Intelligent memory provider detection (avoids Claude quota blocks)
     MEM_PROVIDER="claude"
     if [ -n "${GEMINI_API_KEY:-}" ] || [ -n "${GOOGLE_API_KEY:-}" ]; then
         MEM_PROVIDER="gemini"
-        echo -e "  ${BLUE}ℹ${NC} Gemini API Key detectada. Configurando claude-mem para usar Gemini."
+        echo -e "  ${BLUE}ℹ${NC} Gemini API Key detected. Configuring claude-mem to use Gemini."
     fi
 
     for ide in "${INSTALLED_IDES[@]}"; do
-        echo -e "  Instalando hooks nativos para ${ide}..."
+        echo -e "  Installing native hooks for ${ide}..."
         CLAUDE_MEM_DATA_DIR="$CLAUDE_MEM_DATA_DIR" \
         FASTEMBED_CACHE_PATH="$CLAUDE_MEM_MODELS" \
         $CLAUDE_MEM_NPX install --ide "$ide" --runtime worker --provider "$MEM_PROVIDER" --no-auto-start 2>&1 | tail -2
-        echo -e "  ${GREEN}✓${NC} $ide configurado"
+        echo -e "  ${GREEN}✓${NC} $ide configured"
         
         if [ "$ide" = "copilot-cli" ]; then
-            # Tailer é a fonte oficial de captura do Copilot (IDE/CLI); não
-            # forçamos wrapper para evitar drift com binários reais do usuário.
+            # Tailer is the official capture source for Copilot (IDE/CLI); we
+            # don't force a wrapper to avoid drift with real user binaries.
             if [ -L "$HOME/.local/bin/copilot" ] && [ "$(readlink -f "$HOME/.local/bin/copilot")" = "$PROJECT_ROOT/scripts/capture/copilot-wrapper.sh" ]; then
                 rm -f "$HOME/.local/bin/copilot"
-                echo -e "  ${GREEN}✓${NC} wrapper legado do copilot removido (tailer oficial)"
+                echo -e "  ${GREEN}✓${NC} legacy copilot wrapper removed (official tailer)"
             fi
-            echo -e "  ${GREEN}✓${NC} captura do copilot via capture-tailer (transcripts da IDE e fallback CLI)"
+            echo -e "  ${GREEN}✓${NC} copilot capture via capture-tailer (IDE transcripts and CLI fallback)"
         fi
     done
 
-    # Sincroniza a chave do Gemini com o settings.json global do claude-mem.
+    # Sync the Gemini key with the global claude-mem settings.json.
     if [ "$MEM_PROVIDER" = "gemini" ]; then
         G_KEY="${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}"
         if [ -n "$G_KEY" ]; then
-            # Usa python para um merge de JSON seguro em vez de sed.
+            # Use python for a safe JSON merge instead of sed.
             CLAUDE_MEM_SETTINGS="$CLAUDE_MEM_DATA_DIR/settings.json" CLAUDE_MEM_GEMINI_KEY="$G_KEY" "$PYTHON" -c "
 	import json, os
 	path = os.environ['CLAUDE_MEM_SETTINGS']
@@ -580,11 +580,11 @@ else
 	data['CLAUDE_MEM_GEMINI_API_KEY'] = key
 	data['CLAUDE_MEM_PROVIDER'] = 'gemini'
 	with open(path, 'w') as f: json.dump(data, f, indent=2)
-	" 2>/dev/null && echo -e "  ${GREEN}✓${NC} Chave Gemini sincronizada com claude-mem global"
+	" 2>/dev/null && echo -e "  ${GREEN}✓${NC} Gemini key synced with global claude-mem"
         fi
     fi
-    # Gemini moderno (>=0.4x) só executa hooks "confiados". O instalador nativo
-    # NÃO registra trust — fazemos isso aqui para captura sem intervenção manual.
+    # Modern Gemini (>=0.4x) only runs "trusted" hooks. The native installer
+    # does NOT register trust — we do it here for capture without manual intervention.
     if [ -d "$HOME/.gemini" ] && [ -x "$BUN_BIN" ]; then
         "$BUN_BIN" - "$PROJECT_ROOT" <<'GEMTRUST' 2>/dev/null || true
 import {readFileSync,writeFileSync,existsSync} from "fs";import {homedir} from "os";import path from "path";
@@ -596,83 +596,83 @@ const proj=process.argv[2]||process.cwd();const set=new Set(t[proj]||[]);
 for(const groups of Object.values(s.hooks))for(const g of groups)for(const hk of (g.hooks||[]))
   if(hk&&hk.type==="command"&&hk.name)set.add(`${hk.name}:${hk.command??""}`);
 t[proj]=[...set].sort();writeFileSync(tp,JSON.stringify(t,null,2)+"\n");
-console.log("  gemini trusted_hooks atualizado");
+console.log("  gemini trusted_hooks updated");
 GEMTRUST
-        echo -e "  ${GREEN}✓${NC} Gemini trusted_hooks registrado"
+        echo -e "  ${GREEN}✓${NC} Gemini trusted_hooks registered"
     fi
 
     if [ -d "$HOME/.codex" ]; then
         "$PYTHON" "$PROJECT_ROOT/scripts/setup/install_codex_claude_mem_hooks.py" >/dev/null
-        echo -e "  ${GREEN}✓${NC} Codex hooks registrados para claude-mem global"
+        echo -e "  ${GREEN}✓${NC} Codex hooks registered for global claude-mem"
     fi
 fi
 
 if [ -f "$CLAUDE_MEM_DB" ]; then
     OBS_COUNT="$(sqlite3 "$CLAUDE_MEM_DB" "SELECT COUNT(*) FROM observations;" 2>/dev/null || echo "?")"
-    echo -e "  ${GREEN}✓${NC} Banco claude-mem global preservado ($OBS_COUNT observações)"
+    echo -e "  ${GREEN}✓${NC} Global claude-mem database preserved ($OBS_COUNT observations)"
 else
-    echo -e "  ${YELLOW}⊘${NC}  Banco claude-mem global ainda não existe; será criado no primeiro start."
+    echo -e "  ${YELLOW}⊘${NC}  Global claude-mem database does not exist yet; will be created on first start."
 fi
 
-echo -e "  ${GREEN}✓${NC} claude-mem configurado para dados globais ($CLAUDE_MEM_DATA_DIR, worker :37700)"
+echo -e "  ${GREEN}✓${NC} claude-mem configured for global data ($CLAUDE_MEM_DATA_DIR, worker :37700)"
 echo ""
 
 # =============================================================================
-# 6. INSTALAÇÃO DO NEURAL MEMORY (spreading activation — associativo, do source)
+# 6. NEURAL MEMORY INSTALLATION (spreading activation — associative, from source)
 # =============================================================================
-echo -e "${BOLD}[6/12] Instalando NeuralMemory (spreading activation, source local)...${NC}"
+echo -e "${BOLD}[6/12] Installing NeuralMemory (spreading activation, local source)...${NC}"
 
 NEURAL_MEMORY_SRC="$PROJECT_ROOT/integrations/neural-memory"
 
-echo -e "  ${GREEN}✓${NC} NeuralMemory resolvido do source local ($NEURAL_MEMORY_SRC)"
+echo -e "  ${GREEN}✓${NC} NeuralMemory resolved from local source ($NEURAL_MEMORY_SRC)"
 
-# Verificar se o CLI está disponível
+# Check if the CLI is available
 if [ -x "$NMEM" ]; then
     echo -e "  ${GREEN}✓${NC} nmem $("$NMEM" --version 2>/dev/null || echo 'OK')"
 else
-    echo -e "  ${YELLOW}⊘${NC}  nmem CLI não encontrado. Verifique PATH: ~/.local/bin"
+    echo -e "  ${YELLOW}⊘${NC}  nmem CLI not found. Check PATH: ~/.local/bin"
 fi
 
 echo ""
 
 # =============================================================================
-# 7. CONFIGURAÇÃO DO RTK (do source clonado — Rust)
+# 7. RTK CONFIGURATION (from cloned source — Rust)
 # =============================================================================
-echo -e "${BOLD}[7/12] Compilando RTK (source local)...${NC}"
+echo -e "${BOLD}[7/12] Compiling RTK (local source)...${NC}"
 
 RTK_SRC="$PROJECT_ROOT/integrations/rtk"
 RUST_TOOLCHAIN="1.95.0"
 CARGO_BIN="$(command -v cargo 2>/dev/null || true)"
 
-# Um binário cargo sem toolchain funcional não é suficiente. Nesse caso,
-# instala toolchain fixado dentro do projeto, sem alterar o HOME do usuário.
+# A cargo binary without a working toolchain isn't enough. In that case,
+# install a pinned toolchain inside the project, without touching the user's HOME.
 if [ -z "$CARGO_BIN" ] || ! "$CARGO_BIN" --version >/dev/null 2>&1; then
-    echo -e "  Instalando Rust $RUST_TOOLCHAIN em .tools..."
+    echo -e "  Installing Rust $RUST_TOOLCHAIN in .tools..."
     export RUSTUP_HOME="$PROJECT_ROOT/.tools/rustup"
     export CARGO_HOME="$PROJECT_ROOT/.tools/cargo"
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
         | sh -s -- -y --profile minimal --default-toolchain "$RUST_TOOLCHAIN" --no-modify-path
     CARGO_BIN="$CARGO_HOME/bin/cargo"
-    echo -e "  ${GREEN}✓${NC} Rust local instalado"
+    echo -e "  ${GREEN}✓${NC} Local Rust installed"
 fi
 
-# Compilar do source
+# Compile from source
 cd "$RTK_SRC"
 if $FORCE || [ ! -f "target/release/rtk" ]; then
-    echo -e "  Compilando RTK (cargo build --release)..."
+    echo -e "  Compiling RTK (cargo build --release)..."
     "$CARGO_BIN" build --locked --release 2>&1 | tail -1
-    echo -e "  ${GREEN}✓${NC} RTK compilado"
+    echo -e "  ${GREEN}✓${NC} RTK compiled"
 else
-    echo -e "  ${GREEN}✓${NC} RTK já compilado"
+    echo -e "  ${GREEN}✓${NC} RTK already compiled"
 fi
 
-echo -e "  ${GREEN}✓${NC} RTK $(./target/release/rtk --version 2>/dev/null | awk '{print $2}') disponível no projeto"
+echo -e "  ${GREEN}✓${NC} RTK $(./target/release/rtk --version 2>/dev/null | awk '{print $2}') available in project"
 
-# Plugin Hermes — hook nativo do RTK
+# Hermes plugin — RTK native hook
 if [ -d "$HOME/.hermes/plugins/" ]; then
     mkdir -p "$HOME/.hermes/plugins/rtk-rewrite/"
     cp "$RTK_SRC/hooks/hermes/rtk-rewrite/"* "$HOME/.hermes/plugins/rtk-rewrite/" 2>/dev/null || true
-    echo -e "  ${GREEN}✓${NC} Plugin RTK (hook nativo) copiado para Hermes"
+    echo -e "  ${GREEN}✓${NC} RTK plugin (native hook) copied to Hermes"
 fi
 
 cd "$PROJECT_ROOT"
@@ -680,9 +680,9 @@ cd "$PROJECT_ROOT"
 echo ""
 
 # =============================================================================
-# 8. CONFIGURAÇÃO MCP (GRAPHIFY + CLAUDE-MEM)
+# 8. MCP CONFIGURATION (GRAPHIFY + CLAUDE-MEM)
 # =============================================================================
-echo -e "${BOLD}[8/12] Configurando servidores MCP...${NC}"
+echo -e "${BOLD}[8/12] Configuring MCP servers...${NC}"
 
 # Graphify MCP
 if command -v hermes &>/dev/null; then
@@ -703,7 +703,7 @@ if command -v hermes &>/dev/null; then
     }
 }
 MCPEOF
-    # Substituir placeholder pelo path real
+    # Replace placeholder with the real path
     sed -i "s|PROJECT_ROOT_PLACEHOLDER|$PROJECT_ROOT|g" "$MCP_DIR/graphify.json"
 
     # claude-mem MCP config
@@ -721,17 +721,17 @@ MCPEOF
 MCPEOF
     sed -i "s|PROJECT_ROOT_PLACEHOLDER|$PROJECT_ROOT|g" "$MCP_DIR/claude-mem.json"
 
-    echo -e "  ${GREEN}✓${NC} MCP configs gerados em $MCP_DIR"
+    echo -e "  ${GREEN}✓${NC} MCP configs generated at $MCP_DIR"
 else
-    echo -e "  ${YELLOW}⊘${NC}  Hermes não detectado, MCP configs pulados"
+    echo -e "  ${YELLOW}⊘${NC}  Hermes not detected, MCP configs skipped"
 fi
 
 echo ""
 
 # =============================================================================
-# 9. CRON DE SYNC PERIÓDICO
+# 9. PERIODIC SYNC CRON
 # =============================================================================
-echo -e "${BOLD}[9/12] Configurando cron de sync...${NC}"
+echo -e "${BOLD}[9/12] Configuring sync cron...${NC}"
 
 PY_CRON=".venv/bin/python"
 CRON_SYNC_JOB="0 */6 * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && ./scripts/graph/build-graph.sh >> logs/sync.log 2>&1"
@@ -742,13 +742,13 @@ CRON_MONTHLY_JOB="15 3 1 * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME &
 CRON_YEARLY_JOB="30 3 1 1 * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && $PY_CRON scripts/dream/yearly_synthesizer.py --real >> logs/yearly-synthesizer.log 2>&1"
 CRON_VECTOR_SUMMARY_JOB="45 3 * * * SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && if [ \"\${VECTOR_BACKEND:-sqlite}\" = \"milvus\" ]; then $PY_CRON scripts/maintenance/vector-sync.py --collection summary_vectors --json >> logs/vector-sync.log 2>&1; fi"
 
-# Drenar quarentena (archived=2) semanalmente. Roda no domingo 04:00
-# (entre backup 03:00 e vector-sync 03:45). v3.7.8+ drena ~95% das obs
-# paradas; o que sobra vai para archived=3 terminal apos 30d.
+# Drain quarantine (archived=2) weekly. Runs Sunday at 04:00
+# (between backup 03:00 and vector-sync 03:45). v3.7.8+ drains ~95% of stuck
+# obs; what remains goes to archived=3 terminal after 30d.
 CRON_QUARANTINE_DRAIN_JOB="0 4 * * 0 SINAPSE_HOME=$PROJECT_ROOT && export SINAPSE_HOME && cd \$SINAPSE_HOME && $PY_CRON scripts/health/reprocess_quarantine.py --max-age-days 7 >> logs/quarantine-drain.log 2>&1"
 
 if command -v crontab &>/dev/null; then
-    # Remove variantes legadas/duplicadas e instala uma única entrada canônica.
+    # Remove legacy/duplicate variants and install a single canonical entry.
     CRON_TMP=$(mktemp)
     crontab -l 2>/dev/null \
         | grep -vF "# Hive-Mind — sync vault → graph a cada 6h" \
@@ -787,23 +787,23 @@ if command -v crontab &>/dev/null; then
         echo "$CRON_QUARANTINE_DRAIN_JOB"
     } | crontab -
     rm -f "$CRON_TMP"
-    echo -e "  ${GREEN}✓${NC} Cron configurado sem duplicatas (sync, audit, backup, Dream Cycle, K5)"
+    echo -e "  ${GREEN}✓${NC} Cron configured without duplicates (sync, audit, backup, Dream Cycle, K5)"
 else
-    echo -e "  ${YELLOW}⊘${NC}  crontab não disponível. Use scripts/graph/build-graph.sh, scripts/health/backup_databases.py e scripts/dream/dream_cycle.py manualmente."
+    echo -e "  ${YELLOW}⊘${NC}  crontab not available. Run scripts/graph/build-graph.sh, scripts/health/backup_databases.py and scripts/dream/dream_cycle.py manually."
 fi
 
 echo ""
 
 # =============================================================================
-# 10. PLUGIN SINAPSE-MEMORY (HERMES)
+# 10. SINAPSE-MEMORY PLUGIN (HERMES)
 # =============================================================================
-echo -e "${BOLD}[10/12] Instalando plugin sinapse-memory...${NC}"
+echo -e "${BOLD}[10/12] Installing sinapse-memory plugin...${NC}"
 
 if command -v hermes &>/dev/null && [ -d "$HOME/.hermes/plugins/" ]; then
     PLUGIN_DIR="$HOME/.hermes/plugins/sinapse-memory"
     mkdir -p "$PLUGIN_DIR"
 
-    # Copia plugin do projeto
+    # Copy plugin from the project
     if [ -f "$PROJECT_ROOT/plugins/hermes/sinapse-memory.py" ]; then
         cp "$PROJECT_ROOT/plugins/hermes/sinapse-memory.py" "$PLUGIN_DIR/__init__.py"
     fi
@@ -812,9 +812,9 @@ if command -v hermes &>/dev/null && [ -d "$HOME/.hermes/plugins/" ]; then
     cat > "$PLUGIN_DIR/plugin.yaml" << 'PLUGINEOF'
 name: sinapse-memory
 description: >
-  Integração bidirecional Hermes ↔ Obsidian vault via Sinapse Agent.
-  Busca multi-backend: claude-mem (semântica Chroma + FTS5) → Graphify (estrutural Leiden).
-  Escrita de decisões e aprendizados no vault com frontmatter YAML + WikiLinks.
+  Bidirectional Hermes ↔ Obsidian vault integration via Sinapse Agent.
+  Multi-backend search: claude-mem (semantic Chroma + FTS5) → Graphify (structural Leiden).
+  Writes decisions and learnings to the vault with YAML frontmatter + WikiLinks.
 author: Sinapse Agent
 hooks:
   - pre_gateway_dispatch
@@ -845,57 +845,57 @@ config:
     projects: "work/active"
 PLUGINEOF
 
-    echo -e "  ${GREEN}✓${NC} plugin sinapse-memory (multi-backend)"
+    echo -e "  ${GREEN}✓${NC} sinapse-memory plugin (multi-backend)"
 else
-    echo -e "  ${YELLOW}⊘${NC}  Hermes não detectado"
+    echo -e "  ${YELLOW}⊘${NC}  Hermes not detected"
 fi
 
 echo ""
 
-# ── CONFIGURAÇÃO DE INTELIGÊNCIA (Ciclo de Sonho) ───────────────────────────
-echo -e "${BOLD}[11/12] Configurando inteligência do Ciclo de Sonho...${NC}"
+# ── INTELLIGENCE CONFIGURATION (Dream Cycle) ───────────────────────────────
+echo -e "${BOLD}[11/12] Configuring Dream Cycle intelligence...${NC}"
 
-# Garante que o .env.example contém o bloco de LLM por papel (idempotente).
-# O bloco vive versionado em config/env.roles.example — fonte única.
+# Ensures that .env.example contains the per-role LLM block (idempotent).
+# The block lives versioned at config/env.roles.example — single source of truth.
 if [ -f "$PROJECT_ROOT/config/env.roles.example" ] && [ -f "$PROJECT_ROOT/.env.example" ]; then
     if ! grep -q "^HIVE_GRAPHIFY_PROVIDER=" "$PROJECT_ROOT/.env.example"; then
         printf '\n' >> "$PROJECT_ROOT/.env.example"
         cat "$PROJECT_ROOT/config/env.roles.example" >> "$PROJECT_ROOT/.env.example"
-        echo -e "  ${GREEN}✓${NC} Bloco de LLM por papel adicionado ao .env.example"
+        echo -e "  ${GREEN}✓${NC} Per-role LLM block added to .env.example"
     fi
 fi
 
 if [ -n "$PROVIDER" ] && [ -n "$MODEL" ]; then
-    echo -e "  Salvando provedor ($PROVIDER) e modelo ($MODEL) no .env..."
-    # Garante que o .env existe
+    echo -e "  Saving provider ($PROVIDER) and model ($MODEL) to .env..."
+    # Ensures that .env exists
     [ -f "$PROJECT_ROOT/.env" ] || cp "$PROJECT_ROOT/.env.example" "$PROJECT_ROOT/.env"
-    # Salva no .env usando python
+    # Save to .env using python
     "$PYTHON" -c "import sys; sys.path.append('$PROJECT_ROOT'); from core.auth import save_env; save_env('HIVE_DREAMER_PROVIDER', '$PROVIDER'); save_env('HIVE_DREAMER_MODEL', '$MODEL')"
-    echo -e "  ${GREEN}✓${NC} Provedor e modelo salvos (papel Dreamer)."
-    echo -e "  Os papéis Graphify, Vision e Síntese herdam este modelo por padrão;"
-    echo -e "  ajuste por papel (e fallbacks) com: python3 scripts/setup/setup-brain.py"
+    echo -e "  ${GREEN}✓${NC} Provider and model saved (Dreamer role)."
+    echo -e "  The Graphify, Vision, and Synthesis roles inherit this model by default;"
+    echo -e "  tune per role (and fallbacks) with: python3 scripts/setup/setup-brain.py"
 else
-    echo -e "  Nenhum provedor/modelo de IA fornecido via argumentos."
-    echo -e "  A configuração poderá ser realizada ao final da instalação ou posteriormente."
+    echo -e "  No AI provider/model provided via arguments."
+    echo -e "  The configuration can be done at the end of the installation or later."
 fi
 echo ""
 
-# 12. CONFIGURAÇÃO DE AGENTES EXTERNOS (via MCP + templates)
+# 12. EXTERNAL AGENT CONFIGURATION (via MCP + templates)
 # =============================================================================
-echo -e "${BOLD}[12/12] Configurando agentes externos (MCP + CLI)...${NC}"
+echo -e "${BOLD}[12/12] Configuring external agents (MCP + CLI)...${NC}"
 
-# Garantir permissões de execução em todos os scripts e hooks
+# Ensure execute permissions on all scripts and hooks
 chmod +x $(find "$PROJECT_ROOT/scripts" -name "*.sh") 2>/dev/null || true
 chmod +x $(find "$PROJECT_ROOT/scripts" -name "*.py") 2>/dev/null || true
 chmod +x "$PROJECT_ROOT/cerebro/tronco/infra/agentes/.claude/scripts/"*.py 2>/dev/null || true
 
-# Registro MCP delegado ao script standalone (idempotente, merge seguro).
-# Pode ser re-executado a qualquer momento: ./scripts/setup/register-mcp.sh
+# MCP registration delegated to the standalone script (idempotent, safe merge).
+# Can be re-run at any time: ./scripts/setup/register-mcp.sh
 if ! PROJECT_ROOT="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/setup/register-mcp.sh"; then
-    echo -e "  ${YELLOW}⊘${NC} Nenhum agente externo detectado. Use scripts/services/sinapse-write.py via CLI."
+    echo -e "  ${YELLOW}⊘${NC} No external agent detected. Use scripts/services/sinapse-write.py via CLI."
 fi
 
-# Template AGENTS.md do vault para Codex fica no Tronco, sem criar .codex no topo.
+# AGENTS.md template for Codex lives in the Tronco, without creating .codex at the top.
 if command -v codex &>/dev/null && [ -f "$PROJECT_ROOT/cerebro/tronco/infra/agentes/.codex/AGENTS.md" ]; then
     mkdir -p "$VAULT_DIR/tronco/infra/agentes/.codex"
     cp "$PROJECT_ROOT/cerebro/tronco/infra/agentes/.codex/AGENTS.md" "$VAULT_DIR/tronco/infra/agentes/.codex/AGENTS.md" 2>/dev/null || true
@@ -903,26 +903,26 @@ fi
 
 echo ""
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}Verificando integridade...${NC}"
+echo -e "${BOLD}Checking integrity...${NC}"
 "$PYTHON" "$PROJECT_ROOT/scripts/setup/install_services.py" install
 
-# Ponte de modelo: se o papel `claude_mem` foi configurado no setup-brain,
-# aplica esse provider/modelo no claude-mem (via /api/settings + seed). Sai
-# limpo se não houver papel configurado (usa o default do claude-mem). #modelo
+# Model bridge: if the `claude_mem` role was configured in setup-brain,
+# apply that provider/model to claude-mem (via /api/settings + seed). Exits
+# cleanly if no role is configured (uses claude-mem's default). #modelo
 "$PYTHON" "$PROJECT_ROOT/scripts/setup/sync-claude-mem-provider.py" 2>&1 | sed 's/^/  /' || true
 
 if "$PYTHON" "$PROJECT_ROOT/scripts/services/sinapse-write.py" health >/dev/null 2>&1; then
-    echo -e "  ${GREEN}✓${NC} Health check: backends operacionais"
+    echo -e "  ${GREEN}✓${NC} Health check: backends operational"
 else
-    echo -e "  ${YELLOW}⊘${NC}  Health check: alguns backends offline"
-    echo -e "  Execute: python3 scripts/services/sinapse-write.py health"
+    echo -e "  ${YELLOW}⊘${NC}  Health check: some backends offline"
+    echo -e "  Run: python3 scripts/services/sinapse-write.py health"
 fi
 
-# Checagem opcional do FalkorDB (Graphiti — lóbulo temporal).
-# Se FalkorDB não estiver respondendo, o cérebro usa o fallback JSON-lines
-# automaticamente; não bloqueia a instalação.
+# Optional FalkorDB check (Graphiti — temporal lobe).
+# If FalkorDB isn't responding, the brain automatically uses the JSON-lines
+# fallback; it doesn't block the installation.
 echo ""
-echo -e "${BOLD}Graphiti (lóbulo temporal):${NC}"
+echo -e "${BOLD}Graphiti (temporal lobe):${NC}"
 if "$PYTHON" -c "
 import os, sys
 sys.path.insert(0, '$PROJECT_ROOT')
@@ -930,50 +930,50 @@ try:
     from integrations.graphiti import assert_health
     h = assert_health()
     if h['falkordb']:
-        print('  OK: FalkorDB em', os.environ.get('FALKORDB_HOST', 'localhost'))
+        print('  OK: FalkorDB at', os.environ.get('FALKORDB_HOST', 'localhost'))
     else:
-        print('  WARN: FalkorDB offline — cérebro usará fallback JSON-lines em')
+        print('  WARN: FalkorDB offline — brain will use JSON-lines fallback at')
         print('        cerebro/cortex/temporal/_global/grafo.jsonl')
         sys.exit(0)
 except Exception as e:
-    print('  WARN: Graphiti não pôde ser checado:', e)
+    print('  WARN: Graphiti could not be checked:', e)
     sys.exit(0)
 "; then
     :
 else
-    echo -e "  ${YELLOW}⊘${NC}  Graphiti check falhou (não-bloqueante)"
+    echo -e "  ${YELLOW}⊘${NC}  Graphiti check failed (non-blocking)"
 fi
 echo ""
 
 # =============================================================================
-# K10 — Validacao por perfil e suite real (docs/12 §K10)
+# K10 — Validation per profile and real suite (docs/12 §K10)
 # =============================================================================
-echo -e "${BOLD}[K10] Perfil=${INSTALL_PROFILE} — validando servicos...${NC}"
+echo -e "${BOLD}[K10] Profile=${INSTALL_PROFILE} — validating services...${NC}"
 
-# Habilita servicos locais adicionais em local-full. local-min mantem apenas
-# claude-mem (que ja foi iniciado por install_services.py) e o watchdog
-# graphify, que sao seguros mesmo sem GPU/disco extra.
+# Enable additional local services under local-full. local-min keeps only
+# claude-mem (already started by install_services.py) and the graphify
+# watchdog, which are safe even without extra GPU/disk.
 if [ "$INSTALL_PROFILE" = "local-full" ]; then
-    echo -e "  ${BOLD}Perfil local-full:${NC} habilitando Milvus + FalkorDB + RAGFlow (docker)"
+    echo -e "  ${BOLD}local-full profile:${NC} enabling Milvus + FalkorDB + RAGFlow (docker)"
     if [ -f "$PROJECT_ROOT/integrations/milvus/docker-compose.yml" ]; then
-        (cd "$PROJECT_ROOT/integrations/milvus" && docker compose up -d)             && echo -e "  ${GREEN}OK${NC} Milvus iniciado"             || echo -e "  ${YELLOW}WARN${NC} Milvus nao subiu (docker indisponivel ou perfil sem docker)"
+        (cd "$PROJECT_ROOT/integrations/milvus" && docker compose up -d)             && echo -e "  ${GREEN}OK${NC} Milvus started"             || echo -e "  ${YELLOW}WARN${NC} Milvus did not start (docker unavailable or profile without docker)"
     fi
     if [ -f "$PROJECT_ROOT/integrations/ragflow/docker-compose.yml" ]; then
-        (cd "$PROJECT_ROOT/integrations/ragflow" && docker compose up -d)             && echo -e "  ${GREEN}OK${NC} RAGFlow iniciado"             || echo -e "  ${YELLOW}WARN${NC} RAGFlow nao subiu (opcional em local-full)"
+        (cd "$PROJECT_ROOT/integrations/ragflow" && docker compose up -d)             && echo -e "  ${GREEN}OK${NC} RAGFlow started"             || echo -e "  ${YELLOW}WARN${NC} RAGFlow did not start (optional under local-full)"
     fi
-    # FalkorDB ja foi iniciado por install_services.py quando disponivel; so
-    # reforcamos o aviso se ele nao estiver respondendo.
+    # FalkorDB was already started by install_services.py when available; we
+    # only reinforce the warning if it isn't responding.
     if ! "$PYTHON" -c "import socket,os; s=socket.socket(); s.settimeout(1); s.connect((os.environ.get('FALKORDB_HOST','localhost'), int(os.environ.get('FALKORDB_PORT','6379'))))" 2>/dev/null; then
-        echo -e "  ${YELLOW}WARN${NC} FalkorDB offline — cerebro usa fallback JSON-lines"
+        echo -e "  ${YELLOW}WARN${NC} FalkorDB offline — brain uses JSON-lines fallback"
     fi
 else
-    echo -e "  Perfil local-min: mantendo apenas claude-mem + graphify-watch"
-    echo -e "  Para subir Milvus/FalkorDB/RAGFlow depois, use:"
+    echo -e "  local-min profile: keeping only claude-mem + graphify-watch"
+    echo -e "  To start Milvus/FalkorDB/RAGFlow later, use:"
     echo -e "    ${BOLD}./install.sh --profile=local-full --with-real-tests${NC}"
 fi
 
-# Migrations: re-aplica schema/vetores idempotentemente. CRR-safe (B1) ja
-# garantido por ensure_migrations; aqui so reforcamos que esta aplicado.
+# Migrations: re-apply schema/vectors idempotently. CRR-safety (B1) is
+# already guaranteed by ensure_migrations; here we only reinforce that it ran.
 "$PYTHON" -c "
 import os, sys
 sys.path.insert(0, '$PROJECT_ROOT')
@@ -981,79 +981,79 @@ from core.database import ensure_migrations, get_connection
 conn = get_connection()
 ensure_migrations(conn)
 conn.close()
-print('  OK: schema/vector migrations aplicadas (idempotente)')
-" 2>&1 | sed 's/^/  /' || echo -e "  ${YELLOW}WARN${NC} migrations nao puderam ser validadas"
+print('  OK: schema/vector migrations applied (idempotent)')
+" 2>&1 | sed 's/^/  /' || echo -e "  ${YELLOW}WARN${NC} migrations could not be validated"
 
-# MCP por agente, idempotente e preservando configs externas.
+# MCP per agent, idempotent and preserving external configs.
 "$PROJECT_ROOT/scripts/setup/register-mcp.sh" 2>&1 | sed 's/^/  /' || true
 echo ""
 
-# Smoke real da frente de conhecimento (--with-real-tests). Pula limpo
-# servicos offline e falha apenas quando um teste real (sem mock) quebra.
+# Real smoke for the knowledge front (--with-real-tests). Cleanly skips
+# offline services and only fails when a real (non-mock) test breaks.
 if $WITH_TESTS; then
-    echo -e "${BOLD}Executando testes da suíte completa...${NC}"
+    echo -e "${BOLD}Running the full test suite...${NC}"
     if ./tests/run_all.sh; then
-        echo -e "  ${GREEN}✓${NC} Todos os testes passaram com sucesso!"
+        echo -e "  ${GREEN}✓${NC} All tests passed successfully!"
     else
-        echo -e "  ${RED}✗${NC} Alguns testes falharam!"
+        echo -e "  ${RED}✗${NC} Some tests failed!"
         exit 1
     fi
     echo ""
 fi
 
 if $WITH_REAL_TESTS; then
-    echo -e "${BOLD}Executando suite real de conhecimento (K9) — backends reais, sem mock...${NC}"
+    echo -e "${BOLD}Running real knowledge suite (K9) — real backends, no mock...${NC}"
     if [ -x "$PROJECT_ROOT/tests/run_real_knowledge.sh" ]; then
         if "$PROJECT_ROOT/tests/run_real_knowledge.sh" --report "$PROJECT_ROOT/logs/k9-real-suite-report.md" 2>&1 | tail -40; then
-            echo -e "  ${GREEN}OK${NC} suite real de conhecimento executada"
+            echo -e "  ${GREEN}OK${NC} real knowledge suite executed"
         else
-            echo -e "  ${RED}ERRO${NC} suite real retornou !=0; corrija o gate K9 antes de considerar o install valido"
+            echo -e "  ${RED}ERROR${NC} real suite returned !=0; fix the K9 gate before considering the install valid"
             exit 1
         fi
     else
-        echo -e "  ${RED}ERRO${NC} tests/run_real_knowledge.sh nao encontrado/exequivel"
+        echo -e "  ${RED}ERROR${NC} tests/run_real_knowledge.sh not found/executable"
         exit 1
     fi
     echo ""
 fi
 
 # =============================================================================
-# K10 Task 8 — Relatorio final com paths, portas, modelos e health
+# K10 Task 8 — Final report with paths, ports, models, and health
 # =============================================================================
 REPORT="$PROJECT_ROOT/logs/install-report.md"
 mkdir -p "$(dirname "$REPORT")"
 {
-    echo "# Hive-Mind — Relatorio de Instalacao"
+    echo "# Hive-Mind — Installation Report"
     echo ""
-    echo "- Data: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    echo "- Perfil: \`${INSTALL_PROFILE}\`"
+    echo "- Date: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "- Profile: \`${INSTALL_PROFILE}\`"
     echo "- With real tests: \`${WITH_REAL_TESTS}\`"
     echo "- With full tests:  \`${WITH_TESTS}\`"
     echo ""
     echo "## Paths"
     echo ""
-    echo "| Recurso | Caminho |"
+    echo "| Resource | Path |"
     echo "|---|---|"
-    echo "| Vault Obsidian | \`${VAULT_DIR}\` |"
+    echo "| Obsidian Vault | \`${VAULT_DIR}\` |"
     echo "| Knowledge Graph | \`${GRAPHIFY_OUT}/graph.json\` |"
-    echo "| Banco principal | \`${PROJECT_ROOT}/hive_mind.db\` |"
+    echo "| Main database | \`${PROJECT_ROOT}/hive_mind.db\` |"
     echo "| claude-mem DB | \`${HOME}/.claude-mem/claude-mem.db\` |"
     echo "| Python venv | \`${PROJECT_ROOT}/.venv\` |"
     echo ""
-    echo "## Portas e servicos"
+    echo "## Ports and services"
     echo ""
-    echo "| Servico | Porta esperada | Status |"
+    echo "| Service | Expected port | Status |"
     echo "|---|---:|---|"
     for svc in "claude-mem 37700" "sqlite-vec 37701" "api 37702" "mcp-http 37703"; do
         name="${svc% *}"; port="${svc##* }"
         if "$PYTHON" -c "import socket; s=socket.socket(); s.settimeout(0.5); s.connect(('127.0.0.1', ${port}))" 2>/dev/null; then
             echo "| ${name} | ${port} | online |"
         else
-            echo "| ${name} | ${port} | offline (nao-bloqueante) |"
+            echo "| ${name} | ${port} | offline (non-blocking) |"
         fi
     done
     echo ""
-    echo "## Modelos Ollama (instalados quando disponivel)"
+    echo "## Ollama models (installed when available)"
     echo ""
     if curl -s http://localhost:11434/api/tags >/dev/null 2>&1; then
         curl -s http://localhost:11434/api/tags | "$PYTHON" -c '
@@ -1063,7 +1063,7 @@ for m in data.get("models", []):
     print("- `" + m["name"] + "` (" + str(round(m["size"]/1e9, 1)) + " GB)")
 '
     else
-        echo "_Ollama offline neste host._"
+        echo "_Ollama offline on this host._"
     fi
     echo ""
     echo "## Health check"
@@ -1071,81 +1071,81 @@ for m in data.get("models", []):
     if "$PYTHON" "$PROJECT_ROOT/scripts/services/sinapse-write.py" health > "$REPORT.health" 2>&1; then
         sed 's/^/    /' "$REPORT.health" | head -40
     else
-        echo "_Health check retornou !=0 (ver logs/install-report.md.health)._"
+        echo "_Health check returned !=0 (see logs/install-report.md.health)._"
     fi
     echo ""
-    echo "## Validacao real (K9)"
+    echo "## Real validation (K9)"
     echo ""
     if $WITH_REAL_TESTS; then
-        echo "- \`./tests/run_real_knowledge.sh --report logs/k9-real-suite-report.md\` executado com exit 0."
-        echo "- Relatorio K9: \`logs/k9-real-suite-report.md\`."
+        echo "- \`./tests/run_real_knowledge.sh --report logs/k9-real-suite-report.md\` executed with exit 0."
+        echo "- K9 report: \`logs/k9-real-suite-report.md\`."
     else
-        echo "- Pule \`--with-real-tests\` para rodar a suite real de conhecimento."
-        echo "- Comando: \`./tests/run_real_knowledge.sh\`"
+        echo "- Pass \`--with-real-tests\` to run the real knowledge suite."
+        echo "- Command: \`./tests/run_real_knowledge.sh\`"
     fi
     echo ""
-    echo "## Proximos passos"
+    echo "## Next steps"
     echo ""
-    echo "1. Reinicie seus agentes (Claude Code, Codex CLI, etc.) para carregar o MCP."
-    echo "2. Suba o Obsidian apontando para \`cerebro/\`."
-    echo "3. Verifique o watcher: \`./scripts/services/start-watcher.sh status\`."
+    echo "1. Restart your agents (Claude Code, Codex CLI, etc.) to load the MCP."
+    echo "2. Open Obsidian pointing to \`cerebro/\`."
+    echo "3. Check the watcher: \`./scripts/services/start-watcher.sh status\`."
 } > "$REPORT"
 echo ""
-echo -e "  ${GREEN}OK${NC} Relatorio final escrito em: ${BOLD}$REPORT${NC}"
+echo -e "  ${GREEN}OK${NC} Final report written at: ${BOLD}$REPORT${NC}"
 
-# Mini-resumo no stdout (para o usuario ver sem abrir o arquivo)
+# Mini summary on stdout (for the user to see without opening the file)
 echo ""
-echo -e "  ${BOLD}Resumo da instalacao (perfil ${INSTALL_PROFILE}):${NC}"
+echo -e "  ${BOLD}Installation summary (profile ${INSTALL_PROFILE}):${NC}"
 echo -e "    Vault:         ${BOLD}$VAULT_DIR${NC}"
-echo -e "    Banco:         ${BOLD}$PROJECT_ROOT/hive_mind.db${NC}"
+echo -e "    Database:      ${BOLD}$PROJECT_ROOT/hive_mind.db${NC}"
 echo -e "    Python:        ${BOLD}$PROJECT_ROOT/.venv/bin/python${NC}"
 echo -e "    claude-mem:    ${BOLD}http://127.0.0.1:37700${NC}"
-echo -e "    API REST:      ${BOLD}http://127.0.0.1:37702${NC}"
+echo -e "    REST API:      ${BOLD}http://127.0.0.1:37702${NC}"
 echo -e "    MCP HTTP:      ${BOLD}http://127.0.0.1:37703${NC}"
 if $WITH_REAL_TESTS; then
-    echo -e "    Suite real:    ${BOLD}executada (ver logs)${NC}"
+    echo -e "    Real suite:    ${BOLD}executed (see logs)${NC}"
 fi
 echo ""
 
-echo -e "${BOLD}${GREEN}║       Sinapse Agent instalado com sucesso!          ║${NC}"
+echo -e "${BOLD}${GREEN}║       Sinapse Agent installed successfully!          ║${NC}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "  Vault Obsidian:  ${BOLD}$VAULT_DIR${NC}"
+echo -e "  Obsidian Vault:  ${BOLD}$VAULT_DIR${NC}"
 echo -e "  Knowledge Graph: ${BOLD}$GRAPHIFY_OUT/graph.json${NC}"
 echo -e "  MCP Servers:     ${BOLD}$HOME/.hermes/mcp/${NC}"
 echo ""
-echo -e "  Abra a pasta ${BOLD}cerebro/${NC} no Obsidian como um vault."
-echo -e "  Todo arquivo criado/editado será indexado automaticamente."
+echo -e "  Open the folder ${BOLD}cerebro/${NC} in Obsidian as a vault."
+echo -e "  Every file created/edited will be indexed automatically."
 echo ""
-echo -e "  ${YELLOW}Reinicie seus agentes para aplicar as mudanças.${NC}"
+echo -e "  ${YELLOW}Restart your agents to apply the changes.${NC}"
 echo ""
 
-# ── Notas pós-instalação ───────────────────────────────────────────────
-echo -e "${BOLD}${BLUE}Notas pós-instalação:${NC}"
+# ── Post-installation notes ───────────────────────────────────────────────
+echo -e "${BOLD}${BLUE}Post-installation notes:${NC}"
 echo ""
-echo -e "  ${BOLD}Obsidian:${NC} Abra a pasta cerebro/ como vault no Obsidian."
+echo -e "  ${BOLD}Obsidian:${NC} Open the cerebro/ folder as a vault in Obsidian."
 echo -e "         Flatpak: flatpak run md.obsidian.Obsidian --vault \"$VAULT_DIR\""
-echo -e "         Em Configurações > Arquivos e links, ative 'Mostrar arquivos ocultos'."
+echo -e "         In Settings > Files and links, enable 'Show hidden files'."
 echo ""
-echo -e "  ${BOLD}Ollama (modelos — baixados automaticamente acima quando detectado):${NC}"
-echo -e "         ollama pull snowflake-arctic-embed2 # Embeddings 1024d (core/LightRAG/Graphiti)"
-echo -e "         ollama pull qwen2.5:3b           # Extração Graphiti + LightRAG (~1.9GB)"
-echo -e "         ollama pull qwen2.5-coder:3b     # Extração semântica do Graphify"
-echo -e "         ollama pull minicpm-v4.6:latest  # Visão local compacta (default)"
-echo -e "         ollama pull gemma3:4b            # Fallback visão/raciocínio visual (local-full)"
-echo -e "         ollama pull deepseek-ocr:latest  # OCR dedicado opcional (SINAPSE_PULL_DEEPSEEK_OCR=1)"
-echo -e "         ollama pull qwen2.5:7b           # Graphiti local alta qualidade (opcional, ~4.7GB)"
-echo -e "         ollama pull nomic-embed-text     # Embeddings leve (alternativo)"
+echo -e "  ${BOLD}Ollama (models — downloaded automatically above when detected):${NC}"
+echo -e "         ollama pull snowflake-arctic-embed2 # 1024d embeddings (core/LightRAG/Graphiti)"
+echo -e "         ollama pull qwen2.5:3b           # Graphiti + LightRAG extraction (~1.9GB)"
+echo -e "         ollama pull qwen2.5-coder:3b     # Graphify semantic extraction"
+echo -e "         ollama pull minicpm-v4.6:latest  # Compact local vision (default)"
+echo -e "         ollama pull gemma3:4b            # Vision/visual reasoning fallback (local-full)"
+echo -e "         ollama pull deepseek-ocr:latest  # Optional dedicated OCR (SINAPSE_PULL_DEEPSEEK_OCR=1)"
+echo -e "         ollama pull qwen2.5:7b           # High-quality local Graphiti (optional, ~4.7GB)"
+echo -e "         ollama pull nomic-embed-text     # Lightweight embeddings (alternative)"
 echo ""
 echo -e "  ${BOLD}Disaster Recovery:${NC}"
-echo -e "         ${BOLD}./scripts/utils/recover.sh${NC} — Verifica/Rebuilda graph.json, reinicia worker, health check"
+echo -e "         ${BOLD}./scripts/utils/recover.sh${NC} — Checks/Rebuilds graph.json, restarts worker, health check"
 echo ""
-echo -e "  ${BOLD}API Keys (opcional):${NC}"
-echo -e "         Copie .env.example para .env e configure GOOGLE_API_KEY."
-echo -e "         Gemini é usado para extração semântica de alta qualidade."
+echo -e "  ${BOLD}API Keys (optional):${NC}"
+echo -e "         Copy .env.example to .env and configure GOOGLE_API_KEY."
+echo -e "         Gemini is used for high-quality semantic extraction."
 echo ""
 if $OLLAMA_OK; then
-    echo -e "  ${BOLD}Modelos Ollama instalados:${NC}"
+    echo -e "  ${BOLD}Ollama models installed:${NC}"
     curl -s http://localhost:11434/api/tags 2>/dev/null | "$PYTHON" -c "
 import json, sys
 for m in json.load(sys.stdin)['models']:
@@ -1155,11 +1155,11 @@ fi
 echo ""
 
 # =============================================================================
-# 13. CR-SQLite (vendor opcional — sync multi-device via CRDT)
+# 13. CR-SQLite (optional vendor — multi-device sync via CRDT)
 # =============================================================================
-# Politica 0.2 do roadmap: vendor externo em integrations/<nome>/.
-# Binario vem de https://github.com/vlcn-io/cr-sqlite/releases (release pinada).
-# E opt-in: controlado por HIVE_CRDT_SYNC=true no .env (default false).
+# Roadmap policy 0.2: external vendor at integrations/<name>/.
+# Binary comes from https://github.com/vlcn-io/cr-sqlite/releases (pinned release).
+# It is opt-in: controlled by HIVE_CRDT_SYNC=true in .env (default false).
 CRSQLITE_VERSION="${CRSQLITE_VERSION:-0.16.3}"
 CRSQLITE_DIR="$PROJECT_ROOT/integrations/crsqlite"
 
@@ -1170,17 +1170,17 @@ download_crsqlite_asset() {
     local zipfile="${tmp_dir}/${asset}"
     trap 'rm -rf "$tmp_dir"' RETURN
 
-    echo -e "  Baixando ${url}"
+    echo -e "  Downloading ${url}"
     if ! curl --proto '=https' --tlsv1.2 -sSfL -o "$zipfile" "$url"; then
-        echo -e "  ${YELLOW}!${NC} Falha no download de ${asset} (rede ou release)."
+        echo -e "  ${YELLOW}!${NC} Failed to download ${asset} (network or release)."
         return 1
     fi
 
-    # Extrai apenas o binario nomeado pelo upstream (a partir de v0.16.1 o
-    # zip ja vem com o nome final do .so/.dylib/.dll, sem rename).
+    # Extract only the binary named by upstream (from v0.16.1 the zip
+    # already comes with the final .so/.dylib/.dll name, no rename).
     if command -v unzip >/dev/null 2>&1; then
         unzip -o -j "$zipfile" -d "$CRSQLITE_DIR" 2>/dev/null || {
-            echo -e "  ${YELLOW}!${NC} unzip falhou para ${asset}"
+            echo -e "  ${YELLOW}!${NC} unzip failed for ${asset}"
             return 1
         }
     elif command -v python3 >/dev/null 2>&1; then
@@ -1190,7 +1190,7 @@ with zipfile.ZipFile('$zipfile') as z:
     z.extractall('$CRSQLITE_DIR')
 " || return 1
     else
-        echo -e "  ${YELLOW}!${NC} Nenhum unzip ou python3 disponivel para extrair."
+        echo -e "  ${YELLOW}!${NC} No unzip or python3 available to extract."
         return 1
     fi
     return 0
@@ -1199,7 +1199,7 @@ with zipfile.ZipFile('$zipfile') as z:
 download_crsqlite() {
     mkdir -p "$CRSQLITE_DIR"
 
-    # Escolhe asset conforme plataforma detectada.
+    # Pick asset according to detected platform.
     local sys_name kernel
     sys_name=$(uname -s 2>/dev/null || echo "Linux")
     kernel=$(uname -m 2>/dev/null || echo "x86_64")
@@ -1210,17 +1210,17 @@ download_crsqlite() {
             case "$kernel" in
                 x86_64|amd64)  asset="crsqlite-linux-x86_64.zip" ;;
                 aarch64|arm64) asset="crsqlite-linux-aarch64.zip" ;;
-                *) echo -e "  ${YELLOW}!${NC} Arquitetura Linux nao suportada: $kernel"; return 1 ;;
+                *) echo -e "  ${YELLOW}!${NC} Unsupported Linux architecture: $kernel"; return 1 ;;
             esac ;;
         Darwin)
             case "$kernel" in
                 x86_64|amd64)  asset="crsqlite-darwin-x86_64.zip" ;;
                 arm64|aarch64) asset="crsqlite-darwin-aarch64.zip" ;;
-                *) echo -e "  ${YELLOW}!${NC} Arquitetura Darwin nao suportada: $kernel"; return 1 ;;
+                *) echo -e "  ${YELLOW}!${NC} Unsupported Darwin architecture: $kernel"; return 1 ;;
             esac ;;
         *)
-            echo -e "  ${YELLOW}!${NC} SO nao suportado para CR-SQLite pre-compilado: $sys_name"
-            echo -e "         Compilar do source (Rust nightly + make loadable) ou desabilitar P8."
+            echo -e "  ${YELLOW}!${NC} Unsupported OS for pre-compiled CR-SQLite: $sys_name"
+            echo -e "         Build from source (Rust nightly + make loadable) or disable P8."
             return 1 ;;
     esac
 
@@ -1228,59 +1228,59 @@ download_crsqlite() {
 }
 
 if [ -f "$CRSQLITE_DIR/crsqlite.so" ] || [ -f "$CRSQLITE_DIR/crsqlite.dylib" ] || [ -f "$CRSQLITE_DIR/crsqlite.dll" ]; then
-    echo -e "${BOLD}[13] CR-SQLite vendor ja presente em $CRSQLITE_DIR — pulando download${NC}"
+    echo -e "${BOLD}[13] CR-SQLite vendor already present at $CRSQLITE_DIR — skipping download${NC}"
 elif $FORCE || [ "${INSTALL_CRSQLITE:-false}" = "true" ]; then
-    echo -e "${BOLD}[13] Baixando CR-SQLite v${CRSQLITE_VERSION} para integrations/crsqlite/...${NC}"
+    echo -e "${BOLD}[13] Downloading CR-SQLite v${CRSQLITE_VERSION} to integrations/crsqlite/...${NC}"
     if ! download_crsqlite; then
-        echo -e "  ${YELLOW}!${NC} CR-SQLite NAO instalado. P8 (sync multi-device) fica desabilitado."
-        echo -e "         Habilite depois com: INSTALL_CRSQLITE=true bash install.sh"
+        echo -e "  ${YELLOW}!${NC} CR-SQLite NOT installed. P8 (multi-device sync) stays disabled."
+        echo -e "         Enable later with: INSTALL_CRSQLITE=true bash install.sh"
     else
-        echo -e "  ${GREEN}OK${NC} CR-SQLite v${CRSQLITE_VERSION} em $CRSQLITE_DIR"
+        echo -e "  ${GREEN}OK${NC} CR-SQLite v${CRSQLITE_VERSION} at $CRSQLITE_DIR"
         ls -la "$CRSQLITE_DIR" | grep -E "crsqlite\.(so|dylib|dll)" || true
     fi
 else
     echo -e "${BOLD}[13] CR-SQLite (P8) - opt-in.${NC}"
-    echo -e "         Para sync multi-device via CRDT, rode:"
+    echo -e "         For multi-device sync via CRDT, run:"
     echo -e "           INSTALL_CRSQLITE=true bash install.sh"
-    echo -e "         e defina HIVE_CRDT_SYNC=true no .env. Mais em:"
+    echo -e "         and set HIVE_CRDT_SYNC=true in .env. More at:"
     echo -e "           $CRSQLITE_DIR/README.md"
 fi
 
 # ── Langfuse / OpenTelemetry (P9) — opt-in ────────────────────────────────
-# Tracing distribuído opt-in para Dream Cycle, capture e MCP. Com keys vazias,
-# zero overhead (NoOp tracer). Para subir Langfuse local e instrumentar:
+# Distributed tracing opt-in for Dream Cycle, capture, and MCP. With empty
+# keys, zero overhead (NoOp tracer). To start Langfuse locally and instrument:
 echo -e "${BOLD}[14] Langfuse / OpenTelemetry (P9) - opt-in.${NC}"
-echo -e "         Para tracing distribuido dos scripts (Dream Cycle, capture, MCP):"
-echo -e "           1. Suba Langfuse:  ${BOLD}docker compose -f integrations/langfuse/docker-compose.yml up -d${NC}"
-echo -e "           2. Crie projeto + copie keys em http://localhost:3100"
-echo -e "           3. Adicione ao .env: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST"
-echo -e "         Em prod use HTTPS (basic auth vazaria keys em HTTP) + LANGFUSE_NEXTAUTH_SECRET/SALT fortes:"
+echo -e "         For distributed tracing of scripts (Dream Cycle, capture, MCP):"
+echo -e "           1. Start Langfuse:  ${BOLD}docker compose -f integrations/langfuse/docker-compose.yml up -d${NC}"
+echo -e "           2. Create a project + copy keys at http://localhost:3100"
+echo -e "           3. Add to .env: LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST"
+echo -e "         In prod use HTTPS (empty basic auth would leak keys over HTTP) + strong LANGFUSE_NEXTAUTH_SECRET/SALT:"
 echo -e "           openssl rand -hex 32"
-echo -e "         Sem keys: zero overhead (traces descartados). Veja:"
+echo -e "         Without keys: zero overhead (traces dropped). See:"
 echo -e "           integrations/langfuse/README.md"
 
 echo ""
 
-# ── Configuração Interativa Pós-Instalação (Opcional) ───────────────────────
+# ── Post-Installation Interactive Configuration (Optional) ───────────────────────
 HAS_DREAMER=false
 if [ -f "$PROJECT_ROOT/.env" ]; then
-    # Verifica se HIVE_DREAMER_PROVIDER está preenchido e não vazio
+    # Checks if HIVE_DREAMER_PROVIDER is set and non-empty
     if grep -q "^HIVE_DREAMER_PROVIDER=" "$PROJECT_ROOT/.env" && [ -n "$(grep "^HIVE_DREAMER_PROVIDER=" "$PROJECT_ROOT/.env" | cut -d= -f2-)" ]; then
         HAS_DREAMER=true
     fi
 fi
 
 if [ "$HAS_DREAMER" = "false" ] && [ "$NON_INTERACTIVE" = "false" ] && [ -t 0 ]; then
-    echo -e "${BOLD}${YELLOW}Configuração da Inteligência (Brain Selector — todos os papéis):${NC}"
-    echo -e "  Configura provedor/modelo/auth de TODOS os papéis: Dreamer, Graphify, Vision e Síntese."
-    echo -e "  Cada papel pode usar um modelo próprio (Gemini, OpenAI, Ollama, etc.) com fallback opcional."
+    echo -e "${BOLD}${YELLOW}Intelligence Configuration (Brain Selector — all roles):${NC}"
+    echo -e "  Configures provider/model/auth of ALL roles: Dreamer, Graphify, Vision, and Synthesis."
+    echo -e "  Each role can use its own model (Gemini, OpenAI, Ollama, etc.) with optional fallback."
     echo ""
-    read -p "  Deseja configurar o seu modelo e chaves de IA interativamente agora? [S/n] " -n 1 -r
+    read -p "  Do you want to configure your AI model and keys interactively now? [S/n] " -n 1 -r
     echo ""
     if [[ $REPLY =~ ^[SsYy]$ ]] || [ -z "$REPLY" ]; then
         "$PROJECT_ROOT/scripts/setup/setup-brain.sh"
     else
-        echo -e "  Você pode realizar essa configuração mais tarde rodando: ${BOLD}./scripts/setup/setup-brain.sh${NC}"
+        echo -e "  You can run this configuration later with: ${BOLD}./scripts/setup/setup-brain.sh${NC}"
         echo ""
     fi
 fi

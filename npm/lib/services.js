@@ -1,6 +1,6 @@
 'use strict';
-// Abstração de serviços por plataforma: systemd (Linux/WSL), launchd (macOS),
-// supervisor Node (Windows nativo ou HIVE_MIND_SUPERVISOR=1).
+// Service abstraction per platform: systemd (Linux/WSL), launchd (macOS),
+// Node supervisor (Windows native or HIVE_MIND_SUPERVISOR=1).
 const { spawnSync } = require('child_process');
 const supervisor = require('./supervisor');
 const { homeDir } = require('./platform');
@@ -38,7 +38,7 @@ function launchd(action) {
     (u) => `com.hivemind.${u.replace('.service', '')}`
   );
   if (action === 'status') {
-    return sh('bash', ['-c', `launchctl list | grep -E 'com.hivemind' || echo 'nenhum LaunchAgent com.hivemind ativo'`]);
+    return sh('bash', ['-c', `launchctl list | grep -E 'com.hivemind' || echo 'no active com.hivemind LaunchAgent'`]);
   }
   const verb = action === 'stop' ? 'unload' : 'load';
   let code = 0;
