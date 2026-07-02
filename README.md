@@ -21,7 +21,38 @@ MCP, native plugin, CLI or REST API — on one machine or across many, synced ov
 
 ---
 
-## ⚡ Quick Start — Configure With Your AI Agent
+## ⚡ Quick Start
+
+### Via npm (recommended)
+
+```bash
+# Interactive setup wizard
+npx hive-mind@latest init wizard
+
+# Non-interactive
+npx hive-mind@latest init
+
+# Or install the CLI globally
+npm install -g hive-mind
+hive-mind init
+```
+
+One-liner without Node (Linux / WSL / macOS):
+
+```bash
+curl -fsSL https://cdn.jsdelivr.net/gh/Mlaurindo30/Hive-Mind@main/install.sh | bash
+```
+
+| Platform | Status | Service backend |
+|---|---|---|
+| Linux / WSL2 | ✅ stable (clean-machine tested) | systemd `--user` |
+| macOS | 🧪 experimental | launchd (`install_services.py launchd`) |
+| Windows native | 🚧 beta — install via WSL2; Node supervisor manages services | `hive-mind services` supervisor |
+
+After install: `hive-mind mcp register --agent <claude|codex|gemini|cursor|...>`,
+restart your agent and confirm with *"use the sinapse_health tool"*.
+
+### Via AI agent prompt
 
 Copy a prompt below and paste it into your agent (Claude Code, Codex CLI, Gemini CLI, Cursor, ...).
 

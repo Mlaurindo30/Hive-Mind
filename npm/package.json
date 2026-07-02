@@ -1,0 +1,37 @@
+{
+  "name": "hive-mind",
+  "version": "3.7.12",
+  "description": "Universal, persistent, local-first memory layer for swarms of AI agents — installer & runtime CLI",
+  "bin": {
+    "hive-mind": "bin/hive-mind.js"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "memory",
+    "mcp",
+    "claude",
+    "rag",
+    "knowledge-graph",
+    "local-first"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mlaurindo30/Hive-Mind.git",
+    "directory": "npm"
+  },
+  "homepage": "https://github.com/Mlaurindo30/Hive-Mind#readme",
+  "bugs": {
+    "url": "https://github.com/Mlaurindo30/Hive-Mind/issues"
+  },
+  "author": "Michel Laurindo",
+  "license": "Apache-2.0"
+}
