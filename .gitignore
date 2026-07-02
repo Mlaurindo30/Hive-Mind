@@ -143,5 +143,7 @@ cerebro/cortex/occipital/grafo/cache
 # .github/copilot-instructions.md (canonical — committed)
 .agents/
 
-# Runtime graphify output (generated, not canonical)
+# Per-agent contract files materialized by scripts/setup/register-mcp.sh
+# (canonical source: config/sinapse-agent-prompt.md)
 /GEMINI.md
+/CLAUDE.md
