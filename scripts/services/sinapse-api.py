@@ -11,6 +11,7 @@ import os
 import re
 import secrets
 import sys
+import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -126,7 +127,13 @@ limiter = Limiter(key_func=get_remote_address)
 @asynccontextmanager
 async def api_lifespan(_app: FastAPI):
     init_telemetry()
+    # Aquece a ponte de fusão fora do caminho de readiness: a primeira query
+    # híbrida real deixa de pagar o cold start (~20s de imports + índices).
+    threading.Thread(
+        target=_warmup_context_fusion, name="fusion-warmup", daemon=True
+    ).start()
     yield
+    flush_telemetry()
 
 
 app = FastAPI(
@@ -227,12 +234,12 @@ async def telemetry_middleware(request: "Request", call_next):
             if s is not None:
                 s.set_attribute("status_code", status_code)
 
+    # Sem force_flush por request: o BatchSpanProcessor (schedule_delay_millis=1)
+    # exporta em thread própria; flush síncrono aqui bloquearia o event loop.
     if response is not None:
         response.headers["X-Trace-Id"] = trace_id
-        flush_telemetry()
         return response
 
-    flush_telemetry()
     if exc is not None:
         raise exc
     raise HTTPException(status_code=500, detail="Falha inesperada no middleware da API.")
@@ -316,6 +323,18 @@ def _build_sinapse_query_fn():
         return legacy_holder["result"]
 
     return _legacy_query
+
+
+def _warmup_context_fusion() -> None:
+    """Aquece imports, índices HNSW e caches de embedding da fusão.
+
+    Roda em thread daemon no startup para que a primeira query híbrida real
+    não pague o cold start. Falha silenciosa: warmup nunca derruba a API.
+    """
+    try:
+        _build_sinapse_query_fn()("hive-mind api warmup")
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
