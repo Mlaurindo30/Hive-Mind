@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased — Correções da auditoria E2E REST API
+## v3.7.10 — Correções da auditoria E2E REST API
+
+Release date: 2026-07-01
 
 ### Fixed
 
