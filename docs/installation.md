@@ -108,7 +108,7 @@ choose provider, model and API keys. Then restart your agent.
 | Visual Capture | `scripts/capture/visual_capture.py` | Python/mss | Screenshots → `visual_memories` |
 | Visual Portal | `scripts/knowledge/generate_portal.py` | Python | Generates `portal.canvas` (Obsidian Canvas) |
 | REST API | `scripts/services/sinapse-api.py` | FastAPI | Authenticated remote access to UMC (port 37702) |
-| MCP Server | `scripts/services/sinapse-mcp.py` | Python | 15 tools via stdio JSON-RPC |
+| MCP Server | `scripts/services/sinapse-mcp.py` | Python | 16 tools via stdio JSON-RPC |
 | CLI | `scripts/services/sinapse-write.py` | Python | Subcommands: decision, learning, query, health, session-end |
 | Graphify | `graphify/` | Python | Structural vault indexer |
 | claude-mem | `~/.claude-mem` + upstream plugin | TypeScript/Bun | Global multi-project event tracking (port 37700) |

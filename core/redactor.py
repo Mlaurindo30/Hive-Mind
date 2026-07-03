@@ -18,6 +18,12 @@ _RULES: list[tuple[re.Pattern, str]] = [
     (re.compile(r'ghp_[A-Za-z0-9]{36}'), '[REDACTED:token]'),
     (re.compile(r'eyJ[A-Za-z0-9\-_=.]+'), '[REDACTED:token]'),
     (re.compile(r'Bearer [A-Za-z0-9\-_.=]+'), '[REDACTED:token]'),
+    # 1a. AWS access keys (AKIA/ASIA) — must run before the phone rule so the
+    # 20-digit sequence is labelled as a token, not a phone.
+    (re.compile(r'\b(?:AKIA|ASIA)[0-9A-Z]{16}\b'), '[REDACTED:aws-key]'),
+    # 1b. AWS env-var assignments: aws_access_key_id / aws_secret_access_key.
+    (re.compile(r'aws_access_key_id\s*=\s*\S+'), 'aws_access_key_id=[REDACTED:aws-key]'),
+    (re.compile(r'aws_secret_access_key\s*=\s*\S+'), 'aws_secret_access_key=[REDACTED:aws-key]'),
     # 2. Email addresses
     (re.compile(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}'), '[REDACTED:email]'),
     # 3. IPv4 addresses

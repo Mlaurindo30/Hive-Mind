@@ -80,11 +80,35 @@ def main():
     if args.command == "decision":
         sm.DRY_RUN = args.dry_run
         result = sm._save_decision(args.title, args.content)
-        print(json.dumps({"saved": result is not None, "path": result or None, "dry_run": args.dry_run}))
+        # R2.3 (post-audit stabilization): close the write path synchronously
+        # by indexing the produced Markdown through WriteIndexer. The dict
+        # returned by the indexer is propagated to stdout so the caller can
+        # see neuron_id, fts_indexed, vector_indexed, query_recoverable.
+        indexer_result = {"saved": result is not None, "path": result or None, "dry_run": args.dry_run}
+        if result and not args.dry_run:
+            try:
+                from core.indexing.write_indexer import WriteIndexer
+                indexer_result["indexer"] = WriteIndexer().index_markdown_file(
+                    result, workspace_id="default", reason="decision"
+                )
+            except Exception as exc:  # pragma: no cover - defensive
+                indexer_result["indexer_error"] = repr(exc)
+        print(json.dumps(indexer_result))
     elif args.command == "learning":
         sm.DRY_RUN = args.dry_run
+        # save_learning appends to a monolithic Patterns.md; its return is the
+        # patterns file path. We index the file only when it actually changed.
         result = sm._save_learning(args.title, args.content)
-        print(json.dumps({"saved": result is not None, "path": result or None, "dry_run": args.dry_run}))
+        indexer_result = {"saved": result is not None, "path": result or None, "dry_run": args.dry_run}
+        if result and not args.dry_run:
+            try:
+                from core.indexing.write_indexer import WriteIndexer
+                indexer_result["indexer"] = WriteIndexer().index_markdown_file(
+                    result, workspace_id="default", reason="learning"
+                )
+            except Exception as exc:  # pragma: no cover - defensive
+                indexer_result["indexer_error"] = repr(exc)
+        print(json.dumps(indexer_result))
     elif args.command == "observation":
         result = sm._umc_save_observation(args.title, args.content, obs_type=args.kind)
         print(json.dumps({"saved": result}))

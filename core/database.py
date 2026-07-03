@@ -781,6 +781,29 @@ def ensure_migrations(conn):
         ON query_route_log(created_at, workspace_id)
     """)
 
+    # R3.1 (post-audit stabilization): unified vector job queue.
+    # Every write that touches a vectorizable entity MUST enqueue a row here
+    # so the worker can index the right collection without re-deriving
+    # entity_type/entity_id from scan queries.
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS vector_jobs (
+            id TEXT PRIMARY KEY,
+            entity_type TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            collection TEXT NOT NULL,
+            workspace_id TEXT NOT NULL DEFAULT 'default',
+            status TEXT NOT NULL DEFAULT 'pending',
+            attempts INTEGER DEFAULT 0,
+            error TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_vector_jobs_status "
+        "ON vector_jobs(status, collection, workspace_id)"
+    )
+
     # B1/B6 (frente K, K0): workspace_id + federação + embedding-provenance.
     # CRR-safe e idempotente. Falha fechado por padrão: schema parcial não é
     # modo operacional; o bypass explícito abaixo é só para diagnóstico legado.

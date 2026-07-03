@@ -215,6 +215,23 @@ def _promote_to_neuron(conn, candidate: KnowledgeCandidate) -> str:
             1024,
         ),
     )
+    # R3.3 (post-audit stabilization): enqueue a memory_vectors job for this
+    # neuron so the vector worker can pick it up even if WriteIndexer did not
+    # run for this promotion path. The worker is responsible for the actual
+    # vector write; we only guarantee the queue row exists immediately.
+    job_id = f"vjob-{neuron_id}"
+    conn.execute(
+        """
+        INSERT INTO vector_jobs(
+            id, entity_type, entity_id, collection, workspace_id, status
+        ) VALUES (?, 'neuron', ?, 'memory_vectors', ?, 'pending')
+        ON CONFLICT(id) DO UPDATE SET
+            status='pending',
+            attempts=0,
+            updated_at=CURRENT_TIMESTAMP
+        """,
+        (job_id, neuron_id, candidate.workspace_id),
+    )
     return neuron_id
 
 

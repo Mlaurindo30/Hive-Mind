@@ -67,7 +67,7 @@ Coleções canônicas:  memory/observation/document/code/visual/graph/summary ve
 Plano de execução:   docs/12 → fases K0-K10, modelos/env, vendors e testes reais
 Saúde do conhecimento: knowledge_health.py (K8) → gate com 7 coleções canônicas + query_route_distribution
 Tempo real:          Watcher (watchdog) → Obsidian→SQLite em ~2s
-Acesso:              MCP (15 tools) · plugin Hermes · CLI · REST FastAPI :37702
+Acesso:              MCP (16 tools) · plugin Hermes · CLI · REST FastAPI :37702
 Distribuição:        Syncthing (P2P) + UUID v4 + SHA-256 + Síntese Dialética + workspace + federação
 Fonte de verdade:    cerebro/ (Obsidian) — frontmatter YAML + WikiLinks
 Regra:               local-first por operação · born-large por arquitetura · plugável por contrato
