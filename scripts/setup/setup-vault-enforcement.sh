@@ -26,6 +26,16 @@
 # =============================================================================
 set -euo pipefail
 
+# Linux-only: relies on useradd/groupadd/setfacl (POSIX ACLs). On macOS the
+# equivalents are dscl + chmod +a; on Windows, filesystem enforcement should
+# be done via the WSL2 install. Contributions welcome — until then, fail
+# clearly instead of half-applying.
+if [ "$(uname -s)" != "Linux" ]; then
+    echo "ERROR: vault write enforcement currently supports Linux only (useradd/setfacl)." >&2
+    echo "macOS/Windows: run the stack without --with-vault-enforcement (cooperative mode)." >&2
+    exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 VAULT_DIR="${VAULT_DIR:-$PROJECT_ROOT/cerebro}"
