@@ -4,7 +4,9 @@ import sqlite3
 import uuid
 from pathlib import Path
 
-PROJECT_ROOT = "/home/michel/Documentos/Projects/Hive-Mind"
+PROJECT_ROOT = os.environ.get(
+    "SINAPSE_HOME", str(Path(__file__).resolve().parent.parent.parent)
+)
 VAULT_DIR = os.path.join(PROJECT_ROOT, "cerebro")
 DB_PATH = os.path.join(PROJECT_ROOT, "hive_mind.db")
 

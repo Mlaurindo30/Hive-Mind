@@ -33,8 +33,8 @@
 #   ./scripts/maintenance/integrations-update.sh --no-plugins
 #   ./scripts/maintenance/integrations-update.sh --wrappers-only  # deps/wrappers, sem git/lock/plugins
 #
-# Instalação do cron (2x/semana):
-#   crontab -l | cat - scripts/maintenance/integrations-update.crontab | crontab -
+# Instalação do cron (2x/semana), a partir da raiz do projeto:
+#   crontab -l | cat - <(sed "s|__PROJECT_ROOT__|$(pwd)|" scripts/maintenance/integrations-update.crontab) | crontab -
 # =============================================================================
 
 set -euo pipefail

@@ -16,11 +16,14 @@ services:
     ports:
       - "3100:3000"
     environment:
-      # Path absoluto (host-side) - evita permissao de root no /data
-      DATABASE_URL: "file:/home/michel/Documentos/Projects/Hive-Mind/claude-mem/data/langfuse/langfuse.db"
+      # SQLite dentro do volume montado abaixo (path relativo ao compose file,
+      # portável entre máquinas). Override via LANGFUSE_DATABASE_URL se preciso.
+      DATABASE_URL: "${LANGFUSE_DATABASE_URL:-file:/data/langfuse.db}"
       # Secrets via .env (NUNCA commitar valores reais). Veja integrations/langfuse/README.md.
       # Em producao, gere valores fortes: openssl rand -hex 32
       NEXTAUTH_SECRET: "${LANGFUSE_NEXTAUTH_SECRET:-local-dev-secret-change-me}"
       NEXTAUTH_URL: "${LANGFUSE_NEXTAUTH_URL:-http://localhost:3100}"
       SALT: "${LANGFUSE_SALT:-local-dev-salt-change-me}"
-    volumes: []  # path absoluto em DATABASE_URL ja acessa o arquivo
+    volumes:
+      # Relativo ao diretório deste compose file — portável entre máquinas.
+      - ../../claude-mem/data/langfuse:/data

@@ -8,9 +8,9 @@
 #
 # INSTALAÇÃO:
 #   Adicione ao ~/.bashrc ou ~/.zshrc:
-#     alias copilot="/home/michel/Documentos/Projects/Hive-Mind/scripts/copilot-wrapper.sh"
+#     alias copilot="<PROJECT_ROOT>/scripts/capture/copilot-wrapper.sh"
 #   OU coloque em ~/.local/bin/copilot (precedência > binário real):
-#     ln -sf /home/michel/Documentos/Projects/Hive-Mind/scripts/copilot-wrapper.sh ~/.local/bin/copilot
+#     ln -sf <PROJECT_ROOT>/scripts/capture/copilot-wrapper.sh ~/.local/bin/copilot
 #
 # DEPENDÊNCIAS:
 #   - curl
@@ -23,7 +23,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Configuração
 # ---------------------------------------------------------------------------
-REAL_COPILOT="/home/michel/.config/Code/User/globalStorage/github.copilot-chat/copilotCli/copilot"
+REAL_COPILOT="${REAL_COPILOT:-$HOME/.config/Code/User/globalStorage/github.copilot-chat/copilotCli/copilot}"
 WORKER_HOST="${CLAUDE_MEM_WORKER_HOST:-127.0.0.1}"
 WORKER_PORT="${CLAUDE_MEM_WORKER_PORT:-37700}"
 WORKER_BASE="http://${WORKER_HOST}:${WORKER_PORT}"

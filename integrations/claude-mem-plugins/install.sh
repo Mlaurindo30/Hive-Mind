@@ -56,7 +56,7 @@ install_plugin() {
 # Verifica pré-requisitos
 # ---------------------------------------------------------------------------
 check_claude_mem() {
-  local worker="/home/michel/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"
+  local worker="$HOME/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs"
   if [ ! -f "${worker}" ]; then
     echo "⚠  claude-mem não encontrado em ~/.claude/plugins/"
     echo "   Instale o claude-mem no Claude Code antes de continuar."
