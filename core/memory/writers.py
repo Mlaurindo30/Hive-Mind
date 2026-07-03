@@ -160,6 +160,13 @@ def save_decision(
     filename = f"{today}-{slug}.md"
     filepath = os.path.join(decisions_dir, filename)
 
+    # Edge case (R2, post-audit stabilization spec): empty content is rejected
+    # BEFORE any file is created. The caller sees {error: "content_empty"}.
+    if not content or not content.strip():
+        if log_fn:
+            log_fn("error", "content_empty", title=title[:60])
+        return None
+
     confidence = "verified" if evidence else "hypothesis"
     evidence_line = f"evidence: \"{evidence}\"\n" if evidence else ""
     note = (
@@ -178,8 +185,13 @@ def save_decision(
         f"{content}\n"
     )
 
-    if not validate_frontmatter_yaml(note) and log_fn:
-        log_fn("error", "frontmatter_invalid", file=filepath)
+    # Edge case (R2, post-audit stabilization spec): invalid frontmatter is
+    # rejected BEFORE the file is written. The caller sees
+    # {error: "frontmatter_invalid"}.
+    if not validate_frontmatter_yaml(note):
+        if log_fn:
+            log_fn("error", "frontmatter_invalid", file=filepath)
+        return None
 
     saved_path = _write_with_intake_fallback(
         filepath, note, log_fn=log_fn, event="decision_saved_intake"

@@ -72,3 +72,30 @@ def test_audit_script_reports_zero_orphans():
     assert "chunks_without_parent: 0" in proc.stdout, (
         f"audit reports chunks without parent:\n{proc.stdout}"
     )
+
+
+def test_document_query_returns_auditable_citation():
+    """R4.2 last bullet: every document query response MUST include
+    source_uri, offset_start, offset_end, and a parent reference.
+
+    Calls the real DocumentPipeline and asserts on the first hit's
+    citation shape.
+    """
+    from core.database import get_connection, ensure_migrations
+    from core.document_pipeline import DocumentPipeline
+
+    conn = get_connection()
+    try:
+        ensure_migrations(conn)
+        # Use the existing audit-ws test fixture from the prior round if
+        # present; otherwise use a generic term and pick whatever hit comes
+        # back. The assertion is on shape, not content.
+        pipeline = DocumentPipeline(conn, workspace_id="audit-ws")
+        hits = pipeline.query("contrato único para vetores documentais",
+                              top_k=3, project="Hive-Mind")
+        assert hits, "DocumentPipeline returned no hits"
+        h = hits[0]
+        for field in ("source_uri", "offset_start", "offset_end", "parent"):
+            assert field in h, f"hit missing citation field {field!r}: {h}"
+    finally:
+        conn.close()

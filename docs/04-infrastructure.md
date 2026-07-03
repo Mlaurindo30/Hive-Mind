@@ -177,7 +177,30 @@ pkill -f "start-watcher"
 The Watcher uses `watchdog` to monitor `cerebro/`. When it detects a `.md` change:
 1. Queues the event (500ms debounce to avoid double reindex)
 2. Calls Graphify to reindex the file
-3. Updates `neurons`, `synapses`, `search_fts`, `search_vec`
+3. Updates `synapses` (structural graph); `WriteIndexer` is responsible for the UMC/FTS/vector path
+
+### 3.1 Responsibility split (post-audit stabilization, R9.2)
+
+The write path has three layers, each with a single owner. Silent
+overlaps caused the original audit's "decision saved but not in UMC"
+failure. The current contract is:
+
+| Layer | Tool | Owns |
+|---|---|---|
+| Markdown on disk | `core/memory/writers.py` | creates the file |
+| Structural graph | Graphify (`graphify watch`) | updates `synapses` and `graphify-out/graph.json` |
+| UMC + FTS + vector | `core/indexing/WriteIndexer` (R2) | upserts `neurons`, `search_fts`, `search_vec`; called synchronously by `sinapse-write.py decision/learning` |
+| Vector job queue | `core/indexing/vector_jobs_worker.py` (R3) | drains the `vector_jobs` table for `memory_vectors` and 6 other canonical collections |
+| Async reindex fallback | `start-watcher.sh` + `graphify watch` | picks up edits the writer missed; **MUST NOT be the only path** that updates UMC/FTS/vector for synchronous writes |
+
+### 3.2 RTK role (R1, R12.3)
+
+**RTK is shell optimization only.** It rewrites terminal command args to
+reduce token output. RTK MUST NOT be wired into `sinapse_query`,
+`context_fusion`, `retrieval_router`, or any `read_backends` list.
+RTK's Hermes plugin (`integrations/rtk/hooks/hermes/rtk-rewrite/`)
+logs opt-in observations back to UMC, but those are append-only events,
+not read paths.
 
 ### 4.2 claude-mem (Temporal Tracking)
 

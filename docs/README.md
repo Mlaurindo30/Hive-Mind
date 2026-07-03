@@ -69,6 +69,13 @@ Saúde do conhecimento: knowledge_health.py (K8) → gate com 7 coleções canô
 Tempo real:          Watcher (watchdog) → Obsidian→SQLite em ~2s
 Acesso:              MCP (16 tools) · plugin Hermes · CLI · REST FastAPI :37702
 Distribuição:        Syncthing (P2P) + UUID v4 + SHA-256 + Síntese Dialética + workspace + federação
+
+> **Syncthing status (post-audit 2026-07-03):** Syncthing is **optional and
+> out-of-scope** for the post-audit stabilization build. The README
+> describes it for context, but no installation is performed and the P2P
+> conflict test (R11.3) is declared MAY. Re-enable by installing
+> `syncthing` and running `./scripts/setup/register-mcp.sh --check` with
+> the relevant agents configured.
 Fonte de verdade:    cerebro/ (Obsidian) — frontmatter YAML + WikiLinks
 Regra:               local-first por operação · born-large por arquitetura · plugável por contrato
                      · anatômico por fonte de verdade · auditável por evidência
