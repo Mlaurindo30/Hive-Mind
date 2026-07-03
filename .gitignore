@@ -115,6 +115,7 @@ ruvector.db
 .swarm/
 .kilo/
 .mcp.json
+.github/
 
 # ── Índices neurais (artefatos runtime — regenerados automaticamente) ─
 hnsw_neurons.idx
@@ -147,3 +148,14 @@ cerebro/cortex/occipital/grafo/cache
 # (canonical source: config/sinapse-agent-prompt.md)
 /GEMINI.md
 /CLAUDE.md
+
+# Documents
+docs/08-memoria-viva-design.md
+docs/10-implementation-roadmap.md
+docs/reports
+docs/plans
+docs/walkthrough.md
+docs/06-gap-analysis.md
+docs/11-knowledge-promotion-architecture.md
+docs/13-slo-and-observability.md
+docs/12-knowledge-implementation-plan.md

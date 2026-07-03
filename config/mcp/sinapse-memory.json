@@ -6,7 +6,7 @@
             "cwd": "PROJECT_ROOT_PLACEHOLDER",
             "transport": "stdio",
             "enabled": true,
-            "description": "Sinapse Agent — Universal Memory Layer (Hive-Mind). 15 tools. Use sinapse_query como busca híbrida padrão do projeto. Para claude-mem global (~/.claude-mem), siga search -> timeline -> get_observations via sinapse_temporal_search, sinapse_temporal_timeline e sinapse_temporal_get_observations. Política completa em config/sinapse-agent-prompt.md."
+            "description": "Sinapse Agent — Universal Memory Layer (Hive-Mind). 15 tools. Use sinapse_query as the project's default hybrid search. For global claude-mem (~/.claude-mem), follow search -> timeline -> get_observations via sinapse_temporal_search, sinapse_temporal_timeline and sinapse_temporal_get_observations. Full policy in config/sinapse-agent-prompt.md."
         }
     }
 }

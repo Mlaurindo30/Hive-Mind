@@ -488,8 +488,8 @@ echo ""
 if command -v hermes &>/dev/null; then
     echo -e "  ${BOLD}Configuring Hermes...${NC}"
     if [ -d "$HOME/.hermes/skills/" ]; then
-        cp "$PROJECT_ROOT/docs/skills/sinapse-consulta.md" "$HOME/.hermes/skills/sinapse-consulta.md" 2>/dev/null && \
-            echo -e "    ${GREEN}✓${NC} sinapse-consulta skill"
+        cp "$PROJECT_ROOT/docs/skills/sinapse-query.md" "$HOME/.hermes/skills/sinapse-query.md" 2>/dev/null && \
+            echo -e "    ${GREEN}✓${NC} sinapse-query skill"
     fi
     if [ -d "$HOME/.hermes/plugins/" ]; then
         mkdir -p "$HOME/.hermes/plugins/sinapse-memory/"

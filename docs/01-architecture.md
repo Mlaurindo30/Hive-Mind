@@ -1,316 +1,316 @@
-# Arquitetura — Hive-Mind v3.0.0
+# Architecture — Hive-Mind v3.0.0
 
-> Referência canônica de arquitetura. Atualizado em 2026-06-30.
-> Para uso rápido: [`../README.md`](../README.md)
-> **Esta revisão consolida a Arquitetura de Conhecimento Born-Large (K0–K10)** definida em [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md), com plano de execução em [`12-knowledge-implementation-plan.md`](12-knowledge-implementation-plan.md).
+> Canonical architecture reference. Updated on 2026-06-30.
+> For quick use: [`../README.md`](../README.md)
+> **This revision consolidates the Born-Large Knowledge Architecture (K0–K10)** defined in [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md), with execution plan in [`12-knowledge-implementation-plan.md`](12-knowledge-implementation-plan.md).
 
 ---
 
-## Índice
+## Index
 
-1. [Princípios de Design](#1-princípios-de-design)
-1.1. [Nomenclatura](#11-nomenclatura)
-2. [Anatomia do Cérebro](#2-anatomia-do-cérebro)
-3. [Visão Macro do Sistema](#3-visão-macro-do-sistema)
+1. [Design Principles](#1-design-principles)
+1.1. [Nomenclature](#11-nomenclature)
+2. [Brain Anatomy](#2-brain-anatomy)
+3. [System Macro View](#3-system-macro-view)
 4. [Unified Memory Core (UMC)](#4-unified-memory-core-umc)
-5. [Fluxo de Leitura](#5-fluxo-de-leitura)
-6. [Fluxo de Escrita](#6-fluxo-de-escrita)
-7. [O Ciclo de Sonho (Hive-Dreamer)](#7-o-ciclo-de-sonho-hive-dreamer)
-8. [Sincronização P2P e Fusão Semântica](#8-sincronização-p2p-e-fusão-semântica)
-9. [Camada Multimodal](#9-camada-multimodal)
-10. [Camada de Acesso](#10-camada-de-acesso)
-11. [Autenticação Multi-Provedor](#11-autenticação-multi-provedor)
-12. [Estrutura do Vault](#12-estrutura-do-vault)
-13. [Automação e Cron](#13-automação-e-cron)
-14. [Como Estender para Novos Agentes](#14-como-estender-para-novos-agentes)
-15. [Testes e Qualidade](#15-testes-e-qualidade)
+5. [Read Flow](#5-read-flow)
+6. [Write Flow](#6-write-flow)
+7. [The Dream Cycle (Hive-Dreamer)](#7-the-dream-cycle-hive-dreamer)
+8. [P2P Synchronization and Semantic Fusion](#8-p2p-synchronization-and-semantic-fusion)
+9. [Multimodal Layer](#9-multimodal-layer)
+10. [Access Layer](#10-access-layer)
+11. [Multi-Provider Authentication](#11-multi-provider-authentication)
+12. [Vault Structure](#12-vault-structure)
+13. [Automation and Cron](#13-automation-and-cron)
+14. [How to Extend for New Agents](#14-how-to-extend-for-new-agents)
+15. [Tests and Quality](#15-tests-and-quality)
 16. [Disaster Recovery](#16-disaster-recovery)
-17. [Referência de Configuração](#17-referência-de-configuração)
-18. [Fase HM-11: Deep Reflection](#18-fase-hm-11-deep-reflection-raciocínio-de-longo-prazo)
-19. [Fase HM-12: Federated Swarm](#19-fase-hm-12-enxame-federado-federated-swarm)
-20. [Decisões de Design (ADRs)](#20-decisões-de-design-adrs)
-21. [Governança de Fases](#21-governança-de-fases)
-22. [Arquitetura de Conhecimento Born-Large](#22-arquitetura-de-conhecimento-born-large)
-23. [Fluxo de Captura → Promoção → Recuperação](#23-fluxo-de-captura--promoção--recuperação)
-24. [VectorBackend: contrato, coleções canônicas e escala](#24-vectorbackend-contrato-coleções-canônicas-e-escala)
-25. [DocumentPipeline (K6) — ingestao born-large](#25-documentpipeline-k6--ingestao-born-large)
-26. [RetrievalRouter (K7) — roteamento por intenção](#26-retrievalrouter-k7--roteamento-por-intenção)
+17. [Configuration Reference](#17-configuration-reference)
+18. [HM-11 Phase: Deep Reflection](#18-hm-11-phase-deep-reflection-long-term-reasoning)
+19. [HM-12 Phase: Federated Swarm](#19-hm-12-phase-federated-swarm)
+20. [Design Decisions (ADRs)](#20-design-decisions-adrs)
+21. [Phase Governance](#21-phase-governance)
+22. [Born-Large Knowledge Architecture](#22-born-large-knowledge-architecture)
+23. [Capture → Promotion → Retrieval Flow](#23-capture--promotion--retrieval-flow)
+24. [VectorBackend: contract, canonical collections, and scale](#24-vectorbackend-contract-canonical-collections-and-scale)
+25. [DocumentPipeline (K6) — born-large ingestion](#25-documentpipeline-k6--born-large-ingestion)
+26. [RetrievalRouter (K7) — intent routing](#26-retrievalrouter-k7--intent-routing)
 27. [Knowledge Promotion Pipeline (K3/K4)](#27-knowledge-promotion-pipeline-k3k4)
-28. [Métricas de Saúde do Conhecimento (K8)](#28-métricas-de-saúde-do-conhecimento-k8)
-29. [Cadência Hierárquica de Escrita](#29-cadência-hierárquica-de-escrita)
-30. [Escala e Isolamento — Workspace e Federação](#30-escala-e-isolamento--workspace-e-federação)
-31. [Contratos Pendentes (Reranker, Forget, Eval, Harness)](#31-contratos-pendentes-reranker-forget-eval-harness)
-32. [Decisões de Design (ADRs)](#32-decisões-de-design-adrs)
+28. [Knowledge Health Metrics (K8)](#28-knowledge-health-metrics-k8)
+29. [Hierarchical Writing Cadence](#29-hierarchical-writing-cadence)
+30. [Scale and Isolation — Workspace and Federation](#30-scale-and-isolation--workspace-and-federation)
+31. [Pending Contracts (Reranker, Forget, Eval, Harness)](#31-pending-contracts-reranker-forget-eval-harness)
+32. [Design Decisions (ADRs)](#32-design-decisions-adrs)
 
 ---
 
-## 1. Princípios de Design
+## 1. Design Principles
 
-1. **Fonte única de verdade legível por humanos.** O vault Obsidian (`cerebro/`) é a camada canônica. O SQLite é o índice; o Markdown é a verdade. Em caso de divergência, o auditor reconcilia a favor do vault.
-2. **Local-first.** Funciona completamente offline em uma máquina. Cloud e P2P são opcionais e aditivos.
-3. **Um banco, várias dimensões.** Em vez de JSON de grafo + SQLite do claude-mem + Chroma de vetores, o UMC centraliza tudo em um único `hive_mind.db`. Queries entre dimensões viram SQL simples.
-4. **Agnosticismo de agente e de LLM.** Qualquer agente se conecta via MCP/CLI/REST. Qualquer LLM serve o Dream Cycle via `HIVE_DREAMER_PROVIDER/MODEL`. Nenhum modelo é hardcoded.
-5. **Fail-safe, não fail-silent.** Pipeline que falha envia dados para quarentena (`archived=2`), nunca os descarta. API sem chave não inicia. Backend com 3+ falhas entra em circuit breaker (cooldown 30s).
-6. **Sem sufixos de versão em arquivos, código ou schema.** Não usar `v2`, `v3`, `v4` etc. em nomes de arquivos (`umc_schema_v2.sql`), classes, funções ou tabelas. Para evolução de schema, usar sufixo semântico que descreva a propriedade (`umc_schema_crr.sql` para o schema compatível com CRR; `setup_crdt.py` em vez de `migrate_to_v2.py`). Migrações viram scripts `setup_<feature>.py` ou `migrate_<feature>.py`. **Exceção**: referências a upstream (`OmniParser v2`, `MiniLM-L6-v2`, modelos HuggingFace) mantêm o nome que o upstream usa.
+1. **Single source of human-readable truth.** The Obsidian vault (`cerebro/`) is the canonical layer. SQLite is the index; Markdown is the truth. In case of divergence, the auditor reconciles in favor of the vault.
+2. **Local-first.** Fully works offline on one machine. Cloud and P2P are optional and additive.
+3. **One database, multiple dimensions.** Instead of graph JSON + claude-mem SQLite + vector Chroma, UMC centralizes everything in a single `hive_mind.db`. Cross-dimension queries become simple SQL.
+4. **Agent and LLM agnosticism.** Any agent connects via MCP/CLI/REST. Any LLM serves the Dream Cycle through `HIVE_DREAMER_PROVIDER/MODEL`. No model is hardcoded.
+5. **Fail-safe, not fail-silent.** A failing pipeline sends data to quarantine (`archived=2`), never discards it. API without key does not start. Backend with 3+ failures enters circuit breaker (30s cooldown).
+6. **No version suffixes in files, code, or schema.** Do not use `v2`, `v3`, `v4`, etc. in filenames (`umc_schema_v2.sql`), classes, functions, or tables. For schema evolution, use semantic suffixes that describe the property (`umc_schema_crr.sql` for CRR-compatible schema; `setup_crdt.py` instead of `migrate_to_v2.py`). Migrations must become `setup_<feature>.py` or `migrate_<feature>.py`. **Exception**: upstream references (`OmniParser v2`, `MiniLM-L6-v2`, HuggingFace models) keep upstream names.
 
 ---
 
-## 2. Anatomia do Cérebro
+## 2. Brain Anatomy
 
-O Hive-Mind é organizado como um cérebro. O vault `cerebro/` espelha a anatomia — **quatro lobos irmãos sob a Consciência**, e o Córtex tem **cinco lóbulos próprios**. Esta seção é **canônica** para entender onde cada peça de código mora.
+Hive-Mind is organized like a brain. The `cerebro/` vault mirrors the anatomy — **four sibling lobes under Consciousness**, and Cortex has **five of its own sub-lobes**. This section is **canonical** for understanding where each code piece lives.
 
 ```
                           ┌─────────────────────────────────────┐
-                          │   🧠 Consciência (Home)             │
-                          │   "eu" que integra os lobos         │
+                          │   🧠 Consciousness (Home)           │
+                          │   "self" integrating the lobes      │
                           └──────────────┬──────────────────────┘
                                          │
         ┌──────────────────┬─────────────┼─────────────┬──────────────────┐
         │                  │             │             │                  │
    ┌────▼─────────┐  ┌──────▼─────┐  ┌────▼─────┐  ┌────▼────────┐  ┌────▼────────┐
-   │ 🧠 CÓRTEX    │  │ 🥁 CEREBELO │  │ 🔀 DIENCÉFALO│  │ 🌿 TRONCO │  │  (cortex    │
-   │ (cognição)  │  │ (ritmo)    │  │ (relay     │  │ (infra     │  │   detail)  │
-   │             │  │            │  │  cross-    │  │  vital)    │  │            │
-   │ 5 lóbulos:  │  │ • sessoes/ │  │  projeto)  │  │ • modelos/ │  │ (continua  │
-   │ • Temporal  │  │ • diario/  │  │            │  │ • paineis/ │  │   abaixo)  │
+   │ 🧠 CORTEX    │  │ 🥁 CEREBELLUM│ │ 🔀 DIENCEPHALON│ │ 🌿 STEM   │  │  (cortex    │
+   │ (cognition) │  │ (rhythm)   │  │ (cross-   │  │ (vital     │  │   detail)  │
+   │             │  │            │  │  project  │  │  infra)    │  │            │
+   │ 5 sublobes: │  │ • sessoes/ │  │  relay)   │  │ • modelos/ │  │ (continues │
+   │ • Temporal  │  │ • diario/  │  │            │  │ • paineis/ │  │   below)   │
    │ • Frontal   │  │ • semanal/ │  │ • setores/ │  │ • infra/   │  │            │
    │ • Parietal  │  │ • padroes/ │  │   (5)      │  │ • meta/    │  │            │
    │ • Occipital │  │            │  │ • roteamento/  │         │  │            │
-   │ • Ínsula    │  │            │  │            │  │            │  │            │
+   │ • Insula    │  │            │  │            │  │            │  │            │
    └─────────────┘  └────────────┘  └────────────┘  └────────────┘  └────────────┘
 ```
 
-**Os quatro lobos sob a Consciência são pares** (Córtex, Cerebelo, Diencéfalo, Tronco) — não há hierarquia entre eles. O Tronco **não é descendente** de nenhum outro lobo; é irmão.
+**The four lobes under Consciousness are peers** (Cortex, Cerebellum, Diencephalon, Stem) — there is no hierarchy between them. The Stem is **not a descendant** of any other lobe; it is a sibling.
 
-### 2.1 Córtex — cognição superior (5 lóbulos)
+### 2.1 Cortex — higher cognition (5 sub-lobes)
 
 ```
-   🧠 CÓRTEX
-   ├── ⏱ TEMPORAL     — memória de longo prazo, eixo primário por projeto
+   🧠 CORTEX
+   ├── ⏱ TEMPORAL     — long-term memory, primary axis by project
    │       └── <projeto>/<topico>/neuronio-<hash>.md
-   ├── 🎯 FRONTAL     — decisões, planejamento, trabalho ativo
+   ├── 🎯 FRONTAL     — decisions, planning, active work
    │       └── decisoes/  trabalho/{active,ativo,arquivo}/
    │           projetos/  brain/  org/{people,teams}/
-   ├── 📥 PARIETAL    — sensorial (inbox, referências)
+   ├── 📥 PARIETAL    — sensory (inbox, references)
    │       └── inbox/{visual,documents}/  referencias/  analises/
-   ├── 👁 OCCIPITAL   — visão (capturas + grafo de conhecimento)
+   ├── 👁 OCCIPITAL   — vision (captures + knowledge graph)
    │       └── capturas-visuais/  grafo/graph.json
-   └── 💓 ÍNSULA      — interocepção, autoconsciência
+   └── 💓 INSULA      — interoception, self-awareness
            └── saude/  conflitos/
 ```
 
-#### 2.1.1 Lóbulo Temporal — detalhe (eixo primário do cérebro)
+#### 2.1.1 Temporal Lobe — detail (primary axis of the brain)
 
-O lóbulo temporal é onde mora a **memória de longo prazo organizada por projeto**. É o **eixo primário** do cérebro. Estrutura genérica (projetos e tópicos são fictícios — `projeto-A`, `topico-1`, etc.):
+The temporal lobe is where **project-organized long-term memory** lives. It is the brain's **primary axis**. Generic structure (projects and topics are fictional — `projeto-A`, `topico-1`, etc.):
 
 ```
 cortex/temporal/
-├── projeto-A/                     # neurônio-projeto (exemplo)
-│   ├── topico-1/                  # neurônio-tópico (1 neurônio = 1 fato atômico)
+├── projeto-A/                     # project-neuron (example)
+│   ├── topico-1/                  # topic-neuron (1 neuron = 1 atomic fact)
 │   ├── topico-2/
 │   └── topico-3/
-├── projeto-B/                     # neurônio-projeto (exemplo)
+├── projeto-B/                     # project-neuron (example)
 │   ├── topico-1/
 │   ├── topico-2/
 │   ├── topico-3/
 │   ├── topico-4/
 │   ├── topico-5/
 │   └── topico-6/
-├── projeto-C/                     # neurônio-projeto (exemplo)
-├── projeto-D/                     # neurônio-projeto (exemplo)
-├── projeto-E/                     # neurônio-projeto (exemplo)
-├── projeto-F/                     # neurônio-projeto (exemplo)
-├── projeto-G/                     # neurônio-projeto (exemplo)
-├── projeto-H/                     # neurônio-projeto (exemplo)
-├── projeto-I/                     # neurônio-projeto (exemplo)
+├── projeto-C/                     # project-neuron (example)
+├── projeto-D/                     # project-neuron (example)
+├── projeto-E/                     # project-neuron (example)
+├── projeto-F/                     # project-neuron (example)
+├── projeto-G/                     # project-neuron (example)
+├── projeto-H/                     # project-neuron (example)
+├── projeto-I/                     # project-neuron (example)
 │
-├── _global/                        # conhecimento sem projeto (preferências globais)
-├── hipocampo/                      # consolidação: Dream Cycle staging + quarentena
-└── arquivo/                        # memória fria (>90d, substância profunda)
+├── _global/                        # project-less knowledge (global preferences)
+├── hipocampo/                      # consolidation: Dream Cycle staging + quarantine
+└── arquivo/                        # cold memory (>90d, deep substance)
 ```
 
-Cada `neuronio-<hash>.md` tem frontmatter com `integrity_hash` (SHA-256 do conteúdo) e é único por hash — neurônios nunca duplicam. O índice SQLite (UMC `hive_mind.db`) acelera queries sobre esses neurônios; o `vault` continua sendo a fonte única de verdade.
+Each `neuronio-<hash>.md` has frontmatter with `integrity_hash` (SHA-256 of content) and is unique by hash — neurons never duplicate. The SQLite index (UMC `hive_mind.db`) accelerates queries over these neurons; the `vault` remains the single source of truth.
 
-### 2.2 Cerebelo — ritmo e coordenação
-
-```
-   🥁 CEREBELO
-   ├── sessoes/   → logs de sessão de trabalho (YYYY/MM/YYYY-MM-DD-HHMM-{slug}.md)
-   ├── diario/    → reflexões diárias (YYYY/MM/YYYY-MM-DD.md)
-   ├── semanal/   → sínteses semanais (YYYY-Wxx.md)
-   ├── mensal/    → sínteses mensais (YYYY-MM.md) — modelo forte
-   ├── anual/     → sínteses anuais (YYYY.md) — modelo forte/batch
-   └── padroes/   → padrões aprendidos (memória procedural)
-       └── cerebro/cerebelo/padroes/Patterns.md  (Patterns é referência canônica humana, mas **não** o único neurônio de aprendizado — cada learning vira átomo em `cortex/temporal/`)
-```
-
-A cadência hierárquica (sessão → diário → semanal → mensal → anual) é o eixo temporal do cérebro (ver §29). Cada camada tem objetivo, modelo e regra de promoção próprios.
-
-### 2.3 Diencéfalo — relay cross-projeto
+### 2.2 Cerebellum — rhythm and coordination
 
 ```
-   🔀 DIENCÉFALO
-   ├── setores/     → conhecimento que cruza múltiplos projetos
-   │   ├── setor-1.md      ← neurônios usados em vários projetos
+   🥁 CEREBELLUM
+   ├── sessoes/   → work session logs (YYYY/MM/YYYY-MM-DD-HHMM-{slug}.md)
+   ├── diario/    → daily reflections (YYYY/MM/YYYY-MM-DD.md)
+   ├── semanal/   → weekly syntheses (YYYY-Wxx.md)
+   ├── mensal/    → monthly syntheses (YYYY-MM.md) — strong model
+   ├── anual/     → yearly syntheses (YYYY.md) — strong/batch model
+   └── padroes/   → learned patterns (procedural memory)
+       └── cerebro/cerebelo/padroes/Patterns.md  (Patterns is the canonical human reference, but **not** the only learning neuron — each learning becomes an atom in `cortex/temporal/`)
+```
+
+The hierarchical cadence (session → daily → weekly → monthly → yearly) is the temporal axis of the brain (see §29). Each layer has its own purpose, model, and promotion rule.
+
+### 2.3 Diencephalon — cross-project relay
+
+```
+   🔀 DIENCEPHALON
+   ├── setores/     → knowledge crossing multiple projects
+   │   ├── setor-1.md      ← neurons used by several projects
    │   ├── setor-2.md
    │   ├── setor-3.md
    │   ├── setor-4.md
    │   └── setor-5.md
-   └── roteamento/  → regras de roteamento de conhecimento entre projetos
+   └── roteamento/  → knowledge routing rules between projects
 ```
 
-### 2.4 Tronco — infra vital (irmão dos outros 3, não descendente)
+### 2.4 Stem — vital infrastructure (sibling of the other 3, not descendant)
 
 ```
-   🌿 TRONCO
-   ├── modelos/   → templates Obsidian tipados (Atom, Work, Decision, Thinking, Análise Fria)
-   ├── paineis/   → bases Obsidian (.base) — Work Dashboard, Incidents, People, Review Evidence
-   ├── infra/     → configuração de infraestrutura do vault
-   └── meta/      → meta-informação do vault, sub-vaults, links cross-vault
+   🌿 STEM
+   ├── modelos/   → typed Obsidian templates (Atom, Work, Decision, Thinking, Cold Analysis)
+   ├── paineis/   → Obsidian bases (.base) — Work Dashboard, Incidents, People, Review Evidence
+   ├── infra/     → vault infrastructure configuration
+   └── meta/      → vault meta-information, sub-vaults, cross-vault links
 ```
 
-### 2.5 Mapeamento lobo → função → componente técnico
+### 2.5 Lobe → function → technical component mapping
 
-| Lobo | Função | Onde mora no código/vault |
+| Lobe | Function | Where it lives in code/vault |
 |---|---|---|
-| **Córtex frontal** | Decisão, planejamento, trabalho | `core/`, `scripts/dream/dream_cycle.py` (síntese dialética), `cerebro/cortex/frontal/{decisoes,trabalho,brain,projetos,org}`, `core/knowledge/decision_promoter.py`, `core/knowledge/work_tracker.py`, MCP `save_decision`/`plan_goal` |
-| **Córtex parietal** | Sensorial — inbox, referências, documentos | `scripts/capture/`, `core/knowledge/document_ingest.py` (→ `DocumentPipeline`), `cerebro/cortex/parietal/{inbox,referencias}`, `cerebro/cortex/parietal/inbox/documents/` |
-| **Córtex occipital** | Visão — capturas + **grafo** | `scripts/capture/visual_capture.py`, MCP `sinapse_capture_screen` (→ `visual_memories`, `capturas-visuais/`), `integrations/graphify/` (→ `cerebro/cortex/occipital/grafo/graph.json`), estágio visual do Dream Cycle |
-| **Córtex temporal** | Memória de longo prazo por projeto | `cerebro/cortex/temporal/<projeto>/<topico>/neuronio-*.md` + UMC `hive_mind.db` (indexador); `core/knowledge/claude_mem_bridge.py` (→ Dream Cycle), `core/knowledge/drift_detector.py`, `core/knowledge/topic_consolidator.py`, `core/knowledge/alias_miner.py` |
-| **Córtex ínsula** | Saúde, autoconsciência, ambiguidades | `scripts/health/{health_dashboard,alert_dispatcher,review_writer,conflict_detector}.py`, `cerebro/cortex/insula/{saude,conflitos}`, `core/knowledge/ambiguities.py` (síntese dialética) |
-| **Cerebelo** | Ritmo — sessão, diário, semanal, mensal, anual, padrões | `scripts/dream/{session_consolidator,daily_writer,weekly_synthesizer,monthly_synthesizer,yearly_synthesizer,pattern_distiller}.py`, `cerebro/cerebelo/{sessoes,diario,semanal,mensal,anual,padroes}/` + `cerebro/cerebelo/padroes/Patterns.md` |
-| **Diencéfalo** | Relay cross-projeto | `core/knowledge/sector_classifier.py`, `core/knowledge/generate_mocs.py`, `cerebro/diencefalo/{setores,roteamento}` |
-| **Tronco** | Infra vital | `cerebro/tronco/{modelos,paineis,infra,meta}/` — templates, bases, configuração, sub-vaults; mais estático que promovido |
+| **Frontal cortex** | Decision, planning, work | `core/`, `scripts/dream/dream_cycle.py` (dialectical synthesis), `cerebro/cortex/frontal/{decisoes,trabalho,brain,projetos,org}`, `core/knowledge/decision_promoter.py`, `core/knowledge/work_tracker.py`, MCP `save_decision`/`plan_goal` |
+| **Parietal cortex** | Sensory — inbox, references, documents | `scripts/capture/`, `core/knowledge/document_ingest.py` (→ `DocumentPipeline`), `cerebro/cortex/parietal/{inbox,referencias}`, `cerebro/cortex/parietal/inbox/documents/` |
+| **Occipital cortex** | Vision — captures + **graph** | `scripts/capture/visual_capture.py`, MCP `sinapse_capture_screen` (→ `visual_memories`, `capturas-visuais/`), `integrations/graphify/` (→ `cerebro/cortex/occipital/grafo/graph.json`), visual stage in Dream Cycle |
+| **Temporal cortex** | Long-term memory by project | `cerebro/cortex/temporal/<projeto>/<topico>/neuronio-*.md` + UMC `hive_mind.db` (indexer); `core/knowledge/claude_mem_bridge.py` (→ Dream Cycle), `core/knowledge/drift_detector.py`, `core/knowledge/topic_consolidator.py`, `core/knowledge/alias_miner.py` |
+| **Insula cortex** | Health, self-awareness, ambiguities | `scripts/health/{health_dashboard,alert_dispatcher,review_writer,conflict_detector}.py`, `cerebro/cortex/insula/{saude,conflitos}`, `core/knowledge/ambiguities.py` (dialectical synthesis) |
+| **Cerebellum** | Rhythm — session, daily, weekly, monthly, yearly, patterns | `scripts/dream/{session_consolidator,daily_writer,weekly_synthesizer,monthly_synthesizer,yearly_synthesizer,pattern_distiller}.py`, `cerebro/cerebelo/{sessoes,diario,semanal,mensal,anual,padroes}/` + `cerebro/cerebelo/padroes/Patterns.md` |
+| **Diencephalon** | Cross-project relay | `core/knowledge/sector_classifier.py`, `core/knowledge/generate_mocs.py`, `cerebro/diencefalo/{setores,roteamento}` |
+| **Stem** | Vital infrastructure | `cerebro/tronco/{modelos,paineis,infra,meta}/` — templates, bases, config, sub-vaults; more static than promoted |
 
-### 2.6 Ferramentas externas como órgãos do cérebro
+### 2.6 External tools as brain organs
 
-As ferramentas que alimentam o cérebro **não são bancos paralelos**. São **órgãos do mesmo cérebro** que contribuem para uma única percepção (a resposta do `sinapse_query` e do `RetrievalRouter`). A partir de K0-K2 (2026-06-30) a lista canônica inclui RAGFlow, Milvus e LlamaIndex como **primeira classe em adapters/contratos**, sem que virem fontes de verdade paralelas.
+Tools feeding the brain **are not parallel databases**. They are **organs of the same brain** contributing to one single perception (`sinapse_query` response and `RetrievalRouter` response). Starting with K0–K2 (2026-06-30), the canonical list includes RAGFlow, Milvus, and LlamaIndex as **first-class in adapters/contracts**, without turning them into parallel sources of truth.
 
-| Ferramenta | Órgão do cérebro | Função | Forma de integração |
+| Tool | Brain organ | Function | Integration form |
 |---|---|---|---|
-| **UMC** (`hive_mind.db`) | Córtex (central) | Grafo + vetores + FTS5 + logs em um único SQLite | **Wrapper** (diretório no repo) |
-| **NeuralMemory** | Córtex (associação) | Spreading activation, memória associativa | **Clone** em `integrations/neural-memory/` (via `components.lock.json`) |
-| **sqlite-vec** | Córtex (vetorial local) | Indexação HNSW nativa no SQLite — local-first, offline e cache operacional | Obrigatório (extensão carregada em runtime) |
-| **claude-mem** | Córtex temporal (hipocampo) | `user_prompts`, `observations`, `discoveries`, `session_summaries` — fonte de evidência temporal | **Wrapper** (worker HTTP `:37700`) |
-| **Graphify** | Córtex occipital (grafo estrutural) | Indexa o `cerebro/` em `graph.json` com Leiden clustering | **Clone** em `integrations/graphify/` |
-| **Graphiti** | Lóbulo temporal (causalidade) | Edges com validade temporal (`valid_at`/`invalid_at`) | **Wrapper** (`integrations/graphiti/` + `docker-compose.yml` com imagem pinada por digest) |
-| **LightRAG/GraphRAG** | Diencéfalo (multi-hop) | Relações multi-hop e perguntas globais | Wrapper ou pip, expansível |
-| **RAGFlow** | Córtex parietal (ingestão documental) | Adapter para parsing layout-aware, chunking estrutural, citações | **Wrapper** headless (`integrations/ragflow/` + `ragflow-sdk`); **nunca** fonte de verdade — saída flui para `document_vectors` + UMC |
-| **Milvus** | Córtex (vetorial produção) | Backend vetorial de produção para coleções grandes (multi-coleção, partition por `workspace_id`) | **Wrapper** (`integrations/milvus/` + `pymilvus`); backend oficial de produção do `VectorBackend` |
-| **LlamaIndex** | Córtex (retrieval composto) | Adapter para rerank e workflows de retrieval | **Pip** (`llama-index` em `pyproject.toml`); **não** decide rota nem vira fonte de verdade |
-| **Filesystem scan** | Córtex parietal (sentido imediato) | Lê o vault direto, sem esperar reindexação | Interno |
-| **RTK** | Otimização de shell | Hooks/plugins/instruções por agente/CLI para reescrita de comandos | **Clone** em `integrations/rtk/` — **não** é read-backend do `sinapse_query` |
+| **UMC** (`hive_mind.db`) | Cortex (central) | Graph + vectors + FTS5 + logs in one SQLite | **Wrapper** (directory in repo) |
+| **NeuralMemory** | Cortex (association) | Spreading activation, associative memory | **Clone** in `integrations/neural-memory/` (via `components.lock.json`) |
+| **sqlite-vec** | Cortex (local vector) | Native HNSW indexing in SQLite — local-first, offline, operational cache | Mandatory (runtime extension loaded) |
+| **claude-mem** | Temporal cortex (hippocampus) | `user_prompts`, `observations`, `discoveries`, `session_summaries` — temporal evidence source | **Wrapper** (HTTP worker `:37700`) |
+| **Graphify** | Occipital cortex (structural graph) | Indexes `cerebro/` to `graph.json` with Leiden clustering | **Clone** in `integrations/graphify/` |
+| **Graphiti** | Temporal lobe (causality) | Edges with temporal validity (`valid_at`/`invalid_at`) | **Wrapper** (`integrations/graphiti/` + `docker-compose.yml` with digest-pinned image) |
+| **LightRAG/GraphRAG** | Diencephalon (multi-hop) | Multi-hop relations and global questions | Wrapper or pip, expandable |
+| **RAGFlow** | Parietal cortex (document ingestion) | Adapter for layout-aware parsing, structural chunking, citations | **Wrapper** headless (`integrations/ragflow/` + `ragflow-sdk`); **never** source of truth — output flows to `document_vectors` + UMC |
+| **Milvus** | Cortex (production vector) | Production vector backend for large collections (multi-collection, partition by `workspace_id`) | **Wrapper** (`integrations/milvus/` + `pymilvus`); official production backend for `VectorBackend` |
+| **LlamaIndex** | Cortex (composite retrieval) | Adapter for rerank and retrieval workflows | **Pip** (`llama-index` in `pyproject.toml`); **does not** decide route nor become source of truth |
+| **Filesystem scan** | Parietal cortex (immediate sense) | Reads vault directly without waiting for reindex | Internal |
+| **RTK** | Shell optimization | Hooks/plugins/instructions by agent/CLI for command rewriting | **Clone** in `integrations/rtk/` — **not** a `sinapse_query` read backend |
 
-> **Regra de vendorização** (contrato negativo): `components.lock.json` aceita apenas clones (`graphify`, `neural-memory`, `rtk`, `omniparser`, `crsqlite`). Wrappers (Milvus, RAGFlow, Graphiti) entram por container/SDK. Pip cobre apenas LlamaIndex e utilitários. Se Milvus, RAGFlow ou LlamaIndex aparecerem em `components.lock.json` nesta frente, a implementação está errada.
+> **Vendoring rule** (negative contract): `components.lock.json` accepts only clones (`graphify`, `neural-memory`, `rtk`, `omniparser`, `crsqlite`). Wrappers (Milvus, RAGFlow, Graphiti) are container/SDK. Pip covers only LlamaIndex and utilities. If Milvus, RAGFlow, or LlamaIndex appear in `components.lock.json` for this front, the implementation is wrong.
 
-O `sinapse_query` é o ponto de entrada único do cérebro. Dispara os órgãos em paralelo (circuit breaker + timeout 8s por backend), funde via Context Fusion e devolve **um único pacote de contexto**. O `RetrievalRouter` K7 (ver §26) acrescenta a ele: classifica a intenção da query, escolhe a rota especializada (temporal, memória, documento, código, grafo, multi-hop, híbrida) e devolve `retrieval_path`, `citations`, `confidence` e `missing_context`.
+`sinapse_query` is the brain's single entrypoint. It triggers organs in parallel (circuit breaker + 8s timeout/backend), fuses via Context Fusion, and returns **one context package**. K7 `RetrievalRouter` (see §26) adds: classify query intent, choose specialized route (temporal, memory, document, code, graph, multi-hop, hybrid), and return `retrieval_path`, `citations`, `confidence`, and `missing_context`.
 
-**RTK** é instalado por agente/CLI (`codex`, `claude`, `gemini`, `cursor`, `hermes`, etc.) via `./scripts/services/start-rtk.sh --only <agente>`. Não é read-backend do `sinapse_query` — é otimização de shell, não participa do Context Fusion.
+**RTK** is installed per agent/CLI (`codex`, `claude`, `gemini`, `cursor`, `hermes`, etc.) via `./scripts/services/start-rtk.sh --only <agent>`. It is not a `sinapse_query` read backend — it is shell optimization, not part of Context Fusion.
 
-### 2.7 Constantes canônicas de path
+### 2.7 Canonical path constants
 
-A anatomia é codificada em `core/paths.py`. Constantes expostas:
+Anatomy is encoded in `core/paths.py`. Exposed constants:
 
 ```python
-CORTEX     = VAULT_ROOT / "cortex"      # Córtex (5 lóbulos)
-TEMPORAL   = CORTEX / "temporal"        # Lóbulo temporal (memória)
-FRONTAL    = CORTEX / "frontal"         # Lóbulo frontal (decisão)
-PARIETAL   = CORTEX / "parietal"        # Lóbulo parietal (sensorial)
-OCCIPITAL  = CORTEX / "occipital"       # Lóbulo occipital (visão/grafo)
-INSULA     = CORTEX / "insula"          # Lóbulo ínsula (autoconsciência)
-DIENCEFALO = VAULT_ROOT / "diencefalo"  # Diencéfalo (relay)
+CORTEX     = VAULT_ROOT / "cortex"      # Cortex (5 sub-lobes)
+TEMPORAL   = CORTEX / "temporal"        # Temporal lobe (memory)
+FRONTAL    = CORTEX / "frontal"         # Frontal lobe (decision)
+PARIETAL   = CORTEX / "parietal"        # Parietal lobe (sensory)
+OCCIPITAL  = CORTEX / "occipital"       # Occipital lobe (vision/graph)
+INSULA     = CORTEX / "insula"          # Insula lobe (self-awareness)
+DIENCEFALO = VAULT_ROOT / "diencefalo"  # Diencephalon (relay)
 SECTORS_ROOT = DIENCEFALO / "setores"
-CEREBELO   = VAULT_ROOT / "cerebelo"    # Cerebelo (ritmo)
+CEREBELO   = VAULT_ROOT / "cerebelo"    # Cerebellum (rhythm)
 DAILY_ROOT, SESSIONS_ROOT, WEEKLY_ROOT, PADROES_ROOT = cerebelo/...
-TRONCO     = VAULT_ROOT / "tronco"      # Tronco (infra)
+TRONCO     = VAULT_ROOT / "tronco"      # Stem (infra)
 META_ROOT, MODELOS_ROOT, PAINEIS_ROOT = tronco/...
 ```
 
-Qualquer novo código que criar/modificar arquivo no vault **deve usar essas constantes**, não caminhos hardcoded. Detalhamento de cada lobo em `cerebro/cortex/cortex.md`, `cerebro/cerebelo/cerebelo.md`, `cerebro/diencefalo/diencefalo.md`, `cerebro/tronco/tronco.md` e `cerebro/cortex/{frontal,parietal,occipital,temporal,insula}/*.md`.
+Any new code creating/modifying files in the vault **must use these constants**, not hardcoded paths. Details per lobe in `cerebro/cortex/cortex.md`, `cerebro/cerebelo/cerebelo.md`, `cerebro/diencefalo/diencefalo.md`, `cerebro/tronco/tronco.md` and `cerebro/cortex/{frontal,parietal,occipital,temporal,insula}/*.md`.
 
 ---
 
-## 3. Visão Macro do Sistema
+## 3. System Macro View
 
 ```
   ┌──────────────────────────────────────────────────────────────────────┐
-  │                          AGENTES DE IA                               │
+  │                          AI AGENTS                                   │
   │                                                                      │
   │  ┌────────────┐ ┌──────────┐ ┌────────┐ ┌────────┐ ┌─────────────┐  │
   │  │Claude Code │ │Codex CLI │ │Cursor  │ │Gemini  │ │Hermes/Thoth │  │
-  │  │Kilo Code   │ │          │ │Aider   │ │CLI     │ │(plugin nativ│  │
+  │  │Kilo Code   │ │          │ │Aider   │ │CLI     │ │(native plugin│  │
   │  └──────┬─────┘ └─────┬────┘ └───┬────┘ └───┬────┘ └──────┬──────┘  │
   └─────────┼─────────────┼──────────┼───────────┼─────────────┼─────────┘
             │             │          │           │             │
-            └──────────┬──┴──────────┘           │       (hooks nativos)
+            └──────────┬──┴──────────┘           │       (native hooks)
                        │                         │             │
                        ▼                         │             ▼
   ┌────────────────────────────────┐             │  ┌──────────────────────┐
   │  sinapse-mcp.py (MCP Server)  │             │  │ sinapse-memory.py    │
-  │  15 tools · stdio JSON-RPC     │             │  │ Plugin Hermes         │
+  │  15 tools · stdio JSON-RPC    │             │  │ Hermes plugin         │
   │                               │             │  │ pre_gateway_dispatch │
-  │  sinapse-write.py (CLI)        │             │  │ post_tool_call       │
-  │  sinapse-api.py (REST :37702)  │             │  │ on_session_end       │
+  │  sinapse-write.py (CLI)       │             │  │ post_tool_call       │
+  │  sinapse-api.py (REST :37702) │             │  │ on_session_end       │
   └──────────────────┬────────────┘             │  └──────────┬───────────┘
                      └─────────────────────────┬┘             │
                                                │              │
                                                ▼              ▼
   ┌────────────────────────────────────────────────────────────────────┐
-  │                 UNIFIED MEMORY CORE — hive_mind.db                  │
+  │                 UNIFIED MEMORY CORE — hive_mind.db               │
   │                                                                    │
   │  ┌──────────────┐  ┌────────────────┐  ┌───────────────────────┐  │
   │  │  neurons     │  │  observations  │  │  visual_memories      │  │
   │  │  synapses    │  │  archived: 0   │  │  document_memories    │  │
-  │  │  (grafo)     │  │  1=ok 2=quarent│  │  (multimodal)         │  │
+  │  │  (graph)     │  │  1=ok 2=quarant│  │  (multimodal)         │  │
   │  └──────┬───────┘  └───────┬────────┘  └───────────────────────┘  │
   │         │                  │                                        │
   │  ┌──────▼───────┐  ┌───────▼───────┐  ┌───────────────────────┐  │
   │  │  search_vec  │  │  search_fts   │  │  ambiguities          │  │
-  │  │  (sqlite-vec │  │  (FTS5        │  │  (conflitos P2P)      │  │
-  │  │   1024d HNSW)│  │   unicode61)  │  │  vault (segredos)     │  │
+  │  │  (sqlite-vec │  │  (FTS5        │  │  (P2P conflicts)      │  │
+  │  │   1024d HNSW)│  │   unicode61)  │  │  vault (secrets)      │  │
   │  └──────────────┘  └───────────────┘  └───────────────────────┘  │
   └─────────────────────────────┬──────────────────────────────────────┘
                                 │                   ▲
-               ┌────────────────┼──────────┐        │ reindexação ~2s
+               ┌────────────────┼──────────┐        │ reindex ~2s
                │                │          │        │
                ▼                ▼          │  ┌─────┴──────────────────┐
   ┌────────────────┐  ┌──────────────┐    │  │  Watcher (watchdog)    │
   │  Hive-Dreamer  │  │  REST API    │    │  │  + Graphify            │
   │  dream_cycle.py│  │  FastAPI     │    │  │  vault → neurons +     │
-  │  noturno       │  │  :37702      │    │  │  embeddings + FTS      │
+  │  nightly       │  │  :37702      │    │  │  embeddings + FTS      │
   └───────┬────────┘  └──────────────┘    │  └────────────────────────┘
           │                               │              ▲
-          ▼                               │              │ edição
+          ▼                               │              │ edits
   ┌───────────────────────────────────┐   │              │
-  │  Vault Obsidian — cerebro/        │───┘──────────────┘
+  │  Obsidian Vault — cerebro/        │───┘──────────────┘
   │  cortex/  cerebelo/               │
-  │  diencefalo/  tronco/             │ ◄─── Syncthing P2P (opcional)
-  │  portal.canvas  (fonte de verdade)│
+  │  diencefalo/  tronco/             │ ◄─── Syncthing P2P (optional)
+  │  portal.canvas  (source of truth) │
   └───────────────────────────────────┘
 ```
 
-### Responsabilidades
+### Responsibilities
 
-| Componente | Responsável por | Independente de |
-|------------|-----------------|-----------------|
-| `cerebro/` | Conteúdo canônico | Tudo (vault Obsidian puro funciona sem o sistema) |
-| `core/` | Schema UMC, conexões, auth, schemas Pydantic | Agentes específicos |
-| `graphify/` | Indexação estrutural → neurons/synapses | claude-mem, RTK |
-| `~/.claude-mem` | Captura temporal global de eventos → observations | Graphify, RTK |
-| `integrations/rtk/` | Reescrita de comandos shell por agente/CLI | Tudo (hook isolado) |
-| `integrations/neural-memory/` | Recall associativo (spreading activation) | Camadas restantes |
-| `scripts/` | Pipeline, servidores, operação | — |
-| `plugins/hermes/` | Ponte bidirecional Hermes ↔ UMC ↔ vault | — |
-| `sinapse.yaml` | Configuração central (paths, portas, agentes) | — |
-| `install.sh` | Instalação universal (10 etapas) | — |
+| Component | Responsible for | Independent from |
+|------------|-----------------|------------------|
+| `cerebro/` | Canonical content | Everything (pure Obsidian vault works without the system) |
+| `core/` | UMC schema, connections, auth, Pydantic schemas | Specific agents |
+| `graphify/` | Structural indexing → neurons/synapses | claude-mem, RTK |
+| `~/.claude-mem` | Global temporal event capture → observations | Graphify, RTK |
+| `integrations/rtk/` | Shell command rewriting per agent/CLI | Everything (isolated hook) |
+| `integrations/neural-memory/` | Associative recall (spreading activation) | Remaining layers |
+| `scripts/` | Pipeline, servers, operations | — |
+| `plugins/hermes/` | Bidirectional bridge Hermes ↔ UMC ↔ vault | — |
+| `sinapse.yaml` | Central config (paths, ports, agents) | — |
+| `install.sh` | Universal installation (10 steps) | — |
 
 ---
 
 ## 4. Unified Memory Core (UMC)
 
-Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em runtime. Schema em [`core/umc_schema.sql`](../core/umc_schema.sql).
+Single SQLite database (`hive_mind.db`) with `sqlite-vec` loaded at runtime. Schema at [`core/umc_schema.sql`](../core/umc_schema.sql).
 
-### Diagrama de Entidades
+### Entity Diagram
 
 ```
   neurons (UUID v4)              observations (UUID v4)
@@ -318,24 +318,24 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
   id          PK                 id            PK
   label                          session_id
   type                           project
-  source_file  (relativo vault)  type          decision|learning|event
+  source_file  (vault-relative)  type          decision|learning|event
   content                        title
   hash         SHA-256           content
-  metadata     JSON              archived      0=pendente 1=ok 2=quarentena
-  community    Leiden cluster    neuron_id     FK→neurons (opcional)
+  metadata     JSON              archived      0=pending 1=ok 2=quarantine
+  community    Leiden cluster    neuron_id     FK→neurons (optional)
   visibility   private|shared|   goal_id       FK→goals (HM-11)
                public (HM-12)    why           TEXT (HM-11)
   indexed_at   TIMESTAMP (HM-11)
   created_at
   updated_at                     ambiguities (UUID v4)
        │                         ────────────────────
-       │ triggers FTS sync        id            PK
-       ▼                          neuron_id     FK→neurons
-  search_fts (FTS5)               source_a_hash SHA-256
-  ─────────────────               source_b_hash SHA-256
-  neuron_id   UNINDEXED           content_a
-  label                           content_b
-  content                         status   pending|synthesized|branched
+       │ triggers FTS sync       id            PK
+       ▼                         neuron_id     FK→neurons
+  search_fts (FTS5)              source_a_hash SHA-256
+  ─────────────────              source_b_hash SHA-256
+  neuron_id   UNINDEXED          content_a
+  label                          content_b
+  content                        status   pending|synthesized|branched
   tokenize=unicode61
                                  causal_edges (HM-11)
   search_vec (vec0)              ────────────────────
@@ -343,14 +343,14 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
   neuron_id   PK                 cause_neuron_id FK→neurons
   embedding   FLOAT[1024]        effect_neuron_id FK→neurons
                                  label, confidence, source
-                                 (índices em causa e efeito)
+                                 (indexes on cause and effect)
 
   goals (HM-11)                  visual_memories / document_memories
   ─────────────                  ──────────────────────────────────
   id          PK                 id, path, description/summary
   description                    topics, hash (dedup), neuron_id FK
   steps_json  TEXT (JSON)
-  status      active|…           vault (segredos cifrados)
+  status      active|…           vault (encrypted secrets)
   created_at                     ───────────────────────
                                  id             PK
   synapses (UUID v4)             encrypted_secret  BLOB (Fernet)
@@ -362,35 +362,35 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
   weight      FLOAT
 ```
 
-### Garantias técnicas
+### Technical guarantees
 
-| Garantia | Implementação |
-|----------|---------------|
-| FTS sync automático | Triggers `AFTER INSERT/UPDATE/DELETE` sobre `neurons` |
-| Colisão P2P impossível | UUIDs v4 em todas as PKs |
-| Detecção de divergência | SHA-256 de conteúdo em `neurons.hash` |
-| Fila auditável | `observations.archived` é coluna indexada (`idx_observations_archived`) — nunca LIKE em JSON |
+| Guarantee | Implementation |
+|----------|----------------|
+| Automatic FTS sync | `AFTER INSERT/UPDATE/DELETE` triggers on `neurons` |
+| Impossible P2P collision | UUIDs v4 in all PKs |
+| Divergence detection | SHA-256 of content in `neurons.hash` |
+| Auditable queue | `observations.archived` is indexed (`idx_observations_archived`) — never LIKE in JSON |
 | Performance | `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout=5000` |
 
 ---
 
-## 5. Fluxo de Leitura
+## 5. Read Flow
 
 ```
-  Usuário faz pergunta
+  User asks a question
          │
          ▼
-  Agente recebe query
+  Agent receives query
          │
-         ▼ (hook automático ou tool MCP)
+         ▼ (automatic hook or MCP tool)
   sinapse_query("pricing decision")
          │
          ├─────────────────────────────────────────────┐
          │                                             │
          ▼                                             ▼
-  Busca paralela nos backends de leitura:    Filesystem scan (cerebro/*.md)
-  ┌──────────────────────────────┐          cache TTL 30s
-  │ UMC SQL                      │          busca direta, zero gap
+  Parallel search in read backends/organs:    Filesystem scan (cerebro/*.md)
+  ┌──────────────────────────────┐            cache TTL 30s
+  │ UMC SQL                      │            direct search, zero gap
   │  search_fts MATCH 'pricing'  │
   │  search_vec KNN 1024d        │
   │  neurons/synapses            │
@@ -400,37 +400,35 @@ Banco SQLite único (`hive_mind.db`) com extensão `sqlite-vec` carregada em run
          └──────────────┬───────────────┘
                         │
                         ▼
-              merge + dedup + corte top-N
-              (chave: source_file + title + content)
-              (rerank por relevância é contrato pendente — docs/11 §17.1)
+              merge + dedup + top-N cut
+              (key: source_file + title + content)
+              (relevance rerank is pending contract — docs/11 §17.1)
                         │
                         ▼
-              top-N resultados ≤ 3000 chars
+              top-N results ≤ 3000 chars
                         │
                         ▼
-              injetados no system_message
-              do agente (pré-prompt)
+              injected into agent
+              system_message (pre-prompt)
 ```
 
-**Acesso por agente:** agentes MCP chamam `sinapse_query` via tool; o plugin
-Hermes pode fazer injeção automática via `pre_gateway_dispatch`. Limites:
-`MAX_CONTEXT_CHARS=3000`, `MAX_NODES=5`.
+**Access by agent:** MCP agents call `sinapse_query` via tool; Hermes plugin can do automatic injection via `pre_gateway_dispatch`. Limits: `MAX_CONTEXT_CHARS=3000`, `MAX_NODES=5`.
 
-**Circuit breaker:** backend com 3+ falhas consecutivas entra em cooldown 30s. Apenas exceções e timeouts contam como falha (não resultados vazios).
+**Circuit breaker:** backend with 3+ consecutive failures enters 30s cooldown. Only exceptions and timeouts count as failures (not empty results).
 
 ---
 
-## 6. Fluxo de Escrita
+## 6. Write Flow
 
 ```
-  Agente chama sinapse_save_decision("Migrar VPS", conteúdo)
+  Agent calls sinapse_save_decision("Migrar VPS", content)
          │
          ▼
   _sanitize_slug(title)  →  "2026-06-10-migrar-vps"
          │
          ▼
   _atomic_write()
-  tempfile.mkstemp() → write → os.replace()  (atômico no Linux)
+  tempfile.mkstemp() → write → os.replace()  (atomic on Linux)
          │
          ▼
   cerebro/cortex/frontal/trabalho/ativo/2026-06-10-migrar-vps.md
@@ -442,155 +440,155 @@ Hermes pode fazer injeção automática via `pre_gateway_dispatch`. Limites:
   source: hermes-session
   ---
   # Migrar VPS
-  conteúdo...
+  content...
          │
          ▼
-  Watcher detecta mudança no filesystem (~2s)
+  Watcher detects filesystem change (~2s)
          │
          ▼
-  Graphify reindexa → neurons + synapses + embeddings + FTS
+  Graphify reindexes → neurons + synapses + embeddings + FTS
          │
          ▼
-  Disponível para qualquer agente na próxima consulta
+  Available to any agent on the next query
 
-  SINAIS DE APRENDIZADO detectados em paralelo:
+  LEARNING SIGNALS detected in parallel:
   "aprendizado"|"learning"|"insight"|"padrão"|"pattern"|"lição"
          │
          ▼
-  append em cerebro/cerebelo/padroes/Patterns.md (com dedup por título)
+  append to cerebro/cerebelo/padroes/Patterns.md (title dedup)
 
-  ao final da sessão:
-  sinapse_session_end() → cerebro/cortex/frontal/brain/Current State.md atualizado
-                        → observation de fechamento no UMC
+  at end of session:
+  sinapse_session_end() → cerebro/cortex/frontal/brain/Current State.md updated
+                        → closing observation in UMC
 ```
 
-**Segredos detectados** (regex API keys, `sk-proj-*`, etc.) → cifrados em nível de campo (tabela `vault`, Fernet) → substituídos por placeholder no conteúdo final.
+**Detected secrets** (API key regex, `sk-proj-*`, etc.) → field-level encryption (`vault` table, Fernet) → replaced with placeholder in final content.
 
 ---
 
-## 7. O Ciclo de Sonho (Hive-Dreamer)
+## 7. The Dream Cycle (Hive-Dreamer)
 
-`scripts/dream/dream_cycle.py` — consolidação offline com saída Pydantic validada. **A partir de K3/K4 (2026-06-28/29) o ciclo é estruturado em camadas distintas** (ver §27 e [`11-knowledge-promotion-architecture.md` §3](11-knowledge-promotion-architecture.md#3-preenchimento-por-parte-do-cérebro)):
+`scripts/dream/dream_cycle.py` — offline consolidation with Pydantic-validated output. **Starting with K3/K4 (2026-06-28/29) the cycle is structured into distinct layers** (see §27 and [`11-knowledge-promotion-architecture.md` §3](11-knowledge-promotion-architecture.md#3-preenchimento-por-parte-do-cérebro)):
 
 ```
   ┌────────────────────────────────────────────────────────────────┐
-  │                      ESTÁGIO 0 — CAPTURA                        │
+  │                      STAGE 0 — CAPTURE                         │
   │                                                                │
-  │  Capture Layer:                                                 │
-  │    - hooks (Claude Code, Codex, Kilo, …)                       │
-  │    - MCP / CLI / browser / documentos / código / screenshots    │
-  │    - runtime events (sessões, tools, métricas)                  │
-  │       │                                                       │
-  │       ▼                                                       │
-  │  ESTÁGIO 0.5 — HIPOCAMPO TEMPORAL (claude-mem)                 │
+  │  Capture Layer:                                                │
+  │    - hooks (Claude Code, Codex, Kilo, …)                      │
+  │    - MCP / CLI / browser / docs / code / screenshots          │
+  │    - runtime events (sessions, tools, metrics)                │
+  │       │                                                        │
+  │       ▼                                                        │
+  │  STAGE 0.5 — TEMPORAL HIPPOCAMPUS (claude-mem)                │
   │    user_prompts · observations · discoveries · session_summaries│
-  │    facts · narrative · concepts · files_read / files_modified   │
-  │    prompt_number · generated_by_model                           │
-  │       │                                                       │
-  │       ▼                                                       │
-  │  ESTÁGIO 1 — KNOWLEDGE INTAKE (core/knowledge/intake.py, K3)   │
-  │    - normaliza campos (preserva source_id, project, workspace)  │
-  │    - extrai evidência / arquivos / timestamps                   │
-  │    - classifica knowledge_type                                  │
-  │    - deduplica por source_id + hash de conteúdo                 │
-  │       │                                                       │
-  │       ▼                                                       │
-  │  ESTÁGIO 2 — PROMOTION LAYER (core/knowledge/promotion.py, K4) │
-  │    Distiller (DistillerOutput Pydantic)                         │
-  │      "extraia fatos estruturados destas observações"             │
-  │       │                                                       │
-  │       ▼                                                       │
-  │    Validator (ValidatorOutput Pydantic)                         │
-  │      "estes fatos são suportados pelos logs originais?"         │
-  │       │ aprovado           │ reprovado → feedback → Distiller  │
-  │       ▼                                                       │
-  │    Router (RouterOutput Pydantic)                               │
-  │      "para qual projeto/tópico do lóbulo temporal cada fato vai?"│
-  │       │                                                       │
-  │       ▼                                                       │
-  │  Arquivo anatômico + UPSERT neuron + vector_backend.upsert()    │
-  │  observation.neuron_id = neuron.id;  archived=1                 │
-  │  falha estrutural → archived=2 (quarentena, jamais perdido)     │
+  │    facts · narrative · concepts · files_read / files_modified │
+  │    prompt_number · generated_by_model                         │
+  │       │                                                        │
+  │       ▼                                                        │
+  │  STAGE 1 — KNOWLEDGE INTAKE (core/knowledge/intake.py, K3)    │
+  │    - normalizes fields (preserves source_id, project, workspace)│
+  │    - extracts evidence / files / timestamps                   │
+  │    - classifies knowledge_type                                │
+  │    - deduplicates by source_id + content hash                │
+  │       │                                                        │
+  │       ▼                                                        │
+  │  STAGE 2 — PROMOTION LAYER (core/knowledge/promotion.py, K4)  │
+  │    Distiller (DistillerOutput Pydantic)                       │
+  │      "extract structured facts from these observations"       │
+  │       │                                                        │
+  │       ▼                                                        │
+  │    Validator (ValidatorOutput Pydantic)                       │
+  │      "are these facts supported by original logs?"           │
+  │       │ approved           │ rejected → feedback → Distiller  │
+  │       ▼                                                        │
+  │    Router (RouterOutput Pydantic)                             │
+  │      "which project/topic in the temporal lobe gets each fact?"│
+  │       │                                                        │
+  │       ▼                                                        │
+  │  Anatomical file + neuron UPSERT + vector_backend.upsert()    │
+  │  observation.neuron_id = neuron.id;  archived=1               │
+  │  structural failure → archived=2 (quarantine, never lost)     │
   └──────────────────────┬─────────────────────────────────────────┘
-                          │ roteamento bem-sucedido
+                          │ successful routing
   ┌──────────────────────▼─────────────────────────────────────────┐
-  │              ESTÁGIO 2.5 — PERSISTÊNCIA ANATÔMICA               │
+  │              STAGE 2.5 — ANATOMICAL PERSISTENCE               │
   │                                                                │
-  │  cérebro/cortex/temporal/<projeto>/<topico>/neuronio-*.md      │
-  │  cérebro/cortex/frontal/{decisoes,trabalho,brain,projetos,org}  │
-  │  cérebro/cortex/{parietal,occipital,insula}/...                │
-  │  cérebro/cerebelo/{sessoes,diario,semanal,mensal,anual,padroes} │
-  │  cérebro/diencefalo/setores/<setor>.md                          │
+  │  cérebro/cortex/temporal/<project>/<topic>/neuronio-*.md      │
+  │  cérebro/cortex/frontal/{decisoes,trabalho,brain,projetos,org}│
+  │  cérebro/cortex/{parietal,occipital,insula}/...               │
+  │  cérebro/cerebelo/{sessoes,diario,semanal,mensal,anual,padroes}│
+  │  cérebro/diencefalo/setores/<setor>.md                        │
   │                                                                │
-  │  Escrita atômica via tempfile + os.replace(); SHA-256 do         │
-  │  conteúdo; embedding 1024d (snowflake-arctic-embed2);          │
-  │  workspace_id obrigatório em tudo; metadata canônica            │
-  │  (parent_id, brain_lobe, knowledge_type, source_uri, valid_at).  │
-  └──────────────────────┬─────────────────────────────────────────┘
-                          │
-  ┌──────────────────────▼─────────────────────────────────────────┐
-  │      ESTÁGIO 3 — INDEXAÇÃO MULTI-COLEÇÃO (FTS + Vetor + Grafo)  │
-  │                                                                │
-  │  - FTS5 (search_fts, tokenize=unicode61)                       │
-  │  - VectorBackend.upsert() em memory_vectors/observation_vectors │
-  │  - Graphiti: push_neuron (causal_edges com valid_at/invalid_at)│
-  │  - LightRAG: index_memory (entidades + relações)                │
-  │  - Graphify: reindexa o grafo estrutural se algo mudou          │
+  │  Atomic write via tempfile + os.replace(); SHA-256 of content;│
+  │  1024d embedding (snowflake-arctic-embed2);                   │
+  │  required workspace_id everywhere; canonical metadata          │
+  │  (parent_id, brain_lobe, knowledge_type, source_uri, valid_at).│
   └──────────────────────┬─────────────────────────────────────────┘
                           │
   ┌──────────────────────▼─────────────────────────────────────────┐
-  │      ESTÁGIO 4 — SÍNTESE DIALÉTICA (Fase 9)                    │
+  │      STAGE 3 — MULTI-COLLECTION INDEXING (FTS + Vector + Graph)│
   │                                                                │
-  │  SELECT ambiguities WHERE status='pending'                     │
-  │       │                                                       │
-  │  semantic_diff (vetorial + LLM)                                │
-  │       ├── complemento → merge → conteúdo unificado            │
-  │       ├── contradição → choose → versão com evidência         │
-  │       └── irreconciliável → branch → preserva ambas           │
-  │       │                                                       │
-  │       ▼                                                       │
-  │  status='synthesized' | 'branched'                             │
+  │  - FTS5 (search_fts, tokenize=unicode61)                      │
+  │  - VectorBackend.upsert() in memory_vectors/observation_vectors│
+  │  - Graphiti: push_neuron (causal_edges with valid_at/invalid_at)│
+  │  - LightRAG: index_memory (entities + relations)              │
+  │  - Graphify: reindexes structural graph if something changed  │
   └──────────────────────┬─────────────────────────────────────────┘
                           │
   ┌──────────────────────▼─────────────────────────────────────────┐
-  │     ESTÁGIO 5 — PUSH PARA GRAFOS DE CONHECIMENTO (P2 + P4)     │
+  │      STAGE 4 — DIALECTICAL SYNTHESIS (Phase 9)                │
   │                                                                │
-  │  Para cada neuron sintetizado:                                 │
-  │    1. push_neuron()   → Graphiti/FalkorDB (temporal)           │
-  │    2. index_memory()  → LightRAG (entidades + relações)        │
+  │  SELECT ambiguities WHERE status='pending'                    │
+  │       │                                                        │
+  │  semantic_diff (vector + LLM)                                 │
+  │       ├── complement → merge → unified content               │
+  │       ├── contradiction → choose → evidence-based version    │
+  │       └── irreconcilable → branch → preserve both            │
+  │       │                                                        │
+  │       ▼                                                        │
+  │  status='synthesized' | 'branched'                            │
+  └──────────────────────┬─────────────────────────────────────────┘
+                          │
+  ┌──────────────────────▼─────────────────────────────────────────┐
+  │     STAGE 5 — PUSH TO KNOWLEDGE GRAPHS (P2 + P4)              │
   │                                                                │
-  │  Ambos best-effort: try/except, nunca abortam a síntese.       │
-  │  Graphiti: grafo temporal causal (queries "quem influenciou X")│
-  │  LightRAG: grafo de entidades + busca híbrida (queries multi-  │
-  │            hop que FTS5 + KNN não resolvem)                    │
+  │  For each synthesized neuron:                                  │
+  │    1. push_neuron()   → Graphiti/FalkorDB (temporal)          │
+  │    2. index_memory()  → LightRAG (entities + relations)       │
+  │                                                                │
+  │  Both are best-effort: try/except, never abort synthesis.     │
+  │  Graphiti: temporal causal graph (queries "who influenced X")│
+  │  LightRAG: entity graph + hybrid search (multi-hop queries    │
+  │            that FTS5 + KNN cannot solve)                      │
   └────────────────────────────────────────────────────────────────┘
 ```
 
-**Garantias:**
-- Arquivamento somente após roteamento bem-sucedido
-- OAuth expirado dispara refresh automático (timeout polling: 300s)
-- Determinismo de hash: cada fato persistido carrega SHA-256 do conteúdo
-- `call_llm_structured()` valida o JSON retornado pelo LLM com `model_validate_json()`
-- **Push para grafos** (Estágio 5) é best-effort: falha do Graphiti ou LightRAG não impede a síntese dialética de ser marcada como `synthesized`. Logs vão para `[LightRAG]` no stdout.
-- **Regra de promoção automática** (K3/K4): permitido para `decision`, `learning`, `project_status`, `operational_fact`, `goal/task` e `rationale` — todos com fonte rastreável. Proibido: transformar todo bullet em fact, criar neurônio sem fonte, vetorizar duplicatas sem `parent_id`, promover opinião temporária como decisão arquitetural, sobrescrever decisões anteriores sem criar conflito ou `invalid_at`.
-- **Falha de promoção preserva dados**: erro transitório → `archived=0` (retry); erro estrutural → `archived=2` (quarentena com motivo). Nada é deletado por falha de promoção.
+**Guarantees:**
+- Archive only after successful routing
+- Expired OAuth triggers automatic refresh (polling timeout: 300s)
+- Hash determinism: each persisted fact carries SHA-256 of content
+- `call_llm_structured()` validates LLM JSON output with `model_validate_json()`
+- **Graph push** (Stage 5) is best-effort: Graphiti or LightRAG failure does not prevent dialectical synthesis from being marked `synthesized`. Logs go to `[LightRAG]` on stdout.
+- **Automatic promotion rule** (K3/K4): allowed for `decision`, `learning`, `project_status`, `operational_fact`, `goal/task`, and `rationale` — all with traceable source. Forbidden: turn every bullet into fact, create neuron without source, vectorize duplicates without `parent_id`, promote temporary opinion as architecture decision, overwrite previous decisions without conflict or `invalid_at`.
+- **Promotion failure preserves data**: transient error → `archived=0` (retry); structural error → `archived=2` (quarantine with reason). Nothing is deleted due to promotion failure.
 
-**Cadência de writers** (ver §29): sessão/diário usam modelo pequeno; semanal usa modelo médio/forte; mensal/anual usam modelo forte ou batch offline. Cada papel é configurável em `setup-brain` e herda do `dreamer` quando ausente.
+**Writer cadence** (see §29): session/daily use small model; weekly uses medium/strong model; monthly/yearly use strong model or offline batch. Each role is configurable in `setup-brain` and inherits from `dreamer` when absent.
 
 ---
 
-## 8. Sincronização P2P e Fusão Semântica
+## 8. P2P Synchronization and Semantic Fusion
 
 ```
-  Máquina A           Syncthing (P2P)         Máquina B
+  Machine A           Syncthing (P2P)         Machine B
   ─────────           ───────────────         ─────────
-  edita atlas/        ──────────────►          recebe arquivo
-  pricing/fato.md                              (mesmo arquivo
-                                               editado offline)
+  edits atlas/        ──────────────►          receives file
+  pricing/fato.md                              (same file
+                                               edited offline)
                                                     │
                                                audit_memory.py
-                                               hash do arquivo ≠
-                                               hash do neuron
+                                               file hash ≠
+                                               neuron hash
                                                     │
                                                INSERT ambiguities
                                                (content_a, content_b
@@ -603,135 +601,135 @@ Hermes pode fazer injeção automática via `pre_gateway_dispatch`. Limites:
                                                     │
                              ┌──────────────────────┤
                              │                      │
-                        complemento          contradição factual
+                        complement          factual contradiction
                              │                      │
                            merge               choose (logic_applied)
-                        conteúdo único          versão com evidência
+                        unified content        evidence-based version
                              │                      │
                              └───────────┬──────────┘
                                          │
                                     status='synthesized'
-                                    .md atualizado
-                                    neuron atualizado
+                                    .md updated
+                                    neuron updated
 ```
 
-**Pré-requisitos:**
+**Prerequisites:**
 
-| Mecanismo | Implementação |
-|-----------|---------------|
-| IDs sem colisão | UUID v4 em todas as PKs |
-| Detecção de divergência | SHA-256 de conteúdo em `neurons.hash` |
-| Transporte | Syncthing (sem servidor central) |
-| Reconciliação vault ↔ SQLite | `audit_memory.py --fix` |
-| Classificação de conflitos | `semantic_diff.py` (vetorial + LLM) |
-| Resolução autônoma | `dream_cycle.py` estágio de síntese |
+| Mechanism | Implementation |
+|-----------|----------------|
+| Collision-free IDs | UUID v4 in all PKs |
+| Divergence detection | SHA-256 content in `neurons.hash` |
+| Transport | Syncthing (no central server) |
+| vault ↔ SQLite reconciliation | `audit_memory.py --fix` |
+| Conflict classification | `semantic_diff.py` (vector + LLM) |
+| Autonomous resolution | `dream_cycle.py` synthesis stage |
 
-Setup completo em [`07-p2p-sync-setup.md`](07-p2p-sync-setup.md).
+Full setup in [`07-p2p-sync-setup.md`](07-p2p-sync-setup.md).
 
 ---
 
-## 9. Camada Multimodal
+## 9. Multimodal Layer
 
 ```
-  ENTRADA                    PROCESSAMENTO              SAÍDA
-  ───────                    ─────────────              ─────
-  visual_capture.py          dream_cycle.py             visual_memories
-  tool sinapse_capture_screen  estágio visual           (id, image_path,
-  screenshot (mss)      ───►  LLM Vision               description,
-                              VisionAnalysis Pydantic    ocr_text,
-                              (descrição + OCR)         neuron_id)
+  INPUT                      PROCESSING                OUTPUT
+  ─────                      ──────────                ──────
+  visual_capture.py          dream_cycle.py            visual_memories
+  tool sinapse_capture_screen  visual stage            (id, image_path,
+  screenshot (mss)      ───►  LLM Vision              description,
+                              VisionAnalysis Pydantic  ocr_text,
+                              (description + OCR)      neuron_id)
 
-  document_ingest.py         dream_cycle.py             document_memories
-  PDF (PyMuPDF)         ───►  estágio docs              (id, file_path,
-  DOCX (python-docx)          resumo + tópicos          file_hash UNIQUE,
-                              → fila observations        summary, topics)
+  document_ingest.py         dream_cycle.py            document_memories
+  PDF (PyMuPDF)         ───►  docs stage               (id, file_path,
+  DOCX (python-docx)          summary + topics         file_hash UNIQUE,
+                              → observations queue     summary, topics)
 
-  generate_portal.py         compõe memórias visuais    cerebro/portal.canvas
-                             e conceitos do UMC    ───►  (Obsidian Canvas)
+  generate_portal.py         composes visual memories  cerebro/portal.canvas
+                             and UMC concepts     ───► (Obsidian Canvas)
 ```
 
-O estágio multimodal roda **dentro** do Dream Cycle — imagens e documentos entram na mesma fila de consolidação que os logs.
+The multimodal stage runs **inside** the Dream Cycle — images and documents enter the same consolidation queue as logs.
 
 ---
 
-## 10. Camada de Acesso
+## 10. Access Layer
 
 ### 9.1 MCP Server (`scripts/services/sinapse-mcp.py`)
 
-stdio JSON-RPC, compatível com qualquer cliente MCP.
+stdio JSON-RPC, compatible with any MCP client.
 
-| Tool | Assinatura | Função |
-|------|-----------|--------|
-| `sinapse_query` | `(query, limit?)` | Busca híbrida: FTS5 + vetores + grafo + filesystem |
-| `sinapse_save_decision` | `(title, content)` | Decisão → `cerebro/cortex/frontal/trabalho/ativo/YYYY-MM-DD-slug.md` |
-| `sinapse_save_learning` | `(title, content)` | Aprendizado → `cerebro/cerebelo/padroes/Patterns.md` |
-| `sinapse_health` | `()` | Status de todos os backends |
-| `sinapse_session_end` | `(summary?)` | Fecha sessão, atualiza Current State |
-| `sinapse_temporal_search` | `(query, limit?, project?)` | Etapa 1 claude-mem: índice compacto com IDs/títulos |
-| `sinapse_temporal_timeline` | `(anchor? ou query?, depth_before?, depth_after?, project?)` | Etapa 2 claude-mem: janela cronológica ao redor de um ID/query |
-| `sinapse_temporal_get_observations` | `(ids, orderBy?, limit?, project?)` | Etapa 3 claude-mem: detalhes completos só dos IDs filtrados |
-| `sinapse_temporal_save` | `(content, type?)` | Observação (fallback: vault) |
-| `sinapse_zettelkasten_split` | `(file_path)` | Nota monolítica → notas atômicas Zettelkasten |
+| Tool | Signature | Function |
+|------|-----------|----------|
+| `sinapse_query` | `(query, limit?)` | Hybrid search: FTS5 + vectors + graph + filesystem |
+| `sinapse_save_decision` | `(title, content)` | Decision → `cerebro/cortex/frontal/trabalho/ativo/YYYY-MM-DD-slug.md` |
+| `sinapse_save_learning` | `(title, content)` | Learning → `cerebro/cerebelo/padroes/Patterns.md` |
+| `sinapse_health` | `()` | All backend status |
+| `sinapse_session_end` | `(summary?)` | Closes session, updates Current State |
+| `sinapse_temporal_search` | `(query, limit?, project?)` | claude-mem step 1: compact index with IDs/titles |
+| `sinapse_temporal_timeline` | `(anchor? or query?, depth_before?, depth_after?, project?)` | claude-mem step 2: chronological window around ID/query |
+| `sinapse_temporal_get_observations` | `(ids, orderBy?, limit?, project?)` | claude-mem step 3: full details only for filtered IDs |
+| `sinapse_temporal_save` | `(content, type?)` | Observation (fallback: vault) |
+| `sinapse_zettelkasten_split` | `(file_path)` | Monolithic note → atomic Zettelkasten notes |
 | `sinapse_capture_screen` | `(description?)` | Screenshot → `visual_memories` |
-| `sinapse_plan_goal` | `(goal, context?)` | Decompõe objetivo em passos atômicos e salva no Intent Memory |
-| `sinapse_temporal_graph_search` | `(query, num_results?)` | Grafo temporal Graphiti/FalkorDB — arestas com `valid_at`/`invalid_at` (P2) |
-| `sinapse_rag_query` | `(question, mode?)` | Consulta híbrida no grafo LightRAG (entidades + relações) — multi-hop, alimentado pelo Dream Cycle (P4) |
-| `search_memories` | `(query, top_k?, project?, mode?)` | Busca HNSW/FTS sobre o vault |
+| `sinapse_plan_goal` | `(goal, context?)` | Decomposes goal into atomic steps and saves to Intent Memory |
+| `sinapse_temporal_graph_search` | `(query, num_results?)` | Graphiti/FalkorDB temporal graph — edges with `valid_at`/`invalid_at` (P2) |
+| `sinapse_rag_query` | `(question, mode?)` | Hybrid LightRAG graph query (entities + relations) — multi-hop, fed by Dream Cycle (P4) |
+| `search_memories` | `(query, top_k?, project?, mode?)` | HNSW/FTS search over vault |
 
-Total: **15 tools**. Registro/instructions automáticos via `register-mcp.sh`.
+Total: **15 tools**. Automatic register/instructions via `register-mcp.sh`.
 
-**Fonte única de instruções operacionais:** `config/sinapse-agent-prompt.md`.
-- Carregado por `scripts/services/sinapse-mcp.py:_load_instructions()` (L38–53) e exposto como `instructions` no `initialize` do MCP.
-- Injetado em `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` / `.github/copilot-instructions.md` / `.cursor/rules/hive-mind.md` via `register-mcp.sh:inject_instructions()` (L325–351), entre marcadores `<!-- BEGIN HIVE-MIND SINAPSE -->` / `<!-- END HIVE-MIND SINAPSE -->`.
-- Corrigir o prompt é a única ação necessária para propagar a política operacional para todas as instalações limpas futuras.
+**Single source of operational instructions:** `config/sinapse-agent-prompt.md`.
+- Loaded by `scripts/services/sinapse-mcp.py:_load_instructions()` (L38–53) and exposed as `instructions` in MCP `initialize`.
+- Injected into `CLAUDE.md` / `AGENTS.md` / `GEMINI.md` / `.github/copilot-instructions.md` / `.cursor/rules/hive-mind.md` by `register-mcp.sh:inject_instructions()` (L325–351), between markers `<!-- BEGIN HIVE-MIND SINAPSE -->` / `<!-- END HIVE-MIND SINAPSE -->`.
+- Fixing this prompt is the only required action to propagate operational policy to all future clean installations.
 
-**Configs MCP por agente** (registro via `scripts/setup/register-mcp.sh`):
-Claude Code: `<projeto>/.mcp.json` (escopo project, `claude mcp add -s project` — **não** `~/.claude/.mcp.json`) · Codex: `~/.codex/config.toml` + `~/.codex/mcp.json` · Cursor: `~/.cursor/mcp.json` · Gemini: `~/.gemini/settings.json`
+**MCP configs per agent** (registered by `scripts/setup/register-mcp.sh`):
+Claude Code: `<projeto>/.mcp.json` (project scope, `claude mcp add -s project` — **not** `~/.claude/.mcp.json`) · Codex: `~/.codex/config.toml` + `~/.codex/mcp.json` · Cursor: `~/.cursor/mcp.json` · Gemini: `~/.gemini/settings.json`
 
-### 9.2 Plugin Hermes (`plugins/hermes/sinapse-memory.py`)
+### 9.2 Hermes Plugin (`plugins/hermes/sinapse-memory.py`)
 
 ```python
 def register(ctx):
-    ctx.register_hook("pre_gateway_dispatch", _pre_prompt_build)   # leitura automática
-    ctx.register_hook("post_tool_call",       _post_tool_use)      # escrita automática
-    ctx.register_hook("on_session_end",       _post_session_end)   # fechamento
+    ctx.register_hook("pre_gateway_dispatch", _pre_prompt_build)   # automatic read
+    ctx.register_hook("post_tool_call",       _post_tool_use)      # automatic write
+    ctx.register_hook("on_session_end",       _post_session_end)   # close
 ```
 
-Único componente que conhece todas as camadas. Circuit breaker embutido (3 falhas → cooldown 30s). `health_check()` retorna status de todos os backends.
+Only component aware of all layers. Built-in circuit breaker (3 failures → 30s cooldown). `health_check()` returns all backend status.
 
-### 9.3 CLI standalone (`scripts/services/sinapse-write.py`)
+### 9.3 Standalone CLI (`scripts/services/sinapse-write.py`)
 
-`decision` · `learning` · `query` · `health` · `session-end` — para agentes sem MCP.
+`decision` · `learning` · `query` · `health` · `session-end` — for agents without MCP.
 
 ### 9.4 REST API (`scripts/services/sinapse-api.py`)
 
-FastAPI, porta `HIVE_MIND_API_PORT` (default **37702**). Fail-closed sem `HIVE_MIND_API_KEY`.
+FastAPI, port `HIVE_MIND_API_PORT` (default **37702**). Fail-closed without `HIVE_MIND_API_KEY`.
 
 ```
   ┌────────────────────────┬────────┬────────┬──────────┬────────────────────────────────────────────┐
-  │ Endpoint               │ Método │ Auth   │ Rate     │ Descrição                                  │
+  │ Endpoint               │ Method │ Auth   │ Rate     │ Description                                │
   ├────────────────────────┼────────┼────────┼──────────┼────────────────────────────────────────────┤
   │ /api/v1/health         │ GET    │ —      │ 60/min   │ Health check                               │
-  │ /api/v1/observations   │ POST   │ Bearer │ 20/min   │ Nova observação                            │
-  │ /api/v1/query          │ POST   │ Bearer │ 30/min   │ Busca híbrida                              │
-  │ /api/v1/semantic/…     │ GET    │ Bearer │ —        │ Vizinhos semânticos                        │
-  │ /api/v1/vault/{id}     │ GET    │ Bearer │ 10/min   │ Segredo cifrado                            │
-  │ /api/v1/neurons/export │ POST   │ Bearer │ 10/min   │ Export neurônios shared/public (HM-12)     │
+  │ /api/v1/observations   │ POST   │ Bearer │ 20/min   │ New observation                            │
+  │ /api/v1/query          │ POST   │ Bearer │ 30/min   │ Hybrid search                              │
+  │ /api/v1/semantic/…     │ GET    │ Bearer │ —        │ Semantic neighbors                          │
+  │ /api/v1/vault/{id}     │ GET    │ Bearer │ 10/min   │ Encrypted secret                           │
+  │ /api/v1/neurons/export │ POST   │ Bearer │ 10/min   │ Export shared/public neurons (HM-12)       │
   └────────────────────────┴────────┴────────┴──────────┴────────────────────────────────────────────┘
 ```
 
 ---
 
-## 11. Autenticação Multi-Provedor
+## 11. Multi-Provider Authentication
 
-`PROVIDERS_CONFIG` em `core/auth.py` é o registro mestre de provedores. A lista ativa é definida no código e inclui provedores de API, provedores locais e pontes CLI/OpenAI-compatible.
+`PROVIDERS_CONFIG` in `core/auth.py` is the master provider registry. Active list is code-defined and includes API providers, local providers, and CLI/OpenAI-compatible bridges.
 
-| Provedor | Auth | Env var |
+| Provider | Auth | Env var |
 |----------|------|---------|
-| google | API key + OAuth loopback | `GOOGLE_API_KEY` / `GOOGLE_OAUTH_CLIENT_*` |
-| antigravity | CLI OAuth reaproveitado | `ANTIGRAVITY_UNUSED` |
-| gemini-cli | CLI OAuth reaproveitado | `GEMINI_CLI_UNUSED` |
-| omniroute | gateway local OpenAI-compatible | `OMNIROUTE_API_KEY` |
+| google | API key + loopback OAuth | `GOOGLE_API_KEY` / `GOOGLE_OAUTH_CLIENT_*` |
+| antigravity | Reused CLI OAuth | `ANTIGRAVITY_UNUSED` |
+| gemini-cli | Reused CLI OAuth | `GEMINI_CLI_UNUSED` |
+| omniroute | local OpenAI-compatible gateway | `OMNIROUTE_API_KEY` |
 | openai | API key + OAuth Codex-handshake | `OPENAI_API_KEY` |
 | anthropic | API key | `ANTHROPIC_API_KEY` |
 | deepseek | API key | `DEEPSEEK_API_KEY` |
@@ -739,66 +737,66 @@ FastAPI, porta `HIVE_MIND_API_PORT` (default **37702**). Fail-closed sem `HIVE_M
 | nvidia | API key | `NVIDIA_API_KEY` |
 | huggingface | API key | `HF_TOKEN` |
 | qwen | API key | `DASHSCOPE_API_KEY` |
-| lmstudio | local (sem chave) | — |
-| ollama | local (sem chave) | — |
+| lmstudio | local (no key) | — |
+| ollama | local (no key) | — |
 
-**Capacidades comuns:** refresh automático de token OAuth, timeout de polling 300s, descoberta de modelos em tempo real (`discover_models_realtime()`), nenhuma credencial hardcoded.
+**Common capabilities:** automatic OAuth token refresh, polling timeout 300s, real-time model discovery (`discover_models_realtime()`), no hardcoded credentials.
 
-### 11.1 Resolução de LLM por papel (`get_role_config`)
+### 11.1 LLM role resolution (`get_role_config`)
 
-Cada estágio do sistema que chama LLM tem um **papel** com configuração própria. Papéis canônicos atuais (constante `HIVE_LLM_ROLES` em `core/auth.py`): `dreamer`, `graphify`, `vision`, `synthesis`, `claude_mem`, `session_summarizer`, `daily_writer`, `alias_miner`, `topic_router`, `sector_classifier`, `weekly_synthesizer`, `monthly_synthesizer`, `yearly_synthesizer`, `drift_detector`, `decision_promoter`, `project_synthesizer`, `pattern_distiller`, `conflict_detector`, `graphiti`, `lightrag`. A função aceita qualquer nome de papel (case-insensitive, `-` vira `_`); nome vazio ou não-string levanta `ValueError`.
+Each system stage that calls an LLM has a specific **role** configuration. Current canonical roles (`HIVE_LLM_ROLES` constant in `core/auth.py`): `dreamer`, `graphify`, `vision`, `synthesis`, `claude_mem`, `session_summarizer`, `daily_writer`, `alias_miner`, `topic_router`, `sector_classifier`, `weekly_synthesizer`, `monthly_synthesizer`, `yearly_synthesizer`, `drift_detector`, `decision_promoter`, `project_synthesizer`, `pattern_distiller`, `conflict_detector`, `graphiti`, `lightrag`. Function accepts any role name (case-insensitive, `-` becomes `_`); empty or non-string raises `ValueError`.
 
 ```python
 get_role_config(role: str) -> Optional[Dict[str, Optional[str]]]
-# retorna {"provider", "model", "fallback_provider", "fallback_model"}
-# ou None se nem o papel nem o Dreamer estiverem configurados
+# returns {"provider", "model", "fallback_provider", "fallback_model"}
+# or None if neither role nor Dreamer is configured
 ```
 
-**Variáveis de ambiente por papel** (lidas exclusivamente de `os.environ` — o `.env` é carregado por dotenv no `dream_cycle.py`):
+**Environment variables per role** (read exclusively from `os.environ` — `.env` is loaded by dotenv in `dream_cycle.py`):
 
-| Papel | Primário | Fallback (opcional) |
-|-------|----------|---------------------|
-| Dreamer (base de herança) | `HIVE_DREAMER_PROVIDER` / `HIVE_DREAMER_MODEL` | `HIVE_DREAMER_FALLBACK_PROVIDER` / `HIVE_DREAMER_FALLBACK_MODEL` |
+| Role | Primary | Fallback (optional) |
+|------|---------|---------------------|
+| Dreamer (inheritance base) | `HIVE_DREAMER_PROVIDER` / `HIVE_DREAMER_MODEL` | `HIVE_DREAMER_FALLBACK_PROVIDER` / `HIVE_DREAMER_FALLBACK_MODEL` |
 | Graphify | `HIVE_GRAPHIFY_PROVIDER` / `HIVE_GRAPHIFY_MODEL` | `HIVE_GRAPHIFY_FALLBACK_PROVIDER` / `HIVE_GRAPHIFY_FALLBACK_MODEL` |
 | Vision | `HIVE_VISION_PROVIDER` / `HIVE_VISION_MODEL` | `HIVE_VISION_FALLBACK_PROVIDER` / `HIVE_VISION_FALLBACK_MODEL` |
-| Síntese P2P | `HIVE_SYNTHESIS_PROVIDER` / `HIVE_SYNTHESIS_MODEL` | `HIVE_SYNTHESIS_FALLBACK_PROVIDER` / `HIVE_SYNTHESIS_FALLBACK_MODEL` |
+| P2P Synthesis | `HIVE_SYNTHESIS_PROVIDER` / `HIVE_SYNTHESIS_MODEL` | `HIVE_SYNTHESIS_FALLBACK_PROVIDER` / `HIVE_SYNTHESIS_FALLBACK_MODEL` |
 | Claude Mem | `HIVE_CLAUDE_MEM_PROVIDER` / `HIVE_CLAUDE_MEM_MODEL` | `HIVE_CLAUDE_MEM_FALLBACK_PROVIDER` / `HIVE_CLAUDE_MEM_FALLBACK_MODEL` |
-| Memória viva/inteligente | `HIVE_{ROLE}_PROVIDER` / `HIVE_{ROLE}_MODEL` | `HIVE_{ROLE}_FALLBACK_PROVIDER` / `HIVE_{ROLE}_FALLBACK_MODEL` |
+| Live/intelligent memory | `HIVE_{ROLE}_PROVIDER` / `HIVE_{ROLE}_MODEL` | `HIVE_{ROLE}_FALLBACK_PROVIDER` / `HIVE_{ROLE}_FALLBACK_MODEL` |
 
-**Regras de resolução:**
+**Resolution rules:**
 
 ```
-  HIVE_{ROLE}_PROVIDER + HIVE_{ROLE}_MODEL definidos (par COMPLETO)?
+  HIVE_{ROLE}_PROVIDER + HIVE_{ROLE}_MODEL defined (COMPLETE pair)?
        │
-       ├── Sim → usa o primário do próprio papel
-       │          fallback: apenas o HIVE_{ROLE}_FALLBACK_* explícito
-       │          (NUNCA herda o fallback do Dreamer) — sem ele, fallback=None
+       ├── Yes → use role's own primary
+       │          fallback: only explicit HIVE_{ROLE}_FALLBACK_*
+       │          (NEVER inherits Dreamer fallback) — if absent, fallback=None
        │
-       └── Não (par incompleto ou ausente)
-             → herda HIVE_DREAMER_PROVIDER/MODEL
-             → sem HIVE_{ROLE}_FALLBACK_* próprio, herda também
+       └── No (incomplete pair or absent)
+             → inherit HIVE_DREAMER_PROVIDER/MODEL
+             → without role-specific HIVE_{ROLE}_FALLBACK_*, also inherit
                HIVE_DREAMER_FALLBACK_PROVIDER/MODEL
 ```
 
-- O fallback só vale como **par completo** PROVIDER+MODEL; par incompleto é tratado como ausente (`None`).
-- **Chaves de API nunca são duplicadas por papel:** são sempre resolvidas via `PROVIDERS_CONFIG` pelo nome do provedor (`GOOGLE_API_KEY`, `DEEPSEEK_API_KEY`, ...).
+- Fallback only counts as a **complete pair** PROVIDER+MODEL; incomplete pair is treated as absent (`None`).
+- **API keys are never duplicated by role:** they are always resolved via `PROVIDERS_CONFIG` by provider name (`GOOGLE_API_KEY`, `DEEPSEEK_API_KEY`, ...).
 
-### 11.2 Cliente LLM unificado (`core/llm_client.py`)
+### 11.2 Unified LLM client (`core/llm_client.py`)
 
-Módulo que centraliza as chamadas estruturadas (antes embutidas no `dream_cycle.py`):
+Module centralizing structured calls (previously embedded in `dream_cycle.py`):
 
-| Função/Classe | Papel |
-|---------------|-------|
-| `call_llm_structured(...)` | Chamada com JSON Schema + validação Pydantic (movida do `dream_cycle.py`) |
-| `classify_llm_error(exc)` | Classifica exceção em `"validation"` \| `"auth"` \| `"transient"` |
-| `call_llm_with_fallback(role, ...)` | Aplica a política de retry/fallback do papel |
-| `LLMValidationError` | Saída da LLM reprovada pela validação Pydantic |
+| Function/Class | Role |
+|----------------|------|
+| `call_llm_structured(...)` | Call with JSON Schema + Pydantic validation (moved from `dream_cycle.py`) |
+| `classify_llm_error(exc)` | Classifies exception into `"validation"` \| `"auth"` \| `"transient"` |
+| `call_llm_with_fallback(role, ...)` | Applies role retry/fallback policy |
+| `LLMValidationError` | LLM output failed Pydantic validation |
 
-Política de retry/fallback por classe de erro: ver tabela em [`02-ai-models.md`](02-ai-models.md). Ao alternar de modelo, o log registra: `[Fallback] Papel 'X': alternando de A/B para C/D`.
+Retry/fallback policy by error class: see table in [`02-ai-models.md`](02-ai-models.md). When switching models, log records: `[Fallback] Role 'X': switching from A/B to C/D`.
 
 ---
 
-## 12. Estrutura do Vault
+## 12. Vault Structure
 
 ```
   cerebro/
@@ -807,9 +805,9 @@ Política de retry/fallback por classe de erro: ver tabela em [`02-ai-models.md`
   │   ├── temporal/<projeto>/<topico>/neuronio-*.md
   │   ├── frontal/{decisoes,projetos,trabalho,brain,org}/
   │   ├── parietal/{inbox,referencias,analises}/
-  │   │   └── inbox/documents/        ← pais de document_chunks (K6)
+  │   │   └── inbox/documents/        ← parents of document_chunks (K6)
   │   ├── occipital/{capturas-visuais,grafo}/
-  │   │   └── grafo/graph.json      ← Graphify canônico
+  │   │   └── grafo/graph.json      ← canonical Graphify
   │   └── insula/{saude,conflitos}/
   ├── cerebelo/{sessoes,diario,semanal,mensal,anual,padroes}/
   │   └── padroes/Patterns.md
@@ -817,42 +815,42 @@ Política de retry/fallback por classe de erro: ver tabela em [`02-ai-models.md`
   └── tronco/{modelos,paineis,infra,meta}/
 ```
 
-**Convenção crítica (K3/K4):** arquivo grande pode existir para leitura humana, mas a unidade de busca é atômica. `Patterns.md` é referência humana consolidada; cada aprendizado real precisa virar `type=learning` individual em `cortex/temporal/`. Da mesma forma, `document_chunks` no UMC é a unidade atômica; o documento-pai (em `inbox/documents/`) é o contexto recuperável.
+**Critical convention (K3/K4):** large files can exist for human reading, but the searchable unit is atomic. `Patterns.md` is a consolidated human reference; each real learning must become individual `type=learning` in `cortex/temporal/`. Likewise, `document_chunks` in UMC are the atomic unit; parent document (in `inbox/documents/`) is retrievable context.
 
-Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiLinks criam `synapses` no grafo; decisões ficam em `cerebro/cortex/frontal/trabalho/ativo/`; padrões em `cerebro/cerebelo/padroes/`; capturas explícitas em `cerebro/cortex/parietal/inbox/visual/`. Diretórios de agente e lixeira migrada ficam sob `cerebro/tronco/infra/` e são excluídos da indexação por `.graphifyignore` e pelas exclusões compartilhadas em `core/vault_excludes.py`. Diretórios de UI/artefatos ainda permitidos no topo (`.obsidian/`, `.smart-env/`) também são excluídos da indexação.
-
----
-
-## 13. Automação e Cron
-
-| Processo | Trigger | Ação |
-|----------|---------|------|
-| Watcher (`start-watcher.sh`) | daemon contínuo | Obsidian → SQLite em ~2s |
-| `build-graph.sh` | `0 */6 * * *` | Reindexação de segurança (cache SHA-256) |
-| `cron/sync-diario.sh` | `0 2 * * 0` | Rebuild completo `--force` (logs rotacionados, últimos 30) |
-| `dream_cycle.py` | noturno (recomendado) | Consolidação de memória |
-| `audit_memory.py` | pós-sync P2P | Reconciliação vault ↔ SQLite |
-| `alias_miner.py` | ciclo de memória | Mineração de aliases (slugs) para neurônios |
+Conventions: mandatory YAML frontmatter (`tags`, `status`, `created`); WikiLinks create graph `synapses`; decisions live in `cerebro/cortex/frontal/trabalho/ativo/`; patterns in `cerebro/cerebelo/padroes/`; explicit captures in `cerebro/cortex/parietal/inbox/visual/`. Agent and migrated-trash directories live under `cerebro/tronco/infra/` and are excluded from indexing by `.graphifyignore` and shared exclusions in `core/vault_excludes.py`. Top-level UI/artifact directories still allowed (`.obsidian/`, `.smart-env/`) are also indexing-excluded.
 
 ---
 
-## 14. Como Estender para Novos Agentes
+## 13. Automation and Cron
+
+| Process | Trigger | Action |
+|---------|---------|--------|
+| Watcher (`start-watcher.sh`) | continuous daemon | Obsidian → SQLite in ~2s |
+| `build-graph.sh` | `0 */6 * * *` | safety reindex (SHA-256 cache) |
+| `cron/sync-diario.sh` | `0 2 * * 0` | full rebuild `--force` (rotated logs, keep last 30) |
+| `dream_cycle.py` | nightly (recommended) | memory consolidation |
+| `audit_memory.py` | post P2P sync | vault ↔ SQLite reconciliation |
+| `alias_miner.py` | memory cycle | alias mining (slugs) for neurons |
+
+---
+
+## 14. How to Extend for New Agents
 
 ```
   1. sinapse.yaml
      ─────────────
      agents:
        supported:
-         - seu-agente           ← adicionar aqui
+         - seu-agente           ← add here
        install_methods:
          seu-agente: "..."
 
   2. install.sh
      ─────────────
      AGENT_DETECTORS+=([seu-agente]="seu-agente")
-     # no case "$agent":
+     # in case "$agent":
      seu-agente)
-         cp skills/sinapse-consulta.md ~/.seu-agente/skills/
+         cp skills/sinapse-query.md ~/.seu-agente/skills/
 
   3. config/mcp/seu-agente.json (template)
      ───────────────────────────────────
@@ -865,33 +863,33 @@ Convenções: frontmatter YAML obrigatório (`tags`, `status`, `created`); WikiL
        }
      }
 
-  4. Teste mínimo
+  4. Minimum test
      ─────────────
-     Agente consegue chamar sinapse_query + sinapse_save_decision?
-     → Integração completa.
+     Agent can call sinapse_query + sinapse_save_decision?
+     → Full integration.
 ```
 
 ---
 
-## 15. Testes e Qualidade
+## 15. Tests and Quality
 
 ```bash
 ./tests/run_all.sh   # Smoke → Unit → Integration → E2E
 ```
 
-| Suíte | Local | LLM real? | O que cobre |
-|-------|-------|-----------|-------------|
-| Smoke | `tests/smoke/` | Não | Binários, health do sistema |
-| Unit | `tests/unit/` | **Não** | Backends (mocks HTTP/subprocess), helpers de escrita, fila Dream Cycle, regressões auditoria |
-| Integration | `tests/integration/` | Backends reais | Fluxos leitura/escrita, MCP, API, busca híbrida |
-| E2E | `tests/e2e/` | Backends reais | Sessão completa, degradação graceful, concorrência, recovery, edge cases |
-| Síntese | `tests/test_synthesis.py` | **Sim** | `run_synthesis_cycle()` com modelo real do `.env` |
+| Suite | Location | Real LLM? | What it covers |
+|-------|----------|-----------|----------------|
+| Smoke | `tests/smoke/` | No | Binaries, system health |
+| Unit | `tests/unit/` | **No** | Backends (HTTP/subprocess mocks), write helpers, Dream Cycle queue, audit regressions |
+| Integration | `tests/integration/` | Real backends | Read/write flows, MCP, API, hybrid search |
+| E2E | `tests/e2e/` | Real backends | Full session, graceful degradation, concurrency, recovery, edge cases |
+| Synthesis | `tests/test_synthesis.py` | **Yes** | `run_synthesis_cycle()` with real model from `.env` |
 
-O conjunto de testes é dinâmico; em 2026-07-01 havia **706 funções `test_`
-em 123 arquivos com testes**. Use `rg -n "^\s*(async\s+def|def)\s+test_"
-tests | wc -l` e `rg -l "^\s*(async\s+def|def)\s+test_" tests | wc -l`
-para medir o estado atual. Regra: testes unitários nunca chamam LLM —
-testam a lógica ao redor do modelo, não o modelo.
+The test set is dynamic; on 2026-07-01 there were **706 `test_` functions
+in 123 files with tests**. Use `rg -n "^\s*(async\s+def|def)\s+test_"
+tests | wc -l` and `rg -l "^\s*(async\s+def|def)\s+test_" tests | wc -l`
+to measure current state. Rule: unit tests never call LLM —
+they test logic around the model, not the model itself.
 
 ---
 
@@ -901,101 +899,101 @@ testam a lógica ao redor do modelo, não o modelo.
 ./scripts/utils/recover.sh
 ```
 
-1. Verifica/reconstrói índice do grafo
-2. Verifica integridade do backup (`hive_mind.db.bak`)
-3. Reinicia worker claude-mem
-4. Health check HTTP (:37700)
-5. Verifica carregamento do plugin
+1. Checks/rebuilds graph index
+2. Verifies backup integrity (`hive_mind.db.bak`)
+3. Restarts claude-mem worker
+4. HTTP health check (:37700)
+5. Verifies plugin load
 
-**Variáveis operacionais:**
+**Operational variables:**
 
-| Variável | Descrição | Default |
-|----------|-----------|---------|
-| `SINAPSE_HOME` | Raiz do projeto | `~/Documentos/Projects/Hive-Mind` |
-| `SINAPSE_DRY_RUN` | Sem side effects | `false` |
-| `SINAPSE_LOG_JSON` | Logs em JSON | `false` |
-| `SINAPSE_DECISION_TOOLS` | Tools que disparam escrita (csv) | `memory_add,observation_add,...` |
-| `SINAPSE_LEARNING_SIGNALS` | Sinais de aprendizado (csv) | padrão pt/en/es |
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SINAPSE_HOME` | Project root | `~/Documentos/Projects/Hive-Mind` |
+| `SINAPSE_DRY_RUN` | No side effects | `false` |
+| `SINAPSE_LOG_JSON` | JSON logs | `false` |
+| `SINAPSE_DECISION_TOOLS` | Tools triggering writes (csv) | `memory_add,observation_add,...` |
+| `SINAPSE_LEARNING_SIGNALS` | Learning signals (csv) | default pt/en/es |
 
 ---
 
-## 17. Referência de Configuração
+## 17. Configuration Reference
 
-`sinapse.yaml` — schema resumido com comentários no próprio arquivo:
+`sinapse.yaml` — summarized schema with inline comments in the file itself:
 
 ```yaml
-project:        # nome, versão, descrição
+project:        # name, version, description
 vault:          # path (cerebro/), format (obsidian), language, indexer, watch
 graphify:       # package, install_method, extras, output_dir=cerebro/cortex/occipital/grafo, mcp_port
 claude_mem:     # port (37700), install_method, worker_autostart
 neural_memory:  # package, src_dir, recall_timeout
 rtk:            # source_dir, binary, wrapper, targets global/project
-sinapse_mcp:    # command, transport (stdio), tools (lista de 15)
+sinapse_mcp:    # command, transport (stdio), tools (list of 15)
 agents:         # supported[], integration_methods, install_methods
 mcp_servers:    # graphify, claude_mem, sinapse_memory
-cloud:          # enabled, url, api_key  ← chaveamento local→VPS
+cloud:          # enabled, url, api_key  ← local→VPS switching
 hybrid_search:  # backends[], filesystem (categories, cache_ttl=30s), dedup
 cron:           # sync_schedule ("0 */6 * * *"), rebuild_schedule ("0 2 * * 0")
 ```
 
 ---
 
-*Histórico de fases e entregas: [`PROJECT_STATUS.md`](../PROJECT_STATUS.md) · [`IMPLEMENTATION.md`](../IMPLEMENTATION.md) · [`docs/plans/`](plans/)*
+*Phase and delivery history: [`PROJECT_STATUS.md`](../PROJECT_STATUS.md) · [`IMPLEMENTATION.md`](../IMPLEMENTATION.md) · [`docs/plans/`](plans/)*
 
 ---
 
-## 18. Fase HM-11: Deep Reflection (Raciocínio de Longo Prazo)
+## 18. HM-11 Phase: Deep Reflection (Long-Term Reasoning)
 
 ### Intent Memory (goal_id / why)
 
-Cada observação pode agora carregar as colunas `goal_id` (FK para a tabela `goals`) e `why` (motivo textual). O `DistillerOutput` (`core/schemas/dream_models.py`) também expõe esses dois campos opcionais, de modo que cada conjunto de fatos extraídos numa sessão do Dream Cycle fica vinculado ao objetivo ativo que os motivou.
+Each observation can now carry `goal_id` (FK to `goals`) and `why` (textual reason). `DistillerOutput` (`core/schemas/dream_models.py`) also exposes these optional fields, so each extracted fact set in a Dream Cycle session is linked to its motivating active objective.
 
-### Agente Planner (`scripts/planner.py`)
+### Planner Agent (`scripts/planner.py`)
 
-Decomposição de objetivos em passos atômicos via LLM com saída Pydantic validada.
+Goal decomposition into atomic steps via LLM with validated Pydantic output.
 
-| Função | Assinatura | O que faz |
-|--------|-----------|-----------|
-| `decompose_goal` | `(goal, context?) → list[dict]` | Chama o LLM com prompt estruturado; retorna lista de passos `{id, action, why, depends_on}`; em caso de falha retorna passo fallback com o objetivo original |
-| `save_goal` | `(goal, steps, db_conn?) → goal_id` | Persiste objetivo e JSON dos passos na tabela `goals`; cria a tabela se não existir (idempotente) |
+| Function | Signature | What it does |
+|----------|-----------|--------------|
+| `decompose_goal` | `(goal, context?) → list[dict]` | Calls LLM with structured prompt; returns list of steps `{id, action, why, depends_on}`; on failure returns fallback step with original objective |
+| `save_goal` | `(goal, steps, db_conn?) → goal_id` | Persists objective and steps JSON into `goals`; creates table if missing (idempotent) |
 
-Schemas: `GoalStep` (id, action, why, depends_on) e `GoalPlan` (lista de GoalStep). O tool MCP `sinapse_plan_goal` expõe os dois numa chamada só (`goal` obrigatório, `context` opcional).
+Schemas: `GoalStep` (id, action, why, depends_on) and `GoalPlan` (list of GoalStep). MCP tool `sinapse_plan_goal` exposes both in one call (`goal` required, `context` optional).
 
-### Grafo de Causalidade (`core/database.py`)
+### Causality Graph (`core/database.py`)
 
-Tabela `causal_edges` registra relações causa→efeito entre neurônios. A função `get_causal_neighbors(conn, neuron_id, hops=2)` faz BFS multi-hop retornando `[{neuron_id, label, confidence}]`. Índices em `cause_neuron_id` e `effect_neuron_id` para queries eficientes. Migração aplicada automaticamente via `ensure_migrations()`.
+`causal_edges` table records cause→effect relationships between neurons. Function `get_causal_neighbors(conn, neuron_id, hops=2)` performs multi-hop BFS returning `[{neuron_id, label, confidence}]`. Indexes on `cause_neuron_id` and `effect_neuron_id` for efficient queries. Migration applied automatically through `ensure_migrations()`.
 
-### Índice HNSW Incremental (`core/hnsw_index.py`)
+### Incremental HNSW Index (`core/hnsw_index.py`)
 
-Índice vetorial baseado em `hnswlib` (coseno, 1024 dimensões por padrão via `HNSW_DIM`), persistido em `hnsw_neurons.idx` na mesma pasta do `hive_mind.db`. Degrada gracefully se `hnswlib` não estiver instalado (aviso de log, sem crash).
+Vector index based on `hnswlib` (cosine, 1024 dimensions by default via `HNSW_DIM`), persisted in `hnsw_neurons.idx` in same folder as `hive_mind.db`. Gracefully degrades if `hnswlib` is not installed (warning log, no crash).
 
-| Função | O que faz |
-|--------|-----------|
-| `load_or_create(dim?)` | Carrega índice do disco ou cria novo (max_elements=10 000, M=16, ef_construction=200) |
-| `add_neuron(neuron_id, vector, conn?)` | Adiciona/atualiza vetor; marca `indexed_at` no DB se conn fornecido; expande o índice automaticamente quando cheio |
-| `search(query_vector, k=10)` | Retorna top-k vizinhos `[{neuron_id, distance}]` |
-| `rebuild_from_db(conn, embed_fn)` | Reconstrói índice completo a partir de todos os neurônios com conteúdo |
-| `incremental_update(conn, embed_fn)` | Indexa apenas neurônios com `indexed_at IS NULL`; persiste ao disco se indexou ao menos um |
+| Function | What it does |
+|----------|--------------|
+| `load_or_create(dim?)` | Loads index from disk or creates new (max_elements=10 000, M=16, ef_construction=200) |
+| `add_neuron(neuron_id, vector, conn?)` | Adds/updates vector; marks `indexed_at` in DB if conn provided; auto-expands index when full |
+| `search(query_vector, k=10)` | Returns top-k neighbors `[{neuron_id, distance}]` |
+| `rebuild_from_db(conn, embed_fn)` | Rebuilds full index from all neurons with content |
+| `incremental_update(conn, embed_fn)` | Indexes only neurons with `indexed_at IS NULL`; persists index if at least one was indexed |
 
 ---
 
-## 19. Fase HM-12: Enxame Federado (Federated Swarm)
+## 19. HM-12 Phase: Federated Swarm
 
-### Modelo de Visibilidade
+### Visibility Model
 
-Coluna `visibility TEXT DEFAULT 'private'` em `neurons`. Três valores possíveis:
+`visibility TEXT DEFAULT 'private'` column in `neurons`. Three values:
 
-| Valor | Significado |
-|-------|-------------|
-| `private` | Exclusivo da máquina local — nunca exportado |
-| `shared` | Pode ser exportado para outros nós confiáveis |
-| `public` | Pode ser exportado irrestritamente |
+| Value | Meaning |
+|-------|---------|
+| `private` | Local-machine only — never exported |
+| `shared` | Can be exported to trusted peers |
+| `public` | Can be exported without restriction |
 
-O endpoint de export filtra automaticamente para `visibility IN ('shared', 'public')`.
+Export endpoint automatically filters to `visibility IN ('shared', 'public')`.
 
-### Endpoint de Export (`POST /api/v1/neurons/export`)
+### Export Endpoint (`POST /api/v1/neurons/export`)
 
-Requer Bearer token + rate-limit 10/min. Corpo da requisição:
+Requires Bearer token + rate limit 10/min. Request body:
 
 ```json
 {
@@ -1005,298 +1003,298 @@ Requer Bearer token + rate-limit 10/min. Corpo da requisição:
 }
 ```
 
-Retorna `{ neurons, count, exported_at, schema_version: "1.0" }`. Redação ativada por padrão (`redact=true`). Assinatura desativada por padrão (`sign=false`).
+Returns `{ neurons, count, exported_at, schema_version: "1.0" }`. Redaction enabled by default (`redact=true`). Signature disabled by default (`sign=false`).
 
-### Assinatura Ed25519 (`core/signing.py`)
+### Ed25519 Signing (`core/signing.py`)
 
-Chaves PEM armazenadas em `config/keys/` (`SINAPSE_HOME/config/keys/`). Chave privada criada com `chmod 0600`.
+PEM keys stored at `config/keys/` (`SINAPSE_HOME/config/keys/`). Private key created with `chmod 0600`.
 
-| Função | O que faz |
-|--------|-----------|
-| `generate_keypair(name="default")` | Gera par Ed25519 e persiste como `{name}_privkey.pem` / `{name}_pubkey.pem`; retorna `{name, fingerprint, pubkey_path}` |
-| `load_private_key(name)` / `load_public_key(name)` | Carrega PEM do disco |
-| `sign_neuron(neuron, key_name)` | Retorna cópia do neurônio com `_signature` (base64 Ed25519) e `_pubkey_fingerprint` (SHA-256 hex do DER público) |
-| `verify_neuron(neuron, pubkey)` | Verifica assinatura; retorna `True`/`False`; nunca levanta em assinatura inválida |
-| `fingerprint(pubkey)` | SHA-256 hex do DER da chave pública |
+| Function | What it does |
+|----------|--------------|
+| `generate_keypair(name="default")` | Generates Ed25519 pair and persists as `{name}_privkey.pem` / `{name}_pubkey.pem`; returns `{name, fingerprint, pubkey_path}` |
+| `load_private_key(name)` / `load_public_key(name)` | Loads PEM from disk |
+| `sign_neuron(neuron, key_name)` | Returns neuron copy with `_signature` (Ed25519 base64) and `_pubkey_fingerprint` (public DER SHA-256 hex) |
+| `verify_neuron(neuron, pubkey)` | Verifies signature; returns `True`/`False`; never raises on invalid signature |
+| `fingerprint(pubkey)` | SHA-256 hex of public key DER |
 
-O payload canônico exclui campos voláteis (`created_at`, `updated_at`, `indexed_at`) e campos de assinatura para garantir determinismo entre nós.
+Canonical payload excludes volatile fields (`created_at`, `updated_at`, `indexed_at`) and signature fields to guarantee determinism between nodes.
 
-### Redação de PII (`core/redactor.py`)
+### PII Redaction (`core/redactor.py`)
 
-Redação irreversível aplicada ao `content` e `label` dos neurônios antes do export. Neurônios locais nunca são modificados.
+Irreversible redaction applied to neuron `content` and `label` before export. Local neurons are never modified.
 
-| Função | O que faz |
-|--------|-----------|
-| `redact_for_export(text)` | Aplica todas as regras em sequência; retorna novo string sem PII |
-| `redact_neuron(neuron)` | Deep-copy do dict; redige `content` e `label`; demais campos passam intactos |
+| Function | What it does |
+|----------|--------------|
+| `redact_for_export(text)` | Applies all rules sequentially; returns new PII-free string |
+| `redact_neuron(neuron)` | Deep-copy dict; redacts `content` and `label`; other fields pass unchanged |
 
-8 categorias de regras (ordem importa — mais específicas antes):
-1. Tokens de API (`sk-*`, `GOCSPX-*`, `ghp_*`, JWTs, `Bearer …`)
-2. E-mails
+8 rule categories (order matters — specific first):
+1. API tokens (`sk-*`, `GOCSPX-*`, `ghp_*`, JWTs, `Bearer …`)
+2. Emails
 3. IPv4
 4. IPv6
-5. Paths absolutos (`/home/`, `/root/`, `/Users/`, `/var/`)
-6. Blocos de chave privada SSH/PEM
-7. CPF / CNPJ (antes de telefone para evitar sobreposição)
-8. Telefones (broad pattern, roda por último)
+5. Absolute paths (`/home/`, `/root/`, `/Users/`, `/var/`)
+6. SSH/PEM private key blocks
+7. CPF / CNPJ (before phone to avoid overlap)
+8. Phone numbers (broad pattern, runs last)
 
 ---
 
-## 20. Decisões de Design (ADRs) — placeholder
+## 20. Design Decisions (ADRs) — placeholder
 
-> O conteúdo dos ADRs foi movido para [§32](#32-decisões-de-design-adrs) (a numeração cresceu após a integração da Arquitetura de Conhecimento Born-Large). As seções §21 e §22 abaixo foram preservadas.
+> ADR content moved to [§32](#32-design-decisions-adrs) (numbering increased after Born-Large Knowledge Architecture integration). Sections §21 and §22 below were preserved.
 
 ---
 
-### ADR-001 — Vault Obsidian como fonte única de verdade
+### ADR-001 — Obsidian Vault as single source of truth
 
-**Decisão:** vault Obsidian com frontmatter YAML + WikiLinks como storage primário.
-**Rationale:** formato plain-text Markdown é git-friendly, agnóstico de ferramenta e legível por humanos sem software especial. Obsidian é editor maduro com graph view, backlinks e plugin ecosystem.
-**Trade-off:** dependência do Watcher para manter SQLite sincronizado; Obsidian é opcional (vault funciona sem ele).
+**Decision:** Obsidian vault with YAML frontmatter + WikiLinks as primary storage.
+**Rationale:** plain-text Markdown is git-friendly, tool-agnostic, and human-readable without special software. Obsidian is a mature editor with graph view, backlinks, and plugin ecosystem.
+**Trade-off:** dependency on Watcher to keep SQLite synced; Obsidian is optional (vault works without it).
 
-### ADR-002 — Busca híbrida paralela
+### ADR-002 — Parallel hybrid search
 
-**Decisão:** busca paralela em 7 backends/órgãos (UMC, NeuralMemory, sqlite-vec, claude-mem, Graphify, Graphiti, filesystem — ver §2.6) com fusão e deduplicação cross-backend.
-**Rationale:** FTS5 encontra termos exatos; vetores encontram conceitos similares; grafo encontra conexões; filesystem garante dados recém-escritos (zero gap). Nenhum backend sozinho cobre todos os casos.
-**Trade-off:** ligeiramente maior consumo de I/O; mitigado por circuit breaker (cooldown 30s após 3+ falhas).
+**Decision:** parallel search across 7 backends/organs (UMC, NeuralMemory, sqlite-vec, claude-mem, Graphify, Graphiti, filesystem — see §2.6) with fusion and cross-backend dedup.
+**Rationale:** FTS5 finds exact terms; vectors find similar concepts; graph finds connections; filesystem guarantees fresh writes (zero gap). No single backend covers all cases.
+**Trade-off:** slightly higher I/O use; mitigated by circuit breaker (30s cooldown after 3+ failures).
 
-### ADR-003 — MCP como protocolo universal de integração
+### ADR-003 — MCP as universal integration protocol
 
-**Decisão:** expor tools via MCP stdio em vez de criar plugins específicos por agente.
-**Rationale:** MCP é padrão aberto adotado por Anthropic, OpenAI, GitHub e comunidade. Um único server (`sinapse-mcp.py`) serve todos os agentes sem adaptação.
-**Trade-off:** menos integração automática (hooks) que plugins nativos; compensado por CLI e hooks externos (SessionStart, PostToolUse, Stop).
+**Decision:** expose tools through MCP stdio instead of building agent-specific plugins.
+**Rationale:** MCP is an open standard adopted by Anthropic, OpenAI, GitHub, and community. One server (`sinapse-mcp.py`) serves all agents without adaptation.
+**Trade-off:** less automatic integration (hooks) than native plugins; compensated by CLI and external hooks (SessionStart, PostToolUse, Stop).
 
 ### ADR-004 — Atomic writes via os.replace()
 
-**Decisão:** `tempfile.mkstemp()` + `os.replace()` em vez de `open().write()`.
-**Rationale:** `os.replace()` é atômico no Linux (rename(2) syscall) — se o processo morrer durante a escrita, o arquivo destino permanece íntegro (o tmp fica orphan, não o destino).
-**Trade-off:** ligeiramente mais complexo; complexidade justificada para dados de memória persistente.
+**Decision:** `tempfile.mkstemp()` + `os.replace()` instead of `open().write()`.
+**Rationale:** `os.replace()` is atomic on Linux (rename(2) syscall) — if process dies during write, target file stays intact (tmp becomes orphan, not target).
+**Trade-off:** slightly more complex; justified for persistent memory data.
 
 ### ADR-005 — Cloud Memory API (FastAPI :37702)
 
-**Decisão:** microsserviço REST leve em FastAPI protegido por Bearer token para deploy em VPS.
-**Rationale:** permite que agentes locais usem memória hospedada num VPS sem precisar do vault físico local. Fail-closed: não inicia sem `HIVE_MIND_API_KEY`.
-**Trade-off:** requer rede estável; fallback automático para modo local quando `cloud.enabled=false`.
+**Decision:** lightweight FastAPI REST microservice protected by Bearer token for VPS deployment.
+**Rationale:** allows local agents to use VPS-hosted memory without local physical vault. Fail-closed: does not start without `HIVE_MIND_API_KEY`.
+**Trade-off:** requires stable network; automatic fallback to local mode when `cloud.enabled=false`.
 
-### ADR-006 — Saída estruturada Pydantic no Dream Cycle
+### ADR-006 — Pydantic structured output in Dream Cycle
 
-**Decisão:** todas as chamadas LLM usam JSON Schema derivado dos modelos Pydantic; a resposta é validada com `model_validate_json()`.
-**Rationale:** garante que qualquer provider (Ollama local ou Anthropic cloud) produza estrutura processável; loop de feedback (Validator reprova → Distiller reprocessa) aumenta qualidade sem intervenção humana.
-**Trade-off:** adiciona uma chamada LLM de validação por execução do pipeline.
+**Decision:** all LLM calls use JSON Schema derived from Pydantic models; response validated with `model_validate_json()`.
+**Rationale:** ensures any provider (local Ollama or cloud Anthropic) returns processable structure; feedback loop (Validator rejects → Distiller reprocesses) improves quality without human intervention.
+**Trade-off:** adds one LLM validation call per pipeline execution.
 
-### ADR-007 — UUID v4 em todas as PKs
+### ADR-007 — UUID v4 in all PKs
 
-**Decisão:** migração de IDs sequenciais para UUID v4 em todas as tabelas do UMC.
-**Rationale:** IDs sequenciais colidem entre máquinas distintas no cenário P2P (máquina A e B ambas criam `id=1`). UUID v4 tem probabilidade de colisão de 1 em 10^36.
-**Trade-off:** IDs menos legíveis em logs; irrelevante para uso programático.
+**Decision:** migrate sequential IDs to UUID v4 in all UMC tables.
+**Rationale:** sequential IDs collide across machines in P2P scenario (A and B both create `id=1`). UUID v4 collision probability is 1 in 10^36.
+**Trade-off:** less readable IDs in logs; irrelevant for programmatic use.
 
-### ADR-008 — Quarentena em vez de descarte
+### ADR-008 — Quarantine instead of discard
 
-**Decisão:** pipeline que falha seta `archived=2` em vez de deletar ou ignorar a observação.
-**Rationale:** dados de memória são valiosos; falhas temporárias (rede indisponível, saldo de API zerado) não devem causar perda permanente de contexto.
-**Trade-off:** acúmulo de dados em quarentena requer limpeza periódica manual ou automatizada.
+**Decision:** failing pipeline sets `archived=2` instead of deleting or ignoring observation.
+**Rationale:** memory data is valuable; transient failures (network down, API credit zero) should not cause permanent context loss.
+**Trade-off:** quarantined data accumulation requires periodic manual or automated cleanup.
 
-### ADR-009 — Configuração de LLM por papel com herança e fallback explícito
+### ADR-009 — Per-role LLM config with inheritance and explicit fallback
 
-**Decisão:** cada papel que consome LLM (`dreamer`, `graphify`, `vision`, `synthesis`) tem configuração própria via `HIVE_{ROLE}_PROVIDER/MODEL`, com herança do Dreamer quando ausente e fallback **opt-in** via `HIVE_{ROLE}_FALLBACK_PROVIDER/MODEL`. Resolução centralizada em `get_role_config()` (`core/auth.py`); chamadas e política de retry/fallback centralizadas em `core/llm_client.py`.
-**Rationale:** os papéis têm perfis opostos — extração de entidades (milhares de chamadas baratas e frequentes) e síntese dialética (poucas chamadas que exigem raciocínio forte) não podem ser servidos pelo mesmo modelo sem desperdício ou perda de qualidade. A **cascata automática de provedores foi rejeitada** por violar a soberania do usuário: a Síntese Dialética decide qual versão da memória é a verdade e não pode trocar de modelo silenciosamente. O fallback existe apenas quando o usuário o define explicitamente. Falha de **validação Pydantic nunca dispara fallback** — é problema de qualidade da saída, não de disponibilidade; trocar de modelo às cegas mascararia o problema. Chaves de API permanecem uma por provedor (nunca por papel), evitando duplicação de segredos.
-**Trade-off:** mais variáveis de ambiente (até 16 com fallbacks); mitigado pela herança — o caso mínimo continua sendo 2 variáveis (`HIVE_DREAMER_PROVIDER/MODEL`).
+**Decision:** each LLM-consuming role (`dreamer`, `graphify`, `vision`, `synthesis`) has own config via `HIVE_{ROLE}_PROVIDER/MODEL`, inheriting from Dreamer when absent, with **opt-in** fallback via `HIVE_{ROLE}_FALLBACK_PROVIDER/MODEL`. Resolution centralized in `get_role_config()` (`core/auth.py`); calls and retry/fallback policy centralized in `core/llm_client.py`.
+**Rationale:** roles have opposite profiles — entity extraction (many cheap frequent calls) and dialectical synthesis (few high-reasoning calls) cannot be served by same model without waste or quality loss. **Automatic provider cascade was rejected** to preserve user sovereignty: Dialectical Synthesis decides memory truth and cannot switch model silently. Fallback only exists when explicitly configured by user. **Pydantic validation failure never triggers fallback** — it is output quality, not availability; blind model switching would mask the issue. API keys remain one per provider (never per role), avoiding secret duplication.
+**Trade-off:** more environment variables (up to 16 with fallbacks); mitigated by inheritance — minimal case remains 2 vars (`HIVE_DREAMER_PROVIDER/MODEL`).
 
-### ADR-010 — Pipeline de Promoção de Conhecimento em camadas (K3/K4)
+### ADR-010 — Layered Knowledge Promotion Pipeline (K3/K4)
 
-**Decisão:** separar o pipeline de promoção em **Knowledge Intake** (normalização/classificação/deduplicação) e **Promotion Layer** (Distiller → Validator → Router → Persistência → Indexação), implementados em `core/knowledge/intake.py` e `core/knowledge/promotion.py`. A bridge do claude-mem é canônica em `core/knowledge/claude_mem_bridge.py` (caminho SQL read-only que aceita `source_id` e janela temporal).
+**Decision:** split promotion into **Knowledge Intake** (normalize/classify/dedup) and **Promotion Layer** (Distiller → Validator → Router → Persistence → Indexing), implemented in `core/knowledge/intake.py` and `core/knowledge/promotion.py`. Canonical claude-mem bridge in `core/knowledge/claude_mem_bridge.py` (read-only SQL path accepting `source_id` and time window).
 
-**Rationale:** a versão anterior do Dream Cycle fazia tudo num único estágio; separar intake e promotion torna a promoção **idempotente**, **testável** sem LLM real, e expõe o modo `candidate-only` (saída `candidate` sem persistência) para orquestração. A promoção nunca é 1-a-1 — é em batch com fila e prioridade por workspace (§30.5). Tipos canônicos de conhecimento (§27.2) e regras de promoção automática/proibida (§27.3) viram contrato, não heurística.
+**Rationale:** previous Dream Cycle did everything in one stage; splitting intake/promotion makes promotion **idempotent**, **testable** without real LLM, and exposes `candidate-only` mode (output `candidate` without persistence) for orchestration. Promotion is never 1-to-1 — it is batch with queue and workspace priority (§30.5). Canonical knowledge types (§27.2) and automatic/forbidden promotion rules (§27.3) become contract, not heuristic.
 
-**Trade-off:** mais código upfront; mitigado pelo retorno de `KnowledgePromotionPipeline` em modo `candidate-only` para callers que não querem persistir.
+**Trade-off:** more upfront code; mitigated by `KnowledgePromotionPipeline` return in `candidate-only` mode for callers not persisting.
 
-### ADR-011 — Coleções vetoriais canônicas separadas (K1)
+### ADR-011 — Separate canonical vector collections (K1)
 
-**Decisão:** o `VectorBackend` opera sobre **sete coleções canônicas** — `memory_vectors`, `observation_vectors`, `document_vectors`, `code_vectors`, `visual_vectors`, `graph_vectors`, `summary_vectors` — cada uma com metadata canônica (`parent_id`, `parent_type`, `brain_lobe`, `knowledge_type`, `project`, `source_uri`, `hash`, `valid_at`, `workspace_id`). Backends oficiais: `sqlite_vec` (local/dev/offline) e `milvus` (produção).
+**Decision:** `VectorBackend` operates on **seven canonical collections** — `memory_vectors`, `observation_vectors`, `document_vectors`, `code_vectors`, `visual_vectors`, `graph_vectors`, `summary_vectors` — each with canonical metadata (`parent_id`, `parent_type`, `brain_lobe`, `knowledge_type`, `project`, `source_uri`, `hash`, `valid_at`, `workspace_id`). Official backends: `sqlite_vec` (local/dev/offline) and `milvus` (production).
 
-**Rationale:** uma única coleção "tudo" polui ranking e torna impossível medir cobertura por tipo. A separação permite gate de produção por coleção (§28), poda seletiva (esquecer `document_chunks` órfãos não mexe em `memory_vectors`) e versionamento de modelo de embedding por coleção (§30.4).
+**Rationale:** one "everything" collection pollutes ranking and makes per-type coverage impossible. Separation enables production gates per collection (§28), selective pruning (forgetting orphan `document_chunks` does not affect `memory_vectors`), and per-collection embedding-model versioning (§30.4).
 
-**Trade-off:** mais tabelas UMC; mitigado por `vector_metadata` auxiliar e identidade de coleção `(name, embedding_model, dim)`.
+**Trade-off:** more UMC tables; mitigated by auxiliary `vector_metadata` and collection identity `(name, embedding_model, dim)`.
 
-### ADR-012 — VectorBackend: contrato único, múltiplos backends
+### ADR-012 — VectorBackend: single contract, multiple backends
 
-**Decisão:** toda a aplicação acessa o vetorial via contrato `upsert/delete/query/hybrid_query/count/health`, independente do backend. Milvus, sqlite-vec, e qualquer futuro backend obedecem o mesmo contrato. **A aplicação nunca chama Milvus diretamente fora do contrato.**
+**Decision:** all application vector access uses contract `upsert/delete/query/hybrid_query/count/health`, independent of backend. Milvus, sqlite-vec, and any future backend obey same contract. **Application never calls Milvus directly outside the contract.**
 
-**Rationale:** trocar `sqlite_vec` por `milvus` (e vice-versa) passa a ser mudança de configuração, não de código. Permite que o mesmo `DocumentPipeline`, `RetrievalRouter` e `KnowledgePromotionPipeline` rodem em dev (sqlite-vec) e produção (Milvus) sem分支.
+**Rationale:** switching `sqlite_vec` to `milvus` (and vice versa) becomes config change, not code change. Enables same `DocumentPipeline`, `RetrievalRouter`, and `KnowledgePromotionPipeline` to run in dev (sqlite-vec) and production (Milvus) without branching.
 
-**Trade-off:** o contrato precisa ser estável; mudanças de schema em Milvus exigem migração versionada de embedding (§30.4).
+**Trade-off:** contract must remain stable; Milvus schema changes require versioned embedding migration (§30.4).
 
-### ADR-013 — DocumentPipeline com parent/chunk/citation obrigatório (K6)
+### ADR-013 — DocumentPipeline with mandatory parent/chunk/citation (K6)
 
-**Decisão:** todo documento ingerido vira um `document_memories` (pai) com `document_chunks` (átomos) e entradas em `document_vectors` (vetores com metadata canônica). Consulta devolve **citações auditáveis** (`source_uri`, offsets, parent), não apenas "melhor trecho".
+**Decision:** every ingested document becomes one `document_memories` (parent) with `document_chunks` (atoms) and `document_vectors` entries (vectors with canonical metadata). Query returns **auditable citations** (`source_uri`, offsets, parent), not only "best snippet".
 
-**Rationale:** sem parent, chunk é texto solto — não tem como auditar nem deduplicar nem reingerir. A separação `documento / chunk / vetor` é o que torna o K6 born-large. RAGFlow entra como adapter/headless, nunca como fonte de verdade; o store dele é cache de ingestão.
+**Rationale:** without parent, chunk is loose text — not auditable, deduplicable, or re-ingestable. `document / chunk / vector` separation enables K6 born-large. RAGFlow is adapter/headless, never source of truth; its store is ingestion cache.
 
-**Trade-off:** mais metadados por vetor; mitigado pelo índice auxiliar `vector_metadata` e schema fixo do Milvus.
+**Trade-off:** more metadata per vector; mitigated by auxiliary `vector_metadata` index and fixed Milvus schema.
 
-### ADR-014 — RetrievalRouter classifica intent antes de buscar (K7)
+### ADR-014 — RetrievalRouter classifies intent before searching (K7)
 
-**Decisão:** o `RetrievalRouter` (`core/retrieval/router.py`) é a porta de entrada para queries; ele classifica a intenção, escolhe a rota especializada (temporal, memória, documento, código, grafo, multi-hop, híbrida) e devolve `retrieval_path`, `citations`, `confidence` e `missing_context`. LlamaIndex entra apenas como adapter opcional de rerank; não decide rota nem vira fonte de verdade.
+**Decision:** `RetrievalRouter` (`core/retrieval/router.py`) is query entrypoint; it classifies intent, chooses specialized route (temporal, memory, document, code, graph, multi-hop, hybrid), and returns `retrieval_path`, `citations`, `confidence`, `missing_context`. LlamaIndex is optional rerank adapter only; it does not choose route or become source of truth.
 
-**Rationale:** o `sinapse_query` funde 7 órgãos sem entender a intenção — bom para busca ampla, ruim para precisão. O router explicitamente roteia "decisão" para `memory_vectors`, "documento" para `document_vectors`+parent, "código" para `code_vectors`+Graphify, etc. A telemetria `query_route_distribution` (hash da query, não texto) alimenta a métrica de saúde K8.
+**Rationale:** `sinapse_query` fuses 7 organs without understanding intent — good for broad search, weak for precision. Router explicitly routes "decision" to `memory_vectors`, "document" to `document_vectors`+parent, "code" to `code_vectors`+Graphify, etc. `query_route_distribution` telemetry (query hash, not text) feeds K8 health metric.
 
-**Trade-off:** classificadores de intenção podem errar; mitigado por fallback para `sinapse_query`/Context Fusion quando a confiança é baixa, e por métrica `intent_accuracy` no golden set (§31.3).
+**Trade-off:** intent classifiers can fail; mitigated by fallback to `sinapse_query`/Context Fusion on low confidence, and `intent_accuracy` metric in golden set (§31.3).
 
-### ADR-015 — Workspace como fronteira de isolamento (K8/§30)
+### ADR-015 — Workspace as isolation boundary (K8/§30)
 
-**Decisão:** toda tabela crítica do UMC (`neurons`, `observations`, `synapses`, `goals`, `document_memories`, `visual_memories`, `ambiguities`, `causal_edges`, `vault`) carrega `workspace_id` (default `'default'`). Toda query do `RetrievalRouter` e da promoção filtra por `workspace_id`. Milvus usa `partition_key=workspace_id` para isolamento por partição.
+**Decision:** every critical UMC table (`neurons`, `observations`, `synapses`, `goals`, `document_memories`, `visual_memories`, `ambiguities`, `causal_edges`, `vault`) carries `workspace_id` (default `'default'`). Every `RetrievalRouter` and promotion query filters by `workspace_id`. Milvus uses `partition_key=workspace_id` for partition isolation.
 
-**Rationale:** o Hive-Mind nasce single-user local-first, mas o produto é open-source com vetor de escala per-install, multi-usuário por instância e federação entre instâncias. Adicionar `workspace_id` depois custaria migração estrutural — agora é uma coluna. Vazamento cross-workspace é bug de segurança, não de ranking.
+**Rationale:** Hive-Mind starts single-user local-first, but product is open-source with per-install scale vector, multi-user per instance, and federation across instances. Adding `workspace_id` later would require structural migration — now it is a column. Cross-workspace leak is a security bug, not ranking issue.
 
-**Trade-off:** toda query precisa carregar `workspace_id`; mitigado por `(workspace_id, ...)` nos índices quentes e por default `'default'` (não atrapalha single-user).
+**Trade-off:** every query must carry `workspace_id`; mitigated by `(workspace_id, ...)` hot indexes and default `'default'` (no impact to single-user).
 
-### ADR-016 — Falha de promoção preserva dados, nunca descarta
+### ADR-016 — Promotion failure preserves data, never discards
 
-**Decisão:** o contrato de promoção distingue explicitamente erro transitório (`archived=0`, retry futuro) e erro estrutural (`archived=2`, quarentena com motivo). Nada é deletado por falha de promoção. O `Knowledge Intake` (K3) é a primeira camada a usar esse contrato; o `Promotion Layer` (K4) o enforça.
+**Decision:** promotion contract explicitly distinguishes transient error (`archived=0`, future retry) and structural error (`archived=2`, quarantine with reason). Nothing is deleted by promotion failure. `Knowledge Intake` (K3) is first layer using this contract; `Promotion Layer` (K4) enforces it.
 
-**Rationale:** dados de memória são valiosos; falhas temporárias (rede indisponível, saldo de API zerado, schema novo) não devem causar perda permanente. O contract normativo é fail-safe, não fail-silent.
+**Rationale:** memory data is valuable; transient failures (network down, API credit zero, new schema) should not cause permanent loss. Normative contract is fail-safe, not fail-silent.
 
-**Trade-off:** acumula quarentena; mitigado por `K8 knowledge_health` expondo `observations_pending` e `discoveries_pending` como gate, e por pipeline de reprocessamento manual/automático.
+**Trade-off:** quarantine accumulation; mitigated by `K8 knowledge_health` exposing `observations_pending` and `discoveries_pending` as gate, and manual/automatic reprocessing pipeline.
 
-### ADR-017 — Cadência hierárquica sessão→anual com papéis de LLM próprios
+### ADR-017 — Hierarchical session→yearly cadence with dedicated LLM roles
 
-**Decisão:** a memória temporal é organizada em **cinco cadências** (sessão, diário, semanal, mensal, anual) com writers, entradas, saídas, modelos e regras de promoção próprios. Cada cadência tem um papel de LLM configurável (`session_summarizer`, `daily_writer`, `weekly_synthesizer`, `monthly_synthesizer`, `yearly_synthesizer`) e herda do `dreamer` se não houver override. Fail-closed: papel sem modelo próprio nem herança registra falha auditável e não inventa síntese.
+**Decision:** temporal memory is organized in **five cadences** (session, daily, weekly, monthly, yearly) with own writers, inputs, outputs, models, and promotion rules. Each cadence has configurable LLM role (`session_summarizer`, `daily_writer`, `weekly_synthesizer`, `monthly_synthesizer`, `yearly_synthesizer`) and inherits from `dreamer` if no override. Fail-closed: role without own model and no inheritance logs auditable failure and does not invent synthesis.
 
-**Rationale:** mensal e anual produzem memória estratégica (metas, drift, princípios) que não pode ser gerada por modelo pequeno sem rebaixar qualidade. Sessão e diário podem usar modelo pequeno porque a tarefa é compressão local. Custo/qualidade por cadência é o desenho correto.
+**Rationale:** monthly/yearly produce strategic memory (goals, drift, principles) that cannot be generated by small model without quality loss. Session/daily can use small model because task is local compression. Cost/quality by cadence is the correct design.
 
-**Trade-off:** mais papéis para configurar; mitigado pelo `setup-brain` que aceita herança do `dreamer` para o caso mínimo.
+**Trade-off:** more roles to configure; mitigated by `setup-brain` inheritance from `dreamer` in minimal case.
 
-### ADR-018 — Contrato negativo de vendorização via `components.lock.json`
+### ADR-018 — Negative vendoring contract via `components.lock.json`
 
-**Decisão:** o `components.lock.json` aceita apenas **clones** do source que o `install.sh` builda/patcha (`graphify`, `neural-memory`, `rtk`, `omniparser`, binário `crsqlite`). Wrappers (Milvus, RAGFlow, Graphiti) entram por container/SDK; pip cobre apenas LlamaIndex e utilitários. Se Milvus, RAGFlow ou LlamaIndex aparecerem em `components.lock.json` nesta frente, a implementação está errada.
+**Decision:** `components.lock.json` accepts only source **clones** built/patched by `install.sh` (`graphify`, `neural-memory`, `rtk`, `omniparser`, `crsqlite` binary). Wrappers (Milvus, RAGFlow, Graphiti) enter through container/SDK; pip covers only LlamaIndex and utilities. If Milvus, RAGFlow, or LlamaIndex appear in `components.lock.json` for this front, implementation is wrong.
 
-**Rationale:** regras claras de quem é clone e quem é wrapper reduzem ambiguidade operacional. O contrato é também negativo (declara o que **não** pertence ali) para evitar regressão.
+**Rationale:** explicit clone vs wrapper rules reduce operational ambiguity. Contract is also negative (declares what **does not** belong there) to prevent regression.
 
-**Trade-off:** manutenção do lock file; mitigado por ser gerado por `install.sh` e revisado em PR.
+**Trade-off:** lock-file maintenance; mitigated by generation from `install.sh` and PR review.
 
 ---
 
-## 21. Governança de Fases
+## 21. Phase Governance
 
-### Namespace de Fases
+### Phase Namespace
 
-Cada projeto usa um prefixo único para evitar colisão de numeração:
+Each project uses a unique prefix to avoid numbering collisions:
 
-| Projeto | Prefixo | Exemplo |
-|---------|---------|---------|
+| Project | Prefix | Example |
+|---------|--------|---------|
 | Hive-Mind | `HM-` | HM-10, HM-11, HM-12 |
 | Thoth | `TH-` | TH-33, TH-34 |
 | Ruflo | `RF-` | RF-01, RF-02 |
 
-### Regra de Conclusão de Fase
+### Phase Completion Rule
 
-Nenhuma fase pode ser marcada como `✅ Concluída` sem:
+No phase can be marked `✅ Completed` without:
 
-1. **Commit** — todos os arquivos da entrega versionados no git
-2. **Teste** — pelo menos um teste cobrindo o caminho principal da entrega
-3. **CI verde** — suíte de testes passando no momento do merge
+1. **Commit** — all delivery files versioned in git
+2. **Test** — at least one test covering the main delivery path
+3. **Green CI** — test suite passing at merge time
 
-Violações desta regra foram a causa da divergência entre estado declarado e estado real identificada na auditoria de 2026-06-10.
+Violating this rule caused the divergence between declared and real state identified in 2026-06-10 audit.
 
-### Status Atual das Fases HM- e K-
+### Current Status of HM- and K- Phases
 
-| Fase | Nome | Status | Ref. |
+| Phase | Name | Status | Ref. |
 |------|------|--------|------|
-| HM-01 a HM-09 | Fundação (UMC, busca, P2P, síntese) | ✅ Concluída | — |
-| HM-10 | Deep Portal (multimodal) | ✅ Concluída | — |
-| HM-11 | Deep Reflection (raciocínio longo prazo) | ✅ Concluída | — |
-| HM-12 | Federated Swarm (compartilhamento seletivo) | ✅ Concluída | — |
-| K0 | `VectorBackend` contrato (sqlite-vec + adapter Milvus) | ✅ Concluída | §24, [11-§9](../11-knowledge-promotion-architecture.md#9-contrato-vectorbackend) |
-| K1 | Separação de coleções canônicas + metadata canônica | ✅ Concluída | §24, [11-§8](../11-knowledge-promotion-architecture.md#8-estrategia-de-vector-search) |
-| K2 | `DocumentPipeline` (K6) parent/chunk/citation | ✅ Concluída | §25, [11-§10](../11-knowledge-promotion-architecture.md#10-documentpipeline-born-large) |
-| K3 | Knowledge Intake (intake.py) | ✅ Concluída | §27, [11-§5](../11-knowledge-promotion-architecture.md#5-fluxo-ideal-de-promocao) |
-| K4 | Promotion Layer (promotion.py) + bridge claude-mem | ✅ Concluída | §27, [11-§6](../11-knowledge-promotion-architecture.md#6-claude-mem-nao-e-apenas-dado-bruto) |
-| K5 | Cadência hierárquica sessão→anual | ✅ Concluída | §29, [11-§14](../11-knowledge-promotion-architecture.md#14-cadencia-hierarquica-de-escrita) |
-| K6 | `DocumentPipeline` parent/chunk/citation | ✅ Concluída | §25 |
-| K7 | `RetrievalRouter` (router.py) | ✅ Concluída (v3.5.0, 2026-06-30) | §26, [11-§11](../11-knowledge-promotion-architecture.md#11-retrievalrouter-born-large) |
-| K8 | Métricas de saúde (knowledge_health.py) | ✅ Concluída (v3.6.0, 2026-06-30) | §28, [11-§13](../11-knowledge-promotion-architecture.md#13-metricas-de-saude) |
-| K9 | Harness real de aceite (`tests/real/`) | ✅ Contrato (implementação em [12-§17.4](../11-knowledge-promotion-architecture.md#174-harness-real-e-skip-de-servicos)) | §31.4 |
-| K10 | Born-large (workspace, federação, embedding versionado) | ✅ Contrato | §30 |
+| HM-01 to HM-09 | Foundation (UMC, search, P2P, synthesis) | ✅ Completed | — |
+| HM-10 | Deep Portal (multimodal) | ✅ Completed | — |
+| HM-11 | Deep Reflection (long-term reasoning) | ✅ Completed | — |
+| HM-12 | Federated Swarm (selective sharing) | ✅ Completed | — |
+| K0 | `VectorBackend` contract (sqlite-vec + Milvus adapter) | ✅ Completed | §24, [11-§9](../11-knowledge-promotion-architecture.md#9-contrato-vectorbackend) |
+| K1 | Canonical collection split + canonical metadata | ✅ Completed | §24, [11-§8](../11-knowledge-promotion-architecture.md#8-estrategia-de-vector-search) |
+| K2 | `DocumentPipeline` (K6) parent/chunk/citation | ✅ Completed | §25, [11-§10](../11-knowledge-promotion-architecture.md#10-documentpipeline-born-large) |
+| K3 | Knowledge Intake (intake.py) | ✅ Completed | §27, [11-§5](../11-knowledge-promotion-architecture.md#5-fluxo-ideal-de-promocao) |
+| K4 | Promotion Layer (promotion.py) + claude-mem bridge | ✅ Completed | §27, [11-§6](../11-knowledge-promotion-architecture.md#6-claude-mem-nao-e-apenas-dado-bruto) |
+| K5 | Hierarchical session→yearly cadence | ✅ Completed | §29, [11-§14](../11-knowledge-promotion-architecture.md#14-cadencia-hierarquica-de-escrita) |
+| K6 | `DocumentPipeline` parent/chunk/citation | ✅ Completed | §25 |
+| K7 | `RetrievalRouter` (router.py) | ✅ Completed (v3.5.0, 2026-06-30) | §26, [11-§11](../11-knowledge-promotion-architecture.md#11-retrievalrouter-born-large) |
+| K8 | Health metrics (knowledge_health.py) | ✅ Completed (v3.6.0, 2026-06-30) | §28, [11-§13](../11-knowledge-promotion-architecture.md#13-metricas-de-saude) |
+| K9 | Real acceptance harness (`tests/real/`) | ✅ Contract (implementation in [12-§17.4](../11-knowledge-promotion-architecture.md#174-harness-real-e-skip-de-servicos)) | §31.4 |
+| K10 | Born-large (workspace, federation, versioned embedding) | ✅ Contract | §30 |
 
-### Arquivos de Vault com Convenção Antiga
+### Vault files with old convention
 
-Os seguintes arquivos em `cerebro/cortex/frontal/trabalho/ativo/` usam a numeração antiga sem prefixo e devem ser
-renomeados na próxima edição manual do vault (NÃO pelo git — o vault é sincronizado pelo Syncthing):
+The files below in `cerebro/cortex/frontal/trabalho/ativo/` use old numbering without prefix and should be
+renamed in the next manual vault edit (NOT via git — vault syncs through Syncthing):
 
-- `2026-06-01-PHASE-33-TTS-Integration-Closeout-Final.md` (prefixo correto: TH-33)
-- `2026-06-02-PHASE-34-Disk-Cache-persistente-para-TTS-design-rationale-e.md` (prefixo correto: TH-34)
-- `2026-06-02-PHASE-34-FFmpeg-Transcoding-no-Thoth-Telegram-Voice-Bubble.md` (prefixo correto: TH-34)
-- `2026-05-30-Implementacao-das-4-Fases-do-Sinapse-Agent.md` (fases do Sinapse Agent sem prefixo de projeto)
+- `2026-06-01-PHASE-33-TTS-Integration-Closeout-Final.md` (correct prefix: TH-33)
+- `2026-06-02-PHASE-34-Disk-Cache-persistente-para-TTS-design-rationale-e.md` (correct prefix: TH-34)
+- `2026-06-02-PHASE-34-FFmpeg-Transcoding-no-Thoth-Telegram-Voice-Bubble.md` (correct prefix: TH-34)
+- `2026-05-30-Implementacao-das-4-Fases-do-Sinapse-Agent.md` (Sinapse Agent phases without project prefix)
 
 ---
 
-## 22. Arquitetura de Conhecimento Born-Large
+## 22. Born-Large Knowledge Architecture
 
-O Hive-Mind não é apenas um RAG local — é um **cérebro persistente** com captura temporal, memória consolidada, documentos, código, visão, grafo estrutural, causalidade temporal e busca híbrida/ vetorial. A arquitetura de conhecimento deve **separar captura, promoção, armazenamento, indexação e recuperação desde o início** — sem depender de refatoração estrutural posterior para suportar Milvus, pipelines documentais avançados ou roteadores compostos.
+Hive-Mind is not only local RAG — it is a **persistent brain** with temporal capture, consolidated memory, documents, code, vision, structural graph, temporal causality, and hybrid/vector search. Knowledge architecture must **separate capture, promotion, storage, indexing, and retrieval from day one** — without depending on later structural refactoring to support Milvus, advanced document pipelines, or composite routers.
 
-A referência normativa detalhada vive em [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md), e o plano de execução detalhado por fases (K0–K10) vive em [`12-knowledge-implementation-plan.md`](12-knowledge-implementation-plan.md). As seções §23–§31 deste documento **destilam** aquela referência canônica no nível arquitetural.
+Detailed normative reference lives in [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md), and detailed phase execution plan (K0–K10) is in [`12-knowledge-implementation-plan.md`](12-knowledge-implementation-plan.md). Sections §23–§31 in this document **distill** that canonical reference at architecture level.
 
-### 22.1 Decisão de produto
+### 22.1 Product decision
 
-| Ferramenta | Papel no Hive-Mind | Status arquitetural |
+| Tool | Role in Hive-Mind | Architectural status |
 |---|---|---|
-| RAGFlow | Adapter/headless para ingestão documental, parsing layout-aware, chunking, citações | primeira classe no `DocumentPipeline` |
-| Milvus | Backend vetorial de produção para coleções grandes (multi-coleção, partition por `workspace_id`) | primeira classe no `VectorBackend` |
-| LlamaIndex | Adapter para rerank e workflows de retrieval composto | primeira classe no `RetrievalRouter` |
-| sqlite-vec | Backend local/dev/offline e cache operacional | obrigatório para local-first |
-| claude-mem | Hipocampo temporal: `user_prompts`, `observations`, `discoveries`, `session_summaries` | obrigatório |
-| Graphify | Grafo estrutural de vault/código | obrigatório |
-| Graphiti | Causalidade e validade temporal (`valid_at`/`invalid_at`) | obrigatório |
-| LightRAG/GraphRAG | Relações multi-hop e perguntas globais | obrigatório/expandível |
+| RAGFlow | Headless adapter for document ingestion, layout-aware parsing, chunking, citations | first-class in `DocumentPipeline` |
+| Milvus | Production vector backend for large collections (multi-collection, partition by `workspace_id`) | first-class in `VectorBackend` |
+| LlamaIndex | Adapter for rerank and composite retrieval workflows | first-class in `RetrievalRouter` |
+| sqlite-vec | Local/dev/offline backend and operational cache | mandatory for local-first |
+| claude-mem | Temporal hippocampus: `user_prompts`, `observations`, `discoveries`, `session_summaries` | mandatory |
+| Graphify | Structural vault/code graph | mandatory |
+| Graphiti | Causality and temporal validity (`valid_at`/`invalid_at`) | mandatory |
+| LightRAG/GraphRAG | Multi-hop relations and global questions | mandatory/expandable |
 
-### 22.2 Regra final
+### 22.2 Final rule
 
-O Hive-Mind deve ser:
+Hive-Mind must be:
 
 ```text
-local-first por operação
-born-large por arquitetura
-plugavel por contrato
-anatomico por fonte de verdade
-auditable por evidência
+local-first by operation
+born-large by architecture
+pluggable by contract
+anatomical by source of truth
+auditable by evidence
 ```
 
-Nenhum backend externo pode substituir o cérebro. Backends externos **aceleram, escalam ou especializam índices**. A verdade continua no vault anatômico (`cerebro/`) e no UMC. O `components.lock.json` é também um **contrato negativo**: se Milvus, RAGFlow ou LlamaIndex aparecerem ali nesta frente, a implementação está errada — eles entram por wrapper/compose+SDK e pip, respectivamente.
+No external backend can replace the brain. External backends **accelerate, scale, or specialize indexes**. Truth remains in anatomical vault (`cerebro/`) and UMC. `components.lock.json` is also a **negative contract**: if Milvus, RAGFlow, or LlamaIndex appear there for this front, implementation is wrong — they enter via wrapper/compose+SDK and pip, respectively.
 
-### 22.3 Vendorização: clone vs wrapper vs pip
+### 22.3 Vendoring: clone vs wrapper vs pip
 
-- **Clone** (`integrations/<nome>/` via `components.lock.json`): só o que o `install.sh` builda/patcha do source — `graphify`, `neural-memory`, `rtk`, `omniparser`, binário `crsqlite`.
-- **Wrapper** (`client.py` + `docker-compose.yml` com imagem pinada por digest): serviço rodado via container/SDK — `graphiti`, **Milvus** (`pymilvus`), **RAGFlow** (`ragflow-sdk`, headless).
-- **Pip**: **LlamaIndex** (`llama-index` em `pyproject.toml`).
+- **Clone** (`integrations/<name>/` via `components.lock.json`): only what `install.sh` builds/patches from source — `graphify`, `neural-memory`, `rtk`, `omniparser`, `crsqlite` binary.
+- **Wrapper** (`client.py` + `docker-compose.yml` with digest-pinned image): service run via container/SDK — `graphiti`, **Milvus** (`pymilvus`), **RAGFlow** (`ragflow-sdk`, headless).
+- **Pip**: **LlamaIndex** (`llama-index` in `pyproject.toml`).
 
-Milvus e RAGFlow **não são clonados**. RAGFlow roda headless: resultado flui para `document_vectors` + UMC; o store dele é cache de ingestão, não fonte de verdade.
+Milvus and RAGFlow are **not cloned**. RAGFlow runs headless: output flows into `document_vectors` + UMC; its store is ingestion cache, not source of truth.
 
-### 22.4 Resumo das seções derivadas
+### 22.4 Derived sections summary
 
-| Seção | Conteúdo |
+| Section | Content |
 |---|---|
-| [§23](#23-fluxo-de-captura--promoção--recuperação) | Fluxo de 9 etapas (Capture → Temporal → Intake → Promotion → Anatomical → Index → Retrieval → Answer+Citation → Feedback) |
-| [§24](#24-vectorbackend-contrato-coleções-canônicas-e-escala) | Contrato `VectorBackend` e 7 coleções canônicas |
-| [§25](#25-documentpipeline-k6--ingestao-born-large) | `DocumentPipeline` (K6): `document_memories` + `document_chunks` + `document_vectors` |
-| [§26](#26-retrievalrouter-k7--roteamento-por-intenção) | `RetrievalRouter` (K7): rotas por intenção, contrato de retorno |
+| [§23](#23-capture--promotion--retrieval-flow) | 9-step flow (Capture → Temporal → Intake → Promotion → Anatomical → Index → Retrieval → Answer+Citation → Feedback) |
+| [§24](#24-vectorbackend-contract-canonical-collections-and-scale) | `VectorBackend` contract and 7 canonical collections |
+| [§25](#25-documentpipeline-k6--born-large-ingestion) | `DocumentPipeline` (K6): `document_memories` + `document_chunks` + `document_vectors` |
+| [§26](#26-retrievalrouter-k7--intent-routing) | `RetrievalRouter` (K7): intent routes, return contract |
 | [§27](#27-knowledge-promotion-pipeline-k3k4) | `Knowledge Intake` + `Promotion Layer` (K3/K4) |
-| [§28](#28-métricas-de-saúde-do-conhecimento-k8) | Métricas de saúde K8 e gate de produção |
-| [§29](#29-cadência-hierárquica-de-escrita) | Cadência sessão → anual com papéis e modelos por cadência |
-| [§30](#30-escala-e-isolamento--workspace-e-federação) | `workspace_id`, partição de coleções, federação inter-instância, migração de embedding |
-| [§31](#31-contratos-pendentes-reranker-forget-eval-harness) | Reranker, Esquecimento intencional, Avaliação de retrieval, Harness real |
+| [§28](#28-knowledge-health-metrics-k8) | K8 health metrics and production gate |
+| [§29](#29-hierarchical-writing-cadence) | Session → yearly cadence with roles and models by cadence |
+| [§30](#30-scale-and-isolation--workspace-and-federation) | `workspace_id`, collection partitioning, inter-instance federation, embedding migration |
+| [§31](#31-pending-contracts-reranker-forget-eval-harness) | Reranker, intentional forgetting, retrieval evaluation, real harness |
 
 ---
 
-## 23. Fluxo de Captura → Promoção → Recuperação
+## 23. Capture → Promotion → Retrieval Flow
 
-O fluxo canônico de 9 etapas (extraído de [`11-knowledge-promotion-architecture.md` §2](11-knowledge-promotion-architecture.md#2-fluxo-completo)):
+Canonical 9-step flow (from [`11-knowledge-promotion-architecture.md` §2](11-knowledge-promotion-architecture.md#2-fluxo-completo)):
 
 ```text
-Agente / Humano / Sistema
+Agent / Human / System
         |
         v
 [1] Capture Layer
-    hooks, MCP, CLI, browser, documentos, codigo, screenshots, runtime
+    hooks, MCP, CLI, browser, documents, code, screenshots, runtime
         |
         v
 [2] Temporal Hippocampus (claude-mem)
@@ -1305,7 +1303,7 @@ Agente / Humano / Sistema
         |
         v
 [3] Knowledge Intake (core/knowledge/intake.py — K3)
-    normaliza · classifica · deduplica · preserva evidência
+    normalize · classify · deduplicate · preserve evidence
         |
         v
 [4] Promotion Layer (core/knowledge/promotion.py — K4)
@@ -1323,30 +1321,30 @@ Agente / Humano / Sistema
         |
         v
 [7] Retrieval Router (core/retrieval/router.py — K7)
-    escolhe temporal · memoria · documento · codigo · grafo · chunk · hibrido
+    chooses temporal · memory · document · code · graph · chunk · hybrid
         |
         v
 [8] Answer + Citation
-    resposta com fonte, evidência, caminho e data
+    answer with source, evidence, path, and date
         |
         v
 [9] Feedback
-    nova observação, decisão, aprendizado ou tarefa
+    new observation, decision, learning, or task
 ```
 
-**Regras de borda** (normativas):
+**Edge rules** (normative):
 
-1. Cada etapa é fracamente acoplada: falha na [4] não bloqueia [1]–[3] (a observação volta com `archived=0` ou `archived=2`).
-2. Cada writer declara contrato de escrita explícito (§27.3): cria observação? arquivo anatômico? neurônio? vetor? edge? task/goal? evidência? idempotency key?
-3. Nada é deletado por falha de promoção: erro transitório → `archived=0` (retry); erro estrutural → `archived=2` (quarentena com motivo).
+1. Each step is loosely coupled: failure in [4] does not block [1]–[3] (observation returns as `archived=0` or `archived=2`).
+2. Each writer declares explicit write contract (§27.3): creates observation? anatomical file? neuron? vector? edge? task/goal? evidence? idempotency key?
+3. Nothing is deleted by promotion failure: transient error → `archived=0` (retry); structural error → `archived=2` (quarantine with reason).
 
 ---
 
-## 24. VectorBackend: contrato, coleções canônicas e escala
+## 24. VectorBackend: contract, canonical collections, and scale
 
-### 24.1 Contrato
+### 24.1 Contract
 
-Todo backend vetorial implementa o mesmo contrato (`core/vector_backend.py`):
+Every vector backend implements the same contract (`core/vector_backend.py`):
 
 ```text
 upsert(collection, id, vector, metadata)
@@ -1357,13 +1355,13 @@ count(collection, filters)
 health()
 ```
 
-A aplicação **nunca** chama Milvus diretamente fora do contrato. Isso evita trocar a anatomia do cérebro por detalhe de infraestrutura.
+Application **never** calls Milvus directly outside this contract. This prevents replacing brain anatomy with infrastructure detail.
 
-### 24.2 Coleções canônicas
+### 24.2 Canonical collections
 
-O Hive-Mind **separa coleções por tipo de conteúdo** — não coloca tudo no mesmo ranking:
+Hive-Mind **separates collections by content type** — it does not put everything in one ranking:
 
-| Coleção | Conteúdo | Backend local | Backend produção |
+| Collection | Content | Local backend | Production backend |
 |---|---|---|---|
 | `memory_vectors` | facts, decisions, learnings, preferences | UMC `hive_mind.db/search_vec` | Milvus |
 | `observation_vectors` | claude-mem observations/discoveries | `~/.claude-mem/claude-mem.db/vec_observations` (sqlite-vec, read-only) | Milvus |
@@ -1371,26 +1369,26 @@ O Hive-Mind **separa coleções por tipo de conteúdo** — não coloca tudo no 
 | `code_vectors` | code symbols/files | UMC `vec_code` + `vector_metadata` | Milvus |
 | `visual_vectors` | screenshots/visual descriptions | UMC `vec_visual` + `vector_metadata` | Milvus |
 | `graph_vectors` | entity/relation summaries | UMC `vec_graph` + `vector_metadata` | Milvus + graph |
-| `summary_vectors` | resumos de cadência (sessão→anual) | UMC `vec_summary` + `vector_metadata` | Milvus |
+| `summary_vectors` | cadence summaries (session→yearly) | UMC `vec_summary` + `vector_metadata` | Milvus |
 
-`sqlite-vec` é obrigatório para local-first/offline. Milvus é backend de produção, **não substitui a fonte de verdade** — apenas escala o índice vetorial.
+`sqlite-vec` is mandatory for local-first/offline. Milvus is production backend, **not replacing source of truth** — it only scales vector index.
 
-### 24.3 Metadata canônica por item vetorial
+### 24.3 Canonical metadata per vector item
 
-Cada item carrega: `parent_id`, `parent_type`, `brain_lobe`, `knowledge_type`, `project`, `source_uri`, `hash`, `valid_at`, `workspace_id`. No UMC, coleções auxiliares guardam esses campos em `vector_metadata`; no Milvus, viram campos obrigatórios do schema. O modelo e a dimensão do embedding são controlados pelo contrato global: `snowflake-arctic-embed2:latest`, **1024d**, salvo override explícito por env.
+Each item carries: `parent_id`, `parent_type`, `brain_lobe`, `knowledge_type`, `project`, `source_uri`, `hash`, `valid_at`, `workspace_id`. In UMC, helper collections store these in `vector_metadata`; in Milvus they are required schema fields. Embedding model and dimension are controlled by global contract: `snowflake-arctic-embed2:latest`, **1024d**, unless explicit env override.
 
-### 24.4 Backends oficiais
+### 24.4 Official backends
 
-| Backend | Papel |
+| Backend | Role |
 |---|---|
-| `sqlite_vec` | local/dev/offline/cache — obrigatório |
-| `milvus` | produção/escala/multi-coleção — primeira classe |
+| `sqlite_vec` | local/dev/offline/cache — mandatory |
+| `milvus` | production/scale/multi-collection — first class |
 
 ---
 
-## 25. DocumentPipeline (K6) — ingestao born-large
+## 25. DocumentPipeline (K6) — born-large ingestion
 
-Inspirado em RAGFlow, mas **preservando a anatomia do Hive-Mind** (K6 implementado em `core/knowledge/document_pipeline.py`):
+Inspired by RAGFlow, but **preserving Hive-Mind anatomy** (K6 implemented in `core/knowledge/document_pipeline.py`):
 
 ```text
 document input
@@ -1417,17 +1415,17 @@ document_vectors + parent document
 optional promotion to facts/learnings (via KnowledgePromotionPipeline)
 ```
 
-### 25.1 Três níveis para evitar "texto solto"
+### 25.1 Three levels to avoid "loose text"
 
-| Nível | Tabela/coleção | Conteúdo | Por que existe |
+| Level | Table/collection | Content | Why it exists |
 |---|---|---|---|
-| Documento-pai | `document_memories` | `document_id`, `source_uri`, `file_hash`, `project`, `workspace_id`, metadata | Prova de origem e unidade de reingestão |
-| Chunk | `document_chunks` | `parent_id`, `parent_type=document`, `chunk_index`, `heading`, offsets, `hash`, metadata | Unidade atômica recuperável |
-| Vetor | `document_vectors` | embedding do chunk + metadata canônica | Busca semântica local/Milvus sem perder parent context |
+| Parent document | `document_memories` | `document_id`, `source_uri`, `file_hash`, `project`, `workspace_id`, metadata | Source proof and reingestion unit |
+| Chunk | `document_chunks` | `parent_id`, `parent_type=document`, `chunk_index`, `heading`, offsets, `hash`, metadata | Atomic retrievable unit |
+| Vector | `document_vectors` | chunk embedding + canonical metadata | Local/Milvus semantic search without losing parent context |
 
-Metadados obrigatórios em `document_vectors`: `parent_id`, `parent_type=document`, `brain_lobe=parietal`, `knowledge_type=document_chunk`, `project`, `source_uri`, `hash`, `valid_at`, `workspace_id`. Sem esses campos, o vetor é considerado incompleto para o desenho K6.
+Mandatory metadata in `document_vectors`: `parent_id`, `parent_type=document`, `brain_lobe=parietal`, `knowledge_type=document_chunk`, `project`, `source_uri`, `hash`, `valid_at`, `workspace_id`. Without these fields, vector is considered incomplete for K6 design.
 
-### 25.2 Consulta com parent context
+### 25.2 Query with parent context
 
 ```text
 query
@@ -1437,45 +1435,45 @@ query
   -> citations[{source_uri, offset_start, offset_end, score, parent}]
 ```
 
-O retorno **não pode** ser apenas "melhor trecho": precisa carregar o trecho, score, `source_uri`, offsets e parent completo o suficiente para auditoria.
+Return **cannot** be only "best snippet": it must include excerpt, score, `source_uri`, offsets, and enough parent context for auditing.
 
-### 25.3 RAGFlow: papel e fronteiras
+### 25.3 RAGFlow: role and boundaries
 
-RAGFlow é permitido como **parser/headless** para documentos complexos, com fronteiras explícitas:
+RAGFlow is allowed as **parser/headless** for complex documents, with explicit boundaries:
 
-- **não** é fonte de verdade;
-- **não** substitui `document_memories`, `document_chunks` ou `document_vectors`;
-- cache/store próprio **não** entra no contrato de recuperação;
-- indisponibilidade do RAGFlow **não** pode quebrar o caminho local-first;
-- qualquer saída aproveitada precisa ser normalizada para UMC antes de ser recuperável pelo cérebro.
+- **not** source of truth;
+- **not** replacing `document_memories`, `document_chunks`, or `document_vectors`;
+- proprietary cache/store **not** part of retrieval contract;
+- RAGFlow unavailability **must not** break local-first path;
+- any reused output must be normalized to UMC before becoming retrievable by brain.
 
-A promoção de documento para conhecimento durável (fact/decision/learning) é feita pelo `KnowledgePromotionPipeline` (ver §27), **não** pelo `DocumentPipeline` sozinho. Esta separação evita poluir memória durável com todo chunk de documento e preserva a diferença entre evidência recuperável e conhecimento promovido.
+Document-to-durable-knowledge promotion (fact/decision/learning) is done by `KnowledgePromotionPipeline` (see §27), **not** by `DocumentPipeline` alone. This separation avoids polluting durable memory with every document chunk and preserves difference between retrievable evidence and promoted knowledge.
 
 ---
 
-## 26. RetrievalRouter (K7) — roteamento por intenção
+## 26. RetrievalRouter (K7) — intent routing
 
-Inspirado em LlamaIndex, mas implementado como **contrato próprio** (entregue em `core/retrieval/router.py` na v3.5.0, 2026-06-30). O router classifica intent, executa rotas especializadas, preserva fallback para `sinapse_query`/Context Fusion e retorna `retrieval_path`, `citations`, `confidence` e `missing_context` em todas as consultas. `core/search.py` expõe `route_retrieval()` como adaptador interno.
+Inspired by LlamaIndex, but implemented as **own contract** (delivered in `core/retrieval/router.py` in v3.5.0, 2026-06-30). Router classifies intent, executes specialized routes, preserves fallback to `sinapse_query`/Context Fusion, and returns `retrieval_path`, `citations`, `confidence`, `missing_context` in all queries. `core/search.py` exposes `route_retrieval()` as internal adapter.
 
-**LlamaIndex entra apenas como adapter opcional de rerank**; não decide rota nem vira fonte de verdade.
+**LlamaIndex is only an optional rerank adapter**; it does not choose route or become source of truth.
 
 ```text
 query
   |
-  +-- recente / "o que aconteceu"       -> claude-mem temporal
-  +-- decisao / preferencia             -> memory_vectors + FTS
-  +-- aprendizado                       -> learning atoms + Patterns parent
-  +-- documento                         -> document_vectors + parent context
-  +-- codigo                            -> code_vectors + Graphify
-  +-- causalidade / quando era verdade  -> Graphiti
-  +-- pergunta global / multi-hop       -> LightRAG/GraphRAG
-  +-- saude / autoconsciencia           -> insula (saude/conflitos)
-  +-- config / operacional / modelo     -> tronco (operational_fact)
-  +-- setor / cross-projeto             -> diencefalo + Graphiti
-  +-- ambigua                           -> hybrid + reranker
+  +-- recent / "what happened"         -> claude-mem temporal
+  +-- decision / preference             -> memory_vectors + FTS
+  +-- learning                          -> learning atoms + Patterns parent
+  +-- document                          -> document_vectors + parent context
+  +-- code                              -> code_vectors + Graphify
+  +-- causality / when was true         -> Graphiti
+  +-- global question / multi-hop       -> LightRAG/GraphRAG
+  +-- health / self-awareness           -> insula (saude/conflitos)
+  +-- config / operational / model      -> tronco (operational_fact)
+  +-- sector / cross-project            -> diencefalo + Graphiti
+  +-- ambiguous                         -> hybrid + reranker
 ```
 
-**Contrato de retorno** (toda consulta K7 devolve):
+**Return contract** (every K7 query returns):
 
 ```json
 {
@@ -1487,7 +1485,7 @@ query
 }
 ```
 
-`query_route_distribution` (métrica §28) é preenchida a partir do `query_route_log` em modo best-effort. A query gravada é sempre hash — o texto bruto da pergunta não entra na telemetria.
+`query_route_distribution` (§28 metric) is populated from `query_route_log` in best-effort mode. Stored query is always hash — raw question text never enters telemetry.
 
 ---
 
@@ -1495,56 +1493,56 @@ query
 
 ### 27.1 Knowledge Intake (K3) — `core/knowledge/intake.py`
 
-Camada [3] do fluxo (ver §23). Responsabilidades:
+Layer [3] of the flow (see §23). Responsibilities:
 
-- normaliza campos de observações do claude-mem (`observations`, `discoveries`, `session_summaries`, `facts`, `narrative`, `concepts`, `files_read/files_modified`, `prompt_number`, `generated_by_model`);
-- preserva `source_id` estável (`claude-mem:<table>:<id>`);
-- extrai evidência / arquivos / timestamps;
-- classifica `knowledge_type` (§27.2);
-- deduplica por `source_id` + hash de conteúdo.
+- normalizes claude-mem observation fields (`observations`, `discoveries`, `session_summaries`, `facts`, `narrative`, `concepts`, `files_read/files_modified`, `prompt_number`, `generated_by_model`);
+- preserves stable `source_id` (`claude-mem:<table>:<id>`);
+- extracts evidence / files / timestamps;
+- classifies `knowledge_type` (§27.2);
+- deduplicates by `source_id` + content hash.
 
-### 27.2 Tipos canônicos de conhecimento
+### 27.2 Canonical knowledge types
 
-| Tipo | Origem comum | Promove para | Observação |
+| Type | Common origin | Promotes to | Note |
 |---|---|---|---|
-| `event_raw` | hook/claude-mem/runtime | temporal apenas ou investigation | nunca apagar |
-| `user_prompt` | claude-mem | evidência/intenção | preserva pergunta original |
-| `session_summary` | claude-mem | cerebelo/sessão | contém investigado, feito, pendente |
-| `discovery` | claude-mem | fact/learning/rationale/task | não é bruto descartável |
-| `fact` | Dream Cycle/discovery | cortex temporal | fato atômico validado |
-| `preference` | conversa/decisão | cortex temporal/_global | preferência do usuário/projeto |
-| `decision` | MCP/summary/discovery | cortex frontal + temporal | decisão com razão |
-| `learning` | discovery/Patterns | cerebelo + temporal | aprendizado atômico |
-| `rationale` | código/decisão | temporal/frontal | por que algo existe |
-| `operational_fact` | health/runtime/audit | tronco/ínsula | estado real verificável |
-| `document_chunk` | docs/PDF/vault | parietal | chunk pequeno + parent |
-| `code_symbol` | Graphify/code scan | occipital/structural | função/classe/módulo |
-| `visual_observation` | screenshot | occipital/parietal | imagem + descrição |
-| `next_step` | session summary/discovery | goal/task | vira trabalho rastreável |
+| `event_raw` | hook/claude-mem/runtime | temporal only or investigation | never delete |
+| `user_prompt` | claude-mem | evidence/intent | preserves original question |
+| `session_summary` | claude-mem | cerebelo/session | contains investigated, done, pending |
+| `discovery` | claude-mem | fact/learning/rationale/task | not discardable raw |
+| `fact` | Dream Cycle/discovery | cortex temporal | validated atomic fact |
+| `preference` | conversation/decision | cortex temporal/_global | user/project preference |
+| `decision` | MCP/summary/discovery | cortex frontal + temporal | decision with reason |
+| `learning` | discovery/Patterns | cerebelo + temporal | atomic learning |
+| `rationale` | code/decision | temporal/frontal | why something exists |
+| `operational_fact` | health/runtime/audit | tronco/insula | verifiable real state |
+| `document_chunk` | docs/PDF/vault | parietal | small chunk + parent |
+| `code_symbol` | Graphify/code scan | occipital/structural | function/class/module |
+| `visual_observation` | screenshot | occipital/parietal | image + description |
+| `next_step` | session summary/discovery | goal/task | becomes trackable work |
 
 ### 27.3 Promotion Layer (K4) — `core/knowledge/promotion.py`
 
-Camada [4] do fluxo. Regras de promoção automática:
+Layer [4] of the flow. Automatic promotion rules:
 
-- **Permitida**: `decision`, `learning`, `project_status`, `operational_fact`, `goal/task`, `rationale` — todos com fonte rastreável.
-- **Proibida**: transformar todo bullet em fact; criar neurônio sem fonte; vetorizar duplicatas sem `parent_id` e hash de conteúdo; promover opinião temporária como decisão arquitetural; sobrescrever decisões anteriores sem criar conflito ou `invalid_at`.
+- **Allowed**: `decision`, `learning`, `project_status`, `operational_fact`, `goal/task`, `rationale` — all with traceable source.
+- **Forbidden**: turning every bullet into fact; creating neuron without source; vectorizing duplicates without `parent_id` and content hash; promoting temporary opinion to architecture decision; overwriting prior decisions without creating conflict or `invalid_at`.
 
-### 27.4 Contrato de escrita por writer
+### 27.4 Writer contract per writer
 
-Toda tool ou pipeline que escreve memória deve declarar:
+Every tool or pipeline writing memory must declare:
 
-| Pergunta | Obrigatório |
+| Question | Mandatory |
 |---|---|
-| Cria observation? | sim/não |
-| Cria arquivo anatômico? | caminho |
-| Cria neuron? | tipo |
-| Cria vector? | coleção |
-| Cria edge? | Graphiti/Graphify/LightRAG |
-| Cria task/goal? | sim/não |
-| Qual evidência? | source ids/files |
-| Como reprocessa? | idempotency key/hash |
+| Creates observation? | yes/no |
+| Creates anatomical file? | path |
+| Creates neuron? | type |
+| Creates vector? | collection |
+| Creates edge? | Graphiti/Graphify/LightRAG |
+| Creates task/goal? | yes/no |
+| Which evidence? | source ids/files |
+| How reprocesses? | idempotency key/hash |
 
-Exemplo:
+Example:
 
 ```yaml
 writer: sinapse_save_learning
@@ -1558,328 +1556,328 @@ promotion_required: false
 idempotency: title+content_hash
 ```
 
-### 27.5 Bridge canônico do claude-mem (K4)
+### 27.5 Canonical claude-mem bridge (K4)
 
-A leitura de claude-mem para promoção/backfill usa `core/knowledge/claude_mem_bridge.py` (SQL read-only em `~/.claude-mem/claude-mem.db`). Este é o caminho que aceita `source_id` e janela temporal sem depender de busca textual. O workflow interativo `search → timeline → get_observations` (via MCP) continua sendo o caminho para recuperar contexto bruto antes de escolher IDs.
+Reading from claude-mem for promotion/backfill uses `core/knowledge/claude_mem_bridge.py` (read-only SQL in `~/.claude-mem/claude-mem.db`). This is the path accepting `source_id` and time window without relying on text search. Interactive workflow `search → timeline → get_observations` (via MCP) remains the path to retrieve raw context before picking IDs.
 
-Descobertas: `session_summaries` sempre existe; `discoveries` pode não existir — quando ausente, vêm de `observations.type='discovery'` com campos `facts`, `narrative`, `concepts` e `files_*`. `source_id` estável: `claude-mem:<table>:<id>`, preservado em metadata e evidência.
+Findings: `session_summaries` always exists; `discoveries` may not exist — when absent, they come from `observations.type='discovery'` with fields `facts`, `narrative`, `concepts`, and `files_*`. Stable `source_id`: `claude-mem:<table>:<id>`, preserved in metadata and evidence.
 
 ---
 
-## 28. Métricas de Saúde do Conhecimento (K8)
+## 28. Knowledge Health Metrics (K8)
 
-Entregue em `scripts/health/knowledge_health.py` (v3.6.0, 2026-06-30). Este módulo **adiciona** métricas de cobertura de conhecimento; ele **não substitui** `health_dashboard.py`, `alert_dispatcher.py` nem `review_writer.py`, que continuam sendo o health da Ínsula. `sinapse_health` inclui um bloco `knowledge_health` read-only em modo quick, e a REST API expõe `GET /api/v1/knowledge/health` para o gate completo.
+Delivered in `scripts/health/knowledge_health.py` (v3.6.0, 2026-06-30). This module **adds** knowledge-coverage metrics; it **does not replace** `health_dashboard.py`, `alert_dispatcher.py`, or `review_writer.py`, which remain Insula health. `sinapse_health` includes a read-only `knowledge_health` block in quick mode, and REST API exposes `GET /api/v1/knowledge/health` for full gate.
 
-| Métrica | Sinal |
+| Metric | Signal |
 |---|---|
-| `neurons_total` | tamanho da memória consolidada |
-| `neurons_vectorized_pct` | cobertura vetorial |
-| `observations_pending` | backlog temporal |
-| `observations_linked_pct` | promoção efetiva |
-| `discoveries_pending` | risco de perder aprendizado |
-| `learnings_atomized` | aprendizado granular |
-| `document_chunks_total` | ingestão documental |
-| `code_symbols_total` | cobertura estrutural |
-| `milvus_sync_lag` | divergência local/produção |
-| `orphan_vectors` | índice sujo |
-| `query_route_distribution` | quais camadas respondem |
-| `*_vectorized_pct` | cobertura por coleção canônica (memory/observation/document/code/visual/graph/summary) |
-| `promotion_lag` | backlog de promoção por workspace |
-| `promotion_cost` | custo de LLM por workspace |
-| `vectors_model_mismatch` | divergência de modelo de embedding dentro de uma coleção |
+| `neurons_total` | consolidated memory size |
+| `neurons_vectorized_pct` | vector coverage |
+| `observations_pending` | temporal backlog |
+| `observations_linked_pct` | effective promotion |
+| `discoveries_pending` | risk of learning loss |
+| `learnings_atomized` | granular learning |
+| `document_chunks_total` | document ingestion |
+| `code_symbols_total` | structural coverage |
+| `milvus_sync_lag` | local/production divergence |
+| `orphan_vectors` | dirty index |
+| `query_route_distribution` | which layers answer |
+| `*_vectorized_pct` | coverage by canonical collection (memory/observation/document/code/visual/graph/summary) |
+| `promotion_lag` | promotion backlog by workspace |
+| `promotion_cost` | LLM cost by workspace |
+| `vectors_model_mismatch` | embedding-model divergence inside a collection |
 
-K8 mede as **sete coleções canônicas** explicitamente — o gate não pode olhar apenas `neurons_vectorized_pct`.
+K8 explicitly measures the **seven canonical collections** — gate cannot only inspect `neurons_vectorized_pct`.
 
-**Gate mínimo de produção:**
+**Minimum production gate:**
 
 ```text
 neurons_vectorized_pct >= 99%
-observations_linked_pct crescente por ciclo
-discoveries_pending dentro do SLA
+observations_linked_pct increasing per cycle
+discoveries_pending within SLA
 0 orphan vectors
-todos os chunks com parent_id
-citations presentes nas respostas documentais
+all chunks with parent_id
+citations present in document answers
 ```
 
 ---
 
-## 29. Cadência Hierárquica de Escrita
+## 29. Hierarchical Writing Cadence
 
-A memória do Hive-Mind não depende de um único resumo gigante. Ela sobe em camadas: **sessão → diário → semanal → mensal → anual**. Cada camada tem objetivo, modelo e regra de promoção próprios.
+Hive-Mind memory does not depend on one giant summary. It rises in layers: **session → daily → weekly → monthly → yearly**. Each layer has own purpose, model, and promotion rule.
 
-| Cadência | Writer | Entrada | Saída anatômica | Modelo padrão | Promove |
+| Cadence | Writer | Input | Anatomical output | Default model | Promotes |
 |---|---|---|---|---|---|
-| Sessão | `session_consolidator.py` | log bruto, tool calls, notas | `cerebelo/sessoes/YYYY/MM/YYYY-MM-DD-HHMM-{slug}.md` | pequeno/rápido | decisões, perguntas abertas, evidências candidatas |
-| Diário | `daily_writer.py` | sessões + resumos | `cerebelo/diario/YYYY/MM/YYYY-MM-DD.md` | pequeno ou médio | aprendizados candidatos, progresso, próximos passos |
-| Semanal | `weekly_synthesizer.py` | diários, fatos, decisões, métricas | `cerebelo/semanal/YYYY-Wxx.md` | médio/forte | padrões, decisões estratégicas, prioridades |
-| Mensal | `monthly_synthesizer.py` | semanais, projetos, discoveries, métricas | `cerebelo/mensal/YYYY-MM.md` | forte | síntese executiva, drift estratégico, metas, riscos |
-| Anual | `yearly_synthesizer.py` | mensais, marcos, padrões duradouros | `cerebelo/anual/YYYY.md` | forte/batch offline | memória histórica, princípios, lessons learned duráveis |
+| Session | `session_consolidator.py` | raw logs, tool calls, notes | `cerebelo/sessoes/YYYY/MM/YYYY-MM-DD-HHMM-{slug}.md` | small/fast | decisions, open questions, candidate evidence |
+| Daily | `daily_writer.py` | sessions + summaries | `cerebelo/diario/YYYY/MM/YYYY-MM-DD.md` | small or medium | candidate learnings, progress, next steps |
+| Weekly | `weekly_synthesizer.py` | dailies, facts, decisions, metrics | `cerebelo/semanal/YYYY-Wxx.md` | medium/strong | patterns, strategic decisions, priorities |
+| Monthly | `monthly_synthesizer.py` | weeklies, projects, discoveries, metrics | `cerebelo/mensal/YYYY-MM.md` | strong | executive synthesis, strategic drift, goals, risks |
+| Yearly | `yearly_synthesizer.py` | monthlies, milestones, durable patterns | `cerebelo/anual/YYYY.md` | strong/offline batch | historical memory, principles, durable lessons learned |
 
-### 29.1 O que vai e o que não vai
+### 29.1 What goes in and what does not
 
-| Fonte | Vai para memória de longo prazo | Não vai |
+| Source | Goes to long-term memory | Does not go |
 |---|---|---|
-| Log bruto de sessão | apenas evidências referenciáveis e eventos importantes | tool call repetitivo, erro temporário, ruído de terminal |
-| Resumo de sessão | decisões, perguntas abertas, tarefas, descobertas com fonte | bullets narrativos sem consequência |
-| Diário | aprendizados, progresso por projeto, bloqueios recorrentes | lista completa de arquivos lidos/comandos |
-| Semanal | padrões, mudanças de direção, status consolidado, prioridades | microdetalhes já cobertos por sessões/diários |
-| Mensal | síntese executiva, riscos estruturais, metas, drift de estratégia | progresso operacional sem impacto durável |
-| Anual | princípios, retrospectiva de arquitetura, grandes decisões, lessons learned | repetição de semanais/mensais sem abstração nova |
+| Raw session log | only referenceable evidence and important events | repetitive tool calls, temporary errors, terminal noise |
+| Session summary | decisions, open questions, tasks, sourced discoveries | narrative bullets without consequence |
+| Daily | learnings, project progress, recurring blockers | complete list of read files/commands |
+| Weekly | patterns, direction changes, consolidated status, priorities | micro-details already covered by sessions/dailies |
+| Monthly | executive synthesis, structural risks, goals, strategic drift | operational progress without durable impact |
+| Yearly | principles, architecture retrospective, major decisions, durable lessons learned | repeated weeklies/monthlies without new abstraction |
 
-**Regra de ouro:** quanto mais alta a cadência, menos ela copia texto e mais ela consolida causalidade, decisão, padrão e consequência.
+**Golden rule:** the higher the cadence, the less text it copies and the more it consolidates causality, decisions, patterns, and consequences.
 
-### 29.2 Contrato de promoção por cadência
+### 29.2 Promotion contract by cadence
 
-Cada resumo é fonte com `source_id`, `period_start`, `period_end`, `cadence` e `parent_summary_id`. Modelo segue o `setup-brain` e herda do `dreamer` se não houver override. Para máquina zerada: regra fail-closed — se um papel não tiver modelo próprio nem herança do `dreamer`, o writer deve registrar falha auditável e não inventar síntese. Para custo baixo, sessão/diário podem usar modelo pequeno; mensal/anual **não** devem ser rebaixados automaticamente sem aviso.
+Each summary is a source with `source_id`, `period_start`, `period_end`, `cadence`, and `parent_summary_id`. Model follows `setup-brain` and inherits from `dreamer` when no override exists. For clean machine: fail-closed rule — if role has neither own model nor `dreamer` inheritance, writer must register auditable failure and not invent synthesis. For low cost, session/daily may use small model; monthly/yearly **must not** be auto-downgraded without notice.
 
 ---
 
-## 30. Escala e Isolamento — Workspace e Federação
+## 30. Scale and Isolation — Workspace and Federation
 
-Hive-Mind é produto open-source que nasce com escala. Não é SaaS B2B: o eixo de escala é (a) **per-install** (um usuário acumula anos de corpus), (b) **multi-usuário por instância** (um time self-hosta), (c) **federação** entre instâncias. O isolamento nasce no schema — não se enxerta depois — e o single-user local-first não percebe (default `workspace_id='default'`).
+Hive-Mind is an open-source product born to scale. It is not B2B SaaS: scale axis is (a) **per-install** (one user accumulates years of corpus), (b) **multi-user per instance** (self-hosted team), (c) **federation** between instances. Isolation is born in schema — not patched later — and single-user local-first does not notice (default `workspace_id='default'`).
 
-### 30.1 Workspace (fronteira de isolamento)
+### 30.1 Workspace (isolation boundary)
 
 ```text
-coluna workspace_id em: neurons, observations, synapses, goals, document_memories,
+workspace_id column in: neurons, observations, synapses, goals, document_memories,
                         visual_memories, ambiguities, causal_edges, vault
-  default: 'default'  (single-user não precisa setar; born-large sem custo local)
-indice: (workspace_id, ...) nas queries quentes
-filtro: TODA leitura/escrita do RetrievalRouter e da promoção carrega workspace_id
-vault: cerebro/ pode ser subtree por workspace quando multi-usuário
+  default: 'default'  (single-user does not need to set it; born-large at no local cost)
+index: (workspace_id, ...) in hot queries
+filter: EVERY read/write of RetrievalRouter and promotion carries workspace_id
+vault: cerebro/ can be workspace subtree in multi-user mode
 ```
 
-**Regra:** nenhum neurônio/vetor/edge cruza `workspace_id` sem passar pela camada de federação. Vazamento cross-workspace é bug de segurança, não de ranking.
+**Rule:** no neuron/vector/edge crosses `workspace_id` without going through federation layer. Cross-workspace leakage is a security bug, not ranking issue.
 
-**Migrações estruturais** que criam essa fronteira: falha de migração é fail-closed por padrão. O único bypass é `HIVE_ALLOW_DEFERRED_MIGRATIONS=1` (diagnóstico de DB legado, com log visível e sem marcar a instalação como saudável).
+**Structural migrations** creating this boundary: migration failure is fail-closed by default. Only bypass is `HIVE_ALLOW_DEFERRED_MIGRATIONS=1` (legacy DB diagnostics, with visible log and without marking install healthy).
 
-### 30.2 Partição das coleções vetoriais
+### 30.2 Vector collection partitioning
 
 ```text
-sqlite-vec (local/dev): filtro por workspace_id no metadata
-Milvus (produção):      partition-key = workspace_id (isolamento + poda por partição)
+sqlite-vec (local/dev): filter by workspace_id in metadata
+Milvus (production):    partition-key = workspace_id (isolation + partition pruning)
 ```
 
-### 30.3 Federação entre instâncias (reusa HM-12)
+### 30.3 Federation between instances (reuses HM-12)
 
-Já existe e não se reimplementa: `visibility` (private|shared|public), assinatura Ed25519 (`core/signing.py`), redação de PII no export (`core/redactor.py`). Contrato born-large:
+Already exists and is not reimplemented: `visibility` (private|shared|public), Ed25519 signing (`core/signing.py`), PII redaction in export (`core/redactor.py`). Born-large contract:
 
 ```text
-export inter-instância: só visibility in (shared, public) + redact + sign
-import: verifica assinatura; neurônio importado entra com workspace_id do destino
-        e proveniência (origin_instance, origin_signature) preservada
-nunca: importar raw cross-instância sem redact; sobrescrever local sem invalid_at
+inter-instance export: only visibility in (shared, public) + redact + sign
+import: verifies signature; imported neuron enters with destination workspace_id
+        and provenance (origin_instance, origin_signature) preserved
+never: import cross-instance raw without redaction; overwrite local without invalid_at
 ```
 
-### 30.4 Migração de embedding versionada
+### 30.4 Versioned embedding migration
 
-Trocar modelo de embedding em escala não é script one-shot. Espaço vetorial é versionado:
+Changing embedding model at scale is not a one-shot script. Vector space is versioned:
 
 ```text
-coleção carrega (embedding_model, dim) na identidade
-upsert de modelo divergente: rejeitado ou vai pra coleção nova (nunca mistura)
-migração: reembed online por workspace, dual-write (modelo antigo+novo) até cutover
-métrica: vectors_model_mismatch (§28) = 0 dentro de uma coleção
+collection identity carries (embedding_model, dim)
+upsert with divergent model: rejected or goes to new collection (never mix)
+migration: online reembed per workspace, dual-write (old+new model) until cutover
+metric: vectors_model_mismatch (§28) = 0 inside a collection
 ```
 
-### 30.5 Custo/throughput da promoção por workspace
+### 30.5 Promotion cost/throughput by workspace
 
-Cada observação promovida = 1 LLM (classifica) + 1 embedding. Em escala isso é fila com backpressure e teto de custo por workspace:
+Each promoted observation = 1 LLM (classify) + 1 embedding. At scale this is queue with backpressure and workspace cost cap:
 
 ```text
-promoção em batch (não 1-a-1), fila com prioridade
-teto por workspace (env HIVE_PROMOTION_BUDGET_*), excedente fica archived=0 (retry)
-métrica: promotion_lag e promotion_cost por workspace
+batch promotion (not 1-to-1), queue with priority
+workspace cap (env HIVE_PROMOTION_BUDGET_*), overflow remains archived=0 (retry)
+metric: promotion_lag and promotion_cost by workspace
 ```
 
 ---
 
-## 31. Contratos Pendentes (Reranker, Forget, Eval, Harness)
+## 31. Pending Contracts (Reranker, Forget, Eval, Harness)
 
-Capacidades **já existentes** (não reimplementar): merge/dedup na promoção (Dream Cycle Router `append|create_new|merge` + tabela `ambiguities` + `register_ambiguity` + dedup de learning por título + dedup cross-backend em `context_fusion`); redação de PII/segredo (`core/redactor.py`, no export federado).
+Capabilities **already existing** (do not reimplement): merge/dedup in promotion (Dream Cycle Router `append|create_new|merge` + `ambiguities` table + `register_ambiguity` + learning dedup by title + cross-backend dedup in `context_fusion`); PII/secret redaction (`core/redactor.py`, in federated export).
 
-As lacunas abaixo são contratos evolutivos. Quando uma primeira fatia já existe,
-o texto explicita o que está entregue e o que continua pendente.
+Gaps below are evolutionary contracts. When a first slice already exists,
+text explicitly states what is delivered and what remains pending.
 
-### 31.1 Reranker (reordenação por relevância)
+### 31.1 Reranker (reorder by relevance)
 
-Hoje `context_fusion._fuse_contexts` dedupa e **trunca** por ordem de backend.
-Dentro do `RetrievalRouter`, o reranker já está entregue:
-`HIVE_RETRIEVAL_RERANKER=1` aciona `integrations/llama_index/client.py::rerank`.
-Por padrão, ele usa rerank lexical determinístico/fail-open gated por
-`assert_health()` do LlamaIndex. Com
-`HIVE_RERANKER_PROVIDER=sentence-transformers` + `HIVE_RERANKER_MODEL`, tenta
-cross-encoder local opt-in. Contrato:
+Today `context_fusion._fuse_contexts` dedups and **truncates** by backend order.
+Inside `RetrievalRouter`, reranker is already delivered:
+`HIVE_RETRIEVAL_RERANKER=1` triggers `integrations/llama_index/client.py::rerank`.
+By default it uses deterministic/fail-open lexical rerank gated by
+`assert_health()` from LlamaIndex. With
+`HIVE_RERANKER_PROVIDER=sentence-transformers` + `HIVE_RERANKER_MODEL`, it tries
+opt-in local cross-encoder. Contract:
 
 ```text
-rerank(query, candidates[]) -> candidates[] reordenados
-  entra: top-N bruto da fusão (ex.: 30)
-  ativacao atual: HIVE_RETRIEVAL_RERANKER=1 (lexical local deterministico)
-  cross-encoder opt-in: env HIVE_RERANKER_PROVIDER/MODEL + extra reranker
-  sai: top-K (ex.: 5) ordenado por score de relevância
-  fail-open: sem modelo/erro -> ordem atual (dedup+truncate), sem quebrar
+rerank(query, candidates[]) -> reordered candidates[]
+  input: raw top-N from fusion (e.g.: 30)
+  current activation: HIVE_RETRIEVAL_RERANKER=1 (deterministic local lexical)
+  opt-in cross-encoder: env HIVE_RERANKER_PROVIDER/MODEL + reranker extra
+  output: top-K (e.g.: 5) ordered by relevance score
+  fail-open: no model/error -> current order (dedup+truncate), no breakage
 ```
 
-O hook já está plugado entre a fusão e o retorno do `RetrievalRouter` (§26),
-off por padrão em `local-min`. Cobertura real permanente:
-`tests/real/test_retrieval_router_real.py` valida reordenação por overlap,
-configuração opt-in do cross-encoder e `retrieval_path` com
+Hook is already plugged between fusion and `RetrievalRouter` return (§26),
+off by default in `local-min`. Permanent real coverage:
+`tests/real/test_retrieval_router_real.py` validates overlap-based reordering,
+opt-in cross-encoder config, and `retrieval_path` with
 `reranker/llama_index: hit`.
 
-### 31.2 Esquecimento intencional (forget / retention)
+### 31.2 Intentional forgetting (forget / retention)
 
-A regra "nunca deletar por falha" (§27) cobre falha, não esquecimento deliberado. Falta apagar segredo vazado, expirar efêmero e podar órfão. Contrato:
+Rule "never delete on failure" (§27) covers failure, not deliberate forgetting. Missing: deleting leaked secret, expiring ephemeral data, pruning orphans. Contract:
 
 ```text
-forget(target, reason) -> tombstone auditável (nunca delete físico silencioso)
-  motivos: secret_leak | expired | superseded | user_request | orphan_vector
-  CRDT-safe: delete em CR-SQLite e tombstone; vetor correspondente removido no backend
-  audita: registra em ínsula (motivo, quem, quando); raw preservado só se não for segredo
+forget(target, reason) -> auditable tombstone (never silent physical delete)
+  reasons: secret_leak | expired | superseded | user_request | orphan_vector
+  CRDT-safe: delete in CR-SQLite + tombstone; corresponding vector removed in backend
+  audit: record in insula (reason, who, when); raw preserved only if not secret
 ```
 
-K8 implementa a primeira fatia desse contrato para vetores órfãos: `knowledge_health.py` chama `forget_vector()` com motivo `orphan_vector`, remove o item da coleção sqlite-vec local, limpa `vector_metadata` quando aplicável e grava `knowledge_tombstones` com `target_type`, `target_id`, `collection`, `reason`, `actor`, `workspace_id` e metadata auditável. Extensões futuras para `secret_leak`, `expired`, `superseded` e `user_request` devem reaproveitar a mesma tabela de tombstone.
+K8 implements first contract slice for orphan vectors: `knowledge_health.py` calls `forget_vector()` with reason `orphan_vector`, removes item from local sqlite-vec collection, cleans `vector_metadata` when applicable, and writes `knowledge_tombstones` with `target_type`, `target_id`, `collection`, `reason`, `actor`, `workspace_id`, and auditable metadata. Future extensions for `secret_leak`, `expired`, `superseded`, and `user_request` must reuse same tombstone table.
 
-### 31.3 Avaliação de recuperação (eval)
+### 31.3 Retrieval evaluation (eval)
 
-§28 mede **cobertura** (plumbing), não **qualidade** da resposta. Contrato:
+§28 measures **coverage** (plumbing), not response **quality**. Contract:
 
 ```text
 golden set: tests/real/golden_retrieval.jsonl
-  cada caso: {query, expected_source_ids[], expected_intent}
-métricas: precision@k, recall@k, citation_correctness, intent_accuracy
-gate: regressão acima de limiar reprova a frente (junto do harness real K9)
+  each case: {query, expected_source_ids[], expected_intent}
+metrics: precision@k, recall@k, citation_correctness, intent_accuracy
+gate: regression over threshold blocks front (with real harness K9)
 ```
 
-Pequeno e curado a mão; cresce a cada bug de recuperação reproduzido como caso.
+Small and hand-curated; grows with each reproducible retrieval bug added as case.
 
-### 31.4 Harness real e skip de serviços
+### 31.4 Real harness and service skips
 
-O aceite de fase da frente de conhecimento usa `tests/real/` e não conta mock como fechamento. Contrato do marker `requires_service`:
+Acceptance for knowledge front uses `tests/real/` and does not count mock as closure. `requires_service` marker contract:
 
 ```text
-se o serviço real exigido estiver online: roda e falha se o comportamento falhar
-se o serviço real estiver offline: skip explícito com motivo e serviço nomeado
-se o teste não depende de serviço externo: roda sempre
+if required real service is online: run and fail on behavior failure
+if required real service is offline: explicit skip with reason and service name
+if test has no external service dependency: always run
 ```
 
-O skip precisa ser implementado por fixture/hook de serviço, não apenas por comentário no `pytest.ini`. Cada novo backend real (Milvus, FalkorDB, claude-mem, RAGFlow) deve registrar sua própria fixture ou service registry antes de virar gate de fase.
+Skip must be implemented by service fixture/hook, not only comment in `pytest.ini`. Every new real backend (Milvus, FalkorDB, claude-mem, RAGFlow) must register own fixture or service registry before becoming phase gate.
 
-Implementação atual: `tests/real/service_registry.py` + hook em `tests/real/conftest.py`. Serviços conhecidos: `ollama`, `milvus`, `falkordb`, `claude_mem`, `ragflow`. Serviço desconhecido é erro de teste; serviço offline é skip explícito com nome e motivo.
+Current implementation: `tests/real/service_registry.py` + hook in `tests/real/conftest.py`. Known services: `ollama`, `milvus`, `falkordb`, `claude_mem`, `ragflow`. Unknown service is test error; offline service is explicit skip with service name and reason.
 
 ---
 
-## 32. Decisões de Design (ADRs)
+## 32. Design Decisions (ADRs)
 
-Registro das decisões arquiteturais que moldaram o design atual. Cada ADR documenta o contexto, a decisão tomada, o rationale e os trade-offs aceitos. As ADRs **001–009** foram herdadas da arquitetura v2.0.0; as **010–018** foram criadas na frente de Conhecimento Born-Large (K0–K10) e estão espelhadas em [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md). Em caso de divergência, esta seção canônica prevalece.
+Record of architecture decisions shaping current design. Each ADR documents context, chosen decision, rationale, and accepted trade-offs. ADRs **001–009** were inherited from v2.0.0 architecture; **010–018** were created in Born-Large Knowledge front (K0–K10) and mirrored in [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md). In case of divergence, this canonical section prevails.
 
-### ADR-001 — Vault Obsidian como fonte única de verdade
+### ADR-001 — Obsidian Vault as single source of truth
 
-**Decisão:** vault Obsidian com frontmatter YAML + WikiLinks como storage primário.
-**Rationale:** formato plain-text Markdown é git-friendly, agnóstico de ferramenta e legível por humanos sem software especial. Obsidian é editor maduro com graph view, backlinks e plugin ecosystem.
-**Trade-off:** dependência do Watcher para manter SQLite sincronizado; Obsidian é opcional (vault funciona sem ele).
+**Decision:** Obsidian vault with YAML frontmatter + WikiLinks as primary storage.
+**Rationale:** plain-text Markdown is git-friendly, tool-agnostic, and human-readable without special software. Obsidian is a mature editor with graph view, backlinks, and plugin ecosystem.
+**Trade-off:** dependency on Watcher to keep SQLite synced; Obsidian is optional (vault works without it).
 
-### ADR-002 — Busca híbrida paralela
+### ADR-002 — Parallel hybrid search
 
-**Decisão:** busca paralela em 7+ backends/órgãos (UMC, NeuralMemory, sqlite-vec, claude-mem, Graphify, Graphiti, filesystem — ver §2.6) com fusão e deduplicação cross-backend via `sinapse_query`/Context Fusion. O `RetrievalRouter` K7 (§26) acrescenta classificação de intenção antes da fusão.
-**Rationale:** FTS5 encontra termos exatos; vetores encontram conceitos similares; grafo encontra conexões; filesystem garante dados recém-escritos (zero gap). Nenhum backend sozinho cobre todos os casos.
-**Trade-off:** ligeiramente maior consumo de I/O; mitigado por circuit breaker (cooldown 30s após 3+ falhas) e rerank opcional (§31.1).
+**Decision:** parallel search across 7+ backends/organs (UMC, NeuralMemory, sqlite-vec, claude-mem, Graphify, Graphiti, filesystem — see §2.6) with cross-backend fusion and dedup via `sinapse_query`/Context Fusion. K7 `RetrievalRouter` (§26) adds intent classification before fusion.
+**Rationale:** FTS5 finds exact terms; vectors find similar concepts; graph finds connections; filesystem guarantees fresh writes (zero gap). No single backend covers all cases.
+**Trade-off:** slightly higher I/O use; mitigated by circuit breaker (30s cooldown after 3+ failures) and optional rerank (§31.1).
 
-### ADR-003 — MCP como protocolo universal de integração
+### ADR-003 — MCP as universal integration protocol
 
-**Decisão:** expor tools via MCP stdio em vez de criar plugins específicos por agente.
-**Rationale:** MCP é padrão aberto adotado por Anthropic, OpenAI, GitHub e comunidade. Um único server (`sinapse-mcp.py`) serve todos os agentes sem adaptação.
-**Trade-off:** menos integração automática (hooks) que plugins nativos; compensado por CLI e hooks externos (SessionStart, PostToolUse, Stop).
+**Decision:** expose tools through MCP stdio instead of building agent-specific plugins.
+**Rationale:** MCP is an open standard adopted by Anthropic, OpenAI, GitHub, and community. One server (`sinapse-mcp.py`) serves all agents without adaptation.
+**Trade-off:** less automatic integration (hooks) than native plugins; compensated by CLI and external hooks (SessionStart, PostToolUse, Stop).
 
 ### ADR-004 — Atomic writes via os.replace()
 
-**Decisão:** `tempfile.mkstemp()` + `os.replace()` em vez de `open().write()`.
-**Rationale:** `os.replace()` é atômico no Linux (rename(2) syscall) — se o processo morrer durante a escrita, o arquivo destino permanece íntegro (o tmp fica orphan, não o destino).
-**Trade-off:** ligeiramente mais complexo; complexidade justificada para dados de memória persistente.
+**Decision:** `tempfile.mkstemp()` + `os.replace()` instead of `open().write()`.
+**Rationale:** `os.replace()` is atomic on Linux (rename(2) syscall) — if process dies during write, target file stays intact (tmp becomes orphan, not target).
+**Trade-off:** slightly more complex; justified for persistent memory data.
 
 ### ADR-005 — Cloud Memory API (FastAPI :37702)
 
-**Decisão:** microsserviço REST leve em FastAPI protegido por Bearer token para deploy em VPS.
-**Rationale:** permite que agentes locais usem memória hospedada num VPS sem precisar do vault físico local. Fail-closed: não inicia sem `HIVE_MIND_API_KEY`.
-**Trade-off:** requer rede estável; fallback automático para modo local quando `cloud.enabled=false`.
+**Decision:** lightweight FastAPI REST microservice protected by Bearer token for VPS deployment.
+**Rationale:** allows local agents to use VPS-hosted memory without local physical vault. Fail-closed: does not start without `HIVE_MIND_API_KEY`.
+**Trade-off:** requires stable network; automatic fallback to local mode when `cloud.enabled=false`.
 
-### ADR-006 — Saída estruturada Pydantic no Dream Cycle
+### ADR-006 — Pydantic structured output in Dream Cycle
 
-**Decisão:** todas as chamadas LLM usam JSON Schema derivado dos modelos Pydantic; a resposta é validada com `model_validate_json()`.
-**Rationale:** garante que qualquer provider (Ollama local ou Anthropic cloud) produza estrutura processável; loop de feedback (Validator reprova → Distiller reprocessa) aumenta qualidade sem intervenção humana.
-**Trade-off:** adiciona uma chamada LLM de validação por execução do pipeline.
+**Decision:** all LLM calls use JSON Schema derived from Pydantic models; response validated with `model_validate_json()`.
+**Rationale:** ensures any provider (local Ollama or cloud Anthropic) returns processable structure; feedback loop (Validator rejects → Distiller reprocesses) improves quality without human intervention.
+**Trade-off:** adds one LLM validation call per pipeline execution.
 
-### ADR-007 — UUID v4 em todas as PKs
+### ADR-007 — UUID v4 in all PKs
 
-**Decisão:** migração de IDs sequenciais para UUID v4 em todas as tabelas do UMC.
-**Rationale:** IDs sequenciais colidem entre máquinas distintas no cenário P2P (máquina A e B ambas criam `id=1`). UUID v4 tem probabilidade de colisão de 1 em 10^36.
-**Trade-off:** IDs menos legíveis em logs; irrelevante para uso programático.
+**Decision:** migrate sequential IDs to UUID v4 in all UMC tables.
+**Rationale:** sequential IDs collide across machines in P2P scenario (A and B both create `id=1`). UUID v4 collision probability is 1 in 10^36.
+**Trade-off:** less readable IDs in logs; irrelevant for programmatic use.
 
-### ADR-008 — Quarentena em vez de descarte
+### ADR-008 — Quarantine instead of discard
 
-**Decisão:** pipeline que falha seta `archived=2` em vez de deletar ou ignorar a observação. Estendido por ADR-016: erro transitório vira `archived=0` (retry), erro estrutural vira `archived=2` (quarentena com motivo).
-**Rationale:** dados de memória são valiosos; falhas temporárias (rede indisponível, saldo de API zerado) não devem causar perda permanente de contexto.
-**Trade-off:** acúmulo de dados em quarentena requer limpeza periódica manual ou automatizada via `forget()` (§31.2).
+**Decision:** failing pipeline sets `archived=2` instead of deleting or ignoring observation. Extended by ADR-016: transient error becomes `archived=0` (retry), structural error becomes `archived=2` (quarantine with reason).
+**Rationale:** memory data is valuable; transient failures (network down, API credit zero) should not cause permanent context loss.
+**Trade-off:** quarantined data accumulation requires periodic manual/automated cleanup via `forget()` (§31.2).
 
-### ADR-009 — Configuração de LLM por papel com herança e fallback explícito
+### ADR-009 — Per-role LLM config with inheritance and explicit fallback
 
-**Decisão:** cada papel que consome LLM (`dreamer`, `graphify`, `vision`, `synthesis`, e os cinco papéis de cadência K5) tem configuração própria via `HIVE_{ROLE}_PROVIDER/MODEL`, com herança do Dreamer quando ausente e fallback **opt-in** via `HIVE_{ROLE}_FALLBACK_PROVIDER/MODEL`. Resolução centralizada em `get_role_config()` (`core/auth.py`); chamadas e política de retry/fallback centralizadas em `core/llm_client.py`.
-**Rationale:** os papéis têm perfis opostos — extração de entidades (milhares de chamadas baratas e frequentes) e síntese dialética (poucas chamadas que exigem raciocínio forte) não podem ser servidos pelo mesmo modelo sem desperdício ou perda de qualidade. A **cascata automática de provedores foi rejeitada** por violar a soberania do usuário: a Síntese Dialética decide qual versão da memória é a verdade e não pode trocar de modelo silenciosamente. O fallback existe apenas quando o usuário o define explicitamente. Falha de **validação Pydantic nunca dispara fallback** — é problema de qualidade da saída, não de disponibilidade; trocar de modelo às cegas mascararia o problema. Chaves de API permanecem uma por provedor (nunca por papel), evitando duplicação de segredos.
-**Trade-off:** mais variáveis de ambiente (até 16 com fallbacks); mitigado pela herança — o caso mínimo continua sendo 2 variáveis (`HIVE_DREAMER_PROVIDER/MODEL`).
+**Decision:** each LLM-consuming role (`dreamer`, `graphify`, `vision`, `synthesis`, and K5 five cadence roles) has own config via `HIVE_{ROLE}_PROVIDER/MODEL`, inheriting from Dreamer when absent, with **opt-in** fallback via `HIVE_{ROLE}_FALLBACK_PROVIDER/MODEL`. Resolution centralized in `get_role_config()` (`core/auth.py`); calls and retry/fallback policy centralized in `core/llm_client.py`.
+**Rationale:** roles have opposite profiles — entity extraction (many cheap frequent calls) and dialectical synthesis (few high-reasoning calls) cannot be served by same model without waste or quality loss. **Automatic provider cascade was rejected** to preserve user sovereignty: Dialectical Synthesis decides memory truth and cannot switch model silently. Fallback only exists when explicitly configured by user. **Pydantic validation failure never triggers fallback** — it is output quality, not availability; blind model switching would mask issue. API keys remain one per provider (never per role), avoiding secret duplication.
+**Trade-off:** more environment variables (up to 16 with fallbacks); mitigated by inheritance — minimal case remains 2 vars (`HIVE_DREAMER_PROVIDER/MODEL`).
 
-### ADR-010 — Pipeline de Promoção de Conhecimento em camadas (K3/K4)
+### ADR-010 — Layered Knowledge Promotion Pipeline (K3/K4)
 
-**Decisão:** separar o pipeline de promoção em **Knowledge Intake** (normalização/classificação/deduplicação) e **Promotion Layer** (Distiller → Validator → Router → Persistência → Indexação), implementados em `core/knowledge/intake.py` e `core/knowledge/promotion.py`. A bridge do claude-mem é canônica em `core/knowledge/claude_mem_bridge.py` (caminho SQL read-only que aceita `source_id` e janela temporal).
-**Rationale:** a versão anterior do Dream Cycle fazia tudo num único estágio; separar intake e promotion torna a promoção **idempotente**, **testável** sem LLM real, e expõe o modo `candidate-only` (saída `candidate` sem persistência) para orquestração. A promoção nunca é 1-a-1 — é em batch com fila e prioridade por workspace (§30.5). Tipos canônicos de conhecimento (§27.2) e regras de promoção automática/proibida (§27.3) viram contrato, não heurística.
-**Trade-off:** mais código upfront; mitigado pelo retorno de `KnowledgePromotionPipeline` em modo `candidate-only` para callers que não querem persistir.
+**Decision:** split promotion into **Knowledge Intake** (normalize/classify/dedup) and **Promotion Layer** (Distiller → Validator → Router → Persistence → Indexing), implemented in `core/knowledge/intake.py` and `core/knowledge/promotion.py`. Canonical claude-mem bridge in `core/knowledge/claude_mem_bridge.py` (read-only SQL path accepting `source_id` and time window).
+**Rationale:** previous Dream Cycle did everything in one stage; splitting intake/promotion makes promotion **idempotent**, **testable** without real LLM, and exposes `candidate-only` mode (output `candidate` without persistence) for orchestration. Promotion is never 1-to-1 — it is batch with queue and workspace priority (§30.5). Canonical knowledge types (§27.2) and automatic/forbidden promotion rules (§27.3) become contract, not heuristic.
+**Trade-off:** more upfront code; mitigated by `KnowledgePromotionPipeline` return in `candidate-only` mode for callers not persisting.
 
-### ADR-011 — Coleções vetoriais canônicas separadas (K1)
+### ADR-011 — Separate canonical vector collections (K1)
 
-**Decisão:** o `VectorBackend` opera sobre **sete coleções canônicas** — `memory_vectors`, `observation_vectors`, `document_vectors`, `code_vectors`, `visual_vectors`, `graph_vectors`, `summary_vectors` — cada uma com metadata canônica (`parent_id`, `parent_type`, `brain_lobe`, `knowledge_type`, `project`, `source_uri`, `hash`, `valid_at`, `workspace_id`). Backends oficiais: `sqlite_vec` (local/dev/offline) e `milvus` (produção).
-**Rationale:** uma única coleção "tudo" polui ranking e torna impossível medir cobertura por tipo. A separação permite gate de produção por coleção (§28), poda seletiva (esquecer `document_chunks` órfãos não mexe em `memory_vectors`) e versionamento de modelo de embedding por coleção (§30.4).
-**Trade-off:** mais tabelas UMC; mitigado por `vector_metadata` auxiliar e identidade de coleção `(name, embedding_model, dim)`.
+**Decision:** `VectorBackend` operates on **seven canonical collections** — `memory_vectors`, `observation_vectors`, `document_vectors`, `code_vectors`, `visual_vectors`, `graph_vectors`, `summary_vectors` — each with canonical metadata (`parent_id`, `parent_type`, `brain_lobe`, `knowledge_type`, `project`, `source_uri`, `hash`, `valid_at`, `workspace_id`). Official backends: `sqlite_vec` (local/dev/offline) and `milvus` (production).
+**Rationale:** one "everything" collection pollutes ranking and makes per-type coverage impossible. Separation enables production gate per collection (§28), selective pruning (forgetting orphan `document_chunks` does not affect `memory_vectors`), and per-collection embedding-model versioning (§30.4).
+**Trade-off:** more UMC tables; mitigated by auxiliary `vector_metadata` and collection identity `(name, embedding_model, dim)`.
 
-### ADR-012 — VectorBackend: contrato único, múltiplos backends
+### ADR-012 — VectorBackend: single contract, multiple backends
 
-**Decisão:** toda a aplicação acessa o vetorial via contrato `upsert/delete/query/hybrid_query/count/health`, independente do backend. Milvus, sqlite-vec, e qualquer futuro backend obedecem o mesmo contrato. **A aplicação nunca chama Milvus diretamente fora do contrato.**
-**Rationale:** trocar `sqlite_vec` por `milvus` (e vice-versa) passa a ser mudança de configuração, não de código. Permite que o mesmo `DocumentPipeline`, `RetrievalRouter` e `KnowledgePromotionPipeline` rodem em dev (sqlite-vec) e produção (Milvus) sem分支.
-**Trade-off:** o contrato precisa ser estável; mudanças de schema em Milvus exigem migração versionada de embedding (§30.4).
+**Decision:** all application vector access uses contract `upsert/delete/query/hybrid_query/count/health`, independent of backend. Milvus, sqlite-vec, and future backend obey same contract. **Application never calls Milvus directly outside contract.**
+**Rationale:** switching `sqlite_vec` to `milvus` (and vice versa) becomes config change, not code change. Enables same `DocumentPipeline`, `RetrievalRouter`, and `KnowledgePromotionPipeline` to run in dev (sqlite-vec) and production (Milvus) without branching.
+**Trade-off:** contract must remain stable; Milvus schema changes require versioned embedding migration (§30.4).
 
-### ADR-013 — DocumentPipeline com parent/chunk/citation obrigatório (K6)
+### ADR-013 — DocumentPipeline with mandatory parent/chunk/citation (K6)
 
-**Decisão:** todo documento ingerido vira um `document_memories` (pai) com `document_chunks` (átomos) e entradas em `document_vectors` (vetores com metadata canônica). Consulta devolve **citações auditáveis** (`source_uri`, offsets, parent), não apenas "melhor trecho".
-**Rationale:** sem parent, chunk é texto solto — não tem como auditar nem deduplicar nem reingerir. A separação `documento / chunk / vetor` é o que torna o K6 born-large. RAGFlow entra como adapter/headless, nunca como fonte de verdade; o store dele é cache de ingestão.
-**Trade-off:** mais metadados por vetor; mitigado pelo índice auxiliar `vector_metadata` e schema fixo do Milvus.
+**Decision:** every ingested document becomes one `document_memories` (parent) with `document_chunks` (atoms) and `document_vectors` entries (vectors with canonical metadata). Query returns **auditable citations** (`source_uri`, offsets, parent), not only "best snippet".
+**Rationale:** without parent, chunk is loose text — not auditable, deduplicable, or re-ingestable. `document / chunk / vector` separation enables K6 born-large. RAGFlow is adapter/headless, never source of truth; its store is ingestion cache.
+**Trade-off:** more metadata per vector; mitigated by auxiliary `vector_metadata` index and fixed Milvus schema.
 
-### ADR-014 — RetrievalRouter classifica intent antes de buscar (K7)
+### ADR-014 — RetrievalRouter classifies intent before searching (K7)
 
-**Decisão:** o `RetrievalRouter` (`core/retrieval/router.py`) é a porta de entrada para queries; ele classifica a intenção, escolhe a rota especializada (temporal, memória, documento, código, grafo, multi-hop, híbrida) e devolve `retrieval_path`, `citations`, `confidence` e `missing_context`. LlamaIndex entra apenas como adapter opcional de rerank; não decide rota nem vira fonte de verdade.
-**Rationale:** o `sinapse_query` funde 7 órgãos sem entender a intenção — bom para busca ampla, ruim para precisão. O router explicitamente roteia "decisão" para `memory_vectors`, "documento" para `document_vectors`+parent, "código" para `code_vectors`+Graphify, etc. A telemetria `query_route_distribution` (hash da query, não texto) alimenta a métrica de saúde K8.
-**Trade-off:** classificadores de intenção podem errar; mitigado por fallback para `sinapse_query`/Context Fusion quando a confiança é baixa, e por métrica `intent_accuracy` no golden set (§31.3).
+**Decision:** `RetrievalRouter` (`core/retrieval/router.py`) is query entrypoint; it classifies intent, chooses specialized route (temporal, memory, document, code, graph, multi-hop, hybrid), and returns `retrieval_path`, `citations`, `confidence`, `missing_context`. LlamaIndex is optional rerank adapter only; it does not choose route or become source of truth.
+**Rationale:** `sinapse_query` fuses 7 organs without intent understanding — good for broad search, weak for precision. Router explicitly routes "decision" to `memory_vectors`, "document" to `document_vectors`+parent, "code" to `code_vectors`+Graphify, etc. `query_route_distribution` telemetry (query hash, not text) feeds K8 health metric.
+**Trade-off:** intent classifiers can fail; mitigated by fallback to `sinapse_query`/Context Fusion on low confidence, and `intent_accuracy` metric in golden set (§31.3).
 
-### ADR-015 — Workspace como fronteira de isolamento (K8/§30)
+### ADR-015 — Workspace as isolation boundary (K8/§30)
 
-**Decisão:** toda tabela crítica do UMC (`neurons`, `observations`, `synapses`, `goals`, `document_memories`, `visual_memories`, `ambiguities`, `causal_edges`, `vault`) carrega `workspace_id` (default `'default'`). Toda query do `RetrievalRouter` e da promoção filtra por `workspace_id`. Milvus usa `partition_key=workspace_id` para isolamento por partição.
-**Rationale:** o Hive-Mind nasce single-user local-first, mas o produto é open-source com vetor de escala per-install, multi-usuário por instância e federação entre instâncias. Adicionar `workspace_id` depois custaria migração estrutural — agora é uma coluna. Vazamento cross-workspace é bug de segurança, não de ranking.
-**Trade-off:** toda query precisa carregar `workspace_id`; mitigado por `(workspace_id, ...)` nos índices quentes e por default `'default'` (não atrapalha single-user).
+**Decision:** every critical UMC table (`neurons`, `observations`, `synapses`, `goals`, `document_memories`, `visual_memories`, `ambiguities`, `causal_edges`, `vault`) carries `workspace_id` (default `'default'`). Every `RetrievalRouter` and promotion query filters by `workspace_id`. Milvus uses `partition_key=workspace_id` for partition isolation.
+**Rationale:** Hive-Mind starts single-user local-first, but product is open-source with per-install scale vector, multi-user per instance, and federation across instances. Adding `workspace_id` later would require structural migration — now it is a column. Cross-workspace leak is a security bug, not ranking issue.
+**Trade-off:** every query must carry `workspace_id`; mitigated by `(workspace_id, ...)` hot indexes and default `'default'` (no impact to single-user).
 
-### ADR-016 — Falha de promoção preserva dados, nunca descarta
+### ADR-016 — Promotion failure preserves data, never discards
 
-**Decisão:** o contrato de promoção distingue explicitamente erro transitório (`archived=0`, retry futuro) e erro estrutural (`archived=2`, quarentena com motivo). Nada é deletado por falha de promoção. O `Knowledge Intake` (K3) é a primeira camada a usar esse contrato; o `Promotion Layer` (K4) o enforça.
-**Rationale:** dados de memória são valiosos; falhas temporárias (rede indisponível, saldo de API zerado, schema novo) não devem causar perda permanente. O contract normativo é fail-safe, não fail-silent.
-**Trade-off:** acumula quarentena; mitigado por `K8 knowledge_health` expondo `observations_pending` e `discoveries_pending` como gate, e por pipeline de reprocessamento manual/automático.
+**Decision:** promotion contract explicitly distinguishes transient error (`archived=0`, future retry) and structural error (`archived=2`, quarantine with reason). Nothing is deleted by promotion failure. `Knowledge Intake` (K3) is first layer using this contract; `Promotion Layer` (K4) enforces it.
+**Rationale:** memory data is valuable; transient failures (network down, API credit zero, new schema) should not cause permanent loss. Normative contract is fail-safe, not fail-silent.
+**Trade-off:** quarantine accumulation; mitigated by `K8 knowledge_health` exposing `observations_pending` and `discoveries_pending` as gate, and manual/automatic reprocessing pipeline.
 
-### ADR-017 — Cadência hierárquica sessão→anual com papéis de LLM próprios
+### ADR-017 — Hierarchical session→yearly cadence with dedicated LLM roles
 
-**Decisão:** a memória temporal é organizada em **cinco cadências** (sessão, diário, semanal, mensal, anual) com writers, entradas, saídas, modelos e regras de promoção próprios. Cada cadência tem um papel de LLM configurável (`session_summarizer`, `daily_writer`, `weekly_synthesizer`, `monthly_synthesizer`, `yearly_synthesizer`) e herda do `dreamer` se não houver override. Fail-closed: papel sem modelo próprio nem herança registra falha auditável e não inventa síntese.
-**Rationale:** mensal e anual produzem memória estratégica (metas, drift, princípios) que não pode ser gerada por modelo pequeno sem rebaixar qualidade. Sessão e diário podem usar modelo pequeno porque a tarefa é compressão local. Custo/qualidade por cadência é o desenho correto.
-**Trade-off:** mais papéis para configurar; mitigado pelo `setup-brain` que aceita herança do `dreamer` para o caso mínimo.
+**Decision:** temporal memory is organized in **five cadences** (session, daily, weekly, monthly, yearly) with own writers, inputs, outputs, models, and promotion rules. Each cadence has configurable LLM role (`session_summarizer`, `daily_writer`, `weekly_synthesizer`, `monthly_synthesizer`, `yearly_synthesizer`) and inherits from `dreamer` if no override. Fail-closed: role without own model and no inheritance logs auditable failure and does not invent synthesis.
+**Rationale:** monthly/yearly produce strategic memory (goals, drift, principles) that cannot be generated by small model without quality loss. Session/daily can use small model because task is local compression. Cost/quality by cadence is the correct design.
+**Trade-off:** more roles to configure; mitigated by `setup-brain` inheritance from `dreamer` in minimal case.
 
-### ADR-018 — Contrato negativo de vendorização via `components.lock.json`
+### ADR-018 — Negative vendoring contract via `components.lock.json`
 
-**Decisão:** o `components.lock.json` aceita apenas **clones** do source que o `install.sh` builda/patcha (`graphify`, `neural-memory`, `rtk`, `omniparser`, binário `crsqlite`). Wrappers (Milvus, RAGFlow, Graphiti) entram por container/SDK; pip cobre apenas LlamaIndex e utilitários. Se Milvus, RAGFlow ou LlamaIndex aparecerem em `components.lock.json` nesta frente, a implementação está errada.
-**Rationale:** regras claras de quem é clone e quem é wrapper reduzem ambiguidade operacional. O contrato é também negativo (declara o que **não** pertence ali) para evitar regressão.
-**Trade-off:** manutenção do lock file; mitigado por ser gerado por `install.sh` e revisado em PR.
+**Decision:** `components.lock.json` accepts only source **clones** built/patched by `install.sh` (`graphify`, `neural-memory`, `rtk`, `omniparser`, `crsqlite` binary). Wrappers (Milvus, RAGFlow, Graphiti) enter through container/SDK; pip covers only LlamaIndex and utilities. If Milvus, RAGFlow, or LlamaIndex appear in `components.lock.json` for this front, implementation is wrong.
+**Rationale:** explicit clone vs wrapper rules reduce operational ambiguity. Contract is also negative (declares what **does not** belong there) to prevent regression.
+**Trade-off:** lock-file maintenance; mitigated by generation from `install.sh` and PR review.
 
 ---
 
-*Esta seção consolida as ADRs herdadas da v2.0.0 (001–009) e as ADRs criadas pela frente de Conhecimento Born-Large (010–018). Em caso de divergência, esta seção canônica prevalece sobre [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md).*
+*This section consolidates ADRs inherited from v2.0.0 (001–009) and ADRs created by Born-Large Knowledge front (010–018). In case of divergence, this canonical section prevails over [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md).*

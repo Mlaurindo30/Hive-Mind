@@ -54,6 +54,7 @@ consulted first.
 | Full detail of already-filtered temporal observations | `sinapse_temporal_get_observations(ids=[...])` |
 | General hybrid search (all layers; default for project context) | `sinapse_query("<topic>")` |
 | Vector query on the LightRAG graph (P4) | `sinapse_rag_query(question, mode?)` |
+| Promote pending observations into typed knowledge (K3 intake) | `sinapse_promote_knowledge(limit?, dry_run?, import_claude_mem?, source_ids?, since_epoch?, until_epoch?)` |
 
 ### Quick tool selection
 
@@ -66,6 +67,7 @@ consulted first.
 | "I need temporal/causal facts from Graphiti." | `sinapse_query` | `sinapse_temporal_graph_search` exists for compatibility, but the canonical brain query is `sinapse_query`. |
 | "I made a decision or learned a reusable pattern." | `sinapse_save_decision` / `sinapse_save_learning` | Record immediately; do not leave it only in the chat response. |
 | "I want to write a raw temporal event." | `sinapse_temporal_save` | Only writes directly into claude-mem in server-beta; in the current worker runtime, treat as a fallback/note, not the primary write path. |
+| "There are pending observations that need to become typed knowledge (neurons/candidates)." | `sinapse_promote_knowledge` | Normalizes pending UMC observations/discoveries/session summaries into typed candidates, preserves raw records, quarantines structural errors, links `observation.neuron_id`. Use `dry_run=true` to classify/count without writing. This is normally run by the Dream Cycle; call it manually only for maintenance or debugging the intake pipeline. |
 
 ## 3. Record immediately (when deciding, learning, or decomposing)
 | Need | Tool |
@@ -85,6 +87,15 @@ gets saved, but the RetrievalRouter demotes it in ranking until validated, and
 the audit lists it for review. If a hypothesis is later refuted, correct the
 note instead of leaving it — a refuted hypothesis left in place poisons future
 retrieval.
+
+**Review TTL (staleness):** every decision/learning is stamped with
+`review_date` and `next_review` (default `REVIEW_TTL_DAYS=90`). Once
+`next_review` passes, the RetrievalRouter flags the note `stale` and applies
+`HIVE_STALENESS_PENALTY` (default `0.85`) to its ranking score — same
+demotion mechanism as an unverified hypothesis, but time-based instead of
+evidence-based. The note is never deleted or excluded, only demoted. If you
+revisit a stale note and it still holds, re-save it (or update it) so its
+`next_review` window resets.
 
 ## 4. Consolidate when finished
 - `sinapse_session_end(summary)` — updates `brain/Current State.md` and
@@ -107,5 +118,12 @@ retrieval.
 - `sinapse_capture_screen` only on explicit request — never in loop or
   monitoring. Requires `description` (reason) and `monitor` in multi-monitor setups.
 - `sinapse_zettelkasten_split` requires local Ollama running (qwen2.5-coder:3b).
+- **Vault write enforcement:** on hosts where `setup-vault-enforcement`
+  has been applied, `cerebro/` is owned by a dedicated service user and the
+  agent only has direct write access to `cerebro/90-intake/`. If a direct
+  vault write is denied, `sinapse_save_decision`/`sinapse_save_learning`
+  fall back automatically to the intake area — this is expected behavior,
+  not a failure to report or retry. The Dream Cycle later promotes intake
+  content into the vault proper via `sinapse_promote_knowledge`.
 - Consulting before acting and recording anything reusable is not optional:
   this is how the project brain evolves between sessions.

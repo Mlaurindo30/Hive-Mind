@@ -1,60 +1,60 @@
-# sinapse.yaml — Configuração central do Sinapse Agent
-# Camada de memória universal para qualquer agente (Hermes, Claude Code, Codex, OpenCode, Cursor)
+# sinapse.yaml — Sinapse Agent central configuration
+# Universal memory layer for any agent (Hermes, Claude Code, Codex, OpenCode, Cursor)
 
 # =============================================================================
-# PROJETO
+# PROJECT
 # =============================================================================
 project:
   name: sinapse_agent
   version: 2.0.0
   description: >
-    Camada de memória universal para agentes de IA. Indexa um vault Obsidian
-    (cerebro/) em um knowledge graph queryable via Graphify, complementado por
-    tracking granular de eventos (claude-mem) e otimização de execução (RTK).
-    Um clone, um ./install.sh, todos os agentes conectados.
+    Universal memory layer for AI agents. Indexes an Obsidian vault
+    (cerebro/) into a knowledge graph queryable via Graphify, complemented by
+    granular event tracking (claude-mem) and execution optimization (RTK).
+    One clone, one ./install.sh, every agent connected.
 
 # =============================================================================
-# VAULT (fonte única de verdade)
+# VAULT (single source of truth)
 # =============================================================================
 vault:
-  path: cerebro/                          # relativo à raiz do projeto
-  format: obsidian                        # vault Obsidian com frontmatter YAML
-  language: pt-BR                         # idioma do vault
-  indexer: graphify                       # ferramenta que indexa o vault
-  watch: true                             # reindexa automaticamente ao detectar mudanças
+  path: cerebro/                          # relative to the project root
+  format: obsidian                        # Obsidian vault with YAML frontmatter
+  language: pt-BR                         # vault content language
+  indexer: graphify                       # tool that indexes the vault
+  watch: true                             # auto-reindexes when changes are detected
 
 # =============================================================================
-# GRAPHIFY (camada 1 — estrutural: O QUE existe)
+# GRAPHIFY (layer 1 — structural: WHAT exists)
 # =============================================================================
 graphify:
-  package: graphifyy                      # nome do pacote PyPI (double-y)
+  package: graphifyy                      # PyPI package name (double-y)
   install_method: uv                      # uv | pipx | pip
   extras: [all]                           # pdf, office, video, mcp, neo4j, ollama, etc
-  output_dir: cerebro/cortex/occipital/grafo/  # output anatômico do knowledge graph
-  mcp_port: 0                             # 0 = stdio, ou porta para HTTP
+  output_dir: cerebro/cortex/occipital/grafo/  # anatomical output of the knowledge graph
+  mcp_port: 0                             # 0 = stdio, or port for HTTP
   watch: true                             # --watch flag
   obsidian_export: true                   # --obsidian flag
-  global_graph: false                     # --global (ativar quando multi-projeto)
+  global_graph: false                     # --global (enable for multi-project)
 
 # =============================================================================
-# CLAUDE-MEM (camada 2 — temporal: QUEM/QUANDO)
+# CLAUDE-MEM (layer 2 — temporal: WHO/WHEN)
 # =============================================================================
 claude_mem:
-  port: 37700                             # porta padrão do worker
+  port: 37700                             # default worker port
   install_method: npx                     # npx claude-mem install
-  worker_autostart: true                  # inicia worker junto
+  worker_autostart: true                  # starts the worker alongside
 
 # =============================================================================
-# NEURAL MEMORY (camada 4 — associativa: COMO conceitos se relacionam)
+# NEURAL MEMORY (layer 4 — associative: HOW concepts relate)
 # =============================================================================
 neural_memory:
   package: neural-memory                # pipx install neural-memory
   install_method: source                  # uv pip install -e integrations/neural-memory/
-  src_dir: integrations/neural-memory/    # source local
-  recall_timeout: 5                     # segundos
+  src_dir: integrations/neural-memory/    # local source
+  recall_timeout: 5                     # seconds
 
 # =============================================================================
-# RTK (camada 3 — execução: COMO otimizar)
+# RTK (layer 3 — execution: HOW to optimize)
 # =============================================================================
 rtk:
   source_dir: integrations/rtk/
@@ -62,8 +62,8 @@ rtk:
   wrapper: scripts/services/start-rtk.sh
   install_method: "rtk init <target>"
   role: >
-    Otimizador transversal de comandos shell. Nao e backend de leitura,
-    nao participa do sinapse_query e deve ser configurado por agente/CLI.
+    Cross-cutting shell command optimizer. Not a read backend,
+    does not participate in sinapse_query, and must be configured per agent/CLI.
   targets:
     global:
       - claude
@@ -83,7 +83,7 @@ rtk:
       - antigravity
 
 # =============================================================================
-# SINAPSE MCP (servidor universal de leitura + escrita)
+# SINAPSE MCP (universal read + write server)
 # =============================================================================
 sinapse_mcp:
   command: "python3 scripts/services/sinapse-mcp.py"
@@ -91,28 +91,28 @@ sinapse_mcp:
   enabled: true
   config_template: mcp/sinapse-memory.json
   tools:
-    - sinapse_query          # busca híbrida canônica em todos os backends
-    - sinapse_save_decision   # salva decisão no vault
-    - sinapse_save_learning   # salva aprendizado no Patterns.md
-    - sinapse_health          # health check completo
-    - sinapse_session_end     # finaliza sessão, atualiza Current State
-    - sinapse_temporal_search # etapa 1 claude-mem: índice textual global
-    - sinapse_temporal_timeline # etapa 2 claude-mem: contexto cronológico por ID/query
-    - sinapse_temporal_get_observations # etapa 3 claude-mem: detalhes completos por IDs filtrados
-    - sinapse_temporal_save   # salva observação no claude-mem ou fallback vault
-    - sinapse_zettelkasten_split # particiona notas monolíticas em notas atômicas Zettelkasten
-    - sinapse_capture_screen  # captura tela e salva memória visual
-    - sinapse_plan_goal       # decompõe objetivo em passos atômicos
-    - sinapse_temporal_graph_search # compat Graphiti/FalkorDB; prefira sinapse_query
-    - sinapse_rag_query       # consulta LightRAG multi-hop sobre memórias consolidadas
-    - search_memories         # busca HNSW/FTS sobre o vault
+    - sinapse_query          # canonical hybrid search across all backends
+    - sinapse_save_decision   # saves a decision to the vault
+    - sinapse_save_learning   # saves a learning to Patterns.md
+    - sinapse_health          # full health check
+    - sinapse_session_end     # ends the session, updates Current State
+    - sinapse_temporal_search # claude-mem step 1: global textual index
+    - sinapse_temporal_timeline # claude-mem step 2: chronological context by ID/query
+    - sinapse_temporal_get_observations # claude-mem step 3: full details for filtered IDs
+    - sinapse_temporal_save   # saves an observation to claude-mem or vault fallback
+    - sinapse_zettelkasten_split # splits monolithic notes into atomic Zettelkasten notes
+    - sinapse_capture_screen  # captures a screenshot and saves it as visual memory
+    - sinapse_plan_goal       # decomposes a goal into atomic steps
+    - sinapse_temporal_graph_search # Graphiti/FalkorDB compat; prefer sinapse_query
+    - sinapse_rag_query       # multi-hop LightRAG query over consolidated memories
+    - search_memories         # HNSW/FTS search over the vault
 
 # =============================================================================
-# AGENTES SUPORTADOS
+# SUPPORTED AGENTS
 # =============================================================================
 agents:
   supported:
-    - hermes        # native: plugin Python com hooks pre_prompt / post_tool / post_session
+    - hermes        # native: Python plugin with pre_prompt / post_tool / post_session hooks
     - claude-code   # mcp: sinapse-mcp.py + CLAUDE.md
     - codex         # mcp: sinapse-mcp.py + AGENTS.md
     - kilocode      # mcp: sinapse-mcp.py + AGENTS.md
@@ -120,7 +120,7 @@ agents:
     - copilot       # mcp: via GitHub MCP integration
     - opencode      # mcp: sinapse-mcp.py + AGENTS.md
     - gemini-cli    # mcp: sinapse-mcp.py + GEMINI.md
-    - zoocode       # mcp: sinapse-mcp.py (sucessor do Roo Code)
+    - zoocode       # mcp: sinapse-mcp.py (successor to Roo Code)
     - cursor        # mcp: sinapse-mcp.py + AGENTS.md
     - aider         # mcp: sinapse-mcp.py
   integration_methods:
@@ -160,35 +160,35 @@ mcp_servers:
     enabled: true
 
 # =============================================================================
-# CLOUD (Fase 4.3 — Desacoplamento para VPS)
+# CLOUD (Phase 4.3 — VPS decoupling)
 # =============================================================================
 cloud:
-  enabled: false                          # Se true, os hooks locais agem como clientes da nuvem
-  url: "http://localhost:8000"           # Endpoint padrão para testes locais
-  api_key: "${SINAPSE_API_KEY}"          # Token de autenticação seguro
+  enabled: false                          # If true, local hooks act as cloud clients
+  url: "http://localhost:8000"           # Default endpoint for local testing
+  api_key: "${SINAPSE_API_KEY}"          # Secure authentication token
 
 # =============================================================================
-# FILESYSTEM (camada 5 — híbrida busca direta no vault)
+# FILESYSTEM (layer 5 — hybrid direct vault search)
 # =============================================================================
-# O backend filesystem elimina o gap de indexação do Graphify (até 6h) fazendo
-# busca direta nos arquivos .md do vault. Funciona como fallback quando o
-# graph.json está indisponível ou como fonte complementar para dados mais recentes.
-# É o componente central do HYBRID SEARCH — deduplicação cross-backend garante
-# que o mesmo arquivo não apareça duas vezes quando Graphify + filesystem
-# indexam o mesmo conteúdo.
+# The filesystem backend eliminates Graphify's indexing gap (up to 6h) by doing
+# direct search over the vault's .md files. It acts as a fallback when
+# graph.json is unavailable, or as a complementary source for the most recent data.
+# It is the central component of HYBRID SEARCH — cross-backend deduplication ensures
+# the same file doesn't show up twice when Graphify + filesystem
+# index the same content.
 # =============================================================================
 hybrid_search:
   enabled: true
   backends:
-    - graphify        # camada 1 — estrutural (indexado a cada 6h)
-    - claude_mem      # camada 2 — temporal (eventos em tempo real)
-    - neural_memory   # camada 4 — associativa (relacionamentos conceituais)
-    - filesystem      # camada 5 — direta (leitura real-time dos .md)
+    - graphify        # layer 1 — structural (indexed every 6h)
+    - claude_mem      # layer 2 — temporal (real-time events)
+    - neural_memory   # layer 4 — associative (conceptual relationships)
+    - filesystem      # layer 5 — direct (real-time reads of .md files)
   components:
-    - rtk             # camada de execução: otimiza shell, nao retorna memoria
+    - rtk             # execution layer: optimizes shell, does not return memory
   filesystem:
     enabled: true
-    categories:       # diretórios do vault escaneados em busca direta
+    categories:       # vault directories scanned for direct search
       - cortex/temporal
       - cortex/frontal/decisoes
       - cortex/frontal/trabalho
@@ -198,11 +198,11 @@ hybrid_search:
       - cortex/parietal/referencias
       - cerebelo/padroes
       - tronco/modelos
-    cache_ttl: 30     # segundos — TTL do cache do scan recursivo
-    max_results: 15   # limit de observações retornadas por busca
-  dedup:              # elimina duplicados cross-backend
+    cache_ttl: 30     # seconds — recursive scan cache TTL
+    max_results: 15   # limit of observations returned per search
+  dedup:              # eliminates cross-backend duplicates
     enabled: true
-    keys:             # campos usados para identificar duplicados
+    keys:             # fields used to identify duplicates
       observations:
         - source_file
         - title
@@ -215,5 +215,5 @@ hybrid_search:
 # CRON
 # =============================================================================
 cron:
-  sync_schedule: "0 */6 * * *"            # a cada 6 horas
-  rebuild_schedule: "0 2 * * 0"           # domingo 2am rebuild completo
+  sync_schedule: "0 */6 * * *"            # every 6 hours
+  rebuild_schedule: "0 2 * * 0"           # sunday 2am full rebuild

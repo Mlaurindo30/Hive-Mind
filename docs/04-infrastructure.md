@@ -1,131 +1,131 @@
-# 04 — Infraestrutura e Configuração
+# 04 — Infrastructure and Configuration
 
-> **Hive-Mind v3.0.0** — Requisitos, serviços, portas, variáveis de ambiente e operações.
-> Última revisão: 2026-06-30 · LightRAG (P4) integrado como `claude-mem/data/lightrag/` · **Born-Large (K0–K10):** VectorBackend com Milvus opcional, RAGFlow headless adapter, LlamaIndex opcional, contrato negativo de vendorização via `components.lock.json`, `workspace_id` em todas as tabelas críticas, cadência sessão→anual com papéis próprios. Ver [`01-architecture.md` §22–§31](01-architecture.md#22-arquitetura-de-conhecimento-born-large) e [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md).
+> **Hive-Mind v3.0.0** — Requirements, services, ports, environment variables, and operations.
+> Last review: 2026-06-30 · LightRAG (P4) integrated as `claude-mem/data/lightrag/` · **Born-Large (K0–K10):** VectorBackend with optional Milvus, RAGFlow headless adapter, optional LlamaIndex, negative vendoring contract via `components.lock.json`, `workspace_id` in all critical tables, session→annual cadence with dedicated roles. See [`01-architecture.md` §22–§31](01-architecture.md#22-arquitetura-de-conhecimento-born-large) and [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md).
 
 ---
 
-## 1. Requisitos de Software
+## 1. Software Requirements
 
 ### 1.1 Runtime
 
-| Dependência | Versão mínima | Uso |
+| Dependency | Minimum version | Use |
 |-------------|--------------|-----|
-| Python | 3.10+ | Núcleo — scripts, MCP server, REST API, Dream Cycle |
-| SQLite | 3.44+ | UMC com `sqlite-vec` (extensão necessária) |
+| Python | 3.10+ | Core — scripts, MCP server, REST API, Dream Cycle |
+| SQLite | 3.44+ | UMC with `sqlite-vec` (required extension) |
 | Node.js / Bun | 18+ / 1.0+ | claude-mem (TypeScript) |
-| Rust / Cargo | 1.70+ | RTK (compilação única; binário pré-compilado opcional) |
-| Syncthing | 1.27+ | P2P sync de arquivos Markdown entre máquinas |
-| uv | 0.4+ | Gerenciador de pacotes Python |
+| Rust / Cargo | 1.70+ | RTK (one-time compilation; optional prebuilt binary) |
+| Syncthing | 1.27+ | P2P sync of Markdown files across machines |
+| uv | 0.4+ | Python package manager |
 
-### 1.2 Dependências Python (requirements.txt)
+### 1.2 Python Dependencies (requirements.txt)
 
-| Pacote | Versão | Uso |
+| Package | Version | Use |
 |--------|--------|-----|
 | `fastapi` | ≥0.111 | REST API (sinapse-api.py) |
-| `uvicorn` | ≥0.29 | ASGI server para FastAPI |
-| `pydantic` | ≥2.7 | Validação de saída LLM + schemas |
-| `cryptography` | ≥42 | Fernet encryption (vault de segredos) |
-| `fastembed` | ≥0.3 | Dependência legada/fallback; embeddings canônicos usam Ollama 1024d |
-| `watchdog` | ≥4.0 | Watcher de arquivos real-time |
-| `pypdf` | ≥4.0 | Extração de texto de PDFs |
-| `python-docx` | ≥1.1 | Leitura de documentos Word |
-| `PyMuPDF` | ≥1.24 | Extração de imagens de PDFs |
-| `mss` | ≥9.0 | Captura de screenshots |
-| `pyyaml` | ≥6.0 | Parsing de frontmatter YAML |
-| `httpx` | ≥0.27 | Cliente HTTP assíncrono (cloud mode) |
-| `hnswlib` | ≥0.8.0 | Índice HNSW incremental para busca vetorial (HM-11) |
-| `duckdb` | ≥0.10 | Analytics read-only sobre hive_mind.db (HM-11) |
+| `uvicorn` | ≥0.29 | ASGI server for FastAPI |
+| `pydantic` | ≥2.7 | LLM output validation + schemas |
+| `cryptography` | ≥42 | Fernet encryption (secret vault) |
+| `fastembed` | ≥0.3 | Legacy/fallback dependency; canonical embeddings use Ollama 1024d |
+| `watchdog` | ≥4.0 | Real-time file watcher |
+| `pypdf` | ≥4.0 | PDF text extraction |
+| `python-docx` | ≥1.1 | Word document reading |
+| `PyMuPDF` | ≥1.24 | Image extraction from PDFs |
+| `mss` | ≥9.0 | Screenshot capture |
+| `pyyaml` | ≥6.0 | YAML frontmatter parsing |
+| `httpx` | ≥0.27 | Async HTTP client (cloud mode) |
+| `hnswlib` | ≥0.8.0 | Incremental HNSW index for vector search (HM-11) |
+| `duckdb` | ≥0.10 | Read-only analytics over hive_mind.db (HM-11) |
 
 ---
 
-## 2. Variáveis de Ambiente
+## 2. Environment Variables
 
 ```
-# .env na raiz do projeto (nunca commitado)
+# .env at the project root (never committed)
 ```
 
-### 2.1 Sistema
+### 2.1 System
 
-| Variável | Descrição | Padrão |
+| Variable | Description | Default |
 |----------|-----------|--------|
-| `SINAPSE_HOME` | Caminho raiz do projeto | auto-detectado |
-| `SINAPSE_DRY_RUN` | `1` para executar sem side effects | `0` |
-| `HIVE_MIND_API_KEY` | Bearer token da REST API (obrigatório) | sem padrão |
-| `HIVE_MIND_API_PORT` | Porta da REST API | `37702` |
+| `SINAPSE_HOME` | Project root path | auto-detected |
+| `SINAPSE_DRY_RUN` | `1` to run without side effects | `0` |
+| `HIVE_MIND_API_KEY` | REST API Bearer token (required) | no default |
+| `HIVE_MIND_API_PORT` | REST API port | `37702` |
 
-### 2.2 LLM por papel (roles)
+### 2.2 LLM by role
 
-Cada papel tem primário e fallback opcionais; papel sem par completo PROVIDER+MODEL herda do Dreamer (regras: [`01-architecture.md`](01-architecture.md) §11.1 e ADR-009). A frente de Conhecimento Born-Large adiciona os **papéis de cadência K5** e papéis especializados K3/K4/K6/K7 (ver [`02-ai-models.md` §2.1.0](02-ai-models.md#210-papéis-canônicos-constante-hive_llm_roles-em-coreauthpy)).
+Each role has optional primary and fallback; a role without a complete PROVIDER+MODEL pair inherits from Dreamer (rules: [`01-architecture.md`](01-architecture.md) §11.1 and ADR-009). The Born-Large Knowledge front adds **K5 cadence roles** and specialized K3/K4/K6/K7 roles (see [`02-ai-models.md` §2.1.0](02-ai-models.md#210-papéis-canônicos-constante-hive_llm_roles-em-coreauthpy)).
 
-| Variável | Papel | Descrição |
+| Variable | Role | Description |
 |----------|-------|-----------|
-| `HIVE_DREAMER_PROVIDER` / `HIVE_DREAMER_MODEL` | Dreamer (base de herança) | LLM do Dream Cycle (Knowledge Intake K3 + Distiller/Validator/Router K4) |
-| `HIVE_DREAMER_FALLBACK_PROVIDER` / `HIVE_DREAMER_FALLBACK_MODEL` | Dreamer | Fallback opt-in se o primário falhar |
-| `HIVE_GRAPHIFY_PROVIDER` / `HIVE_GRAPHIFY_MODEL` | Graphify | Extração de entidades na indexação |
-| `HIVE_GRAPHIFY_FALLBACK_PROVIDER` / `HIVE_GRAPHIFY_FALLBACK_MODEL` | Graphify | Fallback opt-in |
-| `HIVE_VISION_PROVIDER` / `HIVE_VISION_MODEL` | Vision | Descrição de screenshots (multimodal) |
-| `HIVE_VISION_FALLBACK_PROVIDER` / `HIVE_VISION_FALLBACK_MODEL` | Vision | Fallback opt-in |
-| `HIVE_OCR_PROVIDER` / `HIVE_OCR_MODEL` | OCR opcional | OCR dedicado; default documentado `ollama/deepseek-ocr:latest`, opt-in no instalador |
-| `HIVE_SYNTHESIS_PROVIDER` / `HIVE_SYNTHESIS_MODEL` | Síntese P2P | Síntese Dialética de conflitos |
-| `HIVE_SYNTHESIS_FALLBACK_PROVIDER` / `HIVE_SYNTHESIS_FALLBACK_MODEL` | Síntese P2P | Fallback opt-in |
-| `HIVE_CLAUDE_MEM_PROVIDER` / `HIVE_CLAUDE_MEM_MODEL` | claude_mem | Bridge `claude_mem_bridge.py` (K4) — classifica `knowledge_type`; herda do Dreamer se não definido |
-| `HIVE_SESSION_SUMMARIZER_PROVIDER` / `HIVE_SESSION_SUMMARIZER_MODEL` | session_summarizer (K5) | Resumo de sessão (pequeno/rápido) |
-| `HIVE_DAILY_WRITER_PROVIDER` / `HIVE_DAILY_WRITER_MODEL` | daily_writer (K5) | Síntese do dia (pequeno/médio) |
-| `HIVE_WEEKLY_SYNTHESIZER_PROVIDER` / `HIVE_WEEKLY_SYNTHESIZER_MODEL` | weekly_synthesizer (K5) | Síntese semanal (médio/forte) |
-| `HIVE_MONTHLY_SYNTHESIZER_PROVIDER` / `HIVE_MONTHLY_SYNTHESIZER_MODEL` | monthly_synthesizer (K5) | Síntese mensal (forte) |
-| `HIVE_YEARLY_SYNTHESIZER_PROVIDER` / `HIVE_YEARLY_SYNTHESIZER_MODEL` | yearly_synthesizer (K5) | Síntese anual (forte/batch) |
-| `HIVE_LIGHTRAG_PROVIDER` / `HIVE_LIGHTRAG_MODEL` | lightrag (P4) | Default `ollama/qwen2.5:3b` local |
-| `HIVE_RETRIEVAL_RERANKER` | reranker (K7, opcional) | Rerank lexical local/fail-open via LlamaIndex; off por padrão em `local-min` ([`01-architecture.md` §31.1](01-architecture.md#311-reranker-reordenação-por-relevância)) |
-| `HIVE_RERANKER_PROVIDER` / `HIVE_RERANKER_MODEL` | reranker forte (K7, opcional) | Cross-encoder local opt-in; requer `uv sync --extra reranker`; off por padrão |
-| `OLLAMA_LOCAL` | — | URL base do Ollama (`http://localhost:11434`) |
-| `OLLAMA_EMBED_MODEL` | Embeddings | Default canônico `snowflake-arctic-embed2:latest`, **1024d** (K1/K10) |
-| `VECTOR_BACKEND` | Vetores | `sqlite` por padrão; `milvus` quando a integração estiver habilitada (K1) |
-| `HIVE_ALLOW_DEFERRED_MIGRATIONS` | Migrações estruturais (K10) | `0` (fail-closed); `1` apenas para diagnóstico de DB legado |
-| `HIVE_PROMOTION_BUDGET_*` | Custo de promoção (K10) | Teto por workspace; excedente fica `archived=0` (retry) |
+| `HIVE_DREAMER_PROVIDER` / `HIVE_DREAMER_MODEL` | Dreamer (inheritance base) | Dream Cycle LLM (Knowledge Intake K3 + Distiller/Validator/Router K4) |
+| `HIVE_DREAMER_FALLBACK_PROVIDER` / `HIVE_DREAMER_FALLBACK_MODEL` | Dreamer | Opt-in fallback if primary fails |
+| `HIVE_GRAPHIFY_PROVIDER` / `HIVE_GRAPHIFY_MODEL` | Graphify | Entity extraction during indexing |
+| `HIVE_GRAPHIFY_FALLBACK_PROVIDER` / `HIVE_GRAPHIFY_FALLBACK_MODEL` | Graphify | Opt-in fallback |
+| `HIVE_VISION_PROVIDER` / `HIVE_VISION_MODEL` | Vision | Screenshot description (multimodal) |
+| `HIVE_VISION_FALLBACK_PROVIDER` / `HIVE_VISION_FALLBACK_MODEL` | Vision | Opt-in fallback |
+| `HIVE_OCR_PROVIDER` / `HIVE_OCR_MODEL` | Optional OCR | Dedicated OCR; documented default `ollama/deepseek-ocr:latest`, opt-in in installer |
+| `HIVE_SYNTHESIS_PROVIDER` / `HIVE_SYNTHESIS_MODEL` | P2P synthesis | Dialectical synthesis of conflicts |
+| `HIVE_SYNTHESIS_FALLBACK_PROVIDER` / `HIVE_SYNTHESIS_FALLBACK_MODEL` | P2P synthesis | Opt-in fallback |
+| `HIVE_CLAUDE_MEM_PROVIDER` / `HIVE_CLAUDE_MEM_MODEL` | claude_mem | `claude_mem_bridge.py` bridge (K4) — classifies `knowledge_type`; inherits from Dreamer if undefined |
+| `HIVE_SESSION_SUMMARIZER_PROVIDER` / `HIVE_SESSION_SUMMARIZER_MODEL` | session_summarizer (K5) | Session summary (small/fast) |
+| `HIVE_DAILY_WRITER_PROVIDER` / `HIVE_DAILY_WRITER_MODEL` | daily_writer (K5) | Daily synthesis (small/medium) |
+| `HIVE_WEEKLY_SYNTHESIZER_PROVIDER` / `HIVE_WEEKLY_SYNTHESIZER_MODEL` | weekly_synthesizer (K5) | Weekly synthesis (medium/strong) |
+| `HIVE_MONTHLY_SYNTHESIZER_PROVIDER` / `HIVE_MONTHLY_SYNTHESIZER_MODEL` | monthly_synthesizer (K5) | Monthly synthesis (strong) |
+| `HIVE_YEARLY_SYNTHESIZER_PROVIDER` / `HIVE_YEARLY_SYNTHESIZER_MODEL` | yearly_synthesizer (K5) | Yearly synthesis (strong/batch) |
+| `HIVE_LIGHTRAG_PROVIDER` / `HIVE_LIGHTRAG_MODEL` | lightrag (P4) | Local default `ollama/qwen2.5:3b` |
+| `HIVE_RETRIEVAL_RERANKER` | reranker (K7, optional) | Local/fail-open lexical rerank via LlamaIndex; off by default in `local-min` ([`01-architecture.md` §31.1](01-architecture.md#311-reranker-reordenação-por-relevância)) |
+| `HIVE_RERANKER_PROVIDER` / `HIVE_RERANKER_MODEL` | strong reranker (K7, optional) | Opt-in local cross-encoder; requires `uv sync --extra reranker`; off by default |
+| `OLLAMA_LOCAL` | — | Ollama base URL (`http://localhost:11434`) |
+| `OLLAMA_EMBED_MODEL` | Embeddings | Canonical default `snowflake-arctic-embed2:latest`, **1024d** (K1/K10) |
+| `VECTOR_BACKEND` | Vectors | `sqlite` by default; `milvus` when integration is enabled (K1) |
+| `HIVE_ALLOW_DEFERRED_MIGRATIONS` | Structural migrations (K10) | `0` (fail-closed); `1` for legacy DB diagnostics only |
+| `HIVE_PROMOTION_BUDGET_*` | Promotion cost (K10) | Per-workspace cap; overflow remains `archived=0` (retry) |
 
-Exemplos de valores: provider `google`, `openai`, `anthropic`, `ollama`, `deepseek`; modelo `gemini-2.0-flash`, `gpt-4o`, `claude-haiku-4-5-20251001`, `qwen2.5-coder:3b`.
-Para visão local, o default é `HIVE_VISION_PROVIDER=ollama` com
-`HIVE_VISION_MODEL=minicpm-v4.6:latest` e fallback `gemma3:4b`; o instalador
-usa `gemma3:4b` como primário apenas quando o daemon Ollama ainda não suporta
-o manifesto MiniCPM. O modelo pesado legado `llava:7b` não faz parte da pilha.
+Example values: provider `google`, `openai`, `anthropic`, `ollama`, `deepseek`; model `gemini-2.0-flash`, `gpt-4o`, `claude-haiku-4-5-20251001`, `qwen2.5-coder:3b`.
+For local vision, the default is `HIVE_VISION_PROVIDER=ollama` with
+`HIVE_VISION_MODEL=minicpm-v4.6:latest` and fallback `gemma3:4b`; the installer
+uses `gemma3:4b` as primary only when the Ollama daemon does not yet support
+the MiniCPM manifest. The legacy heavy model `llava:7b` is not part of the stack.
 
-> O modelo de **embedding é configurável**, mas o default canônico do projeto é
-> `snowflake-arctic-embed2:latest` via Ollama local, **1024 dimensões**. A tabela
-> `search_vec` e as 7 coleções canônicas (K1) — `memory_vectors`, `observation_vectors`,
+> The **embedding model is configurable**, but the canonical project default is
+> `snowflake-arctic-embed2:latest` via local Ollama, **1024 dimensions**. The
+> `search_vec` table and the 7 canonical collections (K1) — `memory_vectors`, `observation_vectors`,
 > `document_vectors`, `code_vectors`, `visual_vectors`, `graph_vectors`, `summary_vectors` —
-> esperam 1024d. Trocar para outro modelo exige manter a mesma dimensão ou executar
-> **migração versionada** (K10, [`01-architecture.md` §30.4](01-architecture.md#30-escala-e-isolamento--workspace-e-federação)):
-> re-embed online por workspace, dual-write até cutover, métrica `vectors_model_mismatch` = 0
-> dentro de uma coleção.
+> expect 1024d. Switching to another model requires keeping the same dimension or running a
+> **versioned migration** (K10, [`01-architecture.md` §30.4](01-architecture.md#30-escala-e-isolamento--workspace-e-federação)):
+> online re-embed per workspace, dual-write until cutover, metric `vectors_model_mismatch` = 0
+> within a collection.
 
-### 2.3 Vetores e Ingestão — Milvus (K1/K2) e RAGFlow (K6)
+### 2.3 Vectors and Ingestion — Milvus (K1/K2) and RAGFlow (K6)
 
-| Variável | Descrição | Padrão |
+| Variable | Description | Default |
 |----------|-----------|--------|
-| `VECTOR_BACKEND` | Backend vetorial ativo: `sqlite_vec` (local-first) ou `milvus` (produção) | `sqlite_vec` |
-| `MILVUS_URI` | Endpoint gRPC/HTTP do container Milvus | `http://localhost:19530` |
-| `MILVUS_COLLECTION_PREFIX` | Prefixo das 7 coleções canônicas dentro do Milvus | `hm_` |
-| `HIVE_KNOWLEDGE_HEALTH_MILVUS` | `1` para o K8 `knowledge_health` medir `milvus_sync_lag` real em vez de reportar `milvus_not_enabled` | `0` |
-| `RAGFLOW_BASE` | URL base do container headless RAGFlow (K6, ingestão de documentos) | `http://localhost:9380` |
-| `RAGFLOW_API_KEY` | Chave da API do RAGFlow (gerada no primeiro boot do container) | sem padrão |
+| `VECTOR_BACKEND` | Active vector backend: `sqlite_vec` (local-first) or `milvus` (production) | `sqlite_vec` |
+| `MILVUS_URI` | Milvus container gRPC/HTTP endpoint | `http://localhost:19530` |
+| `MILVUS_COLLECTION_PREFIX` | Prefix for the 7 canonical collections inside Milvus | `hm_` |
+| `HIVE_KNOWLEDGE_HEALTH_MILVUS` | `1` so K8 `knowledge_health` measures real `milvus_sync_lag` instead of reporting `milvus_not_enabled` | `0` |
+| `RAGFLOW_BASE` | Base URL for the headless RAGFlow container (K6, document ingestion) | `http://localhost:9380` |
+| `RAGFLOW_API_KEY` | RAGFlow API key (generated at container first boot) | no default |
 
-> Ambos os serviços rodam como containers Docker (`docker compose` em
-> `integrations/ragflow/docker-compose.yml` e equivalente para Milvus) e são
-> **opcionais**: sem `VECTOR_BACKEND=milvus`, o sistema usa `sqlite_vec` local
-> e o K8 `knowledge_health` reporta `milvus_sync_lag.available=false` com
-> `reason=milvus_not_enabled` (comportamento esperado, não é uma falha).
-> `scripts/setup/components.py` recusa clonar `milvus`/`ragflow` como
-> componente pinado em `components.lock.json` (ADR-018) — ambos só entram
-> como container/wrapper via `integrations/`.
+> Both services run as Docker containers (`docker compose` in
+> `integrations/ragflow/docker-compose.yml` and equivalent for Milvus) and are
+> **optional**: without `VECTOR_BACKEND=milvus`, the system uses local `sqlite_vec`
+> and K8 `knowledge_health` reports `milvus_sync_lag.available=false` with
+> `reason=milvus_not_enabled` (expected behavior, not a failure).
+> `scripts/setup/components.py` refuses to clone `milvus`/`ragflow` as
+> pinned components in `components.lock.json` (ADR-018) — both are only included
+> as container/wrapper via `integrations/`.
 
-### 2.4 API Keys por Provider
+### 2.4 API Keys by Provider
 
-| Variável | Provider |
+| Variable | Provider |
 |----------|---------|
 | `GOOGLE_API_KEY` | Google AI Studio (Gemini) |
 | `GOOGLE_OAUTH_CLIENT_ID` | Google OAuth Device Flow |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth Device Flow (**⚠️ rotacionar se comprometido**) |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth Device Flow (**⚠️ rotate if compromised**) |
 | `OPENAI_API_KEY` | OpenAI / OpenRouter-compatible |
 | `ANTHROPIC_API_KEY` | Anthropic |
 | `DEEPSEEK_API_KEY` | DeepSeek |
@@ -136,53 +136,53 @@ o manifesto MiniCPM. O modelo pesado legado `llava:7b` não faz parte da pilha.
 
 ---
 
-## 3. Serviços e Portas
+## 3. Services and Ports
 
-| Serviço | Porta | Protocolo | Acesso | Processo | Fase |
+| Service | Port | Protocol | Access | Process | Phase |
 |---------|-------|-----------|--------|----------|------|
 | REST API (FastAPI) | 37702 | HTTP REST | localhost (VPS: Bearer token) | `scripts/services/sinapse-api.py` | base + HM-12 |
 | REST API — knowledge health | 37702 (`/api/v1/knowledge/health`) | HTTP REST | localhost (VPS: Bearer token) | `scripts/health/knowledge_health.py` | K8 |
-| claude-mem Worker | 37700 | HTTP REST | localhost only | upstream worker com dados em `~/.claude-mem` | base + K4 |
+| claude-mem Worker | 37700 | HTTP REST | localhost only | upstream worker with data in `~/.claude-mem` | base + K4 |
 | Ollama | 11434 | HTTP REST | localhost | `ollama serve` | base |
-| MCP Server (sinapse-mcp) | stdio | JSON-RPC | processo do agente | `scripts/services/sinapse-mcp.py` | base |
+| MCP Server (sinapse-mcp) | stdio | JSON-RPC | agent process | `scripts/services/sinapse-mcp.py` | base |
 | Syncthing UI | 8384 | HTTP | localhost | `syncthing` | base |
-| Milvus (K1, opcional) | 19530 (gRPC) + 9091 (HTTP) | gRPC/HTTP | localhost ou VPS | container pinado por digest | K1 |
-| RAGFlow (K6, opcional) | 9380 (HTTP) | HTTP | localhost ou VPS | container headless + `ragflow-sdk` | K6 |
+| Milvus (K1, optional) | 19530 (gRPC) + 9091 (HTTP) | gRPC/HTTP | localhost or VPS | container pinned by digest | K1 |
+| RAGFlow (K6, optional) | 9380 (HTTP) | HTTP | localhost or VPS | headless container + `ragflow-sdk` | K6 |
 | FalkorDB (Graphiti) | 6379 | Redis | localhost | container | base + K10 |
-| LightRAG/P4 | local (`claude-mem/data/lightrag/`) | arquivos | local | `core/lightrag_index.py` | P4 |
+| LightRAG/P4 | local (`claude-mem/data/lightrag/`) | files | local | `core/lightrag_index.py` | P4 |
 
-Nenhuma porta é exposta externamente por padrão. Para deploy em VPS:
+No ports are externally exposed by default. For VPS deployment:
 
-- A REST API (:37702) é exposta atrás de nginx/Caddy com TLS.
-- **Milvus** (K1) e **RAGFlow** (K6) rodam como containers em rede interna; só `pymilvus` e `ragflow-sdk` saem para rede externa (configurável). Detalhes em [`01-architecture.md` §2.6](01-architecture.md#26-ferramentas-externas-como-órgãos-do-cérebro).
-- A federated REST (`/api/v1/neurons/export`) é o único endpoint cross-machine exposto.
+- The REST API (:37702) is exposed behind nginx/Caddy with TLS.
+- **Milvus** (K1) and **RAGFlow** (K6) run as containers on an internal network; only `pymilvus` and `ragflow-sdk` go to external network (configurable). Details in [`01-architecture.md` §2.6](01-architecture.md#26-ferramentas-externas-como-órgãos-do-cérebro).
+- Federated REST (`/api/v1/neurons/export`) is the only exposed cross-machine endpoint.
 
 ---
 
-## 4. Serviços em Background
+## 4. Background Services
 
 ### 4.1 Real-time Watcher
 
 ```bash
-# Iniciar watcher em background
+# Start watcher in background
 ./scripts/services/start-watcher.sh &
 
-# Verificar se está rodando
+# Check if it is running
 pgrep -f "start-watcher" && echo "OK"
 
-# Parar
+# Stop
 pkill -f "start-watcher"
 ```
 
-O Watcher usa `watchdog` para monitorar `cerebro/`. Ao detectar mudança em `.md`:
-1. Enfileira evento (debounce 500ms para evitar reindex duplo)
-2. Chama Graphify para reindexar o arquivo
-3. Atualiza `neurons`, `synapses`, `search_fts`, `search_vec`
+The Watcher uses `watchdog` to monitor `cerebro/`. When it detects a `.md` change:
+1. Queues the event (500ms debounce to avoid double reindex)
+2. Calls Graphify to reindex the file
+3. Updates `neurons`, `synapses`, `search_fts`, `search_vec`
 
-### 4.2 claude-mem (Tracking Temporal)
+### 4.2 claude-mem (Temporal Tracking)
 
 ```bash
-# O runtime oficial é global e multi-projeto.
+# The official runtime is global and multi-project.
 systemctl --user restart sinapse-claude-mem.service
 sqlite3 ~/.claude-mem/claude-mem.db 'PRAGMA quick_check;'
 ```
@@ -190,8 +190,8 @@ sqlite3 ~/.claude-mem/claude-mem.db 'PRAGMA quick_check;'
 ### 4.3 Syncthing P2P
 
 ```bash
-syncthing &       # inicia daemon
-# UI em: http://localhost:8384
+syncthing &       # starts daemon
+# UI at: http://localhost:8384
 ```
 
 ---
@@ -199,81 +199,81 @@ syncthing &       # inicia daemon
 ## 5. Cron Jobs
 
 ```cron
-# Rebuild estrutural do grafo a cada 6h
+# Structural graph rebuild every 6h
 0 */6 * * * cd $SINAPSE_HOME && ./scripts/graph/build-graph.sh >> logs/sync.log 2>&1
 
-# Auditoria P2P dos neurônios temporais + validação search_vec (a cada hora)
+# P2P audit of temporal neurons + search_vec validation (hourly)
 0 * * * * cd $SINAPSE_HOME && .venv/bin/python scripts/health/audit_memory.py --fix >> logs/audit.log 2>&1
 
-# Backup consistente dos bancos SQLite críticos (diário às 3am)
+# Consistent backup of critical SQLite databases (daily at 3am)
 0 3 * * * cd $SINAPSE_HOME && .venv/bin/python scripts/health/backup_databases.py >> logs/backup.log 2>&1
 
-# Dream Cycle e cadência K5
+# Dream Cycle and K5 cadence
 0 2 * * * cd $SINAPSE_HOME && .venv/bin/python scripts/dream/dream_cycle.py --once --real >> logs/dream-cycle.log 2>&1
 15 3 1 * * cd $SINAPSE_HOME && .venv/bin/python scripts/dream/monthly_synthesizer.py --real >> logs/monthly-synthesizer.log 2>&1
 30 3 1 1 * cd $SINAPSE_HOME && .venv/bin/python scripts/dream/yearly_synthesizer.py --real >> logs/yearly-synthesizer.log 2>&1
 
-# Sync Milvus de summary_vectors apenas quando VECTOR_BACKEND=milvus
+# Sync summary_vectors to Milvus only when VECTOR_BACKEND=milvus
 45 3 * * * cd $SINAPSE_HOME && if [ "${VECTOR_BACKEND:-sqlite}" = "milvus" ]; then .venv/bin/python scripts/maintenance/vector-sync.py --collection summary_vectors --json >> logs/vector-sync.log 2>&1; fi
 ```
 
-O `install.sh` instala esse bloco de forma idempotente quando `crontab` está
-disponível. Em ambiente sem cron, os mesmos comandos devem ser executados pelo
-orquestrador do host.
+`install.sh` installs this block idempotently when `crontab` is
+available. In environments without cron, the same commands must be run by the
+host orchestrator.
 
-`audit_memory.py --fix` audita apenas neurônios reais do córtex temporal.
-Arquivos gerados com `type: moc` são artefatos de navegação e ficam fora do
-índice de neurônios; se uma versão antiga os indexou, o fix remove essas linhas
-legadas e seus vetores.
+`audit_memory.py --fix` audits only real neurons from the temporal cortex.
+Files generated with `type: moc` are navigation artifacts and remain out of the
+neuron index; if an old version indexed them, the fix removes those legacy rows
+and their vectors.
 
 ---
 
-## 6. Estrutura de Diretórios
+## 6. Directory Structure
 
 ```
   Hive-Mind/
-  ├── cerebro/                                Vault Obsidian (fonte única de verdade)
-  │   ├── atlas/                              Fatos consolidados pelo Dream Cycle
+  ├── cerebro/                                Obsidian vault (single source of truth)
+  │   ├── atlas/                              Facts consolidated by Dream Cycle
   │   ├── brain/
-  │   │   ├── Current State.md               Estado atual (atualizado no Stop hook)
-  │   │   └── Patterns.md                     Aprendizados acumulados
+  │   │   ├── Current State.md               Current state (updated in Stop hook)
+  │   │   └── Patterns.md                     Accumulated learnings
   │   ├── work/
-  │   │   └── active/                         Decisões ativas (YYYY-MM-DD-slug.md)
+  │   │   └── active/                         Active decisions (YYYY-MM-DD-slug.md)
   │   ├── inbox/
-  │   │   ├── visual/                         Screenshots capturados
-  │   │   └── documents/                      PDFs e DOCXs (pais de document_chunks K6)
-  │   ├── conflicts/                          Conflitos P2P resolvidos (histórico)
-  │   ├── graphify-out/                       Saída do Graphify (graph.json, report)
+  │   │   ├── visual/                         Captured screenshots
+  │   │   └── documents/                      PDFs and DOCXs (parents of document_chunks K6)
+  │   ├── conflicts/                          Resolved P2P conflicts (history)
+  │   ├── graphify-out/                       Graphify output (graph.json, report)
   │   ├── .claude/
-  │   │   └── settings.json                   Hooks Claude Code (SessionStart, PostToolUse, Stop)
+  │   │   └── settings.json                   Claude Code hooks (SessionStart, PostToolUse, Stop)
   │   └── .codex/
-  │       └── hooks.json                      Hooks Codex CLI
+  │       └── hooks.json                      Codex CLI hooks
   ├── core/
-  │   ├── umc_schema.sql                      DDL completo do banco
-  │   ├── database.py                         Pool de conexões (WAL, busy_timeout=5000)
-  │   ├── auth.py                             Auth de provedores LLM (papéis canônicos)
+  │   ├── umc_schema.sql                      Full database DDL
+  │   ├── database.py                         Connection pool (WAL, busy_timeout=5000)
+  │   ├── auth.py                             LLM provider auth (canonical roles)
   │   ├── llm_client.py                       call_llm_structured + classify_llm_error + retry/fallback
-  │   ├── vector_backend.py                   Contrato único (sqlite_vec / milvus) — K1
-  │   ├── paths.py                            Constantes canônicas de path (§2.7)
-  │   ├── hnsw_index.py                       Índice HNSW vetorial incremental — HM-11
-  │   ├── signing.py                          Ed25519 sign/verify neuron — HM-12
-  │   ├── redactor.py                         PII redaction regex, 8 categorias — HM-12
-  │   ├── retrieval/router.py                 RetrievalRouter (K7) — classifica intent, escolhe rota
-  │   ├── knowledge/                          (frente K0–K10)
+  │   ├── vector_backend.py                   Single contract (sqlite_vec / milvus) — K1
+  │   ├── paths.py                            Canonical path constants (§2.7)
+  │   ├── hnsw_index.py                       Incremental vector HNSW index — HM-11
+  │   ├── signing.py                          Ed25519 neuron sign/verify — HM-12
+  │   ├── redactor.py                         PII regex redaction, 8 categories — HM-12
+  │   ├── retrieval/router.py                 RetrievalRouter (K7) — classifies intent, chooses route
+  │   ├── knowledge/                          (K0–K10 front)
   │   │   ├── intake.py                       Knowledge Intake (K3)
   │   │   ├── promotion.py                    Promotion Layer (K4)
-  │   │   ├── claude_mem_bridge.py            Bridge SQL read-only do claude-mem (K4)
+  │   │   ├── claude_mem_bridge.py            Read-only claude-mem SQL bridge (K4)
   │   │   ├── document_pipeline.py            DocumentPipeline (K6) — parent/chunk/citation
-  │   │   ├── vector_sync.py                  Indexação de cadência e docs (K1/K5/K6)
-  │   │   ├── topic_consolidator.py           Consolidação de tópicos no temporal (K3)
-  │   │   ├── alias_miner.py                  Mineração de aliases (slugs)
-  │   │   ├── sector_classifier.py            Setor cross-projeto (Diencéfalo)
-  │   │   ├── generate_mocs.py                Geração de MOCs
-  │   │   ├── ambiguities.py                  Síntese dialética (Ínsula)
+  │   │   ├── vector_sync.py                  Cadence and docs indexing (K1/K5/K6)
+  │   │   ├── topic_consolidator.py           Topic consolidation in temporal lobe (K3)
+  │   │   ├── alias_miner.py                  Alias mining (slugs)
+  │   │   ├── sector_classifier.py            Cross-project sector (Diencephalon)
+  │   │   ├── generate_mocs.py                MOC generation
+  │   │   ├── ambiguities.py                  Dialectical synthesis (Insula)
   │   │   └── ...
-  │   ├── search.py                           route_retrieval() — adaptador interno do router (K7)
-  │   ├── lightrag_index.py                   P4 — entidades + relações
-  │   └── schemas/                            Modelos Pydantic (Dream Cycle, cadência, K3/K4)
+  │   ├── search.py                           route_retrieval() — internal router adapter (K7)
+  │   ├── lightrag_index.py                   P4 — entities + relations
+  │   └── schemas/                            Pydantic models (Dream Cycle, cadence, K3/K4)
   ├── integrations/                           Born-Large vendors (K0–K10)
   │   ├── graphify/                           Clone (components.lock.json)
   │   ├── neural-memory/                      Clone (components.lock.json)
@@ -282,122 +282,122 @@ legadas e seus vetores.
   │   ├── ragflow/                            Wrapper (ragflow-sdk headless, K6)
   │   └── graphiti/                           Wrapper (FalkorDB + docker-compose)
   ├── scripts/
-  │   ├── dream/                              Consolidação offline
-  │   │   ├── dream_cycle.py                  Pipeline principal
-  │   │   ├── session_consolidator.py         Resumo de sessão (K5)
-  │   │   ├── daily_writer.py                 Diário (K5)
-  │   │   ├── weekly_synthesizer.py           Semanal (K5)
-  │   │   ├── monthly_synthesizer.py          Mensal (K5)
-  │   │   ├── yearly_synthesizer.py           Anual (K5)
+  │   ├── dream/                              Offline consolidation
+  │   │   ├── dream_cycle.py                  Main pipeline
+  │   │   ├── session_consolidator.py         Session summary (K5)
+  │   │   ├── daily_writer.py                 Daily (K5)
+  │   │   ├── weekly_synthesizer.py           Weekly (K5)
+  │   │   ├── monthly_synthesizer.py          Monthly (K5)
+  │   │   ├── yearly_synthesizer.py           Yearly (K5)
   │   │   ├── pattern_distiller.py            Patterns (cerebelo/padroes/)
-  │   │   └── semantic_diff.py                Classificação de conflitos (vetorial + LLM)
+  │   │   └── semantic_diff.py                Conflict classification (vector + LLM)
   │   ├── knowledge/
-  │   │   ├── document_ingest.py              Ingestão PDF/DOCX via DocumentPipeline
+  │   │   ├── document_ingest.py              PDF/DOCX ingestion via DocumentPipeline
   │   │   └── ...
   │   ├── services/                           sinapse-mcp, sinapse-api, sinapse-write, start-watcher
   │   ├── health/
-  │   │   ├── audit_memory.py                 Auditoria P2P (hash check + reindex)
-  │   │   ├── health_dashboard.py             Health da Ínsula (operacional)
-  │   │   ├── alert_dispatcher.py             Alertas da Ínsula
-  │   │   ├── review_writer.py                Revisão → saude/
-  │   │   └── knowledge_health.py             Métricas K8 (gate knowledge)
+  │   │   ├── audit_memory.py                 P2P audit (hash check + reindex)
+  │   │   ├── health_dashboard.py             Insula health (operational)
+  │   │   ├── alert_dispatcher.py             Insula alerts
+  │   │   ├── review_writer.py                Review → saude/
+  │   │   └── knowledge_health.py             K8 metrics (knowledge gate)
   │   ├── capture/visual_capture.py           Screenshots → visual_memories
-  │   ├── analytics/planner.py                Decomposição de objetivos — LLM + goals table
-  │   ├── setup/setup-brain.py                UI de configuração do Hive-Dreamer
-  │   ├── setup/setup-brain.sh                Wrapper shell
-  │   ├── services/start-watcher.sh           Inicia Watcher em background
-  │   └── utils/recover.sh                    Disaster recovery (rebuild do UMC)
+  │   ├── analytics/planner.py                Goal decomposition — LLM + goals table
+  │   ├── setup/setup-brain.py                Hive-Dreamer configuration UI
+  │   ├── setup/setup-brain.sh                Shell wrapper
+  │   ├── services/start-watcher.sh           Starts Watcher in background
+  │   └── utils/recover.sh                    Disaster recovery (UMC rebuild)
   ├── plugins/
   │   └── hermes/
-  │       └── sinapse-memory.py               Plugin nativo para Hermes Agent
+  │       └── sinapse-memory.py               Native plugin for Hermes Agent
   ├── tests/
   │   ├── smoke/                              Smoke tests
-  │   ├── unit/                               Unit (mocks; sem LLM)
-  │   ├── integration/                        Integration (backends reais)
-  │   ├── e2e/                                E2E (sessão completa)
-  │   ├── test_synthesis.py                   Síntese com LLM real
-  │   ├── real/                               Harness real de aceite (K9) — service_registry
-  │   ├── run_all.sh                          Orquestrador da suíte completa
-  │   └── README.md                           Convenção da suíte
-  ├── docs/                                  Esta documentação
-  ├── components.lock.json                    Contrato negativo de vendorização (ADR-018)
+  │   ├── unit/                               Unit (mocks; no LLM)
+  │   ├── integration/                        Integration (real backends)
+  │   ├── e2e/                                E2E (full session)
+  │   ├── test_synthesis.py                   Synthesis with real LLM
+  │   ├── real/                               Real acceptance harness (K9) — service_registry
+  │   ├── run_all.sh                          Full suite orchestrator
+  │   └── README.md                           Suite conventions
+  ├── docs/                                  This documentation
+  ├── components.lock.json                    Negative vendoring contract (ADR-018)
   ├── hive_mind.db                           Unified Memory Core (SQLite + sqlite-vec) — v3: causal_edges, goals, visibility, workspace_id, source_id
-  ├── claude-mem/data/lightrag/              Grafo de conhecimento LightRAG (P4) — entidades/relacionamentos/vdb
-  │   ├── graph.npz                          NetworkX pickle (entidades + arestas)
-  │   ├── vdb_chunks.json                    Embeddings de chunks de texto (snowflake-arctic-embed2 1024d)
-  │   ├── vdb_entities.json                  Embeddings de entidades extraídas (snowflake-arctic-embed2 1024d)
-  │   └── vdb_relationships.json             Embeddings de relações extraídas (snowflake-arctic-embed2 1024d)
-  ├── sinapse.yaml                           Configuração central
-  ├── .env                                   Segredos locais (gitignored)
-  ├── .env.example                           Template de variáveis (commitado)
-  ├── requirements.txt                       Dependências Python (inclui pymilvus e llama-index opt-in)
-  └── install.sh                             Instalador (10 etapas)
+  ├── claude-mem/data/lightrag/              LightRAG knowledge graph (P4) — entities/relationships/vdb
+  │   ├── graph.npz                          NetworkX pickle (entities + edges)
+  │   ├── vdb_chunks.json                    Text chunk embeddings (snowflake-arctic-embed2 1024d)
+  │   ├── vdb_entities.json                  Extracted entity embeddings (snowflake-arctic-embed2 1024d)
+  │   └── vdb_relationships.json             Extracted relationship embeddings (snowflake-arctic-embed2 1024d)
+  ├── sinapse.yaml                           Central configuration
+  ├── .env                                   Local secrets (gitignored)
+  ├── .env.example                           Variable template (committed)
+  ├── requirements.txt                       Python dependencies (includes pymilvus and opt-in llama-index)
+  └── install.sh                             Installer (10 steps)
 ```
 
-### 6.1 Schema UMC — Tabelas e Colunas Notáveis (v3.0.0 + K0–K10)
+### 6.1 UMC Schema — Notable Tables and Columns (v3.0.0 + K0–K10)
 
-| Tabela / Coluna | Tipo | Adicionado | Descrição |
+| Table / Column | Type | Added | Description |
 |----------------|------|-----------|-----------|
-| `causal_edges` | tabela | HM-12 | Grafo causal entre neurônios (source_id, target_id, weight, relation_type) |
-| `goals` | tabela | HM-12 | Objetivos decompostos pelo Planner (id, description, status, parent_id) |
-| `neurons.visibility` | coluna | HM-12 | Visibilidade do neurônio: `private`, `shared`, `public` |
-| `neurons.workspace_id` | coluna | K10 | Fronteira de isolamento; default `'default'` (K10) |
-| `observations.workspace_id` | coluna | K10 | Mesmo isolamento; bridge `claude_mem_bridge.py` preserva |
-| `observations.source_id` | coluna | K4 | `claude-mem:<table>:<id>` para rastreio de origem |
-| `observations.neuron_id` | coluna | K4 | FK para `neurons.id` quando promovido |
-| `observations.promoted` | coluna | K3/K4 | `0` pendente / `1` consolidado / `2` quarentena estrutural |
-| `synapses.workspace_id`, `goals.workspace_id`, `causal_edges.workspace_id` | coluna | K10 | Mesma fronteira; `(workspace_id, ...)` nos índices quentes |
-| `document_memories` | tabela | K6 | Pais de documento (`document_id`, `source_uri`, `file_hash`, `project`, `workspace_id`) |
-| `document_chunks` | tabela | K6 | Átomos de documento (`parent_id`, `parent_type=document`, `chunk_index`, offsets, hash, `workspace_id`) |
-| `document_vectors` | coleção | K1/K6 | Vetores de chunks (1024d) com metadata canônica (K1) |
-| `vector_metadata` | tabela | K1 | Metadata canônica (`parent_id`, `brain_lobe`, `knowledge_type`, `source_uri`, `valid_at`, `workspace_id`) para coleções UMC |
-| `summary_vectors` | coleção | K1/K5 | Vetores de cadência (sessão→anual) com metadata canônica |
-| `knowledge_tombstones` | tabela | K8 | Tombstones auditáveis de `forget()` (motivo, actor, target, `workspace_id`) |
-| `query_route_log` | tabela | K7 | Hash da query × rota (telemetria `query_route_distribution`) |
+| `causal_edges` | table | HM-12 | Causal graph between neurons (source_id, target_id, weight, relation_type) |
+| `goals` | table | HM-12 | Goals decomposed by Planner (id, description, status, parent_id) |
+| `neurons.visibility` | column | HM-12 | Neuron visibility: `private`, `shared`, `public` |
+| `neurons.workspace_id` | column | K10 | Isolation boundary; default `'default'` (K10) |
+| `observations.workspace_id` | column | K10 | Same isolation; `claude_mem_bridge.py` preserves it |
+| `observations.source_id` | column | K4 | `claude-mem:<table>:<id>` for source traceability |
+| `observations.neuron_id` | column | K4 | FK to `neurons.id` when promoted |
+| `observations.promoted` | column | K3/K4 | `0` pending / `1` consolidated / `2` structural quarantine |
+| `synapses.workspace_id`, `goals.workspace_id`, `causal_edges.workspace_id` | column | K10 | Same boundary; `(workspace_id, ...)` on hot indexes |
+| `document_memories` | table | K6 | Document parents (`document_id`, `source_uri`, `file_hash`, `project`, `workspace_id`) |
+| `document_chunks` | table | K6 | Document atoms (`parent_id`, `parent_type=document`, `chunk_index`, offsets, hash, `workspace_id`) |
+| `document_vectors` | collection | K1/K6 | Chunk vectors (1024d) with canonical metadata (K1) |
+| `vector_metadata` | table | K1 | Canonical metadata (`parent_id`, `brain_lobe`, `knowledge_type`, `source_uri`, `valid_at`, `workspace_id`) for UMC collections |
+| `summary_vectors` | collection | K1/K5 | Cadence vectors (session→annual) with canonical metadata |
+| `knowledge_tombstones` | table | K8 | Auditable tombstones from `forget()` (reason, actor, target, `workspace_id`) |
+| `query_route_log` | table | K7 | Query hash × route (`query_route_distribution` telemetry) |
 
-> **Born-Large (K10):** toda query do `RetrievalRouter` e da promoção filtra por `workspace_id`. Milvus usa `partition_key=workspace_id` para isolamento por partição. Vazamento cross-workspace é bug de segurança, não de ranking. Migrações que criam essa fronteira são estruturais: falha de migração é fail-closed por padrão. O único bypass é `HIVE_ALLOW_DEFERRED_MIGRATIONS=1` (diagnóstico de DB legado, com log visível e sem marcar a instalação como saudável).
+> **Born-Large (K10):** every `RetrievalRouter` and promotion query filters by `workspace_id`. Milvus uses `partition_key=workspace_id` for partition-level isolation. Cross-workspace leakage is a security bug, not a ranking issue. Migrations that create this boundary are structural: migration failure is fail-closed by default. The only bypass is `HIVE_ALLOW_DEFERRED_MIGRATIONS=1` (legacy DB diagnostics, with visible logging and without marking the installation as healthy).
 
 ---
 
-## 7. Segurança
+## 7. Security
 
-### 7.1 Princípios
+### 7.1 Principles
 
-1. **Fail-closed**: REST API não inicia sem `HIVE_MIND_API_KEY`
-2. **API keys no `.env`**: nunca commitadas (`.gitignore` cobre `.env` e `*.db`)
-3. **Tokens em tempo constante**: comparação `hmac.compare_digest` em vez de `==`
-4. **Vault de segredos**: segredos detectados nos conteúdos são cifrados com Fernet e substituídos por `[SECRET:uuid]`
-5. **Atomic writes**: `os.replace()` previne corrupção de arquivos em falhas
+1. **Fail-closed**: REST API does not start without `HIVE_MIND_API_KEY`
+2. **API keys in `.env`**: never committed (`.gitignore` covers `.env` and `*.db`)
+3. **Constant-time tokens**: `hmac.compare_digest` comparison instead of `==`
+4. **Secret vault**: secrets detected in content are encrypted with Fernet and replaced by `[SECRET:uuid]`
+5. **Atomic writes**: `os.replace()` prevents file corruption on failures
 
-### 7.2 Superfície de Ataque
+### 7.2 Attack Surface
 
-| Vetor | Risco | Mitigação |
+| Vector | Risk | Mitigation |
 |-------|-------|-----------|
-| REST API (:37702) | Token forjado | `hmac.compare_digest` — timing-safe |
-| claude-mem Worker (:37700) | Acesso local não autorizado | Bind em `127.0.0.1` only |
-| Path traversal (escrita vault) | Arquivo fora de `cerebro/` | `_sanitize_slug()` remove `/` e `..` |
-| Injeção de secrets (MCP input) | API key em query | Regex scan → Fernet → vault table |
-| Google OAuth client_secret | Comprometido se hardcoded | Apenas via `.env` (`_env("GOOGLE_OAUTH_CLIENT_SECRET")`) |
+| REST API (:37702) | Forged token | `hmac.compare_digest` — timing-safe |
+| claude-mem Worker (:37700) | Unauthorized local access | Bind to `127.0.0.1` only |
+| Path traversal (vault write) | File outside `cerebro/` | `_sanitize_slug()` removes `/` and `..` |
+| Secret injection (MCP input) | API key in query | Regex scan → Fernet → vault table |
+| Google OAuth client_secret | Compromised if hardcoded | Only via `.env` (`_env("GOOGLE_OAUTH_CLIENT_SECRET")`) |
 
-### 7.3 Arquivos Sensíveis
+### 7.3 Sensitive Files
 
-| Arquivo/Diretório | Conteúdo | Proteção |
+| File/Directory | Content | Protection |
 |-------------------|----------|----------|
 | `.env` | API keys, tokens, OAuth secrets | `.gitignore`, chmod 600 |
-| `hive_mind.db` | Toda a memória (inclui vault table) | `.gitignore` |
-| `~/.claude-mem/` | Observações globais com timestamps | permissões locais + backup controlado |
-| `claude-mem/data/lightrag/` | Grafo de conhecimento + embeddings (P4) | `.gitignore` (regenerável via Dream Cycle) |
-| `backups/` | Backups do UMC | `.gitignore` |
+| `hive_mind.db` | Entire memory (includes vault table) | `.gitignore` |
+| `~/.claude-mem/` | Global timestamped observations | local permissions + controlled backup |
+| `claude-mem/data/lightrag/` | Knowledge graph + embeddings (P4) | `.gitignore` (regenerable via Dream Cycle) |
+| `backups/` | UMC backups | `.gitignore` |
 
 ---
 
-## 8. Deploy
+## 8. Deployment
 
-### 8.1 Local (desenvolvimento)
+### 8.1 Local (development)
 
 ```
   ┌─────────────────────────────────────────────┐
-  │                 Máquina Local                 │
+  │                 Local Machine                 │
   │                                               │
   │  ┌──────────────────────────────────────┐    │
   │  │          hive_mind.db (UMC)          │    │
@@ -409,20 +409,20 @@ legadas e seus vetores.
   │                                               │
   │  ┌──────────────────────────────────────┐    │
   │  │  claude-mem/data/lightrag/ (P4)      │    │
-  │  │   grafo + vdb entidades/rels/chunks  │    │
-  │  │   alimentado pelo Dream Cycle         │    │
+  │  │   graph + entities/rels/chunks vdb   │    │
+  │  │   fed by Dream Cycle                 │    │
   │  └──────────────────────────────────────┘    │
   │       ▲                                       │
-  │  Dream Cycle Estágio 3.5 (best-effort)        │
+  │  Dream Cycle Stage 3.5 (best-effort)         │
   │                                               │
   │  ┌──────────────┐   ┌──────────────────────┐ │
-  │  │  Obsidian    │   │  Agentes de IA        │ │
+  │  │  Obsidian    │   │  AI Agents            │ │
   │  │  (cerebro/)  │   │  MCP / Hooks / Plugin │ │
   │  └──────────────┘   └──────────────────────┘ │
   └─────────────────────────────────────────────┘
               │ Syncthing P2P
               ▼
-        Outros dispositivos
+        Other devices
 ```
 
 ### 8.2 VPS / Cloud
@@ -433,25 +433,25 @@ legadas e seus vetores.
   │                                               │
   │  nginx/Caddy (TLS) → sinapse-api (:37702)    │
   │  systemd: watcher + claude-mem + api          │
-  │  Ollama (:11434) — modelos locais             │
-  │  Syncthing — recebe vault de outras máquinas  │
+  │  Ollama (:11434) — local models               │
+  │  Syncthing — receives vault from other machines│
   └─────────────────────────────────────────────┘
               │
               │ HTTPS (Bearer token)
               ▼
   ┌──────────────────┐   ┌──────────────────┐
-  │ Máquina local 1  │   │ Máquina local 2  │
+  │ Local machine 1  │   │ Local machine 2  │
   │ (cloud.enabled)  │   │ (cloud.enabled)  │
   └──────────────────┘   └──────────────────┘
 ```
 
-### 8.3 O que o Hive-Mind FAZ e NÃO FAZ
+### 8.3 What Hive-Mind DOES and DOES NOT DO
 
-| FAZ | NÃO FAZ |
+| DOES | DOES NOT DO |
 |-----|---------|
-| Indexa vault Obsidian em UMC queryable | Não substitui o Obsidian como editor |
-| Injeta contexto automaticamente nos agentes | Não é um agente de IA |
-| Consolida memória offline via Dream Cycle | Não treina modelos próprios |
-| Sincroniza vault entre máquinas via Syncthing | Não é um banco de dados distribuído |
-| Resolve conflitos P2P via Síntese Dialética | Não faz busca na internet |
-| Processa imagens e documentos (Phase 10) | Não gerencia autenticação de usuários |
+| Indexes Obsidian vault into queryable UMC | Does not replace Obsidian as an editor |
+| Automatically injects context into agents | Is not an AI agent |
+| Consolidates memory offline via Dream Cycle | Does not train its own models |
+| Syncs vault across machines via Syncthing | Is not a distributed database |
+| Resolves P2P conflicts via Dialectical Synthesis | Does not search the internet |
+| Processes images and documents (Phase 10) | Does not manage user authentication |

@@ -1,92 +1,92 @@
-# 03 — Pipeline de Dados
+# 03 — Data Pipeline
 
-> **Hive-Mind v3.0.0** — Fluxo completo: coleta → indexação em tempo real → Dream Cycle → consulta → Deep Reflection → Federated Export. **Revisão 2026-06-30:** consolidação da frente de Conhecimento Born-Large (K0–K10) com Knowledge Intake (K3), Promotion Layer (K4), cadência hierárquica (K5), `DocumentPipeline` (K6), `RetrievalRouter` (K7), métricas K8 e contratos de workspace (K10). Referência normativa em [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md); arquitetura destilada em [`01-architecture.md` §22–§31](01-architecture.md#22-arquitetura-de-conhecimento-born-large).
+> **Hive-Mind v3.0.0** — Full flow: collection → real-time indexing → Dream Cycle → query → Deep Reflection → Federated Export. **Review 2026-06-30:** consolidation of the Born-Large Knowledge front (K0–K10) with Knowledge Intake (K3), Promotion Layer (K4), hierarchical cadence (K5), `DocumentPipeline` (K6), `RetrievalRouter` (K7), K8 metrics, and workspace contracts (K10). Normative reference in [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md); distilled architecture in [`01-architecture.md` §22–§31](01-architecture.md#22-arquitetura-de-conhecimento-born-large).
 
 ---
 
-## 1. Visão Geral
+## 1. Overview
 
-O pipeline v3.0.0 tem **três fluxos** paralelos — tempo real (write→read), offline (Dream Cycle), e **documental** (DocumentPipeline) — além de três camadas adicionais (HM-11, HM-12 e a frente K0–K10):
+The v3.0.0 pipeline has **three** parallel flows — real-time (write→read), offline (Dream Cycle), and **documental** (`DocumentPipeline`) — plus three additional layers (HM-11, HM-12, and the K0–K10 front):
 
 ```text
   ┌────────────────────────────────────────────────────────────────────────┐
-  │                         FLUXO TEMPO REAL                              │
+  │                         REAL-TIME FLOW                                │
   │                                                                        │
-  │  Agente / Humano                                                       │
+  │  Agent / Human                                                         │
   │       │                                                                │
   │       ▼                                                                │
-  │  [ COLETA ]──── escrita atômica ──→ vault (cerebro/*.md)              │
+  │  [ COLLECTION ]──── atomic write ──→ vault (cerebro/*.md)              │
   │       │                                   │                           │
   │       │                     Watcher ~2s   │                           │
   │       │                                   ▼                           │
-  │       │              [ INDEXAÇÃO REAL-TIME ] → hive_mind.db           │
+  │       │              [ REAL-TIME INDEXING ] → hive_mind.db            │
   │       │               neurons + synapses + FTS5 + sqlite-vec 1024d     │
   │       │                           │                                   │
   │       │                           ├──→ HNSW Index (hnsw_neurons.idx)  │
   │       │                           │    (incremental, 1024d)            │
   │       │                           │                                   │
-  │       │                           ├──→ causal_edges (grafo causa→     │
-  │       │                           │    efeito entre neurons)          │
+  │       │                           ├──→ causal_edges (cause→effect     │
+  │       │                           │    graph between neurons)         │
   │       │                           │                                   │
   │       │                           └──→ goals (planner via             │
   │       │                                sinapse_plan_goal)             │
   │       │                                observations.goal_id / why     │
   │       │                                                                │
   │       ▼                                                                │
-  │  [ CONSULTA ] ← RetrievalRouter (K7) → sinapse_query (Context Fusion) │
+  │  [ QUERY ] ← RetrievalRouter (K7) → sinapse_query (Context Fusion)    │
   └────────────────────────────────────────────────────────────────────────┘
 
   ┌────────────────────────────────────────────────────────────────────────┐
-  │                       FLUXO OFFLINE (Dream Cycle)                      │
+  │                       OFFLINE FLOW (Dream Cycle)                       │
   │                                                                        │
-  │  observations (pendentes, archived=0)                                  │
+  │  observations (pending, archived=0)                                    │
   │       │                                                                │
-  │       ▼     execução manual ou agendada                                │
+  │       ▼     manual or scheduled execution                              │
   │  [ DREAM CYCLE ] ─────────────────────────────────────────────────    │
   │    Knowledge Intake (K3) → Distiller → Validator → Router (K4)        │
   │       │                                                                │
   │       ▼                                                                │
-  │  Persistência Anatômica + Indexação multi-coleção                      │
+  │  Anatomical Persistence + multi-collection indexing                     │
   │  (memory_vectors / observation_vectors / summary_vectors / Graphiti   │
-  │   / LightRAG) + cadência sessão/diário/semanal/mensal/anual (K5)     │
+  │   / LightRAG) + session/daily/weekly/monthly/yearly cadence (K5)      │
   │       │                                                                │
   │       ▼                                                                │
-  │  Síntese Dialética (Fase 9) + Push para grafos                         │
+  │  Dialectical Synthesis (Phase 9) + Push to graphs                     │
   └────────────────────────────────────────────────────────────────────────┘
 
   ┌────────────────────────────────────────────────────────────────────────┐
-  │                  FLUXO DOCUMENTAL (DocumentPipeline, K6)              │
+  │                  DOCUMENT FLOW (DocumentPipeline, K6)                 │
   │                                                                        │
-  │  documento (.md / .txt / .pdf / .docx)                                 │
+  │  document (.md / .txt / .pdf / .docx)                                  │
   │       │                                                                │
   │       ▼     DocumentPipeline.ingest(path, project)                     │
-  │  parse layout-aware → normalize → chunk by structure                   │
+  │  layout-aware parse → normalize → chunk by structure                  │
   │       │                                                                │
-  │       ▼     metadados canônicos + citações + embedding 1024d          │
-  │  document_memories (pai) + document_chunks (átomos) + document_vectors │
+  │       ▼     canonical metadata + citations + 1024d embedding          │
+  │  document_memories (parent) + document_chunks (atoms) + document_vectors │
   │       │                                                                │
-  │       ▼     opcional: KnowledgePromotionPipeline                      │
+  │       ▼     optional: KnowledgePromotionPipeline                      │
   │  fact / learning / decision / preference / rationale (cortex)         │
   └────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 2. Etapa 1 — Coleta (Escrita)
+## 2. Step 1 — Collection (Write)
 
-### 2.1 Fontes de Dados
+### 2.1 Data Sources
 
-| Fonte | Formato | Gatilho | Destino |
+| Source | Format | Trigger | Destination |
 |-------|---------|---------|---------|
-| Agente (decisão) | `sinapse_save_decision` tool | PostToolUse hook | `work/active/YYYY-MM-DD-slug.md` |
-| Agente (aprendizado) | `sinapse_save_learning` tool | PostToolUse hook | `brain/Patterns.md` (append) |
-| Agente (sessão end) | Stop hook | `on_session_end` | `brain/Current State.md` |
+| Agent (decision) | `sinapse_save_decision` tool | PostToolUse hook | `work/active/YYYY-MM-DD-slug.md` |
+| Agent (learning) | `sinapse_save_learning` tool | PostToolUse hook | `brain/Patterns.md` (append) |
+| Agent (session end) | Stop hook | `on_session_end` | `brain/Current State.md` |
 | Screenshot | `sinapse_capture_screen` tool | On demand | `inbox/visual/` + `visual_memories` |
-| Documento PDF/DOCX | `document_ingest.py` | Manual / cron | `inbox/documents/` + `observations` |
-| Humano (Obsidian) | Markdown editor | Salvamento manual | Qualquer `.md` no vault |
-| claude-mem | SQLite observations | Sync periódico | `observations` table do UMC |
+| PDF/DOCX document | `document_ingest.py` | Manual / cron | `inbox/documents/` + `observations` |
+| Human (Obsidian) | Markdown editor | Manual save | Any `.md` in the vault |
+| claude-mem | SQLite observations | Periodic sync | `observations` table in UMC |
 
-### 2.2 Formato de Arquivo (Vault)
+### 2.2 File Format (Vault)
 
 ```
 work/active/2026-06-10-migrar-vps-para-hetzner.md:
@@ -104,48 +104,48 @@ work/active/2026-06-10-migrar-vps-para-hetzner.md:
   Conteúdo com contexto, rationale e implicações.
 ```
 
-### 2.3 Garantias de Escrita
+### 2.3 Write Guarantees
 
-| Garantia | Mecanismo |
+| Guarantee | Mechanism |
 |----------|-----------|
-| Atomicidade | `tempfile.mkstemp()` + `os.replace()` (atômico no Linux) |
-| Deduplicação | Verificação de slug antes de criar novo arquivo |
-| Validação | `_validate_frontmatter_yaml()` — checa `tags`, `status`, `created` |
-| Detecção de segredos | Regex `sk-proj-*, AKIA*, Bearer token` → Fernet → vault table |
+| Atomicity | `tempfile.mkstemp()` + `os.replace()` (atomic on Linux) |
+| Deduplication | Slug check before creating a new file |
+| Validation | `_validate_frontmatter_yaml()` — checks `tags`, `status`, `created` |
+| Secret detection | Regex `sk-proj-*, AKIA*, Bearer token` → Fernet → vault table |
 | Dry-run | `SINAPSE_DRY_RUN=1` — zero side effects |
 
 ---
 
-## 3. Etapa 2 — Indexação em Tempo Real (Watcher)
+## 3. Step 2 — Real-Time Indexing (Watcher)
 
-O `watchdog` monitora `cerebro/` continuamente. Qualquer mudança dispara reindexação em ~2 segundos — eliminando o gap de 6h da v1.x.
+`watchdog` continuously monitors `cerebro/`. Any change triggers reindexing in ~2 seconds — eliminating the 6-hour gap from v1.x.
 
 ```
-  Arquivo salvo/modificado em cerebro/
+  File saved/modified in cerebro/
          │
          ▼ (watchdog FileModifiedEvent, ~2s)
-  Graphify reindexa arquivo:
-    ├── Extrai entidades + relações (LLM ou tree-sitter)
-    ├── Gera embedding 1024d (snowflake-arctic-embed2 via Ollama local)
+  Graphify reindexes file:
+    ├── Extracts entities + relationships (LLM or tree-sitter)
+    ├── Generates 1024d embedding (snowflake-arctic-embed2 via local Ollama)
     ├── UPDATE neurons SET title, content, hash, embedding, indexed_at
-    ├── UPDATE/INSERT synapses (WikiLinks como edges)
-    ├── UPDATE search_fts (trigger automático via SQL)
+    ├── UPDATE/INSERT synapses (WikiLinks as edges)
+    ├── UPDATE search_fts (automatic via SQL trigger)
     ├── UPDATE search_vec (vec0, HNSW sqlite-vec 1024d)
     └── INSERT/UPDATE hnsw_neurons.idx  ← core/hnsw_index.py
-         (incremental, M=16, ef_construction=200, espaço cosseno)
+         (incremental, M=16, ef_construction=200, cosine space)
 
-  Resultado: hive_mind.db + hnsw_neurons.idx atualizados em disco (WAL mode)
+  Result: hive_mind.db + hnsw_neurons.idx updated on disk (WAL mode)
 ```
 
-> **Migração 384d → 1024d:** commit `56f1e98` (2026-06-21). O contrato global de embedding é `snowflake-arctic-embed2:latest` em **1024d** salvo override explícito por env (`OLLAMA_EMBED_MODEL`, `HNSW_DIM`). Mudança de modelo segue o contrato de migração versionada (K10, [`01-architecture.md` §30.4](01-architecture.md#30-escala-e-isolamento--workspace-e-federação)): re-embed online por workspace, dual-write até cutover, métrica `vectors_model_mismatch` = 0 dentro de uma coleção.
+> **Migration 384d → 1024d:** commit `56f1e98` (2026-06-21). The global embedding contract is `snowflake-arctic-embed2:latest` at **1024d** unless explicitly overridden by env (`OLLAMA_EMBED_MODEL`, `HNSW_DIM`). Model changes follow the versioned migration contract (K10, [`01-architecture.md` §30.4](01-architecture.md#30-escala-e-isolamento--workspace-e-federação)): online re-embed per workspace, dual-write until cutover, metric `vectors_model_mismatch` = 0 within a collection.
 
 ---
 
-## 4. Etapa 3 — Dream Cycle (Consolidação Offline)
+## 4. Step 3 — Dream Cycle (Offline Consolidation)
 
-O Dream Cycle processa observations brutas e as eleva a fatos estruturados no Atlas.
+Dream Cycle processes raw observations and elevates them into structured facts in Atlas.
 
-### 4.1 Estágio 1 — Distiller
+### 4.1 Stage 1 — Distiller
 
 ```
   SELECT * FROM observations
@@ -153,7 +153,7 @@ O Dream Cycle processa observations brutas e as eleva a fatos estruturados no At
     ORDER BY created_at
     LIMIT batch_size
 
-  Para cada observação:
+  For each observation:
     prompt = system_prompt_distiller + observation.content
     response = llm_call(provider, model, prompt, json_schema=DistilledFact)
     fact = DistilledFact.model_validate_json(response)
@@ -167,35 +167,35 @@ O Dream Cycle processa observations brutas e as eleva a fatos estruturados no At
       }
 ```
 
-### 4.2 Estágio 2 — Validator
+### 4.2 Stage 2 — Validator
 
 ```
-  Para cada DistilledFact:
+  For each DistilledFact:
     prompt = system_prompt_validator + fact.json()
     verdict = ValidatorVerdict.model_validate_json(llm_call(...))
 
     if verdict.approved:
-      → passa para Router
+      → goes to Router
     elif retries < 2:
-      → re-envia ao Distiller com feedback
+      → resends to Distiller with feedback
     else:
-      → UPDATE observations SET archived=2  (quarentena)
+      → UPDATE observations SET archived=2  (quarantine)
 ```
 
-### 4.3 Estágio 3 — Router
+### 4.3 Stage 3 — Router
 
 ```
-  Para cada fato aprovado:
-    Classifica destino:
+  For each approved fact:
+    Classifies destination:
       └── category in ["decision", "learning", "insight", "fact", "entity"]
       └── target_path = atlas/{category}/YYYY-MM-DD-{slug}.md
 
-    Verifica duplicata por embedding similarity (cosine > 0.92):
-      └── Se duplicata: merge (append insights únicos)
-      └── Se novo: INSERT neurons + write atlas/*.md
+    Checks duplicate by embedding similarity (cosine > 0.92):
+      └── If duplicate: merge (append unique insights)
+      └── If new: INSERT neurons + write atlas/*.md
 ```
 
-### 4.4 Estágio 4 — Atlas Persistence
+### 4.4 Stage 4 — Atlas Persistence
 
 ```
   _atomic_write(target_path, markdown_with_frontmatter)
@@ -209,24 +209,24 @@ O Dream Cycle processa observations brutas e as eleva a fatos estruturados no At
     WHERE id IN (processed_ids)
 ```
 
-### 4.5 Fluxo Completo (ASCII)
+### 4.5 Full Flow (ASCII)
 
 ```
   observations (archived=0)
        │
        ▼
   ┌─────────────┐
-  │  DISTILLER  │ ← LLM (JSON schema obrigatório)
+  │  DISTILLER  │ ← LLM (JSON schema mandatory)
   └──────┬──────┘
          │ DistilledFact
          ▼
-  ┌─────────────┐   reprova    ┌─────────────┐
-  │  VALIDATOR  │─────────────▶│  QUARENTENA │ archived=2
+  ┌─────────────┐   rejects    ┌─────────────┐
+  │  VALIDATOR  │─────────────▶│  QUARANTINE │ archived=2
   └──────┬──────┘              └─────────────┘
-         │ aprovado
+         │ approved
          ▼
   ┌─────────────┐
-  │   ROUTER    │ classifica destino + dedup check
+  │   ROUTER    │ classifies destination + dedup check
   └──────┬──────┘
          │
          ▼
@@ -238,14 +238,14 @@ O Dream Cycle processa observations brutas e as eleva a fatos estruturados no At
 
 ---
 
-## 5. HM-11 — Deep Reflection (Intent Memory + Causalidade)
+## 5. HM-11 — Deep Reflection (Intent Memory + Causality)
 
-### 5.1 Planner de Objetivos
+### 5.1 Goal Planner
 
-O `scripts/planner.py` recebe um objetivo em linguagem natural, chama o LLM e retorna uma lista de steps atômicos (`GoalStep`). Cada goal é persistido na tabela `goals` e exposto via MCP tool `sinapse_plan_goal`.
+`scripts/planner.py` receives a goal in natural language, calls the LLM, and returns a list of atomic steps (`GoalStep`). Each goal is persisted in the `goals` table and exposed through MCP tool `sinapse_plan_goal`.
 
 ```
-  OBJETIVO DO USUÁRIO
+  USER GOAL
         │
         ▼
   sinapse_plan_goal (MCP tool)
@@ -253,21 +253,21 @@ O `scripts/planner.py` recebe um objetivo em linguagem natural, chama o LLM e re
         ▼
   scripts/planner.py
         │
-        ├── prompt + objetivo → LLM
+        ├── prompt + goal → LLM
         │
         ▼
-  GoalStep[] (steps atômicos)
+  GoalStep[] (atomic steps)
         │
         ├──→ INSERT goals TABLE (hive_mind.db)
         │
-        └──→ observations criadas com:
-               goal_id  → referência ao goal ativo
-               why      → justificativa / intenção
+        └──→ observations created with:
+               goal_id  → reference to active goal
+               why      → rationale / intent
 ```
 
-### 5.2 Grafo de Causalidade
+### 5.2 Causality Graph
 
-A tabela `causal_edges` registra arestas causa → efeito entre neurons. A função `get_causal_neighbors(conn, neuron_id, hops=2)` percorre o grafo via BFS para recuperar vizinhos causais até 2 hops.
+The `causal_edges` table records cause → effect edges between neurons. Function `get_causal_neighbors(conn, neuron_id, hops=2)` traverses the graph with BFS to retrieve causal neighbors up to 2 hops.
 
 ```
   neurons
@@ -277,56 +277,56 @@ A tabela `causal_edges` registra arestas causa → efeito entre neurons. A funç
      │
      ▼
   get_causal_neighbors(conn, neuron_id, hops=2)
-     │   BFS no grafo de causalidade
+     │   BFS in causality graph
      ▼
-  vizinhos causais (até 2 hops)
+  causal neighbors (up to 2 hops)
 ```
 
-### 5.3 Intent Metadata em Observations
+### 5.3 Intent Metadata in Observations
 
-Cada observação pode referenciar um objetivo ativo via colunas adicionais:
+Each observation can reference an active goal through additional columns:
 
-| Coluna | Tipo | Descrição |
+| Column | Type | Description |
 |--------|------|-----------|
-| `goal_id` | TEXT (FK) | Referência ao goal ativo em `goals.id` |
-| `why` | TEXT | Justificativa / intenção da observação |
+| `goal_id` | TEXT (FK) | Reference to active goal in `goals.id` |
+| `why` | TEXT | Observation rationale / intent |
 
 ---
 
-## 6. HM-12 — Federated Swarm (Export Federado)
+## 6. HM-12 — Federated Swarm (Federated Export)
 
-### 6.1 Visibilidade de Neurons
+### 6.1 Neuron Visibility
 
-A coluna `visibility` em `neurons` controla quais neurons podem ser exportados:
+The `visibility` column in `neurons` controls which neurons can be exported:
 
-| Valor | Descrição |
+| Value | Description |
 |-------|-----------|
-| `private` | Padrão. Não exportado. |
-| `shared` | Exportável para parceiros autorizados. |
-| `public` | Exportável sem restrição de destinatário. |
+| `private` | Default. Not exported. |
+| `shared` | Exportable to authorized partners. |
+| `public` | Exportable with no recipient restriction. |
 
-### 6.2 Endpoint de Export
+### 6.2 Export Endpoint
 
-`POST /api/v1/neurons/export` — autenticado via Bearer token.
+`POST /api/v1/neurons/export` — authenticated via Bearer token.
 
-Filtros aceitos: `type`, `created_after`. Opções: `redact` (remoção de PII) e/ou `sign` (assinatura Ed25519).
+Accepted filters: `type`, `created_after`. Options: `redact` (PII removal) and/or `sign` (Ed25519 signature).
 
 ```
   POST /api/v1/neurons/export
         │
         ▼
   SELECT neurons WHERE visibility IN ('shared', 'public')
-        │  + filtros: type, created_after
+        │  + filters: type, created_after
         │
         ├─ redact_neuron()   ← core/redactor.py
-        │   PII irreversível: API tokens, email, IPv4/6,
-        │   paths absolutos, SSH keys, CPF/CNPJ, telefone
-        │   (aplicado sobre content e label; não modifica local)
+        │   Irreversible PII: API tokens, email, IPv4/6,
+        │   absolute paths, SSH keys, CPF/CNPJ, phone
+        │   (applied to content and label; does not modify local data)
         │
         ├─ sign_neuron()     ← core/signing.py
         │   Ed25519 keypair (config/keys/, gitignored)
-        │   Assina JSON canônico (exclui timestamps e campos _prefixados)
-        │   verify_neuron() para validação pelo receptor
+        │   Signs canonical JSON (excludes timestamps and _prefixed fields)
+        │   verify_neuron() for receiver-side validation
         │
         └─ JSON response
              { neurons[], signature?, pubkey_fingerprint? }
@@ -334,32 +334,32 @@ Filtros aceitos: `type`, `created_after`. Opções: `redact` (remoção de PII) 
 
 ---
 
-## 7. Etapa 4 — Consulta (RetrievalRouter K7 + sinapse_query)
+## 7. Step 4 — Query (RetrievalRouter K7 + sinapse_query)
 
-A partir da frente K0–K10, a consulta canônica passa pelo **`RetrievalRouter`** ([`01-architecture.md` §26](01-architecture.md#26-retrievalrouter-k7--roteamento-por-intenção); `core/retrieval/router.py`). O router classifica a intenção da query, escolhe a rota especializada e devolve `retrieval_path`, `citations`, `confidence` e `missing_context`. Quando a confiança é baixa ou a query é ambígua, ele cai para `sinapse_query`/Context Fusion.
+From the K0–K10 front onward, canonical querying goes through **`RetrievalRouter`** ([`01-architecture.md` §26](01-architecture.md#26-retrievalrouter-k7--roteamento-por-intenção); `core/retrieval/router.py`). The router classifies query intent, selects the specialized route, and returns `retrieval_path`, `citations`, `confidence`, and `missing_context`. When confidence is low or the query is ambiguous, it falls back to `sinapse_query`/Context Fusion.
 
-### 7.0 Rotas por intenção (K7)
+### 7.0 Intent-based Routes (K7)
 
-| Intenção detectada | Coleção canônica (K1) | Por que esta rota |
+| Detected intent | Canonical collection (K1) | Why this route |
 |---|---|---|
-| Recente / "o que aconteceu" | `observation_vectors` (claude-mem) | Eventos com timestamp recente |
-| Decisão / preferência | `memory_vectors` + FTS | Fatos atômicos validados |
-| Aprendizado | `memory_vectors` (learning atoms) + Patterns parent | Padrões reutilizáveis |
-| Documento | `document_vectors` + parent context | `DocumentPipeline` (K6) com citações |
-| Código | `code_vectors` + Graphify | Símbolos AST + relações |
-| Causalidade / quando era verdade | Graphiti/FalkorDB (`graph_vectors` auxiliar) | `valid_at`/`invalid_at` |
-| Pergunta global / multi-hop | LightRAG/GraphRAG | Entidades + relações |
-| Saúde / autoconsciência | Ínsula (saúde/conflitos) | operational_fact + ambiguities |
-| Config / operacional / modelo | Tronco | operational_fact |
-| Setor / cross-projeto | Diencéfalo + Graphiti | Setores MOC |
-| Ambigua | hybrid + reranker (§31.1) | Fallback + rerank lexical local opcional; cross-encoder é evolução futura |
+| Recent / "what happened" | `observation_vectors` (claude-mem) | Events with recent timestamps |
+| Decision / preference | `memory_vectors` + FTS | Validated atomic facts |
+| Learning | `memory_vectors` (learning atoms) + Patterns parent | Reusable patterns |
+| Document | `document_vectors` + parent context | `DocumentPipeline` (K6) with citations |
+| Code | `code_vectors` + Graphify | AST symbols + relationships |
+| Causality / when it was true | Graphiti/FalkorDB (`graph_vectors` auxiliary) | `valid_at`/`invalid_at` |
+| Global / multi-hop question | LightRAG/GraphRAG | Entities + relationships |
+| Health / self-awareness | Insula (health/conflicts) | operational_fact + ambiguities |
+| Config / operations / model | Brainstem | operational_fact |
+| Sector / cross-project | Diencephalon + Graphiti | Sector MOCs |
+| Ambiguous | hybrid + reranker (§31.1) | Fallback + optional local lexical rerank; cross-encoder is future evolution |
 
-### 7.1 Backends Paralelos (sinapse_query / Context Fusion)
+### 7.1 Parallel Backends (sinapse_query / Context Fusion)
 
 ```python
 def _query_vault_knowledge(query: str, timeout=8.0) -> Optional[str]:
 
-    # 5+ backends em paralelo (ThreadPoolExecutor) com circuit breaker
+    # 5+ backends in parallel (ThreadPoolExecutor) with circuit breaker
     results = []
 
     # Backend 1: UMC SQL (FTS5 + KNN sqlite-vec)
@@ -374,24 +374,24 @@ def _query_vault_knowledge(query: str, timeout=8.0) -> Optional[str]:
     # Backend 4: Filesystem
     results += fs_scan(query)           # scan cerebro/*.md, TTL 30s
 
-    # Backend 5: LightRAG (P4) — entidades + relações + multi-hop
-    results += lightrag_query(query)    # grafo de conhecimento, timeout 8s
+    # Backend 5: LightRAG (P4) — entities + relationships + multi-hop
+    results += lightrag_query(query)    # knowledge graph, timeout 8s
 
-    # Backend 6: Graphiti (causalidade temporal)
-    results += graphiti_query(query)    # causal_edges com valid_at/invalid_at
+    # Backend 6: Graphiti (temporal causality)
+    results += graphiti_query(query)    # causal_edges with valid_at/invalid_at
 
-    # Backend 7: Graphify (estrutural do vault)
-    results += graphify_query(query)    # communities + adjacências
+    # Backend 7: Graphify (vault structure)
+    results += graphify_query(query)    # communities + adjacencies
 
-    # Fusão e deduplicação + rerank opcional (§31.1)
+    # Fusion and deduplication + optional rerank (§31.1)
     deduped = dedup(results, key=lambda r: (r.source_file, r.title, r.content))
     reranked = rerank(query, deduped) if HIVE_RETRIEVAL_RERANKER else deduped
     return format(top_n=5, max_chars=3000, results=reranked)
 ```
 
-> **Nota:** O `sinapse_rag_query` (MCP) usa o mesmo backend 5 (LightRAG) mas com modos `naive|local|global|hybrid` e retorna string bruta do grafo (entidades + relações + chunks), não os outros 6 backends.
+> **Note:** `sinapse_rag_query` (MCP) uses the same backend 5 (LightRAG), but with modes `naive|local|global|hybrid`, and returns the graph raw string (entities + relationships + chunks), not the other 6 backends.
 
-### 7.2 Busca Vetorial (KNN)
+### 7.2 Vector Search (KNN)
 
 ```sql
 SELECT n.id, n.title, n.content, n.source_file,
@@ -402,225 +402,225 @@ ORDER BY distance
 LIMIT 5
 ```
 
-`query_vec` = `snowflake-arctic-embed2.encode(query)` via Ollama local — vetor **1024d** gerado no momento da query. Tabela virtual `search_vec` (vec0, 1024d). Migração do antigo 384d → 1024d aconteceu na P0 (commit `56f1e98`, 2026-06-21).
+`query_vec` = `snowflake-arctic-embed2.encode(query)` via local Ollama — **1024d** vector generated at query time. `search_vec` virtual table (vec0, 1024d). Migration from old 384d → 1024d happened in P0 (commit `56f1e98`, 2026-06-21).
 
 ### 7.3 Circuit Breaker
 
-| Estado | Condição | Comportamento |
+| State | Condition | Behavior |
 |--------|---------|---------------|
-| Fechado (normal) | Menos de 3 falhas | Backend ativo |
-| Aberto (cooldown) | 3+ exceções ou timeouts | Cooldown 30s, backend ignorado |
-| Semi-aberto (teste) | Após 30s | Uma tentativa para resetar |
+| Closed (normal) | Fewer than 3 failures | Backend active |
+| Open (cooldown) | 3+ exceptions or timeouts | 30s cooldown, backend skipped |
+| Half-open (test) | After 30s | One attempt to reset |
 
-Apenas exceções Python e timeouts contam como falha — resultados vazios (não encontrado) não.
+Only Python exceptions and timeouts count as failures — empty results (not found) do not.
 
 ---
 
-## 8. Frequência de Atualização
+## 8. Update Frequency
 
-| Pipeline | Frequência | Gatilho |
+| Pipeline | Frequency | Trigger |
 |----------|-----------|---------|
-| Escrita de decisões/aprendizados | Imediata | PostToolUse / Stop hook |
-| Indexação no UMC (Watcher) | ~2 segundos | watchdog FileModifiedEvent |
-| Dream Cycle | Manual ou cron | `python3 scripts/dream/dream_cycle.py` |
-| Auditoria P2P | 1x por hora | Cron `audit_memory.py --fix` |
-| Backup UMC | Diário 3am | Cron `cp hive_mind.db backups/` |
+| Decision/learning writes | Immediate | PostToolUse / Stop hook |
+| UMC indexing (Watcher) | ~2 seconds | watchdog FileModifiedEvent |
+| Dream Cycle | Manual or cron | `python3 scripts/dream/dream_cycle.py` |
+| P2P audit | 1x per hour | Cron `audit_memory.py --fix` |
+| UMC backup | Daily 3am | Cron `cp hive_mind.db backups/` |
 
 ---
 
-## 9. Volume de Dados
+## 9. Data Volume
 
-| Métrica | Valor típico |
+| Metric | Typical value |
 |---------|-------------|
-| neurons no UMC | 1.200+ |
-| synapses no UMC | 1.300+ |
-| causal_edges no UMC | cresce com uso |
-| goals (planner) | por sessão de planejamento |
-| observations pendentes (por sessão) | 5-30 |
-| atlas/*.md (fatos consolidados) | cresce com uso |
-| Tamanho do hive_mind.db | 50-200MB |
-| Tamanho do hnsw_neurons.idx | ~5-20MB (depende de neurons) |
-| Tamanho de claude-mem/data/lightrag/ | ~5-50MB (grafo + vdb de entidades/rels) |
-| Tempo de reindexação por arquivo | ~1-3s |
-| Tempo de busca KNN (10k vetores, 1024d) | ~5-10ms |
-| Tempo de busca HNSW (1024d) | ~1-2ms |
-| Tempo de busca FTS5 | ~2ms |
-| Tempo de query LightRAG (hybrid, ~1k entidades) | ~100-300ms (LLM local) |
+| neurons in UMC | 1,200+ |
+| synapses in UMC | 1,300+ |
+| causal_edges in UMC | grows with usage |
+| goals (planner) | per planning session |
+| pending observations (per session) | 5-30 |
+| atlas/*.md (consolidated facts) | grows with usage |
+| hive_mind.db size | 50-200MB |
+| hnsw_neurons.idx size | ~5-20MB (depends on neurons) |
+| claude-mem/data/lightrag/ size | ~5-50MB (graph + entity/rel vdb) |
+| Reindex time per file | ~1-3s |
+| KNN search time (10k vectors, 1024d) | ~5-10ms |
+| HNSW search time (1024d) | ~1-2ms |
+| FTS5 search time | ~2ms |
+| LightRAG query time (hybrid, ~1k entities) | ~100-300ms (local LLM) |
 
-### Tabelas do Banco (hive_mind.db)
+### Database Tables (hive_mind.db)
 
-| Tabela | Propósito | Fase |
+| Table | Purpose | Phase |
 |--------|-----------|------|
-| `neurons` | Nós de conhecimento (com `visibility` em v3 + `workspace_id` em K10) | base + K10 |
-| `synapses` | Arestas WikiLink entre neurons | base |
-| `observations` | Dados brutos com `goal_id`/`why` (HM-11) + `workspace_id` + `source_id` (K4) | base + HM-11 + K4 + K10 |
-| `search_fts` | Índice Full-Text Search (FTS5) | base |
-| `search_vec` | Índice vetorial (vec0 sqlite-vec, 1024d) | base + K1 |
-| `causal_edges` | Grafo de causalidade causa→efeito | HM-11 |
-| `goals` | Objetivos decompostos pelo planner | HM-11 |
-| `vector_metadata` | Metadata canônica (parent_id, brain_lobe, knowledge_type, source_uri, valid_at, workspace_id) | K1 |
-| `ambiguities` | Conflitos P2P (content_a, content_b, hashes, status) | base + K10 |
-| `vault` | Segredos cifrados (Fernet) | base |
-| `document_memories` | Pais de documentos (K6) | K6 |
-| `document_chunks` | Átomos de documento (offsets, parent_id, hash) | K6 |
-| `document_vectors` | Vetores de chunks (K6, com metadata canônica) | K6 |
-| `knowledge_tombstones` | Tombstones auditáveis de `forget()` (§31.2) | K8 |
-| `query_route_log` | Hash da query × rota (K7) — telemetria `query_route_distribution` | K7 |
+| `neurons` | Knowledge nodes (with `visibility` in v3 + `workspace_id` in K10) | base + K10 |
+| `synapses` | WikiLink edges between neurons | base |
+| `observations` | Raw data with `goal_id`/`why` (HM-11) + `workspace_id` + `source_id` (K4) | base + HM-11 + K4 + K10 |
+| `search_fts` | Full-Text Search index (FTS5) | base |
+| `search_vec` | Vector index (vec0 sqlite-vec, 1024d) | base + K1 |
+| `causal_edges` | Cause→effect causality graph | HM-11 |
+| `goals` | Goals decomposed by planner | HM-11 |
+| `vector_metadata` | Canonical metadata (parent_id, brain_lobe, knowledge_type, source_uri, valid_at, workspace_id) | K1 |
+| `ambiguities` | P2P conflicts (content_a, content_b, hashes, status) | base + K10 |
+| `vault` | Encrypted secrets (Fernet) | base |
+| `document_memories` | Document parents (K6) | K6 |
+| `document_chunks` | Document atoms (offsets, parent_id, hash) | K6 |
+| `document_vectors` | Chunk vectors (K6, with canonical metadata) | K6 |
+| `knowledge_tombstones` | Auditable `forget()` tombstones (§31.2) | K8 |
+| `query_route_log` | Query hash × route (K7) — `query_route_distribution` telemetry | K7 |
 
 ---
 
 ## 10. K3 — Knowledge Intake
 
-`core/knowledge/intake.py`. Camada [3] do fluxo canônico ([`11-knowledge-promotion-architecture.md` §3](11-knowledge-promotion-architecture.md#3-preenchimento-por-parte-do-cérebro)). Entrada: observações brutas do claude-mem (e candidatos de outros backends via `KnowledgePromotionPipeline`). Saída: candidatos normalizados/classificados/deduplicados, prontos para a Promotion Layer.
+`core/knowledge/intake.py`. Layer [3] of the canonical flow ([`11-knowledge-promotion-architecture.md` §3](11-knowledge-promotion-architecture.md#3-preenchimento-por-parte-do-cérebro)). Input: raw claude-mem observations (and candidate records from other backends via `KnowledgePromotionPipeline`). Output: normalized/classified/deduplicated candidates, ready for Promotion Layer.
 
-**Responsabilidades:**
+**Responsibilities:**
 
-- normaliza campos (`observations`, `discoveries`, `session_summaries`, `facts`, `narrative`, `concepts`, `files_read/files_modified`, `prompt_number`, `generated_by_model`);
-- preserva `source_id` estável (`claude-mem:<table>:<id>`);
-- extrai evidência (arquivos, timestamps, `project`, `workspace_id`);
-- classifica `knowledge_type` (ver [`01-architecture.md` §27.2](01-architecture.md#272-tipos-canônicos-de-conhecimento));
-- deduplica por `source_id` + hash de conteúdo.
+- normalize fields (`observations`, `discoveries`, `session_summaries`, `facts`, `narrative`, `concepts`, `files_read/files_modified`, `prompt_number`, `generated_by_model`);
+- preserve stable `source_id` (`claude-mem:<table>:<id>`);
+- extract evidence (files, timestamps, `project`, `workspace_id`);
+- classify `knowledge_type` (see [`01-architecture.md` §27.2](01-architecture.md#272-tipos-canônicos-de-conhecimento));
+- deduplicate by `source_id` + content hash.
 
-**Caminho de leitura do claude-mem (K4):** `core/knowledge/claude_mem_bridge.py` é a bridge canônica via SQL read-only em `~/.claude-mem/claude-mem.db`. O `scripts/services/claude_mem_bridge.py` legado apenas delega ao core. O workflow interativo `search → timeline → get_observations` (via MCP `sinapse_temporal_*`) é o caminho para **recuperar contexto bruto antes de escolher IDs**; a bridge é o caminho de promoção/backfill em batch.
+**claude-mem read path (K4):** `core/knowledge/claude_mem_bridge.py` is the canonical bridge via read-only SQL on `~/.claude-mem/claude-mem.db`. Legacy `scripts/services/claude_mem_bridge.py` only delegates to core. The interactive `search → timeline → get_observations` workflow (via MCP `sinapse_temporal_*`) is the path to **retrieve raw context before choosing IDs**; the bridge is the promotion/backfill batch path.
 
-**Estado K3 (2026-06-28):** pipeline SQLite real, Dream Cycle `--once --real`, query via CLI e suite completa `./tests/run_all.sh` verdes.
+**K3 status (2026-06-28):** real SQLite pipeline, Dream Cycle `--once --real`, query via CLI, and full suite `./tests/run_all.sh` green.
 
 ---
 
 ## 11. K4 — Promotion Layer
 
-`core/knowledge/promotion.py`. Camada [4] do fluxo. Operações `Distiller → Validator → Router` continuam; agora cada wrapper expõe **saída `candidate-only`** idempotente com `workspace_id` para orquestração central, e a persistência final faz `UPSERT neurons` + `VectorBackend.upsert()` em coleção canônica.
+`core/knowledge/promotion.py`. Layer [4] of the flow. `Distiller → Validator → Router` operations remain; now each wrapper exposes **idempotent `candidate-only` output** with `workspace_id` for centralized orchestration, and final persistence performs `UPSERT neurons` + `VectorBackend.upsert()` in canonical collection.
 
-**Superfícies:** CLI `sinapse-write.py promotion`, MCP `sinapse_promote_knowledge`, Dream Cycle com intake candidate-only antes da síntese legada.
+**Surfaces:** CLI `sinapse-write.py promotion`, MCP `sinapse_promote_knowledge`, Dream Cycle with intake candidate-only before legacy synthesis.
 
-**Regras de promoção automática:**
+**Automatic promotion rules:**
 
-- **Permitida:** `decision`, `learning`, `project_status`, `operational_fact`, `goal/task`, `rationale` — todos com fonte rastreável.
-- **Proibida:** transformar todo bullet em fact; criar neurônio sem fonte; vetorizar duplicatas sem `parent_id` e hash de conteúdo; promover opinião temporária como decisão arquitetural; sobrescrever decisões anteriores sem criar conflito ou `invalid_at`.
+- **Allowed:** `decision`, `learning`, `project_status`, `operational_fact`, `goal/task`, `rationale` — all with traceable source.
+- **Forbidden:** turning every bullet into a fact; creating a neuron without source; vectorizing duplicates without `parent_id` and content hash; promoting temporary opinion as architectural decision; overwriting previous decisions without creating conflict or `invalid_at`.
 
-**Falha de promoção preserva dados (ADR-016):**
+**Promotion failure preserves data (ADR-016):**
 
 ```text
-erro transitorio -> archived=0, retry futuro
-erro estrutural  -> archived=2, quarentena com motivo
+transient error -> archived=0, future retry
+structural error  -> archived=2, quarantine with reason
 ```
 
-Nada é deletado por falha de promoção. Ver [`01-architecture.md` ADR-016](01-architecture.md#adr-016--falha-de-promoção-preserva-dados-nunca-descarta).
+Nothing is deleted due to promotion failure. See [`01-architecture.md` ADR-016](01-architecture.md#adr-016--falha-de-promoção-preserva-dados-nunca-descarta).
 
-**Estado K4 (2026-06-29):** bridge real 2 passed, promoção operacional contra `~/.claude-mem/claude-mem.db` importou registros reais por `source_id`, CLI com `python3` do sistema saiu 0 via reexecução na `.venv`, `./tests/run_all.sh` fechou verde. A validação de visão real usa o papel `vision` configurado no `setup-brain`/`.env` (`HIVE_VISION_*`), sem hardcode de Ollama Cloud.
+**K4 status (2026-06-29):** real bridge 2 passed, operational promotion against `~/.claude-mem/claude-mem.db` imported real records by `source_id`, CLI with system `python3` exited 0 via `.venv` re-exec, `./tests/run_all.sh` completed green. Real vision validation uses role `vision` configured in `setup-brain`/`.env` (`HIVE_VISION_*`), with no Ollama Cloud hardcode.
 
 ---
 
-## 12. K5 — Cadência Hierárquica de Escrita
+## 12. K5 — Hierarchical Write Cadence
 
-A memória temporal do cérebro sobe em **cinco cadências** — sessão, diário, semanal, mensal, anual — com writers, papéis de LLM e regras de promoção próprios. Detalhe normativo em [`11-knowledge-promotion-architecture.md` §14](11-knowledge-promotion-architecture.md#14-cadencia-hierarquica-de-escrita).
+The brain's temporal memory advances through **five cadences** — session, daily, weekly, monthly, yearly — with dedicated writers, LLM roles, and promotion rules. Normative details in [`11-knowledge-promotion-architecture.md` §14](11-knowledge-promotion-architecture.md#14-cadencia-hierarquica-de-escrita).
 
-| Cadência | Writer | Modelo padrão | Promove |
+| Cadence | Writer | Default model | Promotes |
 |---|---|---|---|
-| Sessão | `session_consolidator.py` | `session_summarizer` (pequeno) | decisões, perguntas abertas, evidências |
-| Diário | `daily_writer.py` | `daily_writer` (pequeno/médio) | aprendizados, progresso, próximos passos |
-| Semanal | `weekly_synthesizer.py` | `weekly_synthesizer` (médio/forte) | padrões, decisões estratégicas, prioridades |
-| Mensal | `monthly_synthesizer.py` | `monthly_synthesizer` (forte) | síntese executiva, drift, metas, riscos |
-| Anual | `yearly_synthesizer.py` | `yearly_synthesizer` (forte/batch) | princípios, lessons learned duráveis |
+| Session | `session_consolidator.py` | `session_summarizer` (small) | decisions, open questions, evidence |
+| Daily | `daily_writer.py` | `daily_writer` (small/medium) | learnings, progress, next steps |
+| Weekly | `weekly_synthesizer.py` | `weekly_synthesizer` (medium/strong) | patterns, strategic decisions, priorities |
+| Monthly | `monthly_synthesizer.py` | `monthly_synthesizer` (strong) | executive synthesis, drift, goals, risks |
+| Yearly | `yearly_synthesizer.py` | `yearly_synthesizer` (strong/batch) | principles, durable lessons learned |
 
-Cada cadência produz arquivo no `cerebro/cerebelo/{sessoes,diario,semanal,mensal,anual}/...` e indexa em `summary_vectors` (K1). Contrato de promoção por cadência: `source_id`, `period_start`, `period_end`, `cadence`, `parent_summary_id` (ver [`01-architecture.md` §29.2](01-architecture.md#292-contrato-de-promoção-por-cadência)).
+Each cadence produces a file under `cerebro/cerebelo/{sessoes,diario,semanal,mensal,anual}/...` and indexes into `summary_vectors` (K1). Cadence promotion contract: `source_id`, `period_start`, `period_end`, `cadence`, `parent_summary_id` (see [`01-architecture.md` §29.2](01-architecture.md#292-contrato-de-promoção-por-cadência)).
 
-**Regra de ouro:** quanto mais alta a cadência, menos ela copia texto e mais ela consolida causalidade, decisão, padrão e consequência. Mensal/anual não devem ser rebaixados automaticamente sem aviso.
+**Golden rule:** the higher the cadence, the less it copies text and the more it consolidates causality, decision, pattern, and consequence. Monthly/yearly should not be automatically downgraded without notice.
 
-**Fail-closed:** papel sem modelo próprio nem herança do `dreamer` registra falha auditável e não inventa síntese.
+**Fail-closed:** a role without a dedicated model and without inheriting from `dreamer` records an auditable failure and does not invent synthesis.
 
 ---
 
 ## 13. K6 — DocumentPipeline
 
-`core/knowledge/document_pipeline.py`. Inspirado em RAGFlow, mas **preservando a anatomia do Hive-Mind**. Ver [`01-architecture.md` §25](01-architecture.md#25-documentpipeline-k6--ingestao-born-large) para o detalhamento arquitetural.
+`core/knowledge/document_pipeline.py`. Inspired by RAGFlow, but **preserving Hive-Mind anatomy**. See [`01-architecture.md` §25](01-architecture.md#25-documentpipeline-k6--ingestao-born-large) for architectural details.
 
 ```text
-documento (.md / .txt / .pdf / .docx)
+document (.md / .txt / .pdf / .docx)
   |
   v
-parse layout-aware (RAGFlow adapter headless OU parser local)
+layout-aware parse (headless RAGFlow adapter OR local parser)
   |
   v
 normalize
   |
   v
-chunk by structure (300-800 tokens para texto comum; por seção para MD; por símbolo para código)
+chunk by structure (300-800 tokens for regular text; by section for MD; by symbol for code)
   |
   v
 metadata + citations (parent_id, offsets, source_uri, hash)
   |
   v
-embedding 1024d (snowflake-arctic-embed2)
+1024d embedding (snowflake-arctic-embed2)
   |
   v
-document_memories (pai) + document_chunks (átomos) + document_vectors
+document_memories (parent) + document_chunks (atoms) + document_vectors
   |
   v
-opcional: KnowledgePromotionPipeline (K3/K4) → fact/learning/decision
+optional: KnowledgePromotionPipeline (K3/K4) → fact/learning/decision
 ```
 
-**RAGFlow** entra como adapter/headless opcional — nunca como fonte de verdade. A saída aproveitada precisa ser normalizada para UMC antes de ser recuperável. Indisponibilidade do RAGFlow **não** quebra o caminho local-first.
+**RAGFlow** is an optional headless adapter — never a source of truth. Any reused output must be normalized into UMC before it is retrievable. RAGFlow unavailability **does not** break the local-first path.
 
-**Contrato de citação:** `DocumentPipeline.query(text)` retorna `citations[{source_uri, offset_start, offset_end, score, parent}]` — o retorno não pode ser apenas "melhor trecho".
-
----
-
-## 14. K7 — RetrievalRouter (Roteamento por Intenção)
-
-`core/retrieval/router.py`. Porta de entrada canônica para queries. Classifica intenção, escolhe rota especializada, devolve `{answer_context, citations, retrieval_path, confidence, missing_context}`. LlamaIndex entra apenas como adapter opcional de rerank; não decide rota nem vira fonte de verdade. Detalhes em [`01-architecture.md` §26](01-architecture.md#26-retrievalrouter-k7--roteamento-por-intenção).
-
-**Métricas telemetrizadas** (hash da query, nunca texto bruto):
-
-- `query_route_distribution` — quais rotas respondem com que frequência
-- `confidence` média por rota
-- `missing_context` quando o router não encontra camada apropriada (sinal de gap de cobertura)
+**Citation contract:** `DocumentPipeline.query(text)` returns `citations[{source_uri, offset_start, offset_end, score, parent}]` — output cannot be just "best passage".
 
 ---
 
-## 15. K8 — Métricas de Saúde do Conhecimento
+## 14. K7 — RetrievalRouter (Intent Routing)
 
-`scripts/health/knowledge_health.py` (entregue em v3.6.0, 2026-06-30). Este módulo **adiciona** métricas de cobertura de conhecimento; ele **não substitui** `health_dashboard.py`, `alert_dispatcher.py` nem `review_writer.py` (que continuam sendo o health da Ínsula). `sinapse_health` inclui um bloco `knowledge_health` read-only em modo quick; a REST API expõe `GET /api/v1/knowledge/health` para o gate completo.
+`core/retrieval/router.py`. Canonical query entry point. It classifies intent, chooses specialized route, and returns `{answer_context, citations, retrieval_path, confidence, missing_context}`. LlamaIndex is only an optional rerank adapter; it does not decide route and does not become source of truth. Details in [`01-architecture.md` §26](01-architecture.md#26-retrievalrouter-k7--roteamento-por-intenção).
 
-| Métrica | Sinal | Coleção canônica (K1) |
+**Telemetered metrics** (query hash only, never raw text):
+
+- `query_route_distribution` — which routes answer how often
+- average `confidence` by route
+- `missing_context` when router cannot find an appropriate layer (coverage gap signal)
+
+---
+
+## 15. K8 — Knowledge Health Metrics
+
+`scripts/health/knowledge_health.py` (delivered in v3.6.0, 2026-06-30). This module **adds** knowledge coverage metrics; it **does not replace** `health_dashboard.py`, `alert_dispatcher.py`, or `review_writer.py` (which remain Insula health). `sinapse_health` includes a read-only `knowledge_health` block in quick mode; REST API exposes `GET /api/v1/knowledge/health` for the full gate.
+
+| Metric | Signal | Canonical collection (K1) |
 |---|---|---|
-| `neurons_total` | tamanho da memória consolidada | — |
-| `neurons_vectorized_pct` | cobertura vetorial | `memory_vectors` |
-| `observations_pending` | backlog temporal | `observation_vectors` |
-| `observations_linked_pct` | promoção efetiva | — |
-| `discoveries_pending` | risco de perder aprendizado | `observation_vectors` |
-| `learnings_atomized` | aprendizado granular | `memory_vectors` |
-| `document_chunks_total` | ingestão documental | `document_vectors` |
-| `code_symbols_total` | cobertura estrutural | `code_vectors` |
-| `milvus_sync_lag` | divergência local/produção | todas |
-| `orphan_vectors` | índice sujo (primeira fatia de `forget()` §31.2) | todas |
-| `query_route_distribution` | quais camadas respondem | — |
-| `*_vectorized_pct` | cobertura por coleção canônica | 7 coleções |
-| `promotion_lag` | backlog de promoção por workspace | — |
-| `promotion_cost` | custo de LLM por workspace | — |
-| `vectors_model_mismatch` | divergência de modelo de embedding (K10) | por coleção |
+| `neurons_total` | consolidated memory size | — |
+| `neurons_vectorized_pct` | vector coverage | `memory_vectors` |
+| `observations_pending` | temporal backlog | `observation_vectors` |
+| `observations_linked_pct` | effective promotion | — |
+| `discoveries_pending` | risk of losing learning | `observation_vectors` |
+| `learnings_atomized` | granular learning | `memory_vectors` |
+| `document_chunks_total` | document ingestion | `document_vectors` |
+| `code_symbols_total` | structural coverage | `code_vectors` |
+| `milvus_sync_lag` | local/production divergence | all |
+| `orphan_vectors` | dirty index (first slice of `forget()` §31.2) | all |
+| `query_route_distribution` | which layers answer | — |
+| `*_vectorized_pct` | coverage by canonical collection | 7 collections |
+| `promotion_lag` | promotion backlog by workspace | — |
+| `promotion_cost` | LLM cost by workspace | — |
+| `vectors_model_mismatch` | embedding model divergence (K10) | by collection |
 
-**Gate mínimo de produção:**
+**Minimum production gate:**
 
 ```text
 neurons_vectorized_pct >= 99%
-observations_linked_pct crescente por ciclo
-discoveries_pending dentro do SLA
+observations_linked_pct increasing per cycle
+discoveries_pending within SLA
 0 orphan vectors
-todos os chunks com parent_id
-citations presentes nas respostas documentais
+all chunks with parent_id
+citations present in document responses
 ```
 
 ---
 
-## 16. K10 — Escala, Isolamento e Federação
+## 16. K10 — Scale, Isolation, and Federation
 
-`workspace_id` é a fronteira de isolamento obrigatória ([`01-architecture.md` §30.1](01-architecture.md#30-escala-e-isolamento--workspace-e-federação)). Toda tabela crítica do UMC carrega `workspace_id` (default `'default'`). Toda query do `RetrievalRouter` e da promoção filtra por `workspace_id`. Milvus usa `partition_key=workspace_id` para isolamento por partição.
+`workspace_id` is the mandatory isolation boundary ([`01-architecture.md` §30.1](01-architecture.md#30-escala-e-isolamento--workspace-e-federação)). Every critical UMC table carries `workspace_id` (default `'default'`). Every query in `RetrievalRouter` and promotion filters by `workspace_id`. Milvus uses `partition_key=workspace_id` for partition-level isolation.
 
-**Regras de borda:**
+**Boundary rules:**
 
-- **Vazamento cross-workspace é bug de segurança**, não de ranking.
-- Migrações estruturais que criam essa fronteira: falha é fail-closed por padrão. O único bypass é `HIVE_ALLOW_DEFERRED_MIGRATIONS=1` (diagnóstico de DB legado, com log visível e sem marcar a instalação como saudável).
-- Federação entre instâncias: reusa HM-12 (`visibility` private|shared|public + Ed25519 + redação PII no export). Neurônio importado entra com `workspace_id` do destino e proveniência preservada. `origin_instance` e `origin_signature` são obrigatórios.
-- Migração de embedding: `vectors_model_mismatch` = 0 dentro de uma coleção; re-embed online por workspace, dual-write até cutover (§30.4).
-- Custo de promoção: teto por workspace via `HIVE_PROMOTION_BUDGET_*`; excedente fica `archived=0` (retry); métricas `promotion_lag` e `promotion_cost` por workspace.
+- **Cross-workspace leakage is a security bug**, not a ranking issue.
+- Structural migrations that create this boundary: failure is fail-closed by default. The only bypass is `HIVE_ALLOW_DEFERRED_MIGRATIONS=1` (legacy DB diagnostics, with visible log and without marking installation as healthy).
+- Federation across instances: reuses HM-12 (`visibility` private|shared|public + Ed25519 + PII redaction on export). Imported neuron enters with destination `workspace_id` and preserved provenance. `origin_instance` and `origin_signature` are mandatory.
+- Embedding migration: `vectors_model_mismatch` = 0 within a collection; online re-embed by workspace, dual-write until cutover (§30.4).
+- Promotion cost: ceiling by workspace via `HIVE_PROMOTION_BUDGET_*`; overflow remains `archived=0` (retry); metrics `promotion_lag` and `promotion_cost` by workspace.

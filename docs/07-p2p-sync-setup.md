@@ -1,10 +1,10 @@
-# 07 — Sincronização P2P (Enxame Multi-Máquina)
+# 07 — P2P Synchronization (Multi-Machine Swarm)
 
-> **Hive-Mind v2.0.0** — Syncthing como transporte, UUID v4 para evitar colisões, SHA-256 para integridade, e Síntese Dialética para resolução autônoma de conflitos.
+> **Hive-Mind v2.0.0** — Syncthing as transport, UUID v4 to prevent collisions, SHA-256 for integrity, and Dialectical Synthesis for autonomous conflict resolution.
 
 ---
 
-## 1. Arquitetura do Enxame
+## 1. Swarm Architecture
 
 ```
   Máquina A (PC)           Máquina B (Laptop)         VPS
@@ -19,13 +19,13 @@
     • audit_memory.py via cron (1x/hora)
 ```
 
-O Syncthing é o "músculo" que transporta arquivos `.md` entre máquinas. O `hive_mind.db` **não** é sincronizado — cada máquina mantém seu índice local, reconstruído a partir dos arquivos Markdown recebidos.
+Syncthing is the "muscle" that transports `.md` files between machines. `hive_mind.db` is **not** synchronized — each machine keeps its own local index, rebuilt from the received Markdown files.
 
 ---
 
-## 2. Configuração do Syncthing
+## 2. Syncthing Configuration
 
-### 2.1 Instalação
+### 2.1 Installation
 
 ```bash
 # Ubuntu/Debian
@@ -37,42 +37,42 @@ brew install syncthing
 # Windows — baixar em https://syncthing.net/downloads/
 ```
 
-### 2.2 Configuração da Pasta
+### 2.2 Folder Configuration
 
-1. Acesse a UI do Syncthing: `http://localhost:8384`
-2. Clique em **"Add Folder"**
+1. Open the Syncthing UI: `http://localhost:8384`
+2. Click **"Add Folder"**
 3. Configure:
-   - **Folder Path:** caminho absoluto para `cerebro/` (ex: `/home/user/Hive-Mind/cerebro`)
+   - **Folder Path:** absolute path to `cerebro/` (e.g., `/home/user/Hive-Mind/cerebro`)
    - **Folder Type:** "Send & Receive"
-   - **File Versioning:** "Simple File Versioning" — 5 versões mínimas
-4. Compartilhe com outras máquinas usando o **Device ID** do Syncthing
+   - **File Versioning:** "Simple File Versioning" — at least 5 versions
+4. Share with other machines using the Syncthing **Device ID**
 
-### 2.3 Paths Recomendados
+### 2.3 Recommended Paths
 
-| Máquina | Path | Observação |
+| Machine | Path | Notes |
 |---------|------|-----------|
-| Linux | `/home/$USER/Documentos/Projects/Hive-Mind/cerebro` | Padrão |
+| Linux | `/home/$USER/Documentos/Projects/Hive-Mind/cerebro` | Default |
 | macOS | `/Users/$USER/Projects/Hive-Mind/cerebro` | |
 | VPS | `/home/$USER/hive-mind/cerebro` | |
 
 ---
 
-## 3. Prevenção de Colisões (UUID v4)
+## 3. Collision Prevention (UUID v4)
 
-Todas as primary keys no UMC usam UUID v4 gerado localmente:
+All primary keys in UMC use locally generated UUID v4:
 
 ```python
 import uuid
 neuron_id = str(uuid.uuid4())  # ex: "550e8400-e29b-41d4-a716-446655440000"
 ```
 
-**Por que UUID v4?** IDs sequenciais colidem entre máquinas distintas (máquina A e B ambas criam `id=1`). UUID v4 tem probabilidade de colisão de 1 em 10^36 — irrelevante na prática.
+**Why UUID v4?** Sequential IDs collide across different machines (machine A and B both create `id=1`). UUID v4 has a collision probability of 1 in 10^36 — irrelevant in practice.
 
 ---
 
-## 4. Integridade por Hash (SHA-256)
+## 4. Integrity by Hash (SHA-256)
 
-Cada arquivo indexado recebe um hash no momento da indexação:
+Each indexed file receives a hash at indexing time:
 
 ```python
 import hashlib
@@ -84,13 +84,13 @@ content_hash = hashlib.sha256(file_content.encode()).hexdigest()
 # frontmatter YAML:  integrity_hash: "a3b4c5d6..."
 ```
 
-O `audit_memory.py` compara o hash do arquivo físico com `neurons.hash`. Divergência indica que o arquivo foi modificado em outra máquina e o índice local está desatualizado.
+`audit_memory.py` compares the hash of the physical file with `neurons.hash`. A mismatch indicates the file was modified on another machine and the local index is outdated.
 
 ---
 
-## 5. Auditoria de Integridade (audit_memory.py)
+## 5. Integrity Audit (`audit_memory.py`)
 
-### 5.1 O que o auditor verifica
+### 5.1 What the auditor checks
 
 ```
   Para cada arquivo .md em cerebro/atlas/:
@@ -102,7 +102,7 @@ O `audit_memory.py` compara o hash do arquivo físico com `neurons.hash`. Diverg
        - arquivo não indexado: INSERT neuron novo
 ```
 
-### 5.2 Execução
+### 5.2 Execution
 
 ```bash
 # Verificar estado (read-only, sem modificações)
@@ -115,7 +115,7 @@ python3 scripts/health/audit_memory.py --fix
 python3 scripts/health/audit_memory.py --fix --verbose
 ```
 
-### 5.3 Output esperado
+### 5.3 Expected output
 
 ```
 [audit] Verificando 142 arquivos em cerebro/atlas/...
@@ -128,11 +128,11 @@ python3 scripts/health/audit_memory.py --fix --verbose
 
 ---
 
-## 6. Resolução de Conflitos — Síntese Dialética (Phase 9)
+## 6. Conflict Resolution — Dialectical Synthesis (Phase 9)
 
-Quando o auditor detecta que dois textos com o mesmo `source_file` têm conteúdos semânticos **irreconciliáveis** (não apenas hash diferente, mas conflito de fatos), o sistema registra uma **ambiguidade** e agenda resolução autônoma via LLM.
+When the auditor detects that two texts with the same `source_file` have **irreconcilable** semantic content (not just a different hash, but a factual conflict), the system records an **ambiguity** and schedules autonomous resolution via LLM.
 
-### 6.1 Tabela `ambiguities`
+### 6.1 `ambiguities` Table
 
 ```sql
 CREATE TABLE ambiguities (
@@ -147,9 +147,9 @@ CREATE TABLE ambiguities (
 );
 ```
 
-### 6.2 semantic_diff.py — Classificação de Conflitos
+### 6.2 `semantic_diff.py` — Conflict Classification
 
-O `semantic_diff.py` usa uma abordagem híbrida para classificar o tipo de conflito:
+`semantic_diff.py` uses a hybrid approach to classify the conflict type:
 
 ```
   Versão A (local) + Versão B (recebida via P2P)
@@ -171,9 +171,9 @@ O `semantic_diff.py` usa uma abordagem híbrida para classificar o tipo de confl
     }
 ```
 
-### 6.3 Síntese Dialética — Resolução Autônoma
+### 6.3 Dialectical Synthesis — Autonomous Resolution
 
-Para conflitos `contradictory`, o LLM aplica síntese dialética:
+For `contradictory` conflicts, the LLM applies dialectical synthesis:
 
 ```
   Conflito:
@@ -206,7 +206,7 @@ Para conflitos `contradictory`, o LLM aplica síntese dialética:
       └──────────────┴────────────────────────────────────────┘
 ```
 
-### 6.4 Fluxo Completo de Resolução
+### 6.4 Complete Resolution Flow
 
 ```
   Syncthing sincroniza arquivo modificado
@@ -240,9 +240,9 @@ Para conflitos `contradictory`, o LLM aplica síntese dialética:
 
 ---
 
-## 7. Metadados de Proveniência
+## 7. Provenance Metadata
 
-Cada nota no Atlas tem proveniência rastreável no frontmatter:
+Each note in Atlas has traceable provenance in frontmatter:
 
 ```yaml
 ---
@@ -258,7 +258,7 @@ source_observation_ids:
 ---
 ```
 
-Para rastrear um fato suspeito:
+To track a suspicious fact:
 ```bash
 # Verificar proveniência de um neuron
 python3 scripts/health/audit_memory.py --trace "nome-do-arquivo.md"
@@ -266,7 +266,7 @@ python3 scripts/health/audit_memory.py --trace "nome-do-arquivo.md"
 
 ---
 
-## 8. Cron Recomendado
+## 8. Recommended Cron
 
 ```cron
 # Auditoria e reindexação de arquivos recebidos via P2P (1x por hora)
@@ -280,7 +280,7 @@ python3 scripts/health/audit_memory.py --trace "nome-do-arquivo.md"
 
 ## 9. Disaster Recovery
 
-Se o `hive_mind.db` for corrompido ou perdido, pode ser reconstruído completamente a partir do vault:
+If `hive_mind.db` is corrupted or lost, it can be fully rebuilt from the vault:
 
 ```bash
 # Reconstrução completa do índice a partir dos .md
