@@ -115,7 +115,6 @@ ruvector.db
 .swarm/
 .kilo/
 .mcp.json
-.github/
 
 # ── Índices neurais (artefatos runtime — regenerados automaticamente) ─
 hnsw_neurons.idx
