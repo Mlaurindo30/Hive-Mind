@@ -244,6 +244,12 @@ Capture (hooks/MCP/CLI/browser/docs/code/screenshots)
   optional reranker adapter, never as the routing decision-maker.
 - Neither Milvus, RAGFlow nor LlamaIndex ever replace the brain: the vault (`cerebro/`) and the
   UMC stay the source of truth (`docs/11` §16).
+- **Knowledge governance**: every candidate is classified on two axes — `confidence`
+  (verified/hypothesis, from concrete evidence artifacts) and `risk` (low/high, secrets and
+  destructive operations). Promotion is proportional to risk; promoted notes carry
+  `review_date`/`next_review` and the router demotes stale or hypothesis content. Optional
+  OS-level vault write enforcement: `./install.sh --with-vault-enforcement` (dedicated service
+  user owns `cerebro/`; agents write only to `cerebro/90-intake/`).
 
 Full design: [`docs/11-knowledge-promotion-architecture.md`](docs/11-knowledge-promotion-architecture.md) ·
 phase-by-phase backlog: [`docs/12-knowledge-implementation-plan.md`](docs/12-knowledge-implementation-plan.md).
@@ -305,6 +311,8 @@ cp .env.example .env
 | `HIVE_VISION_PROVIDER` / `HIVE_VISION_MODEL` | Vision | Default `ollama/minicpm-v4.6:latest` |
 | `HIVE_VISION_FALLBACK_PROVIDER` / `HIVE_VISION_FALLBACK_MODEL` | Vision fallback | Default `ollama/gemma3:4b` |
 | `HIVE_OCR_PROVIDER` / `HIVE_OCR_MODEL` | Optional OCR | `ollama/deepseek-ocr:latest`, opt-in for dedicated OCR |
+| `HIVE_GOVERNANCE_RISK` | No (default on) | Risk-proportional promotion: verified+low promotes now, hypothesis drains after 7d, high-risk needs explicit approval. `0` restores promote-all |
+| `HIVE_STALENESS_PENALTY` | No (default `0.85`) | RetrievalRouter score multiplier for expired-review or hypothesis items (demoted, never excluded). `1.0` disables |
 | `VECTOR_BACKEND` | Vector store | `sqlite_vec` by default, `milvus` when enabled (`VectorBackend` contract) |
 | `RAGFLOW_BASE` | Optional document ingestion | `http://localhost:9380`, headless adapter — never the source of truth |
 | `HIVE_MIND_API_KEY` | For REST API | Bearer token — API will not start without it (fail-closed) |

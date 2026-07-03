@@ -82,6 +82,24 @@ id "$SERVICE_USER" &>/dev/null || useradd --system --no-create-home \
 usermod -aG "$SHARED_GROUP" "$HUMAN_USER"
 echo -e "  ${GREEN}OK${NC} user $SERVICE_USER + group $SHARED_GROUP (member: $HUMAN_USER)"
 
+# 1b. Path traversal for the service user: the vault usually lives under the
+#     human's HOME (e.g. /home/michel, mode 750), which the service user
+#     cannot traverse. Grant execute-only (x) ACLs along the path — traverse
+#     without listing/reading. Without this, the service user cannot reach
+#     the vault at all (observed in the first E2E probe).
+if command -v setfacl &>/dev/null; then
+    path="$(dirname "$VAULT_DIR")"
+    while [ "$path" != "/" ]; do
+        if ! sudo -u "$SERVICE_USER" test -x "$path" 2>/dev/null; then
+            setfacl -m "u:$SERVICE_USER:x" "$path"
+            echo -e "  ${GREEN}OK${NC} traverse ACL (x) for $SERVICE_USER on $path"
+        fi
+        path="$(dirname "$path")"
+    done
+else
+    echo -e "  ${YELLOW}warn${NC} setfacl unavailable — ensure $SERVICE_USER can traverse the path to the vault."
+fi
+
 # 2. Vault: owned by the service user; group reads, others nothing.
 #    setgid on directories keeps group inheritance for new files.
 chown -R "$SERVICE_USER:$SHARED_GROUP" "$VAULT_DIR"

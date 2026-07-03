@@ -16,7 +16,8 @@ Canonical knowledge flow:
 Capture (hooks/MCP/CLI/browser/docs/code/screenshots)
   → Temporal Hippocampus (claude-mem: observations, discoveries, summaries)
   → Knowledge Intake (normalize, classify, deduplicate)
-  → Promotion Layer (raw → fact/decision/learning/preference/task)
+  → Promotion Layer (raw → fact/decision/learning/preference/task;
+    risk-proportional: verified+low now, hypothesis after drain, high-risk on approval)
   → Anatomical Memory (cerebro/ + UMC)
   → Index Layer (FTS, sqlite-vec/Milvus, Graphify, Graphiti, LightRAG)
   → Retrieval Router (core/retrieval/router.py)
