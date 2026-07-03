@@ -1,3 +1,10 @@
+from __future__ import annotations
+
+import pytest
+
+pytestmark = pytest.mark.real
+
+
 """R11.2 — Disaster recovery: a copy of cerebro/ + hive_mind.db is queryable.
 
 Spec: specs/post-audit-stabilization.md R11.2.
@@ -7,22 +14,13 @@ Builds `/tmp/hive-mind-recovery-test/` with copies of `cerebro/` and
 runs a vector/fts sanity check against the copy via the .venv (so
 sqlite-vec is loaded).
 """
-
-from __future__ import annotations
-
 import shutil
 import subprocess
 from pathlib import Path
-
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RECOVERY_ROOT = Path("/tmp/hive-mind-recovery-test")
-
-
 def _venv_python() -> str:
     return str(PROJECT_ROOT / ".venv" / "bin" / "python")
-
-
 def test_recover_sh_verify_passes():
     """recover.sh verify on the live DB exits 0 with no FK violations."""
     proc = subprocess.run(
@@ -34,8 +32,6 @@ def test_recover_sh_verify_passes():
     )
     assert '"foreign_key_violations": 0' in proc.stdout
     assert '"integrity_check": "ok"' in proc.stdout
-
-
 def test_recovery_copy_is_queryable():
     """A /tmp copy of cerebro/ + hive_mind.db MUST have populated
     search_vec and search_fts, queryable through the .venv.
@@ -62,7 +58,4 @@ def test_recovery_copy_is_queryable():
     assert "fts 0" not in out, f"fts table empty in recovery copy: {out}"
 
     shutil.rmtree(RECOVERY_ROOT)
-
-
 # pytest import (declared at function level to keep this helper importable)
-import pytest  # noqa: E402

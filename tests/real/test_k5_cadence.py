@@ -1,3 +1,10 @@
+from __future__ import annotations
+
+import pytest
+
+pytestmark = pytest.mark.real
+
+
 """R10 — K5 cadence scripts produce non-empty outputs and summary_vectors.
 
 Spec: specs/post-audit-stabilization.md R10.1, R10.2.
@@ -7,18 +14,10 @@ weekly_synthesizer, monthly_synthesizer, yearly_synthesizer,
 pattern_distiller) and verifies the expected outputs exist and are
 non-empty, and that summary_vectors has rows.
 """
-
-from __future__ import annotations
-
 import subprocess
 from pathlib import Path
 
-import pytest
-
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-
 # Each cadence runs in its own test so a slow one does not block the
 # cheap ones. pattern_distiller can take minutes; it gets its own
 # generous timeout.
@@ -36,8 +35,6 @@ CADENCES = [
     (["scripts/knowledge/pattern_distiller.py", "--apply", "--since-days", "7"],
      "cerebro/cerebelo/padroes/Patterns.md", 600, "test_pattern_distiller"),
 ]
-
-
 def _run(cmd: list[str], timeout: int) -> None:
     proc = subprocess.run(
         [".venv/bin/python", *cmd], cwd=PROJECT_ROOT,
@@ -46,8 +43,6 @@ def _run(cmd: list[str], timeout: int) -> None:
     assert proc.returncode == 0, (
         f"cadence failed: {cmd}\nstdout={proc.stdout}\nstderr={proc.stderr}"
     )
-
-
 def _assert_outputs_present(expected: str) -> None:
     target = PROJECT_ROOT / expected
     assert target.exists(), f"missing {target}"
@@ -56,15 +51,11 @@ def _assert_outputs_present(expected: str) -> None:
     else:
         entries = list(target.rglob("*.md"))
         assert entries, f"{target} produced no .md files"
-
-
 @pytest.mark.parametrize("cmd,expected,timeout,testname", CADENCES,
                          ids=[c[3] for c in CADENCES])
 def test_cadence_produces_outputs(cmd, expected, timeout, testname):
     _run(cmd, timeout)
     _assert_outputs_present(expected)
-
-
 def test_summary_vectors_grew():
     """R10.2: summary_vectors MUST have rows."""
     from core.database import get_connection

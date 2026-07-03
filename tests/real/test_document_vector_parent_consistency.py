@@ -1,3 +1,9 @@
+from __future__ import annotations
+
+import pytest
+
+pytestmark = pytest.mark.real
+
 """R4.2 — DocumentPipeline consistency test.
 
 Spec: specs/post-audit-stabilization.md R4.2.
@@ -13,14 +19,9 @@ This is a guard against regression. The backfill script in
 `scripts/maintenance/backfill_document_parents_chunks.py` is what closes
 the 4968-orphan gap that the audit found.
 """
-
-from __future__ import annotations
-
 import subprocess
 import sys
 from pathlib import Path
-
-
 def test_no_orphan_document_vectors():
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from core.database import get_connection, ensure_migrations
@@ -37,8 +38,6 @@ def test_no_orphan_document_vectors():
         assert orphans == 0, f"vec_documents has {orphans} orphan rows"
     finally:
         conn.close()
-
-
 def test_every_chunk_has_parent():
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from core.database import get_connection, ensure_migrations
@@ -55,8 +54,6 @@ def test_every_chunk_has_parent():
         assert orphans == 0, f"document_chunks has {orphans} rows without a parent"
     finally:
         conn.close()
-
-
 def test_audit_script_reports_zero_orphans():
     """Run the audit script and parse its output. It MUST report
     vectors_without_chunk: 0 after the backfill."""
@@ -72,8 +69,6 @@ def test_audit_script_reports_zero_orphans():
     assert "chunks_without_parent: 0" in proc.stdout, (
         f"audit reports chunks without parent:\n{proc.stdout}"
     )
-
-
 def test_document_query_returns_auditable_citation():
     """R4.2 last bullet: every document query response MUST include
     source_uri, offset_start, offset_end, and a parent reference.

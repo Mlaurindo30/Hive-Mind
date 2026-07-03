@@ -1,3 +1,9 @@
+from __future__ import annotations
+
+import pytest
+
+pytestmark = pytest.mark.real
+
 """R3.5 — K8 production gate exits 0 when thresholds are met.
 
 Spec: specs/post-audit-stabilization.md R3.5.
@@ -5,17 +11,10 @@ Spec: specs/post-audit-stabilization.md R3.5.
 Runs `scripts/health/k8_gate.py --json` against the live database and
 asserts the gate reports `gate_passed: true`.
 """
-
-from __future__ import annotations
-
 import json
 import subprocess
 from pathlib import Path
-
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-
 def test_k8_gate_passes():
     proc = subprocess.run(
         [".venv/bin/python", "scripts/health/k8_gate.py", "--json"],

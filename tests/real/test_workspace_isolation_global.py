@@ -1,3 +1,10 @@
+from __future__ import annotations
+
+import pytest
+
+pytestmark = pytest.mark.real
+
+
 """R8.1 — Workspace isolation global test.
 
 Spec: specs/post-audit-stabilization.md R8.1, R8.3.
@@ -6,18 +13,10 @@ For each of the listed tables, creates data in workspace A and B, queries
 as A and B, and asserts no cross-workspace leakage. Also asserts the
 `query_route_log` does not carry raw text that crosses workspaces.
 """
-
-from __future__ import annotations
-
 import uuid
-
-import pytest
-
 
 WORKSPACE_A = f"audit-ws-A-{uuid.uuid4().hex[:6]}"
 WORKSPACE_B = f"audit-ws-B-{uuid.uuid4().hex[:6]}"
-
-
 def _ws_rows(conn, table: str, workspace_id: str, label: str) -> list:
     if table in ("neurons", "observations", "document_chunks", "document_memories"):
         col = "workspace_id"
@@ -32,8 +31,6 @@ def _ws_rows(conn, table: str, workspace_id: str, label: str) -> list:
         ).fetchall()]
     except Exception:
         return []
-
-
 def _seed_neuron(conn, workspace_id: str, label_suffix: str) -> str:
     nid = f"audit-iso-{workspace_id}-{label_suffix}-{uuid.uuid4().hex[:6]}"
     conn.execute(
@@ -44,8 +41,6 @@ def _seed_neuron(conn, workspace_id: str, label_suffix: str) -> str:
         (nid, f"audit-iso-{label_suffix}", f"/tmp/{nid}.md", workspace_id),
     )
     return nid
-
-
 def test_neurons_isolation():
     from core.database import get_connection, ensure_migrations
     conn = get_connection()
@@ -62,8 +57,6 @@ def test_neurons_isolation():
         assert b_id not in a_seen
     finally:
         conn.close()
-
-
 def test_observations_isolation():
     from core.database import get_connection, ensure_migrations
     conn = get_connection()
@@ -94,8 +87,6 @@ def test_observations_isolation():
         assert b == {obs_b}
     finally:
         conn.close()
-
-
 def test_query_route_log_isolation():
     """R8.3: query_route_log MUST scope raw text by workspace_id."""
     from core.database import get_connection, ensure_migrations
@@ -144,8 +135,6 @@ def test_query_route_log_isolation():
         assert ws_set == 0, f"query_route_log has {ws_set} rows with NULL/empty workspace"
     finally:
         conn.close()
-
-
 def test_synapses_isolation():
     """R8.1: synapses MUST stay isolated by workspace_id."""
     from core.database import get_connection, ensure_migrations
@@ -181,8 +170,6 @@ def test_synapses_isolation():
         conn.commit()
     finally:
         conn.close()
-
-
 def test_document_chunks_isolation():
     """R8.1: document_chunks MUST stay isolated by workspace_id."""
     from core.database import get_connection, ensure_migrations
@@ -225,8 +212,6 @@ def test_document_chunks_isolation():
         conn.commit()
     finally:
         conn.close()
-
-
 def test_document_vectors_isolation():
     """R8.1: vec_documents (document_vectors) MUST stay isolated by workspace_id."""
     from core.database import get_connection, ensure_migrations
@@ -274,8 +259,6 @@ def test_document_vectors_isolation():
         conn.commit()
     finally:
         conn.close()
-
-
 def test_vector_metadata_isolation():
     """R8.1: vector_metadata MUST stay isolated by workspace_id."""
     from core.database import get_connection, ensure_migrations
@@ -311,8 +294,6 @@ def test_vector_metadata_isolation():
         conn.commit()
     finally:
         conn.close()
-
-
 def test_milvus_branch_explicit_skip():
     """R8.2: Milvus branch MUST skip with a recorded reason when not active."""
     import os
@@ -326,8 +307,6 @@ def test_milvus_branch_explicit_skip():
     assert backend != "milvus", "this branch only runs when Milvus is NOT the backend"
     pytest.skip(f"skipped: VECTOR_BACKEND is {backend} in this environment; "
                 f"Milvus partition_key assertion is covered by the real-knowledge suite.")
-
-
 def test_workspace_mid_write_isolation():
     """Workspace A's query MUST NOT see workspace B's partial mid-write.
 

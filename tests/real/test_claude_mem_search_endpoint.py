@@ -1,3 +1,9 @@
+from __future__ import annotations
+
+import pytest
+
+pytestmark = pytest.mark.real
+
 """R6.1 — Claude Mem HTTP search returns results consistent with local FTS.
 
 Spec: specs/post-audit-stabilization.md R6.1.
@@ -6,9 +12,6 @@ Picks a term that the local SQLite FTS finds in `~/.claude-mem/claude-mem.db`,
 calls the HTTP `/api/search` endpoint, and asserts the response is
 non-empty. If the endpoint is unreachable or returns 0, the test FAILS.
 """
-
-from __future__ import annotations
-
 import json
 import os
 import sqlite3
@@ -18,12 +21,8 @@ import time
 import urllib.request
 import urllib.error
 from pathlib import Path
-
-
 CM_DB = Path(os.environ.get("CLAUDE_MEM_DB", os.path.expanduser("~/.claude-mem/claude-mem.db")))
 ENDPOINT = os.environ.get("CLAUDE_MEM_HTTP", "http://127.0.0.1:37700/api/search")
-
-
 def _local_fts_terms() -> list[str]:
     if not CM_DB.exists():
         return []
@@ -40,8 +39,6 @@ def _local_fts_terms() -> list[str]:
     finally:
         conn.close()
     return [row[0] for row in rows]
-
-
 def _http_search(term: str) -> tuple[int, str]:
     try:
         url = f"{ENDPOINT}?query={urllib.parse.quote(term)}&limit=5"
@@ -50,8 +47,6 @@ def _http_search(term: str) -> tuple[int, str]:
             return resp.status, resp.read().decode("utf-8", "ignore")
     except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
         return 0, f"transport-error: {e}"
-
-
 def test_http_search_returns_at_least_one_match():
     terms = _local_fts_terms()
     assert terms, f"no FTS titles available in {CM_DB}"
@@ -63,8 +58,6 @@ def test_http_search_returns_at_least_one_match():
         f"no term out of {len(terms[:10])} produced an HTTP /api/search match. "
         f"Endpoint at {ENDPOINT} returned empty for all probed terms."
     )
-
-
 def test_http_search_payload_shape():
     terms = _local_fts_terms()
     if not terms:

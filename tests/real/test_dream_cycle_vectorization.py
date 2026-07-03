@@ -1,3 +1,10 @@
+from __future__ import annotations
+
+import pytest
+
+pytestmark = pytest.mark.real
+
+
 """R3.4 — Vector job enqueue and process.
 
 Spec: specs/post-audit-stabilization.md R3.4.
@@ -13,21 +20,13 @@ spec's R3.4 step "5. confirm search_vec" depends on:
 Real services and `scripts/dream/dream_cycle.py` are tested by the
 real-knowledge suite, not by this test.
 """
-
-from __future__ import annotations
-
 import time
 import uuid
-
-import pytest
-
 
 def _count_jobs(conn, status: str) -> int:
     return conn.execute(
         "SELECT COUNT(*) FROM vector_jobs WHERE status = ?", (status,)
     ).fetchone()[0]
-
-
 @pytest.mark.timeout(60)
 def test_vector_job_enqueue_and_drain():
     from core.database import get_connection, ensure_migrations
@@ -92,8 +91,6 @@ def test_vector_job_enqueue_and_drain():
         conn.commit()
     finally:
         conn.close()
-
-
 def test_stub_collections_mark_done_without_vector():
     """R3.2 stub collections: job is processed, metadata is recorded,
     no vec0 row is written for a stub without source content.
