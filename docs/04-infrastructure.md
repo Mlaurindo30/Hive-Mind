@@ -202,6 +202,23 @@ RTK's Hermes plugin (`integrations/rtk/hooks/hermes/rtk-rewrite/`)
 logs opt-in observations back to UMC, but those are append-only events,
 not read paths.
 
+### 3.3 Graphify version (R9.1)
+
+The build environment reports:
+
+  - `graphify --version` → **0.8.14** (runtime)
+  - skill manifest → **0.8.49**
+  - `components.lock.json` → does not exist in the repo
+
+**Decision (recorded in FIX_LOG):** runtime **0.8.14** is canonical
+because the watcher is currently running at this version (PID 46326
+in this environment) and the `graph.json` artifact under
+`graphify-out/` was produced by 0.8.14. The skill manifest is
+aspirational; reconciling would require a `graphify install` that
+re-writes skill files, which is out of scope for the post-audit
+stabilization. To upgrade, re-run `graphify install` after this
+stabilization lands and update this paragraph.
+
 ### 4.2 claude-mem (Temporal Tracking)
 
 ```bash

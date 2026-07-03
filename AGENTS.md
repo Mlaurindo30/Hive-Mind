@@ -299,7 +299,7 @@ shell commands before execution. Do not use RTK to search memory; for that use
 | Method | Agents | How it works |
 |--------|--------|--------------|
 | **Native plugin** | Hermes | `register(ctx)` → hooks `pre_gateway_dispatch`, `post_tool_call`, `on_session_end` |
-| **MCP server** | Claude Code, Codex CLI, Cursor, Kilo Code, OpenClaw, Copilot, Gemini CLI, ZooCode, Aider | `scripts/services/sinapse-mcp.py` → 15 tools via stdio JSON-RPC |
+| **MCP server** | Claude Code, Codex CLI, Cursor, Kilo Code, OpenClaw, Copilot, Gemini CLI, ZooCode, Aider | `scripts/services/sinapse-mcp.py` → 16 tools via stdio JSON-RPC (includes `sinapse_promote_knowledge`) |
 | **Standalone CLI** | Any agent with shell | `scripts/services/sinapse-write.py` → `decision`, `learning`, `query`, `health`, `session-end` |
 | **REST API** | Remote agents / VPS | `scripts/services/sinapse-api.py` → Bearer auth, port 37702 |
 

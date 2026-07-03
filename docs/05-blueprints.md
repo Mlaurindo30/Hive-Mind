@@ -287,7 +287,7 @@
   │   SessionStart ────────────────┤                               │
   │   PostToolUse  ────────────────┤──▶  sinapse-hook.py           │
   │   Stop         ────────────────┤                               │
-  │   MCP tools ──────────────────▶│──▶  sinapse-mcp.py (10 tools) │
+  │   MCP tools ──────────────────▶│──▶  sinapse-mcp.py (16 tools) │
   └────────────────────────────────┤───────────────────────────────┘
                                    │
   ┌────────────────────────────────┼───────────────────────────────┐
@@ -295,7 +295,7 @@
   │   SessionStart ────────────────┤                               │
   │   PostToolUse  ────────────────┤──▶  sinapse-hook.py           │
   │   Stop         ────────────────┤                               │
-  │   MCP tools ──────────────────▶│──▶  sinapse-mcp.py (10 tools) │
+  │   MCP tools ──────────────────▶│──▶  sinapse-mcp.py (16 tools) │
   └────────────────────────────────┤───────────────────────────────┘
                                    │
   ┌────────────────────────────────┼───────────────────────────────┐
@@ -455,7 +455,7 @@ Components involved:
 | Graphify watcher | `graphify/` | base | Real-time indexing |
 | Dream Cycle | `scripts/dream/dream_cycle.py` | base | Offline consolidation |
 | sinapse-api | `scripts/services/sinapse-api.py` | base | REST :37702 |
-| sinapse-mcp | `scripts/services/sinapse-mcp.py` | base | MCP stdio (15 tools) |
+| sinapse-mcp | `scripts/services/sinapse-mcp.py` | base | MCP stdio (16 tools) |
 | sinapse-hook | `cerebro/tronco/infra/agentes/.claude/scripts/sinapse-hook.py` | base | Universal hooks |
 | HNSW Index | `core/hnsw_index.py` | HM-11 | Incremental 1024d index with canonical embedding `snowflake-arctic-embed2` |
 | Planner | `scripts/analytics/planner.py` | HM-11 | LLM goal decomposer |

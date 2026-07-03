@@ -247,7 +247,7 @@ Any new code creating/modifying files in the vault **must use these constants**,
                        ▼                         │             ▼
   ┌────────────────────────────────┐             │  ┌──────────────────────┐
   │  sinapse-mcp.py (MCP Server)  │             │  │ sinapse-memory.py    │
-  │  15 tools · stdio JSON-RPC    │             │  │ Hermes plugin         │
+  │  16 tools · stdio JSON-RPC    │             │  │ Hermes plugin         │
   │                               │             │  │ pre_gateway_dispatch │
   │  sinapse-write.py (CLI)       │             │  │ post_tool_call       │
   │  sinapse-api.py (REST :37702) │             │  │ on_session_end       │
@@ -676,7 +676,7 @@ stdio JSON-RPC, compatible with any MCP client.
 | `sinapse_rag_query` | `(question, mode?)` | Hybrid LightRAG graph query (entities + relations) — multi-hop, fed by Dream Cycle (P4) |
 | `search_memories` | `(query, top_k?, project?, mode?)` | HNSW/FTS search over vault |
 
-Total: **15 tools**. Automatic register/instructions via `register-mcp.sh`.
+Total: **16 tools** (includes `sinapse_promote_knowledge`). Automatic register/instructions via `register-mcp.sh`.
 
 **Single source of operational instructions:** `config/sinapse-agent-prompt.md`.
 - Loaded by `scripts/services/sinapse-mcp.py:_load_instructions()` (L38–53) and exposed as `instructions` in MCP `initialize`.
