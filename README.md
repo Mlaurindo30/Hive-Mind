@@ -43,11 +43,16 @@ One-liner without Node (Linux / WSL / macOS):
 curl -fsSL https://cdn.jsdelivr.net/gh/Mlaurindo30/Hive-Mind@main/install.sh | bash
 ```
 
-| Platform | Status | Service backend |
-|---|---|---|
-| Linux / WSL2 | ✅ stable (clean-machine tested) | systemd `--user` |
-| macOS | 🧪 experimental | launchd (`install_services.py launchd`) |
-| Windows native | 🚧 beta — install via WSL2; Node supervisor manages services | `hive-mind services` supervisor |
+| Platform | Status | Service backend | Vault enforcement (opt-in) |
+|---|---|---|---|
+| Linux / WSL2 | ✅ stable (clean-machine tested) | systemd `--user` | ✅ tested (`setup-vault-enforcement.sh`) |
+| macOS | 🧪 experimental | launchd (`install_services.py launchd`) | 🚧 beta (same script, Darwin branch) |
+| Windows native | 🚧 beta — `npx hive-sinapse-mind init` runs natively (uv sync, vault, `.env`, MCP configs, supervisor); host agents connect directly | `hive-mind services` supervisor | 🚧 beta (`setup-vault-enforcement.ps1`, icacls) |
+
+> Windows: native mode is the default so host agents (Claude Code, Cursor,
+> Copilot) reach the memory directly — a WSL2-only install lives in another
+> filesystem/network namespace their MCP configs cannot see. WSL2 remains the
+> fallback when `git`/`uv` are missing on the host.
 
 After install: `hive-mind mcp register --agent <claude|codex|gemini|cursor|...>`,
 restart your agent and confirm with *"use the sinapse_health tool"*.

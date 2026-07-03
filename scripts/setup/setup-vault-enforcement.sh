@@ -26,15 +26,18 @@
 # =============================================================================
 set -euo pipefail
 
-# Linux-only: relies on useradd/groupadd/setfacl (POSIX ACLs). On macOS the
-# equivalents are dscl + chmod +a; on Windows, filesystem enforcement should
-# be done via the WSL2 install. Contributions welcome — until then, fail
-# clearly instead of half-applying.
-if [ "$(uname -s)" != "Linux" ]; then
-    echo "ERROR: vault write enforcement currently supports Linux only (useradd/setfacl)." >&2
-    echo "macOS/Windows: run the stack without --with-vault-enforcement (cooperative mode)." >&2
-    exit 1
-fi
+# Platforms: Linux (useradd/setfacl, tested) and macOS (sysadminctl/chmod +a,
+# BETA — validated on paper, not yet on hardware). Windows native uses the
+# PowerShell sibling: scripts/setup/setup-vault-enforcement.ps1 (icacls, BETA).
+OS_NAME="$(uname -s)"
+case "$OS_NAME" in
+    Linux|Darwin) ;;
+    *)
+        echo "ERROR: unsupported platform '$OS_NAME'." >&2
+        echo "Windows native: run scripts/setup/setup-vault-enforcement.ps1 as Administrator." >&2
+        exit 1
+        ;;
+esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -46,10 +49,17 @@ HUMAN_USER="${SUDO_USER:-$(id -un)}"
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
 
+stat_owner() {
+    if [ "$OS_NAME" = "Darwin" ]; then stat -f '%Su:%Sg' "$1" 2>/dev/null; else stat -c '%U:%G' "$1" 2>/dev/null; fi
+}
+stat_mode_owner() {
+    if [ "$OS_NAME" = "Darwin" ]; then stat -f '%Lp %Su:%Sg' "$1" 2>/dev/null; else stat -c '%a %U:%G' "$1" 2>/dev/null; fi
+}
+
 status() {
     echo "Vault:        $VAULT_DIR"
-    echo "Owner:        $(stat -c '%U:%G' "$VAULT_DIR" 2>/dev/null || echo 'n/a')"
-    echo "Intake:       $INTAKE_DIR ($(stat -c '%a %U:%G' "$INTAKE_DIR" 2>/dev/null || echo 'missing'))"
+    echo "Owner:        $(stat_owner "$VAULT_DIR" || echo 'n/a')"
+    echo "Intake:       $INTAKE_DIR ($(stat_mode_owner "$INTAKE_DIR" || echo 'missing'))"
     echo "Service user: $(id "$SERVICE_USER" 2>/dev/null || echo 'not created')"
     if [ -d "$VAULT_DIR" ] && touch "$VAULT_DIR/.write-probe" 2>/dev/null; then
         rm -f "$VAULT_DIR/.write-probe"
@@ -85,6 +95,42 @@ fi
 
 echo "Applying vault write enforcement..."
 
+# =============================================================================
+# macOS branch (BETA — sysadminctl + chmod +a; validated on paper, not on
+# hardware yet). Same model: service user owns the vault, human keeps rw via
+# ACL, everyone else denied; intake stays group-writable.
+# =============================================================================
+if [ "$OS_NAME" = "Darwin" ]; then
+    echo -e "  ${YELLOW}BETA${NC} macOS enforcement — review output carefully."
+    if ! dscl . -read "/Groups/$SHARED_GROUP" >/dev/null 2>&1; then
+        gid=$(( $(dscl . -list /Groups PrimaryGroupID | awk '{print $2}' | sort -n | tail -1) + 1 ))
+        dscl . -create "/Groups/$SHARED_GROUP" PrimaryGroupID "$gid"
+    fi
+    if ! id "$SERVICE_USER" >/dev/null 2>&1; then
+        sysadminctl -addUser "$SERVICE_USER" -roleAccount -shell /usr/bin/false 2>/dev/null \
+            || { echo -e "  ${RED}ERROR${NC} sysadminctl role account creation failed"; exit 1; }
+    fi
+    dseditgroup -o edit -a "$SERVICE_USER" -t user "$SHARED_GROUP"
+    dseditgroup -o edit -a "$HUMAN_USER" -t user "$SHARED_GROUP"
+    echo -e "  ${GREEN}OK${NC} user $SERVICE_USER + group $SHARED_GROUP (member: $HUMAN_USER)"
+
+    chown -R "$SERVICE_USER:$SHARED_GROUP" "$VAULT_DIR"
+    find "$VAULT_DIR" -type d -exec chmod 750 {} +
+    find "$VAULT_DIR" -type f -exec chmod 640 {} +
+    # Human editing via macOS ACL (inherited).
+    chmod -R +a "user:$HUMAN_USER allow read,write,delete,add_file,add_subdirectory,list,search,file_inherit,directory_inherit" "$VAULT_DIR"
+    mkdir -p "$INTAKE_DIR"
+    chown "$SERVICE_USER:$SHARED_GROUP" "$INTAKE_DIR"
+    chmod 770 "$INTAKE_DIR"
+    echo -e "  ${GREEN}OK${NC} vault owned by $SERVICE_USER; intake group-writable: $INTAKE_DIR"
+    echo ""
+    status
+    exit 0
+fi
+
+# =============================================================================
+# Linux branch (tested)
+# =============================================================================
 # 1. Shared group (read access for humans/agents) and service user (sole writer).
 getent group "$SHARED_GROUP" >/dev/null || groupadd --system "$SHARED_GROUP"
 id "$SERVICE_USER" &>/dev/null || useradd --system --no-create-home \

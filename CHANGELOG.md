@@ -1,5 +1,50 @@
 # Changelog
 
+## v3.9.0 — Windows nativo + enforcement multiplataforma (beta)
+
+Release date: 2026-07-02
+
+Agentes no Windows (Claude Code, Cursor, Copilot) rodam no host — uma
+instalação presa ao WSL2 fica em outro namespace de filesystem/rede que os
+configs MCP deles não alcançam. O `init` do npm agora instala **nativo no
+Windows** por padrão, e o enforcement de vault ganhou variantes macOS e
+Windows (ambas beta, ainda não validadas em hardware real).
+
+### Added
+
+- **Bootstrap nativo Windows** (`npm hive-sinapse-mind@3.9.0`, `lib/init.js`):
+  no win32 o `init` executa o núcleo do install.sh com ferramentas
+  multiplataforma — clone, `uv sync --frozen --all-groups`, vault de
+  `templates/vault`, `.env` (forçando `sqlite_vec`), registro MCP direto nos
+  configs JSON dos agentes do host (`.mcp.json` do projeto p/ Claude Code,
+  `~/.cursor/mcp.json`, `~/.codex/mcp.json` com `python.exe` do venv) e
+  serviços via supervisor Node (F3). WSL2 vira fallback apenas quando
+  `git`/`uv` faltam no host.
+- **Enforcement de vault macOS (beta)**: branch Darwin no
+  `setup-vault-enforcement.sh` — role account via `sysadminctl`, ACLs
+  `chmod +a` herdadas para edição humana, mesmo modelo do Linux.
+- **Enforcement de vault Windows nativo (beta)**:
+  `scripts/setup/setup-vault-enforcement.ps1` — conta de serviço local,
+  `icacls` com quebra de herança (service account F, humano M, others
+  negados) e `90-intake` gravável por Authenticated Users. `-Status`/`-Revert`.
+- README: matriz de plataformas com coluna de enforcement e nota sobre por
+  que Windows nativo é o padrão.
+
+### Fixed
+
+- `setup-vault-enforcement.sh`: `hive-dreamer` não conseguia atravessar o
+  caminho até o vault quando o projeto vive sob o HOME do humano (ex.:
+  `/home/<user>` 750) — ACLs de travessia execute-only aplicadas ao longo do
+  path; `stat` portável Linux/macOS no `--status`.
+- **Portabilidade**: removidos os últimos caminhos absolutos de máquina de 5
+  arquivos funcionais (benchmark_watcher, copilot-wrapper, crontab template
+  com `__PROJECT_ROOT__`, claude-mem-plugins installer, langfuse compose com
+  volume relativo) — instalação zero em qualquer máquina sem paths herdados.
+
+> **Beta honesto:** os enforcements macOS/Windows e o bootstrap nativo win32
+> foram validados por sintaxe e revisão, não em hardware real — validação em
+> máquina física/CI é o próximo passo antes de promovê-los a estável.
+
 ## v3.8.0 — Governança de conhecimento proporcional ao risco
 
 Release date: 2026-07-02
