@@ -1,5 +1,35 @@
 # Changelog
 
+## v3.9.2 — Redactor: fully mask generic api_key/token/secret values
+
+Release date: 2026-07-04
+
+The v3.9.1 post-audit evidence package flagged a fragile redaction case:
+`api_key=abcdef0123456789` left the alphabetic prefix `abcdef` visible and
+mislabeled the trailing digits `[REDACTED:phone]`. It did not violate the
+spec's literal assertion (the full original value never leaked verbatim),
+but was a real risk for future exports/logs.
+
+### Fixed
+
+- `core/redactor.py`: added a rule for generic `key=value` / `key: value`
+  secrets — `api_key`, `apikey`, `apiKey`, `API_KEY`, `token`,
+  `access_token`, `secret`, `client_secret` — placed before the phone-number
+  matcher so the entire value is masked, never partially. The key name and
+  separator are preserved verbatim; only the value becomes
+  `[REDACTED:token]`. AWS/Bearer/OpenAI rules are untouched.
+
+### Added
+
+- `tests/unit/test_redactor_generic_api_keys.py` (13 tests) — locks in the
+  fix and explicitly guards against regressing AWS/Bearer/OpenAI redaction.
+
+### Verified
+
+`tests/unit/test_redactor.py` 10/10 · `test_redactor_aws_tokens.py` 7/7 ·
+new `test_redactor_generic_api_keys.py` 13/13 · full `tests/unit/` suite
+632 passed/3 skipped (0 regressions) · `compileall` exit 0.
+
 ## v3.9.1 — Post-audit stabilization: close the last four accepted-with-caveats items
 
 Release date: 2026-07-04
