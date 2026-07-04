@@ -18,14 +18,22 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import time
 import uuid
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from core import paths as cp  # noqa: E402
+
 VAULT = PROJECT_ROOT / "cerebro"
-GRAPHIFY_OUT = PROJECT_ROOT / "graphify-out"
+# Canonical output dir: same resolution RetrievalRouter._route_graphify uses
+# (core/retrieval/router.py) — cerebro/cortex/occipital/grafo/graph.json.
+GRAPHIFY_OUT = cp.OCCIPITAL / "grafo"
 
 
 def _watcher_running() -> bool:

@@ -237,12 +237,12 @@ K8 health gate (must hold continuously after Sprint 1):
 
 These were not resolved in the source material; `/build` should pause and ask before assuming:
 
-- **Q1.** Syncthing is described in R11.1 as either installed OR explicitly optional. The audit marked it `BLOQUEADO`. Does the user want it installed (via `apt install syncthing` or equivalent) for this stabilization, or is "documented as optional" the acceptable path?
+- **Q1.** ~~Syncthing is described in R11.1 as either installed OR explicitly optional.~~ **RESOLVED 2026-07-04: installed.** No interactive `sudo` was available in the stabilization environment, so Syncthing was installed user-space (the official static binary at `~/.local/bin/syncthing`, no root required) rather than via `apt`. `syncthing --version` → v2.1.1. `docs/README.md`'s Syncthing status note updated accordingly.
 - **Q2.** R3.2 lists seven canonical collections. The audit evidence covers `memory_vectors`, `observation_vectors`, `document_vectors`, `visual_vectors`. The other three (`code_vectors`, `graph_vectors`, `summary_vectors`) were not directly tested. Should the worker cover all seven, or only the four the audit confirmed?
 - **Q3.** R6 gives two options for Claude Mem: fix `/api/search` or remove it. The audit suggested fixing it. The user did not pick. Is fixing the HTTP endpoint in scope, or is the SQL bridge the canonical path?
 - **Q4.** R12 says MCP tools count MUST match docs. The audit found 16 real vs 15 documented. The user did not pick between "officialize the 16th" and "remove the 16th." Which way?
 - **Q5.** R10.2 expects `summary_vectors` to grow with each cadence run. The audit did not confirm that path. If it does not exist, is creating it in scope for Sprint 4, or should it be added as a follow-up?
 - **Q6.** R3.5's K8 gate mentions `observations_linked_pct` increasing. The audit did not define a baseline. What is the starting value, and what counts as "increasing"?
-- **Q7.** R11.3 P2P conflict test is `MAY`. Does the user want it as a `MUST` for production, or is it acceptable to ship the stabilization without exercising it?
+- **Q7.** ~~R11.3 P2P conflict test is `MAY`.~~ **RESOLVED 2026-07-04: exercised.** `tests/real/test_p2p_conflict.py` drives the real conflict router (`scripts/health/audit_memory.py` + `core.database.register_ambiguity`, no mocks) against an isolated SQLite file, reproducing the exact `.sync-conflict-<date>-<time>-<device>.md` filename Syncthing generates on a real collision. 2/2 passing: conflict registered in `ambiguities`, file moved to `cortex/insula/conflitos/`, canonical neuron never silently overwritten. Running two live Syncthing daemons end-to-end remains a manual exercise (`docs/07-p2p-sync-setup.md`), not part of the automated suite.
 
 These questions MUST be answered before the corresponding sprint begins. The `FIX_LOG` MUST record the answer and the decision rationale.

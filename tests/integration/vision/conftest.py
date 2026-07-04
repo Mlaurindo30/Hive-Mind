@@ -45,14 +45,20 @@ def _provider_has_credential(provider: str) -> bool:
 # -------------------- pytest hooks --------------------
 
 def pytest_collection_modifyitems(config, items):
-    """Aplica skip-default a não ser que a variável opt-in esteja setada."""
+    """Aplica skip-default aos testes DESTE diretório (vision/), a não ser
+    que a variável opt-in esteja setada. Escopado por nodeid — este hook é
+    descoberto pelo pytest ao coletar qualquer ancestral de tests/integration/
+    e não deve afetar itens de outros módulos de integração.
+    """
     if os.environ.get("HIVE_RUN_INTEGRATION") == "1":
         return
+    here = str(Path(__file__).parent)
     skip = pytest.mark.skip(
         reason="Integração real desabilitada. Defina HIVE_RUN_INTEGRATION=1 para rodar."
     )
     for item in items:
-        item.add_marker(skip)
+        if str(item.fspath).startswith(here):
+            item.add_marker(skip)
 
 
 # -------------------- fixtures --------------------

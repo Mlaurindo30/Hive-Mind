@@ -70,12 +70,18 @@ Tempo real:          Watcher (watchdog) → Obsidian→SQLite em ~2s
 Acesso:              MCP (16 tools) · plugin Hermes · CLI · REST FastAPI :37702
 Distribuição:        Syncthing (P2P) + UUID v4 + SHA-256 + Síntese Dialética + workspace + federação
 
-> **Syncthing status (post-audit 2026-07-03):** Syncthing is **optional and
-> out-of-scope** for the post-audit stabilization build. The README
-> describes it for context, but no installation is performed and the P2P
-> conflict test (R11.3) is declared MAY. Re-enable by installing
-> `syncthing` and running `./scripts/setup/register-mcp.sh --check` with
-> the relevant agents configured.
+> **Syncthing status (post-audit 2026-07-04):** Syncthing is installed
+> (`syncthing --version` → v2.1.1) and the P2P conflict test (R11.3) is
+> exercised for real in `tests/real/test_p2p_conflict.py`: it drives the
+> project's actual conflict router (`scripts/health/audit_memory.py` +
+> `core.database.register_ambiguity`, no mocks) against the exact
+> filename Syncthing produces on a real collision
+> (`<neuron>.sync-conflict-<date>-<time>-<device>.md`), and asserts the
+> conflict lands in `ambiguities` + `cortex/insula/conflitos/` without
+> silently overwriting the canonical neuron. Running two live Syncthing
+> daemons end-to-end is a manual exercise per
+> [`07-p2p-sync-setup.md`](07-p2p-sync-setup.md), not part of the
+> automated suite.
 Fonte de verdade:    cerebro/ (Obsidian) — frontmatter YAML + WikiLinks
 Regra:               local-first por operação · born-large por arquitetura · plugável por contrato
                      · anatômico por fonte de verdade · auditável por evidência

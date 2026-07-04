@@ -76,6 +76,11 @@ integrations/rtk/target/
 backups/
 
 # ── Hermes agent local ────────────────────────────────────────────
+# Unanchored on purpose: hides .hermes/ tool-state wherever it appears
+# (root and elsewhere). The shipped template at
+# templates/vault/tronco/infra/agentes/.hermes/ is re-included via the
+# explicit negation below (found colliding via the D7 zero-to-green
+# Docker test, 2026-07-04 — do not remove the negation).
 .hermes/
 
 # ── Embedded repos ─────────────────────────────────────────────────
@@ -107,14 +112,33 @@ ruvector.db
 .pytest_cache/
 
 # ── Pastas de ferramentas e agentes locais (não commitar) ────────────
+# .claude/, .claude-flow/ and .gemini/ are unanchored on purpose: these
+# tool-state directories (e.g. claude-flow's data/pending-insights.jsonl)
+# appear at multiple depths in this tree (root, config/, npm/,
+# scripts/capture/, ...), not just root. The shipped templates at
+# templates/vault/tronco/infra/agentes/{.claude,.claude-flow,.gemini}/
+# are re-included via the explicit negations below — do not remove them.
 .claude/
 .claude-flow/
 .gemini/
-.kiro/
-.opencode/
-.swarm/
+/.kiro/
+/.opencode/
+/.swarm/
 .kilo/
 .mcp.json
+
+# Re-include the shipped agent-hook templates the four unanchored
+# patterns above (.claude/, .claude-flow/, .gemini/) and .hermes/ would
+# otherwise also swallow at this nested path (D7 zero-to-green Docker
+# test, 2026-07-04).
+!templates/vault/tronco/infra/agentes/.claude/
+!templates/vault/tronco/infra/agentes/.claude/**
+!templates/vault/tronco/infra/agentes/.claude-flow/
+!templates/vault/tronco/infra/agentes/.claude-flow/**
+!templates/vault/tronco/infra/agentes/.gemini/
+!templates/vault/tronco/infra/agentes/.gemini/**
+!templates/vault/tronco/infra/agentes/.hermes/
+!templates/vault/tronco/infra/agentes/.hermes/**
 
 # ── Índices neurais (artefatos runtime — regenerados automaticamente) ─
 hnsw_neurons.idx

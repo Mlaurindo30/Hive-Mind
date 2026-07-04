@@ -148,6 +148,18 @@ def _make_db(tmpdir: str) -> sqlite3.Connection:
             description TEXT, steps_json TEXT, status TEXT,
             created_at TEXT, workspace_id TEXT
         );
+        CREATE TABLE vector_jobs (
+            id TEXT PRIMARY KEY,
+            entity_type TEXT NOT NULL,
+            entity_id TEXT NOT NULL,
+            collection TEXT NOT NULL,
+            workspace_id TEXT NOT NULL DEFAULT 'default',
+            status TEXT NOT NULL DEFAULT 'pending',
+            attempts INTEGER DEFAULT 0,
+            error TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
     """)
     return conn
 

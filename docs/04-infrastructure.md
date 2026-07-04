@@ -204,20 +204,32 @@ not read paths.
 
 ### 3.3 Graphify version (R9.1)
 
-The build environment reports:
+`config/components.lock.json` pins Graphify's source clone
+(`integrations/graphify`, built via `pip install -e`) at commit
+`905e0a7` = **version 0.8.49**. `scripts/setup/components.py verify`
+confirms the checkout matches this commit and the pinned patch is
+applied.
 
-  - `graphify --version` → **0.8.14** (runtime)
-  - skill manifest → **0.8.49**
-  - `components.lock.json` → does not exist in the repo
+**The project's actual runtime resolves to 0.8.49, matching the lock.**
+Nothing in the codebase calls a bare `graphify` off `$PATH`: the
+watcher (`scripts/services/start-watcher.sh`) invokes
+`python -m graphify watch` through the project's own `.venv`, and
+`install.sh` resolves `GRAPHIFY="$PROJECT_ROOT/.venv/bin/graphify"`
+explicitly. `PATH="$PROJECT_ROOT/.venv/bin:...:$PATH" graphify --version`
+reports `0.8.49` — the same version the lock pins.
 
-**Decision (recorded in FIX_LOG):** runtime **0.8.14** is canonical
-because the watcher is currently running at this version (PID 46326
-in this environment) and the `graph.json` artifact under
-`graphify-out/` was produced by 0.8.14. The skill manifest is
-aspirational; reconciling would require a `graphify install` that
-re-writes skill files, which is out of scope for the post-audit
-stabilization. To upgrade, re-run `graphify install` after this
-stabilization lands and update this paragraph.
+A *separate*, host-level interactive CLI tool exists at
+`~/.local/bin/graphify` (installed independently via `uv tool install
+graphifyy`, one per developer machine, not part of this repo) and can
+lag behind — e.g. it may still report `0.8.14` and print a
+"skill is from graphify 0.8.49, package is 0.8.14" warning on some
+machines. That warning is about the personal CLI tool a developer uses
+for ad-hoc `/graphify` queries across *all* their projects; it is not
+part of Hive-Mind's install or runtime and out of this repo's scope to
+manage. To silence it on a given machine, run `uv tool upgrade
+graphifyy` (or symlink `~/.local/bin/graphify` to that machine's
+project `.venv/bin/graphify`) — a one-time, per-developer action, not
+a stabilization blocker.
 
 ### 4.2 claude-mem (Temporal Tracking)
 

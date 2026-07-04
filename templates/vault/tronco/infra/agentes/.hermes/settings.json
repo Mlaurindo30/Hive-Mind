@@ -1,0 +1,19 @@
+{
+  "description": "Hive-Mind Hermes hook integration",
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "scripts/services/sinapse-write.py health",
+        "timeout": 5
+      }
+    ],
+    "PreToolCall": [
+      {
+        "type": "command",
+        "command": "scripts/services/sinapse-write.py observation --title 'Hermes pre-tool' --content 'audit fixture' --kind event",
+        "timeout": 5
+      }
+    ]
+  }
+}

@@ -405,6 +405,13 @@ if [ "$AGENTS_FOUND" -eq 0 ]; then
     echo -e "${YELLOW}⊘${NC} No agent detected on this machine."
     echo "  Install an agent (Claude Code, Codex, Gemini CLI, ...) and run again,"
     echo "  or register a specific one: ./scripts/setup/register-mcp.sh --only <agent>"
+    # --check is a read-only preview: zero agents on a fresh machine is a
+    # valid state (R5.4), not a failure. Only the registration path (no
+    # --check) treats "nothing to register" as an error.
+    if $CHECK_ONLY; then
+        echo "0 agent(s) detected."
+        exit 0
+    fi
     exit 1
 fi
 
