@@ -24,6 +24,19 @@ _RULES: list[tuple[re.Pattern, str]] = [
     # 1b. AWS env-var assignments: aws_access_key_id / aws_secret_access_key.
     (re.compile(r'aws_access_key_id\s*=\s*\S+'), 'aws_access_key_id=[REDACTED:aws-key]'),
     (re.compile(r'aws_secret_access_key\s*=\s*\S+'), 'aws_secret_access_key=[REDACTED:aws-key]'),
+    # 1c. Generic key=value / key: value secrets (api_key, apikey, apiKey,
+    # API_KEY, token, access_token, secret, client_secret). Must run before
+    # the phone rule (7): without this, a trailing digit run inside the
+    # value (e.g. "api_key=abcdef0123456789") gets partially eaten by the
+    # phone matcher, leaving the alphabetic prefix exposed and mislabeling
+    # it "[REDACTED:phone]". The key name itself (\1) and its separator
+    # (\2, e.g. " = ") are preserved verbatim; only the value is masked.
+    # An optional surrounding quote (\3) is preserved on both sides so
+    # `api_key="..."` stays quoted after redaction.
+    (re.compile(
+        r'(?i)\b(api[_-]?key|access[_-]?token|client[_-]?secret|secret|token)'
+        r'([\s]*[:=][\s]*)([\'"]?)([^\s\'",}&]+)\3'
+    ), r'\1\2\3[REDACTED:token]\3'),
     # 2. Email addresses
     (re.compile(r'[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}'), '[REDACTED:email]'),
     # 3. IPv4 addresses
