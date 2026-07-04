@@ -1,5 +1,77 @@
 # Changelog
 
+## v3.9.1 — Post-audit stabilization: close the last four accepted-with-caveats items
+
+Release date: 2026-07-04
+
+The prior stabilization pass (v3.7.6–v3.8.0) closed 49 of 53 spec items and
+left four as "accepted with rationale" rather than genuinely done: RTK/Graphify
+version drift (R1.4/R9.1), Syncthing (R11.1), the P2P conflict test (R11.3),
+and the full `install.sh --with-tests` zero-to-green run (D7). This release
+closes all four for real, and along the way surfaces and fixes three
+pre-existing regressions that the full test suites had never actually been
+run end-to-end to catch.
+
+### Fixed
+
+- **RTK version drift (R1.4)**: `integrations/patches/rtk-umc-logging.patch`
+  still reflected the pre-fix, buggy `_log_to_umc` duplication — regenerated
+  from the corrected file. `scripts/setup/components.py verify` now exits 0
+  with `patch=ok` on all three pinned components.
+- **Graphify version drift (R9.1)**: corrected a prior wrong claim.
+  The project's actual runtime (the watcher's `python -m graphify`,
+  `install.sh`'s `.venv/bin/graphify`) already resolves to `0.8.49`, matching
+  `config/components.lock.json`. Only a separate, host-level personal CLI
+  tool (`uv tool install graphifyy`, outside repo scope) could lag behind.
+  `docs/04-infrastructure.md` rewritten accordingly.
+- **`register-mcp.sh --check` exit code**: exited 1 whenever zero agents
+  were detected, even in `--check` mode — contradicting its own
+  "must exit 0" requirement and the project's zero-to-green-without-an-IDE
+  precedent. `--check` is now informational on zero agents.
+- **Agent-hook templates never reached a fresh install**: 4 of 7 agent-hook
+  directories (`.claude`, `.claude-flow`, `.gemini`, `.hermes`) existed only
+  on one machine's live, gitignored vault — never added to the shipped
+  `templates/vault/`, and additionally swallowed by unanchored `.gitignore`
+  patterns even after being added. Both root causes fixed: the templates are
+  now shipped, and `.gitignore` carries scoped negations so tool-state
+  directories elsewhere in the tree stay ignored.
+- **`tests/integration/test_watcher_graphify_indexing.py`**: hardcoded a
+  stale, empty legacy path instead of the real canonical graph-output
+  directory the retrieval router actually reads.
+- **`tests/unit/test_knowledge_governance.py`**: its test-database fixture
+  was missing the `vector_jobs` table added for vectorization queueing,
+  silently quarantining every promotion with a database error. Full
+  `pytest tests/unit/ -q` had never been run end-to-end since that table was
+  added, so this went uncaught.
+- **`tests/integration/vision/conftest.py`**: its "vision tests disabled by
+  default" collection hook applied the skip marker to every test in the
+  whole session, not just its own directory.
+- Removed a fourth stray PostScript test artifact (`argparse`, 96k lines)
+  from the same accidental-commit batch partially cleaned up previously.
+
+### Added
+
+- Syncthing installed (user-space binary, no root required) — R11.1 closed.
+- `tests/real/test_p2p_conflict.py` — drives the real conflict router
+  (`scripts/health/audit_memory.py` + `core.database.register_ambiguity`,
+  no mocks) against an isolated SQLite file, reproducing the exact
+  `.sync-conflict-<date>-<time>-<device>.md` filename Syncthing produces on
+  a real collision. Confirms the conflict is registered and the canonical
+  neuron is never silently overwritten — R11.3 closed.
+- `tests/install/run-clean-install-test-local.sh` — companion to the
+  existing Docker zero-to-green harness that injects the current working
+  tree (tracked + untracked-but-not-gitignored files) instead of requiring
+  a pushed ref, so `install.sh --with-tests` can be validated against local
+  branches. Used to close D7 with a real green run in a fresh
+  Ubuntu-24.04-with-systemd container (no Hive-Mind, Ollama, or IDE
+  pre-installed).
+
+### Verified (same session)
+
+`compileall` exit 0 · smoke 19/19 · unit 619 passed/3 skipped · integration
+116 passed/3 skipped · e2e 23 passed · real-knowledge 88 passed/1 skipped ·
+K8 gate 99.77% vectorized, 0 orphans · Docker zero-to-green exit 0.
+
 ## v3.9.0 — Windows nativo + enforcement multiplataforma (beta)
 
 Release date: 2026-07-02
