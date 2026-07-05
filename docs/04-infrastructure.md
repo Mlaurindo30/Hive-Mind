@@ -99,22 +99,31 @@ the MiniCPM manifest. The legacy heavy model `llava:7b` is not part of the stack
 > online re-embed per workspace, dual-write until cutover, metric `vectors_model_mismatch` = 0
 > within a collection.
 
-### 2.2.1 Model Gateway (Priority 1, opt-in)
+### 2.2.1 Model Gateway (Priority 1, canonical)
 
-The per-role `HIVE_*_PROVIDER/MODEL` table above is the **legacy** path and
-remains the default (`MODEL_GATEWAY_ENABLED=false`). `core/model_gateway.py`
-+ `core/model_registry.py` add an opt-in routing layer that selects a model
-by role **and** required capability (structured output, tools, vision,
-embeddings, rerank) across `native` (wraps the table above),
-`openai_compatible`/`lmstudio`/`llamacpp`/`vllm`/`sglang` (one shared HTTP
-adapter), and `litellm` (proxy mode). Config lives in
-`config/model-gateway.yaml`; see [`14-model-gateway.md`](14-model-gateway.md)
-for the full guide, backend setup per provider, and known limitations.
+The per-role `HIVE_*_PROVIDER/MODEL` table above is the **source of
+truth** for which provider/model each role uses. The
+`core/model_gateway.py` + `core/model_registry.py` layer is the
+**canonical execution path** for every LLM call in the Hive-Mind
+(specs/model-gateway-unification.md). `core/llm_client.call_llm_with_fallback`
+is a thin wrapper that delegates to `ModelGateway.from_combined_config()`.
+The registry composes `PROVIDERS_CONFIG` (base URL, env var, auth type)
+with the `.env` `HIVE_*_PROVIDER/MODEL/FALLBACK*` and applies
+`config/model-gateway.yaml` as an OPTIONAL override layer (never
+requiring `provider`/`model` per role). Routing is by role **and**
+required capability (structured output, tools, vision, embeddings,
+rerank) across `native` (legacy bridge for vision + emergency bypass),
+`openai_compatible`/`lmstudio`/`llamacpp`/`vllm`/`sglang` (one shared
+HTTP adapter), and `litellm` (proxy mode). See
+[`14-model-gateway.md`](14-model-gateway.md) for the full guide, backend
+setup per provider, and known limitations.
 
 | Variable | Description |
 |----------|-------------|
-| `MODEL_GATEWAY_ENABLED` | `false` by default — legacy `core/llm_client.py` path only |
-| `MODEL_GATEWAY_CONFIG` | Path to the gateway config, default `config/model-gateway.yaml` |
+| `MODEL_GATEWAY_MODE` | `auto` (default) / `on` / `off` — see `14-model-gateway.md` § Operating modes |
+| `HIVE_FORCE_LEGACY_LLM` | Emergency bypass (`true`/`false`); never set by default |
+| `MODEL_GATEWAY_ENABLED` | DEPRECATED shim for `MODEL_GATEWAY_MODE` |
+| `MODEL_GATEWAY_CONFIG` | Path to the YAML override, default `config/model-gateway.yaml` |
 | `LMSTUDIO_BASE_URL` / `LMSTUDIO_MODEL` | LM Studio local server (default `http://localhost:1234/v1`) |
 | `LLAMACPP_BASE_URL` / `LLAMACPP_MODEL` | llama.cpp `server` (default `http://localhost:8080/v1`) |
 | `VLLM_BASE_URL` / `VLLM_MODEL` | vLLM OpenAI-compatible server (default `http://localhost:8000/v1`) |

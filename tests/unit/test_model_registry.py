@@ -214,36 +214,43 @@ def test_select_prefer_local_picks_cost_mode_local():
 
 
 def test_select_structured_output_requires_flag():
+    """R6.5 — `select` returns the best role-matching profile even if it
+    does not satisfy `require`. The gateway is responsible for emitting
+    a `provider_skipped_due_to_capability` event and moving on."""
     registry = ModelRegistry([
         _profile(id="a", roles=["validator"],
                  capabilities=ModelCapabilities(structured_output=False)),
     ])
-    with pytest.raises(NoModelForRoleError):
-        registry.select("validator", require={"structured_output": True})
+    picked = registry.select("validator", require={"structured_output": True})
+    assert picked.id == "a"
 
 
 def test_select_tool_calling_requires_flag():
+    """R6.5 — same as above for `tool_calling`."""
     registry = ModelRegistry([_profile(id="a", roles=["validator"])])
-    with pytest.raises(NoModelForRoleError):
-        registry.select("validator", require={"tool_calling": True})
+    picked = registry.select("validator", require={"tool_calling": True})
+    assert picked.id == "a"
 
 
 def test_select_vision_requires_flag():
+    """R6.5 — same as above for `vision`."""
     registry = ModelRegistry([_profile(id="a", roles=["validator"])])
-    with pytest.raises(NoModelForRoleError):
-        registry.select("validator", require={"vision": True})
+    picked = registry.select("validator", require={"vision": True})
+    assert picked.id == "a"
 
 
 def test_select_embeddings_requires_flag():
+    """R6.5 — same as above for `embeddings`."""
     registry = ModelRegistry([_profile(id="a", roles=["validator"])])
-    with pytest.raises(NoModelForRoleError):
-        registry.select("validator", require={"embeddings": True})
+    picked = registry.select("validator", require={"embeddings": True})
+    assert picked.id == "a"
 
 
 def test_select_rerank_requires_flag():
+    """R6.5 — same as above for `rerank`."""
     registry = ModelRegistry([_profile(id="a", roles=["validator"])])
-    with pytest.raises(NoModelForRoleError):
-        registry.select("validator", require={"rerank": True})
+    picked = registry.select("validator", require={"rerank": True})
+    assert picked.id == "a"
 
 
 def test_select_model_with_empty_roles_not_selected_by_role():

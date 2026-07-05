@@ -417,6 +417,55 @@ def _mask_secret(value: str) -> str:
         return value[:2] + "…"
     return f"{value[:6]}…{value[-4:]}"
 
+
+def _print_combined_table() -> None:
+    """R9 — after `save_env`, call `ModelRegistry.from_combined_config()`
+    and print the resolved table for the operator, including any
+    `unsupported_explicit` warning (R2 §3). Pure stdout, no interactive
+    prompt — safe to call from any save_env path.
+    """
+    try:
+        from core.model_registry import ModelRegistry
+    except Exception as exc:  # pragma: no cover - import-time error
+        print(f"{YELLOW}⚠ não foi possível carregar o ModelRegistry: {exc}{NC}")
+        return
+
+    try:
+        reg = ModelRegistry.from_combined_config()
+    except Exception as exc:
+        print(f"{YELLOW}⚠ ModelRegistry.from_combined_config() falhou: {exc}{NC}")
+        return
+
+    problems = reg.validate()
+    unsupported = [p for p in problems if p.get("issue") == "unsupported_explicit"]
+
+    rows = reg.list_models()
+    if not rows:
+        print(f"{YELLOW}⚠ Nenhum role configurado em HIVE_*_PROVIDER/MODEL.{NC}")
+        if problems:
+            for prob in problems:
+                print(f"  - {prob}")
+        return
+
+    print(line())
+    print(f"{BOLD}Model Gateway — registry combinado (R9){NC}")
+    print(line("-"))
+    print(f"{fit('role', 16)} {fit('level', 10)} {fit('provider', 16)} {fit('model', 32)} {fit('adapter', 18)} {fit('reason', 22)}")
+    print(line("-"))
+    for p in rows:
+        adapter = p.provider
+        reason = p.unsupported_reason or ""
+        print(
+            f"{fit(p.role or '-', 16)} {fit(p.level, 10)} {fit(p.id.split('/')[1] if '/' in p.id else '-', 16)} "
+            f"{fit(p.model, 32)} {fit(adapter, 18)} {fit(reason, 22)}"
+        )
+    if unsupported:
+        print(line("-"))
+        print(f"{YELLOW}unsupported_explicit:{NC}")
+        for p in unsupported:
+            print(f"  - {p}")
+    print(line())
+
 def describe_provider_credential(p_name: str, env: Dict[str, str]) -> str:
     """Descreve a credencial ativa do provedor (método + valor mascarado)."""
     cfg = PROVIDERS_CONFIG[p_name]
@@ -849,6 +898,26 @@ def show_model_selection(p_name: str, role: str, level: int = 0):
     save_env(role_var(role, f"{prefix}MODEL"), selected['id'])
     target = f"{_LEVEL_LABEL[level]} {role.upper()}"
     print(f"\n{GREEN}{BOLD}✓ Hive-Mind atualizado ({target}): {selected['id']}{NC}")
+
+    # R9/R10 — telemetry record for the role being configured.
+    try:
+        from core.model_telemetry import record_setup_brain_role_configured
+        env = load_env()
+        record_setup_brain_role_configured(
+            role=role,
+            primary_provider=env.get(role_var(role, "PROVIDER")),
+            primary_model=env.get(role_var(role, "MODEL")),
+            fallback_provider=env.get(role_var(role, "FALLBACK_PROVIDER")),
+            fallback_model=env.get(role_var(role, "FALLBACK_MODEL")),
+            fallback2_provider=env.get(role_var(role, "FALLBACK2_PROVIDER")),
+            fallback2_model=env.get(role_var(role, "FALLBACK2_MODEL")),
+        )
+    except Exception:
+        pass
+
+    # R9 — print the combined registry table so the operator sees the
+    # gateway's view of their .env.
+    _print_combined_table()
 
     # Papel claude_mem: aplica a escolha direto no claude-mem (settings.json) e
     # reinicia o worker, para o claude-mem passar a gerar com o modelo escolhido.

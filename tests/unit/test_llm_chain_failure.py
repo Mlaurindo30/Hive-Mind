@@ -18,10 +18,21 @@ Cobre:
 
 Sem chamadas reais: requests.post é mockado para sempre levantar
 exception transitória (Timeout).
+
+These tests target the legacy `_legacy_call_llm_with_fallback` path,
+so they set `HIVE_FORCE_LEGACY_LLM=true` so the wrapper does not try
+the gateway first.
 """
+import os
 import unittest.mock as mock
 
 import pytest
+
+# Force the legacy path so the wrapper does not go through the
+# ModelGateway. The post-unification gateway is the default; this
+# test suite is explicitly testing the legacy chain-failure
+# behaviour that the gateway preserves verbatim.
+os.environ.setdefault("HIVE_FORCE_LEGACY_LLM", "true")
 
 from core import llm_client
 

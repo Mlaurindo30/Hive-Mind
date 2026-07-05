@@ -27,16 +27,19 @@ class _Answer(BaseModel):
 
 
 def test_gateway_disabled_legacy_llm_client_still_works(monkeypatch):
-    """MODEL_GATEWAY_ENABLED unset (default) -> call_llm_with_fallback never
-    touches the gateway at all."""
+    """In the post-unification build, the gateway is the default path
+    (R4 §1). `MODEL_GATEWAY_MODE=off` and `HIVE_FORCE_LEGACY_LLM=true`
+    are the only ways to keep the legacy path. This test pins that:
+    when the gateway is forced off via `HIVE_FORCE_LEGACY_LLM=true`,
+    the legacy path runs and a missing role config still raises the
+    canonical `RuntimeError` from the legacy code."""
+    monkeypatch.setenv("HIVE_FORCE_LEGACY_LLM", "true")
     monkeypatch.delenv("MODEL_GATEWAY_ENABLED", raising=False)
     from core.llm_client import call_llm_with_fallback
 
-    with patch("core.model_gateway.ModelGateway.from_config") as gateway_ctor:
-        with patch("core.llm_client.get_role_config", return_value=None):
-            with pytest.raises(RuntimeError, match="Nenhum LLM configurado"):
-                call_llm_with_fallback("nonexistent-role", "p", "s", _Answer)
-        gateway_ctor.assert_not_called()
+    with patch("core.llm_client.get_role_config", return_value=None):
+        with pytest.raises(RuntimeError, match="Nenhum LLM configurado"):
+            call_llm_with_fallback("nonexistent-role", "p", "s", _Answer)
 
 
 def test_gateway_enabled_selects_model_by_role():

@@ -1,10 +1,14 @@
 """
 Hive-Mind — Cliente LLM unificado (multi-provedor, multi-papel)
 
-Chamada estruturada (JSON Schema + validação Pydantic) com classificação de
-erros e fallback explícito por papel (ver core.auth.get_role_config).
+Wrapper canônico que delega ao `core.model_gateway.ModelGateway`
+(`ModelGateway.from_combined_config()`). O caminho legado foi renomeado
+para `_legacy_call_llm_with_fallback` e é acessível apenas em
+`HIVE_FORCE_LEGACY_LLM=true` (bypass emergencial) ou quando `image_path`
+é passado (ponte vision explícita — R8). Veja
+`specs/model-gateway-unification.md` R4 e `docs/14-model-gateway.md`.
 
-Classificação de erros:
+Classificação de erros (legada, preservada para `_legacy_call_llm_with_fallback`):
   - "validation": saída inválida (Pydantic) — problema de QUALIDADE.
     Retry no MESMO modelo; NUNCA dispara fallback.
   - "auth": 401/402/403, saldo/quota insuficiente, credenciais ausentes —
@@ -309,63 +313,137 @@ def call_llm_structured(prompt: str, system_prompt: str, response_model: Any,
 
 
 def _call_via_model_gateway(role: str, prompt: str, system_prompt: str, response_model: Any) -> Any:
-    """Routes a structured call through the Model Gateway (Priority 1,
-    MODEL_GATEWAY_ENABLED=true). Returns None (never raises) on any failure —
-    the caller falls through to the legacy path below, matching
-    sinapse.yaml's `model_gateway.fail_open_to_legacy_llm_client`. See
-    specs/model-gateway.md Requirement 22 and docs/13-model-gateway.md.
+    """Routes a structured call through the Model Gateway (canonical path).
+
+    Returns the validated Pydantic instance on success, or raises whatever
+    the gateway returned (translated). On unexpected exceptions, returns
+    None and logs a structured warning — the caller (`call_llm_with_fallback`)
+    decides whether to fall back to legacy based on `MODEL_GATEWAY_MODE` and
+    `HIVE_FORCE_LEGACY_LLM`. The legacy fail-open was REMOVED; failure is
+    explicit and recorded in `core.model_telemetry`.
     """
+    import sys
+    from core import model_telemetry
+    from core.model_gateway import ModelGateway, ModelResponse
+
     try:
-        from core.model_gateway import ModelGateway
-        gateway = ModelGateway.from_config()
-        schema = response_model.model_json_schema()
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt},
-        ]
+        gateway = ModelGateway.from_combined_config()
+    except Exception as exc:
+        print(
+            f"  [ModelGateway] could not initialize for role {role!r} ({exc}); "
+            f"delegating to legacy llm_client",
+            file=sys.stderr,
+        )
+        return None
+
+    request_id = model_telemetry.record_gateway_attempt(
+        role=role,
+        provider="(gateway)",
+        model=response_model.__name__,
+        level="primary",
+    )
+    schema = response_model.model_json_schema()
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": prompt},
+    ]
+    try:
         resp = gateway.structured(messages, schema, role=role)
     except Exception as exc:
-        print(f"  [ModelGateway] unavailable for role {role!r} ({exc}); "
-              f"falling back to legacy llm_client", file=sys.stderr)
+        model_telemetry.record_gateway_failure(
+            request_id=request_id,
+            role=role,
+            provider="(gateway)",
+            model=response_model.__name__,
+            level="primary",
+            error_class="unknown",
+            reason=f"gateway_call_exception:{exc}",
+        )
+        model_telemetry.record_legacy_fallback_used(
+            request_id=request_id,
+            role=role,
+            reason=f"gateway raised: {exc}",
+        )
+        print(
+            f"  [ModelGateway] role {role!r} raised ({exc}); "
+            f"falling back to legacy llm_client",
+            file=sys.stderr,
+        )
         return None
+
+    if not isinstance(resp, ModelResponse):
+        # Defensive: the gateway contract says ModelResponse.
+        model_telemetry.record_gateway_failure(
+            request_id=request_id,
+            role=role,
+            provider="(gateway)",
+            model=response_model.__name__,
+            level="primary",
+            error_class="unknown",
+            reason="non_ModelResponse_returned",
+        )
+        return None
+
     if not resp.ok:
-        print(f"  [ModelGateway] role {role!r} failed ({resp.error}); "
-              f"falling back to legacy llm_client", file=sys.stderr)
+        model_telemetry.record_gateway_failure(
+            request_id=request_id,
+            role=role,
+            provider=resp.provider,
+            model=resp.model_id,
+            level="primary",
+            error_class="unknown",
+            reason=resp.error or "unknown",
+        )
+        model_telemetry.record_legacy_fallback_used(
+            request_id=request_id,
+            role=role,
+            reason=resp.error or "unknown",
+        )
+        print(
+            f"  [ModelGateway] role {role!r} failed ({resp.error}); "
+            f"falling back to legacy llm_client",
+            file=sys.stderr,
+        )
         return None
     try:
         return response_model(**resp.content)
     except Exception as exc:
-        print(f"  [ModelGateway] structured content did not fit {response_model.__name__} "
-              f"({exc}); falling back to legacy llm_client", file=sys.stderr)
+        model_telemetry.record_gateway_failure(
+            request_id=request_id,
+            role=role,
+            provider=resp.provider,
+            model=resp.model_id,
+            level="primary",
+            error_class="validation",
+            reason=f"structured_content_did_not_fit:{exc}",
+        )
+        model_telemetry.record_legacy_fallback_used(
+            request_id=request_id,
+            role=role,
+            reason=f"structured content did not fit {response_model.__name__}",
+        )
+        print(
+            f"  [ModelGateway] structured content did not fit {response_model.__name__} "
+            f"({exc}); falling back to legacy llm_client",
+            file=sys.stderr,
+        )
         return None
 
 
-def call_llm_with_fallback(role: str, prompt: str, system_prompt: str, response_model: Any,
-                           image_path: Optional[str] = None,
-                           max_retries: int = 2) -> Any:
-    """Chamada estruturada com política de retry/fallback do papel *role*.
-
-    - transitório: até *max_retries* retries com backoff no mesmo modelo →
-      depois tenta o fallback do papel (se definido);
-    - auth/saldo: sem retry no mesmo modelo → fallback direto (com warning);
-    - validação Pydantic: até *max_retries* retries no MESMO modelo →
-      re-levanta; NUNCA dispara fallback.
-
-    Levanta a última exceção se todos os alvos falharem (o chamador decide
-    quarentena/log).
-
-    Quando MODEL_GATEWAY_ENABLED=true (Priority 1 — core/model_gateway.py),
-    roteia primeiro pelo gateway (seleção por role/capability); imagens não
-    são suportadas pelo gateway nesta versão, então image_path sempre usa o
-    caminho legado abaixo. Qualquer falha do gateway cai (fail-open) para
-    exatamente o comportamento legado, sem alterar o contrato de retorno.
+def _legacy_call_llm_with_fallback(
+    role: str,
+    prompt: str,
+    system_prompt: str,
+    response_model: Any,
+    image_path: Optional[str] = None,
+    max_retries: int = 2,
+) -> Any:
+    """Corpo legacy preservado verbatim — chamado apenas em
+    `HIVE_FORCE_LEGACY_LLM=true` (bypass emergencial) ou via a ponte
+    vision quando `image_path` é fornecido (R8). Mesma política de
+    retry/fallback/classificação de erros que existia antes da
+    unificação do Model Gateway.
     """
-    from core.model_gateway import gateway_enabled
-    if image_path is None and gateway_enabled():
-        gateway_result = _call_via_model_gateway(role, prompt, system_prompt, response_model)
-        if gateway_result is not None:
-            return gateway_result
-
     cfg = get_role_config(role)
     if not cfg:
         raise RuntimeError(
@@ -375,14 +453,9 @@ def call_llm_with_fallback(role: str, prompt: str, system_prompt: str, response_
     targets = [(cfg["provider"], cfg["model"])]
     if cfg.get("fallback_provider") and cfg.get("fallback_model"):
         targets.append((cfg["fallback_provider"], cfg["fallback_model"]))
-    # 2º fallback (rede final, ex.: OmniRoute com 226 providers internos).
     if cfg.get("fallback2_provider") and cfg.get("fallback2_model"):
         targets.append((cfg["fallback2_provider"], cfg["fallback2_model"]))
 
-    # Preservamos a primeira exceção vista por alvo para diagnóstico
-    # (a do fallback pode ser diferente da do primário — ex.: transient
-    # no primário seguido de auth no fallback). Sem isso, a quarentena
-    # pode classificar uma tempestade transient que terminou em auth.
     primary_exc: Optional[Exception] = None
     fallback_exc: Optional[Exception] = None
     for idx, (prov, mod) in enumerate(targets):
@@ -402,24 +475,118 @@ def call_llm_with_fallback(role: str, prompt: str, system_prompt: str, response_
                     fallback_exc = e
                 kind = classify_llm_error(e)
                 if kind == "validation":
-                    # Qualidade, não disponibilidade: retry no mesmo modelo, nunca fallback
                     if attempt <= max_retries:
                         continue
                     raise
                 if kind == "auth":
                     print(f"  [Aviso] Falha de auth/saldo em {prov}/{mod} "
                           f"(papel '{role}'): {e}", file=sys.stderr)
-                    break  # sem retry no mesmo modelo: próximo alvo (fallback)
-                # Transitório: retry com backoff exponencial
+                    break
                 if attempt <= max_retries:
                     time.sleep(min(2 ** attempt, 8))
                     continue
-                break  # esgotou retries: próximo alvo (fallback)
-    # Cadeia inteira falhou: levanta LLMChainFailure preservando ambos os
-    # erros e a rota tentada. O chamador (quarentena, dream_cycle) decide
-    # o que fazer com base nos atributos primary_exc / fallback_exc.
+                break
     raise LLMChainFailure(
         chain=targets,
         primary_exc=primary_exc,
         fallback_exc=fallback_exc,
+    )
+
+
+def call_llm_with_fallback(role: str, prompt: str, system_prompt: str, response_model: Any,
+                           image_path: Optional[str] = None,
+                           max_retries: int = 2) -> Any:
+    """Wrapper canônico. Delega ao `ModelGateway` (R4). Mantém a mesma
+    assinatura e o mesmo contrato de exceções (`LLMValidationError`,
+    `LLMChainFailure`) que os chamadores esperam.
+
+    Regras (R4+R5+R8):
+      1. `HIVE_FORCE_LEGACY_LLM=true` (case-insensitive) → warning único
+         + `_legacy_call_llm_with_fallback` direto. É bypass emergencial,
+         não modo operacional.
+      2. `image_path` != None → warning único + `_legacy_call_llm_with_fallback`
+         (ponte vision explícita). O gateway ainda não tem adapters vision
+         próprios.
+      3. `MODEL_GATEWAY_MODE=auto` (default) → tenta gateway; em falha
+         o caller vê o erro estruturado via `_call_via_model_gateway` que
+         emite warning + telemetria antes de delegar ao legado.
+      4. `MODEL_GATEWAY_MODE=on` → gateway obrigatório; se falhar, o
+         wrapper NUNCA cai pro legado — propaga o erro estruturado.
+      5. `MODEL_GATEWAY_MODE=off` → desabilita gateway (deprecated, emite
+         warning de deprecation) e chama o legado.
+    """
+    import sys
+    from core.model_gateway import resolve_gateway_mode, force_legacy_llm
+
+    # Bypass emergencial — prevalece sobre MODE.
+    if force_legacy_llm():
+        print(
+            "  [ModelGateway] HIVE_FORCE_LEGACY_LLM=true is an emergency bypass; "
+            "legacy path will be used",
+            file=sys.stderr,
+        )
+        if resolve_gateway_mode() == "on":
+            print(
+                "  [ModelGateway] HIVE_FORCE_LEGACY_LLM overrides MODEL_GATEWAY_MODE=on",
+                file=sys.stderr,
+            )
+        return _legacy_call_llm_with_fallback(
+            role, prompt, system_prompt, response_model, image_path, max_retries,
+        )
+
+    # Ponte vision explícita.
+    if image_path is not None:
+        print(
+            "  [ModelGateway] legacy_vision_bridge_used=true; image_path routed "
+            "through legacy llm_client",
+            file=sys.stderr,
+        )
+        return _legacy_call_llm_with_fallback(
+            role, prompt, system_prompt, response_model, image_path, max_retries,
+        )
+
+    mode = resolve_gateway_mode()
+    if mode == "off":
+        print(
+            "  [ModelGateway] MODEL_GATEWAY_MODE=off (deprecated) — using legacy path",
+            file=sys.stderr,
+        )
+        return _legacy_call_llm_with_fallback(
+            role, prompt, system_prompt, response_model, None, max_retries,
+        )
+
+    # mode in {"auto", "on"} — tenta o gateway.
+    gateway_result = _call_via_model_gateway(role, prompt, system_prompt, response_model)
+    if gateway_result is not None:
+        return gateway_result
+
+    # Gateway falhou.
+    if mode == "on":
+        # Em MODE=on, NUNCA cai pro legado. Propaga o erro estruturado
+        # que o gateway registrou.
+        from core.model_gateway import ModelGateway as _MG
+        # Re-invoca para obter a ModelResponse estruturada, não None.
+        try:
+            _MG.from_combined_config().structured(
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt},
+                ],
+                response_model.model_json_schema(),
+                role=role,
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"ModelGateway MODE=on failed for role {role!r} and legacy "
+                f"fallback is disabled: {exc}"
+            ) from exc
+        raise RuntimeError(
+            f"ModelGateway MODE=on failed for role {role!r}; "
+            f"set HIVE_FORCE_LEGACY_LLM=true to bypass"
+        )
+
+    # mode == "auto" — cai pro legado com warning estruturado
+    # (já emitido por _call_via_model_gateway).
+    return _legacy_call_llm_with_fallback(
+        role, prompt, system_prompt, response_model, None, max_retries,
     )

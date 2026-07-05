@@ -10,11 +10,84 @@
 
 version: 1
 
+# Override layer (NEW for model-gateway-unification spec). Optional.
+# Capability / cost / adapter_hint overrides for the legacy providers
+# defined in core/auth.PROVIDERS_CONFIG.
+#
+# We deliberately do NOT set `cost_mode: paid` on paid providers here —
+# that would force `ModelRegistry.validate()` to require cost fields,
+# which are operator-supplied in real deployments. Capabilities yes,
+# cost metadata only when the operator has actual prices.
+providers:
+  ollama:
+    adapter_hint: openai_compatible
+    capabilities:
+      chat: true
+      structured_output: true
+      embeddings: true
+      vision: true
+  openai:
+    adapter_hint: openai_compatible
+  openrouter:
+    adapter_hint: openai_compatible
+  deepseek:
+    adapter_hint: openai_compatible
+  nvidia:
+    adapter_hint: openai_compatible
+  qwen:
+    adapter_hint: openai_compatible
+  omniroute:
+    adapter_hint: openai_compatible
+  google:
+    adapter_hint: litellm
+  gemini:
+    adapter_hint: litellm
+  huggingface:
+    adapter_hint: litellm
+  anthropic:
+    adapter_hint: openai_compatible
+  ollama-cloud:
+    adapter_hint: openai_compatible
+  gemini-cli:
+    adapter_hint: native
+  antigravity:
+    adapter_hint: native
+  lmstudio:
+    adapter_hint: lmstudio
+  llamacpp:
+    adapter_hint: llamacpp
+  vllm:
+    adapter_hint: vllm
+  sglang:
+    adapter_hint: sglang
+
+# Per-role override hints (R7 §2). These are metadata applied to the
+# legacy profiles at load time; they MUST NOT contain `provider` or
+# `model` (those come from HIVE_*_PROVIDER/MODEL in the .env).
+roles:
+  validator:
+    require:
+      structured_output: true
+    prefer:
+      cost_mode: local
+  router:
+    require:
+      structured_output: true
+  distiller:
+    require:
+      structured_output: true
+
 defaults:
   timeout_s: 60
   max_retries: 1
   fallback_enabled: true
   telemetry_enabled: true
+
+# Pre-registered backends (optional). Same `models[]` shape as before —
+# used when the legacy `.env` does NOT define a (provider, model) pair
+# for a role and we want the gateway to know about additional backends
+# (LM Studio, llama.cpp, vLLM, SGLang, LiteLLM proxy). Enable a backend
+# by installing/starting it and flipping `enabled: true`.
 
 models:
   # Wraps the existing, already-proven core/llm_client.py role-based

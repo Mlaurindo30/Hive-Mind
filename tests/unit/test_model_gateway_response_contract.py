@@ -28,7 +28,7 @@ from core.model_gateway import (
 _MODEL_RESPONSE_FIELDS = {
     "ok", "content", "model_id", "provider", "endpoint", "latency_ms",
     "input_tokens", "output_tokens", "cost_estimate", "fallback_used",
-    "fallback_chain", "error", "raw",
+    "fallback_chain", "error", "raw", "error_chain",
 }
 
 

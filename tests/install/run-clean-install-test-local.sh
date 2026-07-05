@@ -93,8 +93,8 @@ docker exec "$NAME" test -f /home/hive/Hive-Mind/config/model-gateway.yaml \
 docker exec "$NAME" test -f /home/hive/Hive-Mind/config/model-gateway.env.example \
     && echo "  OK: config/model-gateway.env.example presente" \
     || { echo "  FALHA: config/model-gateway.env.example ausente"; MG_CHECK_EXIT=1; }
-docker exec "$NAME" grep -q "^MODEL_GATEWAY_ENABLED=" /home/hive/Hive-Mind/.env.example \
-    && echo "  OK: .env.example contém MODEL_GATEWAY_ENABLED (bloco idempotente aplicado pelo install.sh)" \
+docker exec "$NAME" grep -q "^MODEL_GATEWAY_MODE=" /home/hive/Hive-Mind/.env.example \
+    && echo "  OK: .env.example contém MODEL_GATEWAY_MODE (bloco idempotente aplicado pelo install.sh)" \
     || { echo "  FALHA: .env.example não contém o bloco do Model Gateway"; MG_CHECK_EXIT=1; }
 docker exec "$NAME" grep -q "model_gateway" /home/hive/Hive-Mind/config/sinapse.yaml \
     && echo "  OK: config/sinapse.yaml contém a seção model_gateway" \
