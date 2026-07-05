@@ -82,7 +82,32 @@ docker exec "$NAME" cat /home/hive/Hive-Mind/logs/install-report.md || true
 echo "--- units sinapse ativas ---"
 docker exec "${USER_ENV[@]}" "$NAME" systemctl --user list-units 'sinapse*' --state=active --no-pager || true
 echo "--- health da REST API ---"
-docker exec "$NAME" curl -sf http://127.0.0.1:37702/api/v1/health && echo
+HEALTH_BODY="$(docker exec "$NAME" curl -sf http://127.0.0.1:37702/api/v1/health)"
+echo "$HEALTH_BODY"
+
+echo "--- Model Gateway: config presente e .env.example atualizado ---"
+MG_CHECK_EXIT=0
+docker exec "$NAME" test -f /home/hive/Hive-Mind/config/model-gateway.yaml \
+    && echo "  OK: config/model-gateway.yaml presente" \
+    || { echo "  FALHA: config/model-gateway.yaml ausente"; MG_CHECK_EXIT=1; }
+docker exec "$NAME" test -f /home/hive/Hive-Mind/config/model-gateway.env.example \
+    && echo "  OK: config/model-gateway.env.example presente" \
+    || { echo "  FALHA: config/model-gateway.env.example ausente"; MG_CHECK_EXIT=1; }
+docker exec "$NAME" grep -q "^MODEL_GATEWAY_ENABLED=" /home/hive/Hive-Mind/.env.example \
+    && echo "  OK: .env.example contém MODEL_GATEWAY_ENABLED (bloco idempotente aplicado pelo install.sh)" \
+    || { echo "  FALHA: .env.example não contém o bloco do Model Gateway"; MG_CHECK_EXIT=1; }
+docker exec "$NAME" grep -q "model_gateway" /home/hive/Hive-Mind/config/sinapse.yaml \
+    && echo "  OK: config/sinapse.yaml contém a seção model_gateway" \
+    || { echo "  FALHA: config/sinapse.yaml sem seção model_gateway"; MG_CHECK_EXIT=1; }
+if echo "$HEALTH_BODY" | grep -q "model_gateway"; then
+    echo "  OK: /api/v1/health inclui model_gateway"
+else
+    echo "  FALHA: /api/v1/health sem model_gateway"
+    MG_CHECK_EXIT=1
+fi
+if [ "$MG_CHECK_EXIT" -ne 0 ]; then
+    INSTALL_EXIT=1
+fi
 
 if [ "$INSTALL_EXIT" -eq 0 ]; then
     echo "RESULTADO: ZERO-TO-GREEN OK (árvore local)"

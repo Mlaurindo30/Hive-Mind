@@ -868,6 +868,17 @@ if [ -f "$PROJECT_ROOT/config/env.roles.example" ] && [ -f "$PROJECT_ROOT/.env.e
     fi
 fi
 
+# Ensures that .env.example contains the Model Gateway block (idempotent, same
+# pattern as the per-role LLM block above). Source of truth is versioned at
+# config/model-gateway.env.example.
+if [ -f "$PROJECT_ROOT/config/model-gateway.env.example" ] && [ -f "$PROJECT_ROOT/.env.example" ]; then
+    if ! grep -q "^MODEL_GATEWAY_ENABLED=" "$PROJECT_ROOT/.env.example"; then
+        printf '\n' >> "$PROJECT_ROOT/.env.example"
+        cat "$PROJECT_ROOT/config/model-gateway.env.example" >> "$PROJECT_ROOT/.env.example"
+        echo -e "  ${GREEN}✓${NC} Model Gateway block added to .env.example"
+    fi
+fi
+
 if [ -n "$PROVIDER" ] && [ -n "$MODEL" ]; then
     echo -e "  Saving provider ($PROVIDER) and model ($MODEL) to .env..."
     # Ensures that .env exists

@@ -53,8 +53,14 @@ MODEL_GATEWAY_CONFIG=config/model-gateway.yaml
 
 O bloco de variáveis do Model Gateway fica em
 `config/model-gateway.env.example` porque `.env.example` não pôde ser
-alterado nesta sessão. O install/documentation deve apontar para esse
-arquivo como fonte canônica do exemplo de ambiente do Model Gateway.
+alterado diretamente nesta sessão (bloqueio de permissão). Isso é resolvido
+automaticamente ao rodar `./install.sh`: assim como o bloco de LLM por role
+(`config/env.roles.example`), o installer verifica se `.env.example` já
+contém `MODEL_GATEWAY_ENABLED=` e, se não, anexa o conteúdo de
+`config/model-gateway.env.example` de forma idempotente (ver `install.sh`,
+seção "[11/12] Configuring Dream Cycle intelligence"). Verificado de ponta a
+ponta num container limpo (`tests/install/run-clean-install-test-local.sh`):
+`.env.example` nasce com o bloco sem qualquer intervenção manual.
 
 Also mirrored in `config/sinapse.yaml`'s `model_gateway:` section
 (`enabled`, `config`, `fail_open_to_legacy_llm_client`, `telemetry`) —
