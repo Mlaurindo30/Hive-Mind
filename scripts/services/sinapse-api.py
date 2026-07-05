@@ -361,7 +361,11 @@ def _require_crdt_enabled():
 @app.get("/api/v1/health")
 @limiter.limit("60/minute")
 def get_health(request: Request):
-    return {"status": "online", "engine": "Hive-Mind Vault Ready"}
+    return {
+        "status": "online",
+        "engine": "Hive-Mind Vault Ready",
+        "model_gateway": _model_gateway_metrics(),
+    }
 
 
 # K10 (v3.7.9+): lista workspaces ativos com contagem por tabela.
@@ -441,7 +445,37 @@ def get_metrics(request: Request):
             "hnsw": (_ROOT / "hnsw_neurons.idx").is_file(),
             "hnsw_map": (_ROOT / "hnsw_neurons.map.json").is_file(),
         },
+        "model_gateway": _model_gateway_metrics(),
     }
+
+
+def _model_gateway_metrics() -> dict:
+    """Priority 1 (Model Gateway) status for /api/v1/metrics — always present,
+    even disabled, per specs/model-gateway.md Requirement 25. Kept out of the
+    unauthenticated /api/v1/health (which stays a lightweight uptime probe,
+    unchanged, to avoid regressing existing smoke/zero-to-green checks)."""
+    try:
+        from core.model_gateway import ModelGateway, gateway_enabled
+
+        gw_enabled = gateway_enabled()
+        gateway = ModelGateway.from_config()
+        if not gw_enabled:
+            return {
+                "enabled": False,
+                "models_total": len(gateway.registry.list_models()),
+                "healthy": 0, "unhealthy": 0, "default_roles": {},
+            }
+        gw_health = gateway.health()
+        return {
+            "enabled": True,
+            "models_total": gw_health["models_total"],
+            "healthy": gw_health["healthy"],
+            "unhealthy": gw_health["unhealthy"],
+            "default_roles": gw_health["default_roles"],
+        }
+    except Exception as exc:
+        return {"enabled": False, "models_total": 0, "healthy": 0,
+                "unhealthy": 0, "default_roles": {}, "error": str(exc)}
 
 
 @app.get("/api/v1/knowledge/health", dependencies=[Depends(verify_api_key)])

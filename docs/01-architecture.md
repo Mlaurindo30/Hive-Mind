@@ -1878,6 +1878,12 @@ Record of architecture decisions shaping current design. Each ADR documents cont
 **Rationale:** explicit clone vs wrapper rules reduce operational ambiguity. Contract is also negative (declares what **does not** belong there) to prevent regression.
 **Trade-off:** lock-file maintenance; mitigated by generation from `install.sh` and PR review.
 
+### ADR-019 — Model Gateway as an opt-in layer in front of `core/llm_client.py` (Priority 1)
+
+**Decision:** `core/model_gateway.py` + `core/model_registry.py` route LLM calls by role/capability (structured output, tools, vision, embeddings, rerank, cost, health) across `native` (the existing `core/llm_client.py` role config), and OpenAI-compatible backends (LM Studio, llama.cpp, vLLM, SGLang, LiteLLM proxy — one shared adapter class). Gated by `MODEL_GATEWAY_ENABLED` (default `false`): `call_llm_with_fallback` checks the flag first and, when off, runs the exact pre-existing code path unchanged. See [`14-model-gateway.md`](14-model-gateway.md).
+**Rationale:** new inference backends should be addable via `config/model-gateway.yaml`, not by touching call sites; explicit fallback (never silent success) and redacted telemetry keep the same operational guarantees as the legacy path.
+**Trade-off:** a second selection/config layer to maintain alongside `get_role_config()`/`core/auth.py`; mitigated by making the gateway strictly additive and fail-open to the legacy path on any failure.
+
 ---
 
-*This section consolidates ADRs inherited from v2.0.0 (001–009) and ADRs created by Born-Large Knowledge front (010–018). In case of divergence, this canonical section prevails over [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md).*
+*This section consolidates ADRs inherited from v2.0.0 (001–009), ADRs created by Born-Large Knowledge front (010–018), and Priority 1 (019). In case of divergence, this canonical section prevails over [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md).*

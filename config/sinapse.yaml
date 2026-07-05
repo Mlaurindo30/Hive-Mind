@@ -212,6 +212,20 @@ hybrid_search:
         - label
 
 # =============================================================================
+# MODEL GATEWAY (Priority 1 — role/capability-based LLM routing, opt-in)
+# =============================================================================
+# Disabled by default: with model_gateway.enabled: false, every LLM call
+# keeps using core/llm_client.py exactly as before this section existed.
+# See specs/model-gateway.md and docs/13-model-gateway.md.
+model_gateway:
+  enabled: false
+  config: config/model-gateway.yaml
+  fail_open_to_legacy_llm_client: true    # MODEL_GATEWAY_ENABLED=true but config
+                                           # missing/broken -> fall back to legacy,
+                                           # never raise into the caller (logged)
+  telemetry: true
+
+# =============================================================================
 # CRON
 # =============================================================================
 cron:

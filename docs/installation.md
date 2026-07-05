@@ -116,5 +116,11 @@ choose provider, model and API keys. Then restart your agent.
 | NeuralMemory | `integrations/neural-memory/` | Python | Associative recall (spreading activation) |
 | Hermes Plugin | `plugins/hermes/sinapse-memory.py` | Python | Automatic read/write via hooks |
 | Vault | `cerebro/` | Markdown | Single source of truth (Obsidian) |
+| Model Gateway (opt-in) | `core/model_gateway.py` + `core/model_registry.py` | Python | Priority 1 — role/capability LLM routing over `native`/LM Studio/llama.cpp/vLLM/SGLang/LiteLLM; `MODEL_GATEWAY_ENABLED=false` by default, see [`14-model-gateway.md`](14-model-gateway.md) |
+
+O bloco de variáveis do Model Gateway fica em
+`config/model-gateway.env.example` porque `.env.example` não pôde ser
+alterado nesta sessão. O install/documentation deve apontar para esse
+arquivo como fonte canônica do exemplo de ambiente do Model Gateway.
 
 Full anatomy (brain lobes → directory mapping) and design rationale: [`docs/01-architecture.md`](01-architecture.md).

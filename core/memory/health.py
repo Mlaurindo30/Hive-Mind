@@ -154,6 +154,39 @@ def health_check(
             "status": "unavailable",
             "error": str(exc),
         }
+
+    # Model Gateway (Priority 1) — always present, even disabled, per
+    # specs/model-gateway.md Requirement 25. Probing live endpoints only
+    # happens when the gateway is actually enabled, so a disabled gateway
+    # never adds network latency to this health check.
+    try:
+        from core.model_gateway import ModelGateway, gateway_enabled
+
+        gw_enabled = gateway_enabled()
+        gateway = ModelGateway.from_config()
+        if gw_enabled:
+            gw_health = gateway.health()
+            status["model_gateway"] = {
+                "enabled": True,
+                "models_total": gw_health["models_total"],
+                "healthy": gw_health["healthy"],
+                "unhealthy": gw_health["unhealthy"],
+                "default_roles": gw_health["default_roles"],
+            }
+        else:
+            status["model_gateway"] = {
+                "enabled": False,
+                "models_total": len(gateway.registry.list_models()),
+                "healthy": 0,
+                "unhealthy": 0,
+                "default_roles": {},
+            }
+    except Exception as exc:
+        status["model_gateway"] = {
+            "enabled": False, "models_total": 0, "healthy": 0,
+            "unhealthy": 0, "default_roles": {}, "error": str(exc),
+        }
+
     status["healthy"] = all(v for v in read_backends.values())
     status["components_healthy"] = all(v for v in components.values())
     return status

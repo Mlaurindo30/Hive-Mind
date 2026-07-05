@@ -318,6 +318,7 @@ Automatic hooks for Claude Code and Codex CLI:
 - **Never** duplicate data between the vault and external tools. The vault is the single source.
 - **Never** hardcode LLM models — the system strictly obeys `HIVE_DREAMER_PROVIDER/MODEL` from `.env`.
 - **Unit tests do not call a real LLM.** Logic around the LLM is tested with deterministic data; the real model only enters in `tests/test_synthesis.py` and the E2E flows.
+- **Model Gateway (Priority 1, opt-in):** `core/model_gateway.py` routes LLM calls by role/capability across local (LM Studio, llama.cpp, Ollama) and remote (LiteLLM proxy, vLLM, SGLang) backends. Disabled by default (`MODEL_GATEWAY_ENABLED=false`) — `core/llm_client.py` behaves exactly as before when it's off. See [`docs/14-model-gateway.md`](docs/14-model-gateway.md).
 
 ---
 

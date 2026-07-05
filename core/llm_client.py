@@ -308,6 +308,38 @@ def call_llm_structured(prompt: str, system_prompt: str, response_model: Any,
         )
 
 
+def _call_via_model_gateway(role: str, prompt: str, system_prompt: str, response_model: Any) -> Any:
+    """Routes a structured call through the Model Gateway (Priority 1,
+    MODEL_GATEWAY_ENABLED=true). Returns None (never raises) on any failure —
+    the caller falls through to the legacy path below, matching
+    sinapse.yaml's `model_gateway.fail_open_to_legacy_llm_client`. See
+    specs/model-gateway.md Requirement 22 and docs/13-model-gateway.md.
+    """
+    try:
+        from core.model_gateway import ModelGateway
+        gateway = ModelGateway.from_config()
+        schema = response_model.model_json_schema()
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        resp = gateway.structured(messages, schema, role=role)
+    except Exception as exc:
+        print(f"  [ModelGateway] unavailable for role {role!r} ({exc}); "
+              f"falling back to legacy llm_client", file=sys.stderr)
+        return None
+    if not resp.ok:
+        print(f"  [ModelGateway] role {role!r} failed ({resp.error}); "
+              f"falling back to legacy llm_client", file=sys.stderr)
+        return None
+    try:
+        return response_model(**resp.content)
+    except Exception as exc:
+        print(f"  [ModelGateway] structured content did not fit {response_model.__name__} "
+              f"({exc}); falling back to legacy llm_client", file=sys.stderr)
+        return None
+
+
 def call_llm_with_fallback(role: str, prompt: str, system_prompt: str, response_model: Any,
                            image_path: Optional[str] = None,
                            max_retries: int = 2) -> Any:
@@ -321,7 +353,19 @@ def call_llm_with_fallback(role: str, prompt: str, system_prompt: str, response_
 
     Levanta a última exceção se todos os alvos falharem (o chamador decide
     quarentena/log).
+
+    Quando MODEL_GATEWAY_ENABLED=true (Priority 1 — core/model_gateway.py),
+    roteia primeiro pelo gateway (seleção por role/capability); imagens não
+    são suportadas pelo gateway nesta versão, então image_path sempre usa o
+    caminho legado abaixo. Qualquer falha do gateway cai (fail-open) para
+    exatamente o comportamento legado, sem alterar o contrato de retorno.
     """
+    from core.model_gateway import gateway_enabled
+    if image_path is None and gateway_enabled():
+        gateway_result = _call_via_model_gateway(role, prompt, system_prompt, response_model)
+        if gateway_result is not None:
+            return gateway_result
+
     cfg = get_role_config(role)
     if not cfg:
         raise RuntimeError(

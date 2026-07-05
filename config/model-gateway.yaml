@@ -1,0 +1,211 @@
+# config/model-gateway.yaml — Model Gateway + Capability Registry (Priority 1)
+#
+# Read by core/model_registry.py. ${VAR} and ${VAR:-default} are expanded
+# from the process environment (bash-style). Loaded only when
+# MODEL_GATEWAY_ENABLED=true — see .env.example and docs/13-model-gateway.md.
+#
+# Each `models[]` entry is a ModelProfile (core/model_registry.py). Enable a
+# backend by installing/starting it and flipping `enabled: true` (or setting
+# its endpoint env var and enabling), or leave it disabled as documentation.
+
+version: 1
+
+defaults:
+  timeout_s: 60
+  max_retries: 1
+  fallback_enabled: true
+  telemetry_enabled: true
+
+models:
+  # Wraps the existing, already-proven core/llm_client.py role-based
+  # resolution (HIVE_DREAMER_PROVIDER/MODEL etc.) — see
+  # integrations/model_gateway/native_adapter.py. Always available; this is
+  # what the gateway falls back to for narrative/synthesis roles when no
+  # local structured-output backend is configured.
+  - id: existing-dreamer
+    provider: native
+    model: "${HIVE_DREAMER_MODEL:-}"
+    endpoint: null
+    api_key_env: null
+    context_window: 32768
+    max_output_tokens: 4096
+    cost_mode: unknown
+    priority: 100
+    enabled: true
+    roles:
+      - dreamer
+      - synthesis
+      - fallback
+    capabilities:
+      chat: true
+      structured_output: true
+      tool_calling: false
+      vision: false
+      embeddings: false
+      rerank: false
+
+  # Real, already-running local backend used to validate this build for
+  # real (specs/model-gateway.md D15): Ollama exposes an OpenAI-compatible
+  # /v1 surface at :11434 out of the box, with the models this project
+  # already pulls (docs/04-infrastructure.md). No separate server to start.
+  - id: ollama-openai-compat
+    provider: openai_compatible
+    model: "${OLLAMA_GATEWAY_MODEL:-qwen2.5:3b}"
+    endpoint: "${OLLAMA_GATEWAY_BASE_URL:-http://127.0.0.1:11434/v1}"
+    api_key_env: null
+    context_window: 32768
+    max_output_tokens: 2048
+    cost_mode: local
+    priority: 15
+    enabled: true
+    roles:
+      - validator
+      - router
+      - distiller
+    capabilities:
+      chat: true
+      streaming: true
+      structured_output: true
+      json_schema: true
+      tool_calling: false
+      embeddings: false
+      rerank: false
+    fallback_chain:
+      - existing-dreamer
+
+  # LM Studio — disabled by default; this machine has the `lms` CLI
+  # installed but no server was running when this config was authored.
+  # Enable with: lms server start, then flip enabled: true (or set
+  # LMSTUDIO_BASE_URL and enable).
+  - id: lmstudio-local-json
+    provider: lmstudio
+    model: "${LMSTUDIO_MODEL:-local-model}"
+    endpoint: "${LMSTUDIO_BASE_URL:-http://localhost:1234/v1}"
+    api_key_env: null
+    context_window: 32768
+    max_output_tokens: 4096
+    cost_mode: local
+    priority: 10
+    enabled: false
+    roles:
+      - validator
+      - router
+      - distiller
+    capabilities:
+      chat: true
+      streaming: true
+      structured_output: true
+      json_schema: true
+      tool_calling: true
+      embeddings: false
+      rerank: false
+    fallback_chain:
+      - ollama-openai-compat
+      - existing-dreamer
+
+  # llama.cpp `server` — disabled by default; no server was running when
+  # this config was authored. Enable by starting `llama-server` and
+  # flipping enabled: true (or set LLAMACPP_BASE_URL and enable).
+  - id: llamacpp-local
+    provider: llamacpp
+    model: "${LLAMACPP_MODEL:-local-gguf}"
+    endpoint: "${LLAMACPP_BASE_URL:-http://localhost:8080/v1}"
+    api_key_env: null
+    context_window: 8192
+    max_output_tokens: 2048
+    cost_mode: local
+    priority: 20
+    enabled: false
+    roles:
+      - validator
+      - small_tasks
+    capabilities:
+      chat: true
+      structured_output: true
+      json_schema: true
+      embeddings: true
+      rerank: true
+    fallback_chain:
+      - ollama-openai-compat
+      - existing-dreamer
+
+  # LiteLLM proxy — disabled by default; no proxy was running when this
+  # config was authored. Point LITELLM_BASE_URL at a running proxy
+  # (`litellm --config ...`), set LITELLM_API_KEY if it requires one, and
+  # flip enabled: true.
+  - id: litellm-proxy
+    provider: litellm
+    model: "${LITELLM_MODEL:-gpt-4o-mini}"
+    endpoint: "${LITELLM_BASE_URL:-http://localhost:4000/v1}"
+    api_key_env: "LITELLM_API_KEY"
+    context_window: 128000
+    max_output_tokens: 8192
+    cost_mode: paid
+    input_cost_per_1k: 0.00015
+    output_cost_per_1k: 0.0006
+    priority: 50
+    enabled: false
+    roles:
+      - fallback
+      - validator
+      - synthesis
+      - coding
+    capabilities:
+      chat: true
+      streaming: true
+      structured_output: true
+      json_schema: true
+      tool_calling: true
+      vision: true
+      embeddings: false
+      rerank: false
+
+  # vLLM's OpenAI-compatible server — disabled by default; not installed in
+  # this environment. Enable by starting `vllm serve <model>` and setting
+  # VLLM_BASE_URL / enabled: true.
+  - id: vllm-local
+    provider: vllm
+    model: "${VLLM_MODEL:-local-model}"
+    endpoint: "${VLLM_BASE_URL:-http://localhost:8000/v1}"
+    api_key_env: null
+    context_window: 32768
+    max_output_tokens: 4096
+    cost_mode: local
+    priority: 30
+    enabled: false
+    roles:
+      - validator
+    capabilities:
+      chat: true
+      structured_output: true
+      json_schema: true
+      tool_calling: true
+    fallback_chain:
+      - ollama-openai-compat
+      - existing-dreamer
+
+  # SGLang's OpenAI-compatible server — disabled by default; not installed
+  # in this environment. Enable by starting `python -m sglang.launch_server`
+  # and setting SGLANG_BASE_URL / enabled: true.
+  - id: sglang-local
+    provider: sglang
+    model: "${SGLANG_MODEL:-local-model}"
+    endpoint: "${SGLANG_BASE_URL:-http://localhost:30000/v1}"
+    api_key_env: null
+    context_window: 32768
+    max_output_tokens: 4096
+    cost_mode: local
+    priority: 30
+    enabled: false
+    roles:
+      - validator
+    capabilities:
+      chat: true
+      structured_output: true
+      json_schema: true
+      regex_schema: true
+      ebnf_schema: true
+      tool_calling: true
+    fallback_chain:
+      - ollama-openai-compat
+      - existing-dreamer
