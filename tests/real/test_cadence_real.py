@@ -17,7 +17,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PYTHON = PROJECT_ROOT / ".venv" / "bin" / "python"
 
 
-def _run(script: str, *args: str, env: dict[str, str], timeout: int = 180) -> subprocess.CompletedProcess:
+# 600s: os synthesizers --real dependem do Ollama e ficam lentos quando a
+# suíte completa já carregou outros modelos na VRAM (model churn). O mesmo
+# script termina em <180s isolado, mas pode passar disso sob carga.
+def _run(script: str, *args: str, env: dict[str, str], timeout: int = 600) -> subprocess.CompletedProcess:
     full_env = os.environ.copy()
     full_env.update(env)
     full_env["PYTHONPATH"] = str(PROJECT_ROOT)
@@ -94,6 +97,9 @@ def _env(home: Path) -> dict[str, str]:
 
 @pytest.mark.real
 @pytest.mark.requires_service("ollama")
+# Sobrepõe qualquer --timeout global (ex.: --timeout=300): são 4 subprocess
+# sequenciais de até 600s cada sob carga real de Ollama.
+@pytest.mark.timeout(1800)
 def test_monthly_and_yearly_synthesizers_write_cerebelo_and_summary_vectors(tmp_path, monkeypatch):
     home = _seed_tmp_hive(tmp_path)
     env = _env(home)

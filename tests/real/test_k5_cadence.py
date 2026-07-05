@@ -53,6 +53,9 @@ def _assert_outputs_present(expected: str) -> None:
         assert entries, f"{target} produced no .md files"
 @pytest.mark.parametrize("cmd,expected,timeout,testname", CADENCES,
                          ids=[c[3] for c in CADENCES])
+# Sobrepõe qualquer --timeout global (ex.: --timeout=300): pattern_distiller
+# tem teto interno de 600s e os synthesizers dependem de carga do Ollama.
+@pytest.mark.timeout(900)
 def test_cadence_produces_outputs(cmd, expected, timeout, testname):
     _run(cmd, timeout)
     _assert_outputs_present(expected)
