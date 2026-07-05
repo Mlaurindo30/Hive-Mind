@@ -62,13 +62,53 @@ def real_db(tmp_path, monkeypatch):
 
     Usa o caminho de init real (`init_db` → `ensure_migrations`), apontado para
     um arquivo temporário. Sem CRDT (HIVE_CRDT_SYNC off) — a tabela nasce normal.
+
+    Isola contra `_NoCloseConn` órfão deixado por `test_run_dream_cycle_quarantines_on_pipeline_failure`
+    (tests/unit/test_llm_fallback.py), que mantém uma referência a um conn
+    já fechado e impede o `get_connection` original de criar um novo. Aqui
+    sobrescrevemos `db.get_connection` com um wrapper que **sempre** abre
+    um conn novo a partir do `DB_PATH` atual, garantindo que o bridge test
+    não herde estado do poluidor.
     """
     import core.database as db
 
     p = tmp_path / "hive_mind.db"
     monkeypatch.setattr(db, "DB_PATH", str(p))
+
+    def _fresh_connection():
+        # Use sqlite_vec loader (the same one `db.get_connection` does)
+        # so the schema with vec0 virtual tables works. We re-import the
+        # loader lazily to avoid a hard dependency at import time.
+        import sqlite_vec
+        conn = db.sqlite3.connect(str(p), timeout=10)
+        conn.row_factory = db.sqlite3.Row
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        conn.enable_load_extension(False)
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute("PRAGMA busy_timeout = 60000;")
+        try:
+            conn.execute("PRAGMA journal_mode = WAL;")
+        except db.sqlite3.OperationalError:
+            pass
+        return conn
+
+    # Sobrescreve get_connection para sempre criar um conn novo,
+    # ignorando qualquer mock pendente de tests anteriores.
+    monkeypatch.setattr(db, "get_connection", _fresh_connection)
+
+    # The bridge imports `get_connection` via `from core.database import
+    # get_connection` at module-load time. The resulting binding is a
+    # reference to the original `db.get_connection` object, NOT a name
+    # lookup. To make sure the bridge uses our fresh wrapper, we
+    # monkeypatch the bridge's own binding too. We import the module
+    # here (after setting up the fixture) so the import resolves to
+    # the patched `db.get_connection`.
+    import core.knowledge.claude_mem_bridge as br
+    monkeypatch.setattr(br, "get_connection", _fresh_connection)
+
     db.init_db()
-    conn = db.get_connection()
+    conn = _fresh_connection()
     db.ensure_migrations(conn)
     yield conn
     conn.close()
