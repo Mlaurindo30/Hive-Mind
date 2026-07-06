@@ -1,5 +1,62 @@
 # Changelog
 
+## v3.10.0 — Model Gateway + Unified Provider Routing
+
+Release date: 2026-07-06
+
+The Model Gateway becomes the canonical model execution layer. Legacy
+`HIVE_{ROLE}_PROVIDER/MODEL` configuration is consumed through
+`ModelRegistry.from_combined_config()`, so the setup-brain flow keeps
+working unchanged while `config/model-gateway.yaml` becomes an
+override/capabilities layer instead of a mandatory duplicated source.
+
+### Added
+
+- Model Gateway as the canonical model execution layer, with a Capability
+  Registry and combined legacy/provider/YAML resolution.
+- `MODEL_GATEWAY_MODE=auto/on/off`: `auto` tries the gateway and falls back
+  to the legacy path; `on` makes the gateway mandatory (never falls back);
+  `off` disables it (deprecated).
+- `HIVE_FORCE_LEGACY_LLM` as an emergency bypass that prevails over MODE.
+- Provider-to-adapter mapping for all known providers, with adapters for
+  OpenAI-compatible, LM Studio, llama.cpp, vLLM, SGLang and LiteLLM proxy.
+- Model gateway telemetry, health visibility and benchmark CLI.
+- Explicit `provider_skipped_due_to_capability` telemetry (closes R6.5).
+- Canonical `no_vision_capable_provider` error (closes R8.3).
+- `install.sh` now auto-applies the model gateway env block.
+
+### Changed
+
+- Unsupported providers never execute an adapter (closes EC-3).
+- `config/model-gateway.yaml` is now override/capabilities only; the
+  setup-brain `HIVE_{ROLE}_PROVIDER/MODEL` flow remains the primary source.
+
+### Deprecated
+
+- `MODEL_GATEWAY_ENABLED` kept only as a deprecated shim; use
+  `MODEL_GATEWAY_MODE`.
+
+### Fixed
+
+- Claude Mem bridge test isolation: a closed in-memory connection leaked
+  from `tests/unit/test_llm_fallback.py` into
+  `tests/real/test_claude_mem_bridge.py`; the `real_db` fixture now always
+  hands out fresh connections.
+- Real knowledge/K5 cadence validation stabilized: subprocess timeouts for
+  the `--real` synthesizers raised to 600s and `pytest.mark.timeout`
+  markers added so a global `--timeout=300` cannot kill tests whose
+  internal subprocess ceiling is legitimately higher.
+
+### Verified
+
+Real OpenAI-compatible backend verified through Ollama. Full battery:
+`compileall` exit 0 · `tests/model_gateway/` 50/50 ·
+`tests/real/test_claude_mem_bridge.py` isolated and after
+`test_llm_fallback.py` · `tests/unit/` 723 passed/3 skipped ·
+`tests/integration/` 98 passed/12 skipped · `tests/e2e/` 31 passed ·
+`tests/real/` 92 passed/20 skipped (no timeouts) · smoke 19/19 ·
+`tests/run_real_knowledge.sh` exit 0.
+
 ## v3.9.2 — Redactor: fully mask generic api_key/token/secret values
 
 Release date: 2026-07-04

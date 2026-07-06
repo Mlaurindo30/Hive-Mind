@@ -187,3 +187,7 @@ docs/12-knowledge-implementation-plan.md
 /os
 /sys
 /argparse
+
+# Coverage artifacts (pytest-cov)
+.coverage
+.coverage.*
