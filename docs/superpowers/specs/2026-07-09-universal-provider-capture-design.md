@@ -163,7 +163,10 @@ Antes da fila, o normalizador aplica:
 
 ## Instalacao e Ambiente Python
 
-O instalador nao pode fixar Python 3.12. Ele seleciona uma versao compativel com o projeto, cria `.venv` na raiz e valida o ambiente executando o Python e importando dependencias essenciais.
+O projeto exige `Python >=3.12,<3.13`. O instalador usa `uv python install 3.12`
+quando nao houver um interpretador compativel e cria a `.venv` com `uv venv
+--python 3.12`. Ele nao depende do Python 3.12 estar previamente instalado no
+Windows nem do launcher `py` possuir essa versao.
 
 Uma `.venv` cujo executavel existe mas aponta para um Python removido e considerada invalida. O instalador apresenta diagnostico claro e a reconstrui de forma controlada, preservando `.env`, dados e configuracoes.
 
@@ -195,7 +198,8 @@ Um provider so e `healthy` apos um teste ponta a ponta:
 
 A validacao global inclui:
 
-- instalacao limpa em Windows sem Python 3.12 previamente instalado;
+- instalacao limpa em Windows sem Python 3.12 previamente instalado, com
+  provisionamento automatico da versao compativel pelo `uv`;
 - inicio automatico apos logoff e logon reais;
 - Antigravity Desktop capturando todos os `USER_INPUT` da sessao;
 - Codex e Claude Code mantendo seus hooks e fallbacks;
