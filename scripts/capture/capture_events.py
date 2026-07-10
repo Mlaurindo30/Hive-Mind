@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 import hashlib
 import json
@@ -31,6 +31,22 @@ class ProviderEvent:
     occurred_at: str
     source_position: str | None = None
 
+    def __post_init__(self) -> None:
+        """Enforce the contract for direct dataclass construction too."""
+        self._require_value("provider", self.provider)
+        self._require_value("session_id", self.session_id)
+        self._require_value("content", self.content)
+        self._require_value("event_id", self.event_id)
+
+        try:
+            event_type = EventType(self.event_type)
+        except ValueError as error:
+            raise ValueError(f"event_type must be a valid EventType: {self.event_type!r}") from error
+
+        object.__setattr__(self, "event_type", event_type)
+        object.__setattr__(self, "occurred_at", self._normalize_utc_timestamp(self.occurred_at))
+        object.__setattr__(self, "source_position", self._normalize_source_position(self.source_position))
+
     @classmethod
     def create(
         cls,
@@ -55,7 +71,7 @@ class ProviderEvent:
 
         if event_id is not None:
             cls._require_value("event_id", event_id)
-        normalized_position = source_position or None
+        normalized_position = cls._normalize_source_position(source_position)
         resolved_id = event_id or cls._hash(
             {
                 "provider": provider,
@@ -121,6 +137,26 @@ class ProviderEvent:
         if timestamp.tzinfo is None:
             timestamp = timestamp.replace(tzinfo=timezone.utc)
         return timestamp.astimezone(timezone.utc).isoformat()
+
+    @staticmethod
+    def _normalize_utc_timestamp(value: str) -> str:
+        if not isinstance(value, str):
+            raise ValueError("occurred_at must be an ISO-8601 UTC string")
+        try:
+            timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as error:
+            raise ValueError(f"occurred_at must be an ISO-8601 timestamp: {value!r}") from error
+        if timestamp.tzinfo is None or timestamp.utcoffset() != timedelta(0):
+            raise ValueError("occurred_at must be an ISO-8601 UTC timestamp")
+        return timestamp.astimezone(timezone.utc).isoformat()
+
+    @staticmethod
+    def _normalize_source_position(value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("source_position must be a string or None")
+        return value or None
 
     @staticmethod
     def _hash(value: dict[str, str | None]) -> str:

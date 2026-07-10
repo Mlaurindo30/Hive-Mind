@@ -58,3 +58,43 @@ def test_create_rejects_empty_required_values(field: str) -> None:
 
     with pytest.raises(ValueError, match=field):
         ProviderEvent.create(**values)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("provider", ""),
+        ("session_id", ""),
+        ("content", ""),
+        ("event_id", ""),
+        ("event_type", "not-an-event"),
+        ("occurred_at", "2026-07-09T12:00:00+03:00"),
+    ],
+)
+def test_direct_construction_rejects_invalid_contract_values(field: str, value: str) -> None:
+    values: dict[str, EventType | str] = {
+        "provider": "codex",
+        "session_id": "session-1",
+        "event_type": EventType.PROMPT,
+        "content": "hello",
+        "event_id": "native-1",
+        "occurred_at": "2026-07-09T12:00:00+00:00",
+    }
+    values[field] = value
+
+    with pytest.raises(ValueError, match=field):
+        ProviderEvent(**values)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize("source_position", [12, True, object()])
+def test_source_position_rejects_non_string_values(source_position: object) -> None:
+    with pytest.raises(ValueError, match="source_position"):
+        ProviderEvent.create("codex", "session-1", "prompt", "hello", source_position=source_position)  # type: ignore[arg-type]
+
+
+def test_empty_source_position_normalizes_before_fallback_id() -> None:
+    empty = ProviderEvent.create("codex", "session-1", "prompt", "hello", source_position="")
+    absent = ProviderEvent.create("codex", "session-1", "prompt", "hello")
+
+    assert empty.source_position is None
+    assert empty.event_id == absent.event_id
