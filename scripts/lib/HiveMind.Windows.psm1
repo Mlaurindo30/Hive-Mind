@@ -70,6 +70,19 @@ function Get-HiveMindPython {
     throw "Python was not found. Install Python 3.10+ or create .venv."
 }
 
+function Test-HiveMindPythonVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Version
+    )
+
+    if ($Version -notmatch '(?m)^\s*Python\s+(\d+)\.(\d+)') {
+        return $false
+    }
+
+    return [int]$Matches[1] -eq 3 -and [int]$Matches[2] -eq 12
+}
+
 function Test-HiveMindPythonRuntime {
     param(
         [Parameter(Mandatory = $true)]
@@ -81,8 +94,17 @@ function Test-HiveMindPythonRuntime {
         return $false
     }
 
-    & $python --version *> $null
-    return $LASTEXITCODE -eq 0
+    try {
+        $version = & $python --version 2>&1
+    } catch {
+        return $false
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        return $false
+    }
+
+    return Test-HiveMindPythonVersion -Version ($version -join "`n")
 }
 
 function Repair-HiveMindPythonRuntime {
@@ -99,6 +121,17 @@ function Repair-HiveMindPythonRuntime {
     & uv venv --python 3.12 --clear (Join-Path $Root ".venv")
     if ($LASTEXITCODE -ne 0) {
         throw "uv could not create the project virtual environment"
+    }
+}
+
+function Ensure-HiveMindPythonRuntime {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root
+    )
+
+    if (-not (Test-HiveMindPythonRuntime -Root $Root)) {
+        Repair-HiveMindPythonRuntime -Root $Root
     }
 }
 

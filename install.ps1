@@ -311,9 +311,7 @@ Step "Project virtual environment"
 if ($Force -and (Test-Path -LiteralPath (Join-Path $Root ".venv"))) {
     throw "-Force does not delete .venv automatically. Remove it yourself if you want a clean rebuild."
 }
-if (-not (Test-HiveMindPythonRuntime -Root $Root)) {
-    Repair-HiveMindPythonRuntime -Root $Root
-}
+Ensure-HiveMindPythonRuntime -Root $Root
 
 Step "Environment file"
 $envPath = Join-Path $Root ".env"
