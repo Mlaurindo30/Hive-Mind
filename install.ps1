@@ -493,6 +493,14 @@ if (-not $SkipServices -and (Test-HiveMindCommand node)) {
     }
 }
 
+if (-not $SkipServices) {
+    Step "Windows autostart"
+    $registerRuntime = Join-Path $Root "scripts\setup\register-windows-runtime.ps1"
+    if (Test-Path -LiteralPath $registerRuntime) {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $registerRuntime -Root $Root
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
+}
 if ($WithTests) {
     Step "Tests"
     $runAll = Join-Path $Root "tests\run_all.ps1"

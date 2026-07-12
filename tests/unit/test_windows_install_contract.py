@@ -143,3 +143,11 @@ def test_windows_npm_init_delegates_instead_of_reimplementing_installation():
     assert "windowsInstallerArgs(options, dest)" in native
     assert "uv sync" not in native
     assert "mergeMcpConfig" not in native
+
+def test_windows_autostart_contract_is_versioned():
+    script = ROOT / "scripts" / "setup" / "register-windows-runtime.ps1"
+    assert script.is_file()
+    source = script.read_text(encoding="utf-8-sig")
+    assert "HiveMind-Supervisor" in source
+    assert "Register-ScheduledTask" in source
+    assert "validate_after_reboot_windows.py" in source
