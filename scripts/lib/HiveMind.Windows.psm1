@@ -217,6 +217,47 @@ function Read-HiveMindDotEnv {
     return $values
 }
 
+
+function Apply-HiveMindProfileContract {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProfileContract,
+
+        [string]$Root = (Get-HiveMindRoot),
+
+        [switch]$DryRun
+    )
+
+    if (-not (Test-Path -LiteralPath $ProfileContract)) {
+        throw "Profile contract was not found: $ProfileContract"
+    }
+
+    $applied = @()
+    foreach ($line in Get-Content -LiteralPath $ProfileContract) {
+        $trimmed = $line.Trim()
+        if ($trimmed.Length -eq 0 -or $trimmed.StartsWith("#")) { continue }
+
+        $parts = $trimmed -split "=", 2
+        if ($parts.Count -ne 2) { continue }
+
+        $name = $parts[0].Trim()
+        $value = $parts[1].Trim()
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
+
+        # A profile contract must only contain non-secret defaults. Keep this
+        # guard so a future template mistake cannot replace an operator secret.
+        if ($name -match '(?i)(api[_-]?key|token|secret|password|credential)') {
+            continue
+        }
+
+        $applied += $name
+        if (-not $DryRun) {
+            Set-HiveMindDotEnvValue -Root $Root -Name $name -Value $value
+        }
+    }
+
+    return $applied
+}
 function Set-HiveMindDotEnvValue {
     param(
         [Parameter(Mandatory = $true)]

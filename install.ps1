@@ -10,10 +10,25 @@ param(
     [switch]$SkipServices,
     [switch]$NonInteractive,
     [switch]$SkipPrerequisites,
-    [switch]$PrerequisitesOnly
+    [switch]$PrerequisitesOnly,
+    [switch]$InstallPrerequisites,
+    [switch]$DryRun,
+    [switch]$Repair,
+    [switch]$Update,
+    [switch]$Uninstall,
+    [switch]$PreserveVault,
+    [switch]$PreserveDatabase,
+    [switch]$SystemService
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($Repair -and $Uninstall) {
+    throw "Repair and Uninstall cannot be combined."
+}
+if ($Update -and $Uninstall) {
+    throw "Update and Uninstall cannot be combined."
+}
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Import-Module (Join-Path $Root "scripts\lib\HiveMind.Windows.psm1") -Force -DisableNameChecking
 
@@ -21,11 +36,24 @@ Set-Location -LiteralPath $Root
 . (Join-Path $Root "scripts\setup\backup-install-state.ps1")
 . (Join-Path $Root "scripts\setup\bootstrap-prerequisites.ps1")
 
+$profileContract = Join-Path $Root "config\profiles\$Profile.env.example"
+if (-not (Test-Path -LiteralPath $profileContract)) {
+    throw "Profile contract was not found: $profileContract"
+}
+
+if ($DryRun) {
+    Write-Host "Profile contract: $profileContract"`r`n    Write-Host "==> Dry-run: validating prerequisite contract only"
+    $preflight = Invoke-HiveMindPrerequisiteBootstrap -Profile $Profile -DryRun
+    $missingNames = @($preflight.Missing | ForEach-Object { $_.Name })
+    Write-Host "Dry-run complete. Ready=$($preflight.Ready); Missing=$($missingNames -join ', ')"
+    return
+}
+
 Write-Host "`n==> Protected memory snapshot"
 $snapshot = New-HiveMindInstallSnapshot -Root $Root -OutputRoot (Join-Path $Root "backups")
 Write-Host "Verified snapshot: $($snapshot.SnapshotPath)"
 
-if ($Profile -eq "local-full" -and -not $SkipPrerequisites) {
+if (($Profile -eq "local-full" -or $InstallPrerequisites) -and -not $SkipPrerequisites) {
     Write-Host "`n==> Host prerequisites"
     $preflight = Invoke-HiveMindPrerequisiteBootstrap -Profile $Profile
     if ($preflight.RestartRequired) {
@@ -340,6 +368,8 @@ if (-not (Test-Path -LiteralPath $envPath)) {
         New-Item -ItemType File -Path $envPath | Out-Null
     }
 }
+$appliedProfileValues = @(Apply-HiveMindProfileContract -Root $Root -ProfileContract $profileContract)
+Write-Host "Applied profile defaults: $($appliedProfileValues -join ', ')"
 $envValues = Read-HiveMindDotEnv -Root $Root
 if (-not $envValues.ContainsKey("HIVE_MIND_API_KEY") -or [string]::IsNullOrWhiteSpace($envValues["HIVE_MIND_API_KEY"])) {
     Set-HiveMindDotEnvValue -Root $Root -Name "HIVE_MIND_API_KEY" -Value (New-HiveMindApiKey)
