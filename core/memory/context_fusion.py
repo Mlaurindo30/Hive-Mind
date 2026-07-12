@@ -82,7 +82,8 @@ def query_vault_knowledge(
             traceback.print_exc(file=sys.stderr)
             return name, None, True, (time.perf_counter() - t0) * 1000.0
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(healthy_backends)) as executor:
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(healthy_backends))
+    try:
         futures = {executor.submit(_run_backend, b): b for b in healthy_backends}
         done, not_done = concurrent.futures.wait(
             futures,
@@ -117,11 +118,15 @@ def query_vault_knowledge(
         for future in not_done:
             backend_fn = futures[future]
             name = backend_fn.__name__
+            future.cancel()
             backend_latency_ms[name] = round(global_query_timeout * 1000.0, 3)
             record_result_fn(name, False, backend_state)
             if log_fn:
                 log_fn("warn", "query_timeout", backend=name, query=query[:50])
 
+    finally:
+        # Do not let a blocked backend extend the global query budget.
+        executor.shutdown(wait=False, cancel_futures=True)
     query_elapsed_ms = round((time.perf_counter() - query_t0) * 1000.0, 3)
 
     if not results:

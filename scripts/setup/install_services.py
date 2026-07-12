@@ -736,18 +736,27 @@ def api_enabled() -> bool:
     return bool(os.environ.get("HIVE_MIND_API_KEY"))
 
 
-def claude_mem_plugin_available() -> bool:
-    """Espelha a resolução de plugin do scripts/services/claude-mem-local.sh."""
-    home = Path.home()
-    candidates = [home / ".claude" / "plugins" / "marketplaces" / "thedotmack" / "plugin"]
-    cache_root = home / ".claude" / "plugins" / "cache" / "thedotmack" / "claude-mem"
-    if cache_root.is_dir():
-        candidates.extend(sorted((v / "plugin" for v in cache_root.iterdir()), reverse=True))
+def claude_mem_plugin_path(home: Path | None = None) -> Path | None:
+    """Resolve the installed claude-mem plugin consistently for Claude and Codex."""
+    home = home or Path.home()
+    candidates: list[Path] = []
+    for client in (".claude", ".codex"):
+        root = home / client / "plugins"
+        candidates.extend((root / "marketplaces" / "thedotmack" / leaf) for leaf in ("plugin", ""))
+        cache_root = root / "cache" / "thedotmack" / "claude-mem"
+        if cache_root.is_dir():
+            for version in sorted(cache_root.iterdir(), reverse=True):
+                candidates.extend((version / leaf) for leaf in ("plugin", ""))
     for candidate in candidates:
-        if (candidate / "scripts" / "worker-service.cjs").is_file():
-            return True
-    return False
+        for scripts in (candidate / "scripts", candidate / "plugin" / "scripts"):
+            for entrypoint in ("worker-service.cjs", "worker-service.js", "worker-wrapper.cjs", "worker-wrapper.js"):
+                if (scripts / entrypoint).is_file():
+                    return candidate
+    return None
 
+
+def claude_mem_plugin_available() -> bool:
+    return claude_mem_plugin_path() is not None
 
 def systemctl(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(
@@ -917,6 +926,66 @@ def arm_post_reboot() -> int:
 # consistência specs ↔ units.
 # =============================================================================
 
+def _enrich_service_specs(specs: list[dict]) -> list[dict]:
+    """Add the v2 declarative runtime contract to platform-neutral specs."""
+    windows_powershell = str(Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe")
+    windows_python = str(ROOT / ".venv" / "Scripts" / "python.exe")
+    linux_python = str(ROOT / ".venv" / "bin" / "python")
+    command_variants = {
+        "sinapse-claude-mem": {"windows": [windows_powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ROOT / "scripts/services/claude-mem-local.ps1")], "linux": [str(ROOT / "scripts/services/claude-mem-local.sh")]},
+        "sinapse-sqlite-vec": {"windows": [windows_python, str(ROOT / "plugins/sqlite-vec-worker/worker.py")], "linux": [linux_python, str(ROOT / "plugins/sqlite-vec-worker/worker.py")]},
+        "sinapse-graphify-watch": {"windows": [windows_powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ROOT / "scripts/services/start-watcher.ps1")], "linux": [str(ROOT / "scripts/services/start-watcher.sh")]},
+        "sinapse-api": {"windows": [windows_python, str(ROOT / "scripts/services/sinapse-api.py")], "linux": [linux_python, str(ROOT / "scripts/services/sinapse-api.py")]},
+        "sinapse-mcp-http": {"windows": [windows_python, str(ROOT / "scripts/services/sinapse-mcp-http.py")], "linux": [linux_python, str(ROOT / "scripts/services/sinapse-mcp-http.py")]},
+        "hive-otel-collector": {"windows": [windows_python, str(ROOT / "scripts/services/otel_collector.py"), "--host", "127.0.0.1"], "linux": [linux_python, str(ROOT / "scripts/services/otel_collector.py"), "--host", "127.0.0.1"]},
+        "sinapse-capture-realtime": {"windows": [windows_python, str(ROOT / "scripts/capture/capture-realtime.py")], "linux": [linux_python, str(ROOT / "scripts/capture/capture-realtime.py")]},
+    }
+    contracts = {
+        "sinapse-claude-mem": ([], 10, {"type": "tcp", "host": "127.0.0.1", "port": 37700, "timeout_seconds": 60}),
+        "sinapse-sqlite-vec": (["sinapse-claude-mem"], 20, {"type": "tcp", "host": "127.0.0.1", "port": 37701, "timeout_seconds": 60}),
+        "sinapse-graphify-watch": ([], 30, {"type": "none"}),
+        "sinapse-api": (["sinapse-sqlite-vec"], 40, {"type": "http", "url": "http://127.0.0.1:37702/api/v1/health", "expected_status": [200, 401], "timeout_seconds": 60}),
+        "sinapse-mcp-http": (["sinapse-api"], 50, {"type": "http", "url": "http://127.0.0.1:37703/health", "expected_status": [200], "timeout_seconds": 60}),
+        "hive-otel-collector": ([], 15, {"type": "none"}),
+        "sinapse-capture-realtime": (["sinapse-claude-mem", "sinapse-sqlite-vec"], 60, {"type": "none"}),
+    }
+    specs.extend([
+        {"name": "ollama", "description": "Ollama local model runtime", "external": True, "enabled_profiles": ["local-min", "local-full"], "required": True, "dependencies": [], "startup_order": 1, "readiness": {"type": "http", "url": "http://127.0.0.1:11434/api/tags", "expected_status": [200], "timeout_seconds": 60}},
+        {"name": "docker-desktop", "description": "Docker Desktop engine", "external": True, "enabled_profiles": ["local-full"], "required": True, "dependencies": [], "startup_order": 2, "readiness": {"type": "command", "command": ["docker", "info", "--format", "{{.ServerVersion}}"], "timeout_seconds": 60}},
+        {"name": "milvus", "description": "Milvus vector database", "external": True, "enabled_profiles": ["local-full"], "required": True, "dependencies": ["docker-desktop"], "startup_order": 70, "readiness": {"type": "tcp", "host": "127.0.0.1", "port": 19530, "timeout_seconds": 120}},
+        {"name": "ragflow", "description": "RAGFlow document pipeline", "external": True, "enabled_profiles": ["local-full"], "required": True, "dependencies": ["docker-desktop"], "startup_order": 80, "readiness": {"type": "http", "url": "http://127.0.0.1:9380", "expected_status": [200, 401, 302], "timeout_seconds": 180}},
+        {"name": "falkordb", "description": "FalkorDB temporal graph", "external": True, "enabled_profiles": ["local-full"], "required": True, "dependencies": ["docker-desktop"], "startup_order": 75, "readiness": {"type": "tcp", "host": "127.0.0.1", "port": 6379, "timeout_seconds": 120}},
+        {"name": "syncthing-watcher", "description": "Syncthing conflict watcher", "external": True, "enabled_profiles": ["local-full"], "required": True, "dependencies": [], "startup_order": 65, "readiness": {"type": "http", "url": "http://127.0.0.1:8384/rest/noauth/health", "expected_status": [200, 401, 403], "timeout_seconds": 60}},
+    ])
+    platform = "windows" if os.name == "nt" else ("darwin" if sys.platform == "darwin" else "linux")
+    for spec in specs:
+        if spec.get("external"):
+            spec["working_directory"] = str(ROOT)
+            spec["commands"] = {}
+            spec["command"] = []
+            spec["healthcheck"] = dict(spec["readiness"])
+            spec["restart_policy"] = "external"
+            spec["restart_delay_seconds"] = 0
+            spec["restart_max_delay_seconds"] = 0
+            spec["restart_limit"] = 0
+            continue
+        dependencies, startup_order, readiness = contracts[spec["name"]]
+        spec["commands"] = command_variants[spec["name"]]
+        spec["command"] = list(spec["commands"].get(platform, spec["commands"]["linux"]))
+        spec["working_directory"] = str(ROOT)
+        spec["enabled_profiles"] = ["local-min", "local-full"]
+        spec["required"] = True
+        spec["dependencies"] = dependencies
+        spec["startup_order"] = startup_order
+        spec["readiness"] = readiness
+        spec["healthcheck"] = dict(readiness)
+        spec["restart_policy"] = spec["restart"]
+        spec["restart_delay_seconds"] = spec["restart_sec"]
+        spec["restart_max_delay_seconds"] = 120
+        spec["restart_limit"] = 10
+        spec.pop("optional", None)
+    return specs
+
 def service_specs() -> list[dict]:
     """Serviços daemon do runtime em formato neutro de plataforma."""
     path = str(ROOT)
@@ -951,7 +1020,7 @@ def service_specs() -> list[dict]:
             return [powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ps1)]
         return [str(script)]
 
-    return [
+    return _enrich_service_specs([
         {
             "name": "sinapse-claude-mem",
             "description": "Sinapse Agent - claude-mem Worker (global multi-project data)",
@@ -1049,8 +1118,7 @@ def service_specs() -> list[dict]:
             "restart_sec": 15,
             "optional": is_windows,
         },
-    ]
-
+    ])
 
 LAUNCHD_LABEL_PREFIX = "com.hivemind."
 LAUNCH_AGENTS = Path.home() / "Library" / "LaunchAgents"
@@ -1074,6 +1142,8 @@ def launchd_definitions() -> dict[str, bytes]:
     log_dir = ROOT / "logs" / "launchd"
     plists: dict[str, bytes] = {}
     for spec in service_specs():
+        if spec.get("external"):
+            continue
         label = LAUNCHD_LABEL_PREFIX + spec["name"]
         payload: dict = {
             "Label": label,
@@ -1123,7 +1193,7 @@ def launchd_install(start: bool = True) -> int:
 def manifest() -> dict:
     """Manifesto JSON dos serviços para o supervisor Node (Windows/fallback)."""
     return {
-        "manifest_version": 1,
+        "manifest_version": 2,
         "root": str(ROOT),
         "log_dir": str(ROOT / "logs" / "supervisor"),
         "claude_mem_plugin_available": claude_mem_plugin_available(),

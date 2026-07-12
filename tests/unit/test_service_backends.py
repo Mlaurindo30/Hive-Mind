@@ -37,6 +37,8 @@ def test_specs_consistent_with_systemd_units():
         pytest.skip("systemd unit comparison is POSIX-only; Windows uses supervisor manifest")
     units = isvc.unit_definitions()
     for spec in isvc.service_specs():
+        if spec.get("external"):
+            continue
         unit = units[f"{spec['name']}.service"]
         exec_line = next(l for l in unit.splitlines() if l.startswith("ExecStart="))
         assert exec_line == "ExecStart=" + " ".join(spec["command"]), spec["name"]
@@ -52,7 +54,7 @@ def test_specs_consistent_with_systemd_units():
 def test_launchd_plists_are_valid_and_faithful():
     plists = isvc.launchd_definitions()
     specs = {s["name"]: s for s in isvc.service_specs()}
-    assert len(plists) == len(specs)
+    assert len(plists) == len([spec for spec in specs.values() if not spec.get("external")])
     for filename, blob in plists.items():
         payload = plistlib.loads(blob)
         name = payload["Label"].removeprefix(isvc.LAUNCHD_LABEL_PREFIX)
@@ -78,11 +80,52 @@ def test_launchd_plists_are_valid_and_faithful():
 
 def test_manifest_shape_for_node_supervisor():
     m = isvc.manifest()
-    assert m["manifest_version"] == 1
+    assert m["manifest_version"] >= 2
     assert m["root"] == str(isvc.ROOT)
     assert isinstance(m["claude_mem_plugin_available"], bool)
     for svc in m["services"]:
         assert svc["name"] and svc["description"]
-        assert isinstance(svc["command"], list) and svc["command"]
-        assert svc["restart"] in {"on-failure", "always"}
-        assert isinstance(svc["restart_sec"], int)
+        assert isinstance(svc["command"], list)
+        if not svc.get("external"):
+            assert svc["command"]
+        assert svc["enabled_profiles"]
+        assert isinstance(svc["required"], bool)
+        assert isinstance(svc["dependencies"], list)
+        assert isinstance(svc["startup_order"], int)
+        assert svc["readiness"]["type"] in {"none", "http", "tcp", "command"}
+        assert svc["healthcheck"]["type"] in {"none", "http", "tcp", "command"}
+        if svc.get("external"):
+            assert svc["restart_policy"] == "external"
+        else:
+            assert svc["restart"] in {"on-failure", "always"}
+            assert isinstance(svc["restart_sec"], int)
+
+
+def test_service_dependencies_only_reference_declared_services():
+    specs = isvc.service_specs()
+    names = {svc["name"] for svc in specs}
+    for svc in specs:
+        assert set(svc["dependencies"]) <= names, svc["name"]
+@pytest.mark.parametrize("agent_root", [".claude", ".codex"])
+def test_claude_mem_plugin_resolution_supports_claude_and_codex_cache(tmp_path, agent_root):
+    plugin = tmp_path / agent_root / "plugins" / "cache" / "thedotmack" / "claude-mem" / "13.6.2" / "plugin"
+    worker = plugin / "scripts" / "worker-service.cjs"
+    worker.parent.mkdir(parents=True)
+    worker.write_text("// fixture")
+    assert isvc.claude_mem_plugin_path(tmp_path) == plugin
+
+
+def test_manifest_emits_windows_and_linux_commands_for_every_service():
+    for service in isvc.manifest()["services"]:
+        if service.get("external"):
+            continue
+        assert service["commands"]["windows"], service["name"]
+        assert service["commands"]["linux"], service["name"]
+        assert not service["commands"]["windows"][0].endswith(".sh"), service["name"]
+
+def test_manifest_represents_required_external_profile_services():
+    services = {service["name"]: service for service in isvc.manifest()["services"]}
+    for name in ("ollama", "docker-desktop", "milvus", "ragflow", "falkordb", "syncthing-watcher"):
+        assert name in services
+    for name in ("milvus", "ragflow", "falkordb", "syncthing-watcher"):
+        assert services[name]["enabled_profiles"] == ["local-full"]
