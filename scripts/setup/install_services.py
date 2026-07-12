@@ -920,16 +920,42 @@ def arm_post_reboot() -> int:
 def service_specs() -> list[dict]:
     """Serviços daemon do runtime em formato neutro de plataforma."""
     path = str(ROOT)
+    is_windows = os.name == "nt"
+    path_sep = ";" if is_windows else ":"
     claude_mem_data = str(Path.home() / ".claude-mem")
     claude_mem_db = str(Path.home() / ".claude-mem" / "claude-mem.db")
     claude_mem_models = str(Path.home() / ".claude-mem" / "models")
-    venv_bin = f"{path}/.venv/bin"
-    py = f"{venv_bin}/python"
+    venv_bin = str(ROOT / ".venv" / ("Scripts" if is_windows else "bin"))
+    py = str(Path(venv_bin) / ("python.exe" if is_windows else "python"))
+    tools_bin = str(ROOT / ".tools" / "bin")
+    rtk_bin = str(ROOT / "integrations" / "rtk" / "target" / "release")
+    if is_windows:
+        system_path = path_sep.join(
+            [tools_bin, venv_bin, rtk_bin, os.environ.get("PATH", "")]
+        )
+        powershell = str(
+            Path(os.environ.get("SystemRoot", r"C:\Windows"))
+            / "System32"
+            / "WindowsPowerShell"
+            / "v1.0"
+            / "powershell.exe"
+        )
+    else:
+        system_path = path_sep.join([tools_bin, venv_bin, rtk_bin, "/usr/local/bin", "/usr/bin", "/bin"])
+        powershell = "powershell.exe"
+
+    def script_command(relative_sh: str) -> list[str]:
+        script = ROOT / relative_sh
+        if is_windows:
+            ps1 = script.with_suffix(".ps1")
+            return [powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ps1)]
+        return [str(script)]
+
     return [
         {
             "name": "sinapse-claude-mem",
             "description": "Sinapse Agent - claude-mem Worker (global multi-project data)",
-            "command": [f"{path}/scripts/services/claude-mem-local.sh"],
+            "command": script_command("scripts/services/claude-mem-local.sh"),
             "env": {
                 "CLAUDE_MEM_DATA_DIR": claude_mem_data,
                 "CLAUDE_MEM_WORKER_HOST": "127.0.0.1",
@@ -937,7 +963,7 @@ def service_specs() -> list[dict]:
                 "CLAUDE_MEM_CHROMA_ENABLED": "false",
                 "CLAUDE_MEM_MANAGED": "true",
                 "FASTEMBED_CACHE_PATH": claude_mem_models,
-                "PATH": f"{path}/.tools/bin:{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+                "PATH": system_path,
             },
             "restart": "on-failure",
             "restart_sec": 15,
@@ -951,7 +977,7 @@ def service_specs() -> list[dict]:
                 "VEC_WORKER_PORT": "37701",
                 "CLAUDE_MEM_DB": claude_mem_db,
                 "FASTEMBED_CACHE_PATH": claude_mem_models,
-                "PATH": f"{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+                "PATH": system_path,
             },
             "restart": "on-failure",
             "restart_sec": 15,
@@ -960,10 +986,10 @@ def service_specs() -> list[dict]:
         {
             "name": "sinapse-graphify-watch",
             "description": "Hive-Mind Graphify vault watcher",
-            "command": [f"{path}/scripts/services/start-watcher.sh"],
+            "command": script_command("scripts/services/start-watcher.sh"),
             "env": {
                 "SINAPSE_HOME": path,
-                "PATH": f"{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+                "PATH": system_path,
                 "PYTHONUNBUFFERED": "1",
                 "GRAPHIFY_WATCH_DEBOUNCE": "30.0",
             },
@@ -978,7 +1004,7 @@ def service_specs() -> list[dict]:
             "env": {
                 "HIVE_MIND_API_HOST": "127.0.0.1",
                 "HIVE_MIND_API_PORT": "37702",
-                "PATH": f"{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+                "PATH": system_path,
             },
             "restart": "on-failure",
             "restart_sec": 15,
@@ -991,7 +1017,7 @@ def service_specs() -> list[dict]:
             "env": {
                 "SINAPSE_MCP_HTTP_HOST": "127.0.0.1",
                 "SINAPSE_MCP_HTTP_PORT": "37703",
-                "PATH": f"{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+                "PATH": system_path,
             },
             "restart": "on-failure",
             "restart_sec": 15,
@@ -1004,7 +1030,7 @@ def service_specs() -> list[dict]:
             "env": {
                 "HIVE_OTEL_PORT": "3100",
                 "HIVE_OTEL_LOG": f"{path}/logs/otel-spans.log",
-                "PATH": f"{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+                "PATH": system_path,
             },
             "restart": "on-failure",
             "restart_sec": 15,
@@ -1017,10 +1043,11 @@ def service_specs() -> list[dict]:
             "env": {
                 "CLAUDE_MEM_DATA_DIR": claude_mem_data,
                 "VEC_WORKER_URL": "http://127.0.0.1:37701",
-                "PATH": f"{venv_bin}:/usr/local/bin:/usr/bin:/bin",
+                "PATH": system_path,
             },
             "restart": "always",
             "restart_sec": 15,
+            "optional": is_windows,
         },
     ]
 

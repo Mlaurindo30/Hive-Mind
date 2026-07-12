@@ -1,271 +1,306 @@
 #!/usr/bin/env python3
 """
-capture-realtime.py — Daemon de captura em TEMPO REAL via inotify (zero deps).
+capture-realtime.py — Cross-platform realtime capture daemon.
 
-Orquestrador fino: motor de transporte em capture_core, ferramentas em
-capture_adapters. Dono das fontes owner=="realtime". Modelo UNIFICADO: vigia os
-dirs de cada ferramenta; a QUALQUER mudança (ms), re-parseia as fontes daquela
-ferramenta (parser DEDICADO) e ingere via core.ingest(). A idempotência por
-CONTENT-HASH garante que só conteúdo NOVO emite — independe do formato (append,
-reescrita, array, SQLite). Estado ISOLADO por ferramenta; dono ÚNICO (o tailer
-não toca nas fontes owner=="realtime").
+Orquestrador fino sobre fontes multiplataforma (watchdog + reconciliador de
+polling). Dono das fontes owner=="realtime". A QUALQUER mudança numa fonte de
+um provider, re-parseia com o parser DEDICADO (capture_adapters), normaliza as
+sessões em ProviderEvent e ENFILEIRA no outbox durável (CaptureQueue). O
+dedupe_key do evento garante idempotência: re-parse N vezes → cada evento
+persiste 1x só.
+
+Entrega ao Claude-Mem é responsabilidade do drainer do outbox (Task 6 — ver o
+seam ``_drain_outbox``). Este daemon NUNCA espera pelo Claude-Mem/Ollama e não
+faz chamadas de rede. O MCP server nunca deve iniciá-lo.
 """
 from __future__ import annotations
 
-import ctypes
-import glob
+import fnmatch
+import glob as globmod
+import json
 import os
-import select
-import struct
-import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
-from urllib import request
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import capture_core as core                       # noqa: E402
-from capture_adapters import adapters_by_owner    # noqa: E402
+_HERE = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[2]
+for _entry in (str(_HERE), str(ROOT)):
+    if _entry not in sys.path:
+        sys.path.insert(0, _entry)
+
+import capture_core as core                                # noqa: E402
+from capture_adapters import adapters_by_owner             # noqa: E402
+from scripts.capture.capture_events import ProviderEvent   # noqa: E402
+from scripts.capture.capture_queue import CaptureQueue     # noqa: E402
+from scripts.capture.capture_sources import (              # noqa: E402
+    PollingReconciler,
+    SourceChange,
+    WatchdogSource,
+)
 
 ADAPTERS = adapters_by_owner("realtime")
 
-WINDOW_S = 2 * 3600          # só sessões ativas nesta janela (DBs multi-sessão)
+WINDOW_S = 2 * 3600          # só sessões ativas nesta janela no catch-up
 LIVE_MAX_AGE_S = 120.0       # em evento ao vivo, só re-parseia fontes recém-tocadas
-ROOT = Path(__file__).resolve().parents[2]
-
-_libc = ctypes.CDLL("libc.so.6", use_errno=True)
-IN_MODIFY = 0x2; IN_CLOSE_WRITE = 0x8; IN_MOVED_TO = 0x80; IN_CREATE = 0x100
-MASK = IN_MODIFY | IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE
-_HDR = struct.calcsize("iIII")
+RECONCILE_INTERVAL_S = 5.0   # varredura de reconciliação (recupera eventos perdidos)
+PID_FILE = ROOT / "logs" / "capture-realtime.pid"
 
 
-def _dir_has_recent_source(directory: str, cutoff_mtime: float, max_files: int = 128) -> bool:
-    """True if a watched directory contains a recently modified source file.
+def log_event(level: str, event: str, **fields) -> None:
+    """Structured single-line JSON log record."""
+    record = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "level": level,
+        "event": event,
+        **fields,
+    }
+    stream = sys.stderr if level in ("error", "warning") else sys.stdout
+    print(json.dumps(record, ensure_ascii=False, default=str), file=stream, flush=True)
 
-    Append-only tools (Codex) and rewritten transcript tools (Antigravity/Kimi)
-    keep writing files inside session directories whose own mtime does not
-    change after creation. Filtering only by directory mtime makes live sessions
-    disappear after a service restart. This bounded scan keeps the CPU guard but
-    keys recency off the actual source file.
+
+# ── normalização sessão → ProviderEvent ────────────────────────────────────────
+def session_to_provider_events(provider: str, session: dict) -> list[ProviderEvent]:
+    """Normalize one parser session dict into ordered ProviderEvents.
+
+    Prefers ``scripts.capture.session_events.session_to_events`` (Task 4)
+    when available; otherwise applies a compatible local mapping over the
+    legacy parser dict shape {sid, prompt, prompts, turns, last, ...}.
     """
-    checked = 0
-    stack = [Path(directory)]
-    while stack and checked < max_files:
-        current = stack.pop()
-        try:
-            with os.scandir(current) as entries:
-                for entry in entries:
-                    if checked >= max_files:
-                        break
-                    try:
-                        if entry.is_dir(follow_symlinks=False):
-                            stack.append(Path(entry.path))
-                            continue
-                        checked += 1
-                        if core._src_mtime(Path(entry.path)) >= cutoff_mtime:
-                            return True
-                    except OSError:
-                        continue
-        except OSError:
+    try:
+        from scripts.capture.session_events import session_to_events  # type: ignore
+    except ImportError:
+        return _fallback_session_events(provider, session)
+    return list(session_to_events(provider, session))
+
+
+def _fallback_session_events(provider: str, session: dict) -> list[ProviderEvent]:
+    sid = str(session.get("sid") or "").strip()
+    if not sid:
+        return []
+    events: list[ProviderEvent] = []
+
+    prompts = [str(p) for p in (session.get("prompts") or []) if str(p).strip()]
+    if not prompts and str(session.get("prompt") or "").strip():
+        prompts = [str(session["prompt"])]
+    prompt_meta = session.get("prompt_events") or []
+    for index, text in enumerate(prompts):
+        meta = prompt_meta[index] if index < len(prompt_meta) and isinstance(prompt_meta[index], dict) else {}
+        event_id = str(meta["event_id"]) if meta.get("event_id") else None
+        events.append(
+            ProviderEvent.create(
+                provider, sid, "prompt", text,
+                event_id=event_id,
+                source_position=f"prompt:{index}",
+            )
+        )
+
+    for index, turn in enumerate(session.get("turns") or []):
+        if not isinstance(turn, dict):
             continue
-    return False
+        tool_name = str(turn.get("tool_name") or "Tool").strip() or "Tool"
+        tool_input = turn.get("tool_input")
+        if isinstance(tool_input, dict):
+            embedded = str(tool_input.get("prompt") or "").strip()
+            if embedded:
+                events.append(
+                    ProviderEvent.create(
+                        provider, sid, "prompt", embedded,
+                        source_position=f"turn:{index}:prompt",
+                    )
+                )
+        response = str(turn.get("tool_response") or "").strip()
+        if response:
+            events.append(
+                ProviderEvent.create(
+                    provider, sid, "tool_result", f"[{tool_name}] {response}",
+                    source_position=f"turn:{index}:{tool_name}",
+                )
+            )
 
-def ingest_platform(plat: str, store: "core.SeenStore", max_age: float = LIVE_MAX_AGE_S) -> int:
-    """Re-parseia as fontes da plataforma (parser dedicado) e ingere. Só parseia
-    arquivos modificados nos últimos `max_age` s (pula fontes ociosas).
+    last = str(session.get("last") or "").strip()
+    if last:
+        events.append(
+            ProviderEvent.create(
+                provider, sid, "assistant", last,
+                source_position="last",
+            )
+        )
+    return events
 
-    O event-loop aplica um teto de re-parse por plataforma (MIN_INTERVAL): o 1º
-    evento de uma plataforma ociosa roda imediato (realtime), e rajadas (WAL de
-    SQLite em escrita pesada) são coalescidas para ≤1 reparse/MIN_INTERVAL — limita
-    CPU sem dropar eventos. O re-parse é idempotente (content-hash)."""
-    now = time.time()
-    core.SESSION_CUTOFF_MS = int((now - WINDOW_S) * 1000)
-    adp = ADAPTERS[plat]
-    parser = adp["parser"]
-    cutoff_mtime = now - max_age
-    sent = 0
-    for pattern in adp["sources"]:
-        for src in glob.glob(pattern):
-            p = Path(src)
-            if not p.is_file() or core._src_mtime(p) < cutoff_mtime:
-                continue
+
+# ── motor do daemon ────────────────────────────────────────────────────────────
+class RealtimeCapture:
+    """Parse changed provider sources and enqueue normalized events durably."""
+
+    def __init__(
+        self,
+        registry: dict,
+        queue: CaptureQueue,
+        *,
+        window_s: float = WINDOW_S,
+        live_max_age_s: float = LIVE_MAX_AGE_S,
+        clock=time.time,
+    ) -> None:
+        self._registry = registry
+        self._queue = queue
+        self._window_s = float(window_s)
+        self._live_max_age_s = float(live_max_age_s)
+        self._clock = clock
+        self._lock = threading.Lock()
+
+    def handle_change(self, change: SourceChange) -> int:
+        """Re-parse the changed provider source(s) and enqueue new events."""
+        adapter = self._registry.get(change.provider)
+        if not adapter:
+            return 0
+        with self._lock:
+            now = self._clock()
+            core.SESSION_CUTOFF_MS = int((now - self._window_s) * 1000)
+            if change.path.is_file() and self._matches_source(change.provider, change.path):
+                targets = [change.path]
+            else:
+                cutoff = now - self._live_max_age_s
+                targets = [
+                    p for p in self._expand_sources(change.provider)
+                    if core._src_mtime(p) >= cutoff
+                ]
+            return self._ingest_paths(change.provider, adapter, targets)
+
+    def catch_up(self) -> int:
+        """Startup pass: parse every provider source active inside the window."""
+        total = 0
+        with self._lock:
+            now = self._clock()
+            core.SESSION_CUTOFF_MS = int((now - self._window_s) * 1000)
+            cutoff = now - self._window_s
+            for provider, adapter in self._registry.items():
+                targets = [
+                    p for p in self._expand_sources(provider)
+                    if core._src_mtime(p) >= cutoff
+                ]
+                enqueued = self._ingest_paths(provider, adapter, targets)
+                if enqueued:
+                    log_event("info", "catch_up_provider", provider=provider, enqueued=enqueued)
+                total += enqueued
+        return total
+
+    def _ingest_paths(self, provider: str, adapter: dict, targets: list[Path]) -> int:
+        parser = adapter["parser"]
+        enqueued = 0
+        for path in targets:
             try:
-                for sess in parser(p):
-                    sent += core.ingest(plat, sess, store)
+                for session in parser(path) or []:
+                    for event in session_to_provider_events(provider, session):
+                        if self._queue.enqueue(event):
+                            enqueued += 1
             except Exception as exc:
-                print(f"  ⚠ {plat}: {exc}", flush=True)
-    return sent
+                log_event("warning", "parse_failed", provider=provider, path=str(path), error=str(exc))
+        if enqueued:
+            log_event("info", "events_enqueued", provider=provider, count=enqueued)
+        return enqueued
+
+    def _expand_sources(self, provider: str) -> list[Path]:
+        paths: list[Path] = []
+        for pattern in self._registry[provider].get("sources") or []:
+            for match in globmod.glob(str(pattern), recursive=True):
+                candidate = Path(match)
+                if candidate.is_file():
+                    paths.append(candidate)
+        return paths
+
+    def _matches_source(self, provider: str, path: Path) -> bool:
+        normalized = str(path).replace("\\", "/").lower()
+        for pattern in self._registry[provider].get("sources") or []:
+            glob_pattern = str(pattern).replace("\\", "/").lower()
+            if fnmatch.fnmatchcase(normalized, glob_pattern):
+                return True
+        return False
 
 
-def _sync_observation_vectors() -> None:
-    """Materialize new claude-mem observations and mirror them to Milvus when enabled."""
-    if os.environ.get("HIVE_CAPTURE_SYNC_OBSERVATIONS", "1").lower() in {"0", "false", "no"}:
-        return
+# ── seam de entrega (Task 6) ───────────────────────────────────────────────────
+def _drain_outbox(queue: CaptureQueue) -> None:
+    """Delivery seam — intentionally a no-op in this daemon.
 
-    vec_worker_url = os.environ.get("VEC_WORKER_URL", "http://127.0.0.1:37701").rstrip("/")
-    payload = b'{"query":"Hive-Mind realtime capture observation sync"}'
+    Task 6 plugs ``OutboxDrainer(queue, ClaudeMemSink())`` here. Until then
+    events stay durably persisted in the CaptureQueue outbox; the daemon never
+    talks to (or waits for) Claude-Mem.
+    """
+    return None
+
+
+# ── ciclo de vida ──────────────────────────────────────────────────────────────
+def _write_pid_file() -> None:
+    PID_FILE.parent.mkdir(parents=True, exist_ok=True)
+    PID_FILE.write_text(str(os.getpid()), encoding="utf-8")
+
+
+def _remove_pid_file() -> None:
     try:
-        req = request.Request(
-            f"{vec_worker_url}/api/context/semantic",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with request.urlopen(req, timeout=float(os.environ.get("HIVE_CAPTURE_VEC_TIMEOUT", "120"))):
-            pass
-    except Exception as exc:
-        print(f"  ⚠ observation vectorize falhou: {exc}", flush=True)
-        return
+        PID_FILE.unlink(missing_ok=True)
+    except OSError:
+        pass
 
-    if os.environ.get("VECTOR_BACKEND", "").lower() != "milvus":
-        return
 
-    cmd = [
-        sys.executable,
-        str(ROOT / "scripts" / "maintenance" / "vector-sync.py"),
-        "--collection",
-        "observation_vectors",
-        "--json",
-    ]
-    try:
-        subprocess.run(
-            cmd,
-            cwd=str(ROOT),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=float(os.environ.get("HIVE_CAPTURE_MILVUS_SYNC_TIMEOUT", "240")),
-            check=True,
-        )
-    except subprocess.CalledProcessError as exc:
-        stderr = (exc.stderr or "").strip().splitlines()[-1:] or ["sem stderr"]
-        print(f"  ⚠ observation Milvus sync falhou: {stderr[0]}", flush=True)
-    except Exception as exc:
-        print(f"  ⚠ observation Milvus sync erro: {exc}", flush=True)
+def _queue_path() -> Path:
+    override = os.environ.get("HIVE_CAPTURE_DB")
+    if override:
+        return Path(override)
+    return core.DATA_DIR / "capture.db"
 
 
 def main() -> int:
-    while not core.worker_alive():
-        print(f"aguardando worker em {core.BASE}...", flush=True)
-        time.sleep(3)
-    fd = _libc.inotify_init1(os.O_NONBLOCK)
-    if fd < 0:
-        print("inotify_init1 falhou", file=sys.stderr)
-        return 1
-    wd_plat: dict[int, str] = {}
-    watched: set[str] = set()
-    store = core.SeenStore()
+    registry = ADAPTERS
+    queue = CaptureQueue(_queue_path())
+    daemon = RealtimeCapture(registry, queue)
+    _write_pid_file()
+    log_event(
+        "info", "daemon_started",
+        pid=os.getpid(),
+        queue=str(_queue_path()),
+        providers=sorted(registry),
+        pid_file=str(PID_FILE),
+    )
 
-    def refresh() -> set[str]:
-        added_platforms: set[str] = set()
-        now = time.time()
-        for plat, adp in ADAPTERS.items():
-            for pattern in adp.get("watch", []):
-                is_glob = "*" in pattern   # sentinelas (sem *) nunca são filtradas por mtime
-                for d in glob.glob(pattern):
-                    if d in watched or not os.path.isdir(d):
-                        continue
-                    # Dirs expandidos por glob só recebem watch se estiverem na janela ativa;
-                    # sentinelas (padrão sem wildcard) são sempre assistidas para detectar sessões novas.
-                    if is_glob:
-                        try:
-                            cutoff = now - WINDOW_S
-                            if os.path.getmtime(d) < cutoff and not _dir_has_recent_source(d, cutoff):
-                                continue
-                        except OSError:
-                            continue
-                    wd = _libc.inotify_add_watch(fd, d.encode(), MASK)
-                    if wd >= 0:
-                        wd_plat[wd] = plat
-                        watched.add(d)
-                        added_platforms.add(plat)
-                        print(f"  👁 {plat} [{adp['mode']}]: {d}", flush=True)
-                    else:
-                        import ctypes
-                        err = ctypes.get_errno()
-                        print(f"  ⚠ {plat} inotify_add_watch FALHOU para {d}: wd={wd} errno={err}", flush=True)
-        return added_platforms
+    enqueued = daemon.catch_up()
+    log_event("info", "catch_up_complete", enqueued=enqueued)
 
-    refresh()
-    startup_ingested = 0
-    for plat in ADAPTERS:                 # catch-up histórico no startup
-        n = ingest_platform(plat, store, max_age=WINDOW_S)
-        startup_ingested += n
-        if n:
-            print(f"  🔄 {plat} catch-up: {n} turn(s)", flush=True)
-    if startup_ingested:
-        _sync_observation_vectors()
-    last_refresh = time.time()
-    print("capture-realtime ativo (inotify, modelo unificado por content-hash).", flush=True)
+    watch_registry = {
+        provider: list(adapter.get("watch") or []) + list(adapter.get("sources") or [])
+        for provider, adapter in registry.items()
+    }
+    source_registry = {
+        provider: list(adapter.get("sources") or [])
+        for provider, adapter in registry.items()
+    }
+    watcher = WatchdogSource(watch_registry, daemon.handle_change)
+    reconciler = PollingReconciler(source_registry, daemon.handle_change, interval=RECONCILE_INTERVAL_S)
+    # Prime the reconciler baseline right after catch-up so its first real
+    # cycle only reports genuinely new changes.
+    reconciler.scan_once()
+    watcher.start()
+    reconciler.start()
+    log_event(
+        "info", "sources_started",
+        watch_roots=[str(root) for root in watcher.watch_roots()],
+        reconcile_interval_s=RECONCILE_INTERVAL_S,
+    )
 
-    # BOUNDEDNESS (incidente 2026-06-17): teto de re-parse por plataforma. O 1º
-    # evento de uma plataforma ociosa roda IMEDIATO (realtime preservado); escrita
-    # pesada de SQLite (kilo/mimo) é coalescida para ≤1 reparse/MIN_INTERVAL,
-    # limitando a CPU sem dropar eventos (pendências são flushadas após o cooldown).
-    MIN_INTERVAL = 0.4
-    OBS_SYNC_INTERVAL = float(os.environ.get("HIVE_CAPTURE_OBSERVATION_SYNC_INTERVAL", "15"))
-    last_ingest: dict[str, float] = {}
-    pending: dict[str, float] = {}
-    last_observation_sync = 0.0
-
-    def _do_ingest(plat: str) -> None:
-        nonlocal last_observation_sync
-        n = ingest_platform(plat, store)
-        last_ingest[plat] = time.time()
-        if n:
-            print(f"  ⚡ {plat} → {n} turn(s) novo(s)", flush=True)
-            now = time.time()
-            if now - last_observation_sync >= OBS_SYNC_INTERVAL:
-                _sync_observation_vectors()
-                last_observation_sync = time.time()
-
-    while True:
-        timeout = max(0.05, MIN_INTERVAL) if pending else 5.0
-        r, _, _ = select.select([fd], [], [], timeout)
-        now = time.time()
-        if r:
-            try:
-                buf = os.read(fd, 65536)
-            except BlockingIOError:
-                buf = b""
-            i = 0
-            touched: set[str] = set()
-            ignored_wds: set[int] = set()
-            while i + _HDR <= len(buf):
-                wd, mask, cookie, nlen = struct.unpack_from("iIII", buf, i)
-                i += _HDR + nlen
-                plat = wd_plat.get(wd)
-                if plat:
-                    touched.add(plat)
-                if mask & 0x8000:  # IN_IGNORED: watch removido pelo kernel
-                    ignored_wds.add(wd)
-            for wd in ignored_wds:
-                plat = wd_plat.pop(wd, None)
-                # remove o caminho correspondente de watched para que refresh() readicione
-                if plat:
-                    for pattern in ADAPTERS[plat].get("watch", []):
-                        for d in glob.glob(pattern):
-                            if d in watched:
-                                watched.remove(d)
-                                print(f"  ♻ {plat} watch removido, será reavistado: {d}", flush=True)
-            for plat in touched:
-                if now - last_ingest.get(plat, 0.0) >= MIN_INTERVAL:
-                    _do_ingest(plat)          # 1º evento: imediato (realtime)
-                else:
-                    pending[plat] = now       # rajada: coalesce → flush no cooldown
-        # flush das pendências cujo cooldown já passou
-        for plat in list(pending):
-            if time.time() - last_ingest.get(plat, 0.0) >= MIN_INTERVAL:
-                _do_ingest(plat)
-                pending.pop(plat, None)
-        if time.time() - last_refresh > 15:
-            for plat in refresh():
-                _do_ingest(plat)
-            last_refresh = time.time()
+    try:
+        while True:
+            time.sleep(30)
+            _drain_outbox(queue)
+            log_event("debug", "queue_health", **queue.health())
+    except KeyboardInterrupt:
+        log_event("info", "daemon_stopping", reason="keyboard_interrupt")
+    finally:
+        reconciler.stop()
+        watcher.stop()
+        queue.close()
+        _remove_pid_file()
+    return 0
 
 
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except KeyboardInterrupt:
-        pass
+    raise SystemExit(main())

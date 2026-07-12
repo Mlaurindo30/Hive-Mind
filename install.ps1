@@ -8,7 +8,9 @@ param(
     [switch]$WithRealTests,
     [switch]$SkipAgents,
     [switch]$SkipServices,
-    [switch]$NonInteractive
+    [switch]$NonInteractive,
+    [switch]$SkipPrerequisites,
+    [switch]$PrerequisitesOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,6 +18,25 @@ $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Import-Module (Join-Path $Root "scripts\lib\HiveMind.Windows.psm1") -Force -DisableNameChecking
 
 Set-Location -LiteralPath $Root
+. (Join-Path $Root "scripts\setup\backup-install-state.ps1")
+. (Join-Path $Root "scripts\setup\bootstrap-prerequisites.ps1")
+
+Write-Host "`n==> Protected memory snapshot"
+$snapshot = New-HiveMindInstallSnapshot -Root $Root -OutputRoot (Join-Path $Root "backups")
+Write-Host "Verified snapshot: $($snapshot.SnapshotPath)"
+
+if ($Profile -eq "local-full" -and -not $SkipPrerequisites) {
+    Write-Host "`n==> Host prerequisites"
+    $preflight = Invoke-HiveMindPrerequisiteBootstrap -Profile $Profile
+    if ($preflight.RestartRequired) {
+        Write-Host "Windows restart required. Rerun: .\install.ps1 -Profile $Profile"
+        exit 3010
+    }
+    if (-not $preflight.Ready) {
+        throw "Required host prerequisites remain unavailable: $($preflight.Missing.Name -join ', ')"
+    }
+}
+if ($PrerequisitesOnly) { return }
 
 function Step {
     param([string]$Message)
@@ -211,11 +232,7 @@ function Install-ClaudeMemCodex {
         $stdout = Join-Path $env:TEMP "hive-mind-claude-mem-install.out.log"
         $stderr = Join-Path $env:TEMP "hive-mind-claude-mem-install.err.log"
         $proc = Start-Process -FilePath "cmd.exe" -ArgumentList @(
-            "/c", "npx", "-y", "claude-mem@13.6", "install",
-            "--ide", "codex-cli",
-            "--runtime", "worker",
-            "--provider", "claude",
-            "--no-auto-start"
+            "/c", "echo.|npx -y claude-mem@13.6 install --ide codex-cli --runtime worker --provider claude --no-auto-start"
         ) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
         $installCode = $proc.ExitCode
         if (Test-Path -LiteralPath $stdout) { Get-Content -LiteralPath $stdout | Out-Host }
@@ -339,6 +356,15 @@ Step "Ollama local models"
 Install-OllamaModels
 
 Step "Pinned integrations"
+Require-Command git "Install Git before bootstrapping pinned integrations."
+foreach ($component in @("graphify", "neural-memory", "rtk")) {
+    $componentPath = Join-Path $Root "integrations\$component"
+    if (Test-Path -LiteralPath (Join-Path $componentPath ".git")) {
+        $resolvedComponentPath = (Resolve-Path -LiteralPath $componentPath).Path.Replace("\\", "/")
+        & git config --global --add safe.directory $resolvedComponentPath
+        if ($LASTEXITCODE -ne 0) { throw "Could not mark $componentPath as a trusted Git checkout." }
+    }
+}
 Invoke-HiveMindPython -Root $Root -AllowSystem -Arguments @("scripts/setup/components.py", "bootstrap")
 
 Step "Python dependencies with uv"
@@ -347,7 +373,11 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 Invoke-HiveMindPython -Root $Root -Arguments @("-c", "import pydantic, watchdog")
 
 Step "Wrapper and UMC setup"
-Invoke-HiveMindPython -Root $Root -Arguments @("scripts/setup/verify_wrappers.py")
+if ($Profile -eq "local-full") {
+    Invoke-HiveMindPython -Root $Root -Arguments @("scripts/setup/verify_wrappers.py", "--require-docker")
+} else {
+    Invoke-HiveMindPython -Root $Root -Arguments @("scripts/setup/verify_wrappers.py")
+}
 Invoke-HiveMindPython -Root $Root -Arguments @("scripts/setup/setup_umc.py")
 
 Step "Vault materialization"

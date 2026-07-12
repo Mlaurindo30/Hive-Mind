@@ -6,8 +6,11 @@
   conjunto de serviços daemon coberto pelas specs.
 """
 import plistlib
+import os
 import sys
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "setup"))
@@ -30,6 +33,8 @@ def test_specs_cover_core_daemons():
 
 def test_specs_consistent_with_systemd_units():
     """Cada spec deve bater com a unit systemd correspondente (exec + env)."""
+    if os.name == "nt":
+        pytest.skip("systemd unit comparison is POSIX-only; Windows uses supervisor manifest")
     units = isvc.unit_definitions()
     for spec in isvc.service_specs():
         unit = units[f"{spec['name']}.service"]

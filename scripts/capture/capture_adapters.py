@@ -16,6 +16,7 @@ entre ferramentas — mimo≠kilo, antigravity≠gemini, hermes≠kimi, etc.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from parsers import (
@@ -47,6 +48,22 @@ def _parse_screenpipe(_source=None) -> list[dict]:
 
 HOME = Path.home()
 
+
+def _vscode_user_dir() -> Path:
+    """Diretório User do VS Code por plataforma.
+
+    Windows: %APPDATA%\\Code\\User (fallback ~\\AppData\\Roaming\\Code\\User).
+    POSIX:   ~/.config/Code/User (comportamento original).
+    """
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA")
+        base = Path(appdata) if appdata else HOME / "AppData" / "Roaming"
+        return base / "Code" / "User"
+    return HOME / ".config" / "Code" / "User"
+
+
+VSCODE_USER = _vscode_user_dir()
+
 ADAPTERS = {
     # ── append-only ──────────────────────────────────────────────────────────
     # Codex CLI e extensão VS Code do OpenAI Codex gravam cada sessão em
@@ -67,8 +84,8 @@ ADAPTERS = {
     },
     "copilot": {
         "owner": "realtime", "mode": "tail", "parser": _copilot.parse,
-        "watch": [str(HOME / ".config/Code/User/workspaceStorage/*/GitHub.copilot-chat/transcripts")],
-        "sources": [str(HOME / ".config/Code/User/workspaceStorage/*/GitHub.copilot-chat/transcripts/*.jsonl")],
+        "watch": [str(VSCODE_USER / "workspaceStorage/*/GitHub.copilot-chat/transcripts")],
+        "sources": [str(VSCODE_USER / "workspaceStorage/*/GitHub.copilot-chat/transcripts/*.jsonl")],
     },
     "hermes": {
         "owner": "realtime", "mode": "reparse", "parser": _hermes.parse,
@@ -76,13 +93,21 @@ ADAPTERS = {
         "sources": [str(HOME / ".hermes/state.db")],
     },
     # ── reescrito / array / sqlite ───────────────────────────────────────────
+    # Antigravity tem DOIS layouts com o mesmo esquema de transcript:
+    #   Desktop (IDE):  ~/.gemini/antigravity/brain/<uuid>/...
+    #   CLI:            ~/.gemini/antigravity-cli/brain/<uuid>/...
     "antigravity": {
         "owner": "realtime", "mode": "reparse", "parser": _antigravity.parse,
         "watch": [
-            str(HOME / ".gemini/antigravity-cli/brain"),                             # sentinela: detecta novos UUIDs
+            str(HOME / ".gemini/antigravity/brain"),                                 # sentinela: detecta novos UUIDs (Desktop)
+            str(HOME / ".gemini/antigravity/brain/*/.system_generated/logs"),        # filtrado por mtime em refresh()
+            str(HOME / ".gemini/antigravity-cli/brain"),                             # sentinela: detecta novos UUIDs (CLI)
             str(HOME / ".gemini/antigravity-cli/brain/*/.system_generated/logs"),    # filtrado por mtime em refresh()
         ],
-        "sources": [str(HOME / ".gemini/antigravity-cli/brain/*/.system_generated/logs/transcript_full.jsonl")],
+        "sources": [
+            str(HOME / ".gemini/antigravity/brain/*/.system_generated/logs/transcript_full.jsonl"),
+            str(HOME / ".gemini/antigravity-cli/brain/*/.system_generated/logs/transcript_full.jsonl"),
+        ],
     },
     "kimi": {
         "owner": "realtime", "mode": "reparse", "parser": _kimi.parse,
@@ -100,10 +125,10 @@ ADAPTERS = {
     "roo": {
         "owner": "realtime", "mode": "reparse", "parser": _roo.parse,
         "watch": [
-            str(HOME / ".config/Code/User/globalStorage/rooveterinaryinc.roo-cline/tasks"),
-            str(HOME / ".config/Code/User/globalStorage/rooveterinaryinc.roo-cline/tasks/*"),
+            str(VSCODE_USER / "globalStorage/rooveterinaryinc.roo-cline/tasks"),
+            str(VSCODE_USER / "globalStorage/rooveterinaryinc.roo-cline/tasks/*"),
         ],
-        "sources": [str(HOME / ".config/Code/User/globalStorage/rooveterinaryinc.roo-cline/tasks/*/ui_messages.json")],
+        "sources": [str(VSCODE_USER / "globalStorage/rooveterinaryinc.roo-cline/tasks/*/ui_messages.json")],
     },
     # ── também em realtime (envio imediato via inotify) ──────────────────────
     # mimo é CLI, mas grava num dir vigiável → captura na hora como os demais.

@@ -24,7 +24,15 @@ function wslAvailableFromWindows() {
 }
 
 function homeDir() {
-  return process.env.HIVE_MIND_HOME || path.join(os.homedir(), 'Hive-Mind');
+  if (process.env.HIVE_MIND_HOME) return process.env.HIVE_MIND_HOME;
+  const cwd = process.cwd();
+  if (
+    fs.existsSync(path.join(cwd, 'scripts', 'setup', 'install_services.py')) &&
+    fs.existsSync(path.join(cwd, 'cerebro'))
+  ) {
+    return cwd;
+  }
+  return path.join(os.homedir(), 'Hive-Mind');
 }
 
 function which(cmd) {

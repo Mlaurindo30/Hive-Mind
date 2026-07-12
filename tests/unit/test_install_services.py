@@ -12,8 +12,11 @@ se quebrados, causam regressão silenciosa de reprodutibilidade/segurança:
 - as 4 cadências da Memória Viva estão definidas (reprodutibilidade).
 """
 import importlib.util
+import os
 import re
 from pathlib import Path
+
+import pytest
 
 SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
 
@@ -81,6 +84,8 @@ def test_execstart_usa_venv_local():
 
 
 def test_claude_mem_units_usam_banco_global():
+    if os.name == "nt":
+        pytest.skip("systemd unit path assertions are POSIX-only")
     from pathlib import Path as _Path
     global_home = str(_Path.home())
     expected_db = f"{global_home}/.claude-mem/claude-mem.db"
@@ -120,7 +125,7 @@ def test_drift_e_log_only_sem_apply():
 
 def test_dream_definido_mas_nao_auto_habilitado():
     """dream existe (reprodutibilidade) porém fica fora do enabled (gated por M9)."""
-    src = (SCRIPTS / "setup" / "install_services.py").read_text()
+    src = (SCRIPTS / "setup" / "install_services.py").read_text(encoding="utf-8")
     m = re.search(r"enabled = \[(.*?)\]", src, re.S)
     assert m, "lista enabled não encontrada"
     enabled_block = m.group(1)
