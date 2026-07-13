@@ -1,4 +1,4 @@
-# Sinapse Agent — .gitignore
+﻿# Sinapse Agent — .gitignore
 
 # ── Vault Obsidian (LOCAL — materializado pelo install.sh, nunca commitar) ──
 # Regra cega: nada do cerebro/ vai pro git. Shipped templates vivem em
@@ -191,3 +191,17 @@ docs/12-knowledge-implementation-plan.md
 # Coverage artifacts (pytest-cov)
 .coverage
 .coverage.*
+
+
+# ── Type-hint escape artifacts (M0: prevent reappearance of leaked Python
+# typing.Path / Optional[str] / dict / etc as zero-byte files in the root).
+# These are residuals from a PowerShell here-string/escape bug; they are not
+# source code, and re-creating them in a fresh checkout indicates the bug is
+# back. Keep this block as a tripwire.
+Optional*
+/Optional*
+/Path
+/automated
+/dict*
+/`assistant`)`
+/dict[tuple*
