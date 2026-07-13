@@ -348,6 +348,16 @@ function loadState(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return {}; }
 }
 
+function requiredServiceHealth(manifest, profile, stateFile = paths().stateFile) {
+  const unavailable = requiredServiceErrors(manifest, profile);
+  if (unavailable.length) return { healthy: false, missing: unavailable };
+  const states = loadState(stateFile);
+  const missing = runnableServices(manifest, profile)
+    .filter((service) => service.required && states[service.name]?.state !== 'healthy')
+    .map((service) => service.name);
+  return { healthy: missing.length === 0, missing };
+}
+
 async function waitForRequiredHealthy(manifest, profile, options = {}) {
   const missingRequirements = requiredServiceErrors(manifest, profile);
   if (missingRequirements.length) throw new Error(missingRequirements.join('; '));
@@ -385,11 +395,15 @@ function status() {
     if (!alive && pid) { try { fs.unlinkSync(p.pidFile(svc.name)); } catch {} }
     console.log(`  ${svc.name.padEnd(28)} ${state}${alive ? ` (pid ${pid})` : ''}`);
   }
-  return 0;
+  const health = requiredServiceHealth(manifest, undefined, p.stateFile);
+  if (!health.healthy) {
+    console.error(`required services unhealthy: ${health.missing.join(', ')}`);
+  }
+  return health.healthy ? 0 : 1;
 }
 
 if (require.main === module && process.argv[2] === '__daemon') {
   daemon();
 }
 
-module.exports = { start, stop, status, loadManifest, runnableServices, selectServices, selectedProfile, topologicalServices, requiredServiceErrors, probeReadiness, waitForReadiness, waitForRequiredHealthy, platformCommand, reportedServiceState, restartDelayMs, canRestart };
+module.exports = { start, stop, status, loadManifest, runnableServices, selectServices, selectedProfile, topologicalServices, requiredServiceErrors, probeReadiness, waitForReadiness, requiredServiceHealth, waitForRequiredHealthy, platformCommand, reportedServiceState, restartDelayMs, canRestart };

@@ -42,9 +42,11 @@ function doctor() {
   const root = homeDir();
   console.log(`Hive-Mind at: ${root}`);
   const health = spawnSync('curl', ['-s', '--max-time', '3', 'http://127.0.0.1:37702/api/v1/health'], { encoding: 'utf8' });
-  console.log(`API :37702 → ${health.stdout || 'offline'}`);
+  const apiHealthy = health.status === 0;
+  console.log(`API :37702 → ${apiHealthy ? health.stdout : 'offline'}`);
   const { dispatch } = require('../lib/services');
-  return dispatch('status');
+  const services = dispatch('status');
+  return apiHealthy && services === 0 ? 0 : 1;
 }
 
 function mcpRegister(flags) {
