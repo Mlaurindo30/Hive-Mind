@@ -903,6 +903,10 @@ def get_causal_neighbors(conn, neuron_id: str, hops: int = 2) -> list[dict]:
     return results
 
 
+def _fts_literal_query(query_text):
+    """Representa a consulta do usuário como frase literal para FTS5."""
+    return '"' + str(query_text).replace('"', '""') + '"'
+
 def query_hybrid(query_text, limit=10):
     """Realiza busca hibrida (FTS5 + Vetorial) com Reciprocal Rank Fusion."""
     conn = get_connection()
@@ -915,7 +919,7 @@ def query_hybrid(query_text, limit=10):
             WHERE search_fts MATCH ?
             ORDER BY score
             LIMIT ?
-        """, (query_text, limit * 2)).fetchall()
+        """, (_fts_literal_query(query_text), limit * 2)).fetchall()
         fts_ids = [row['neuron_id'] for row in fts_rows]
     except Exception as e:
         print(f"[umc] Erro na busca FTS5: {e}", file=sys.stderr)

@@ -428,10 +428,24 @@ class MilvusBackend:
 
     def __init__(self, uri: Optional[str] = None, collection_prefix: Optional[str] = None):
         from pymilvus import MilvusClient
+        from integrations.milvus.client import settings_from_env
 
-        self.uri = uri or os.environ.get("MILVUS_URI", "http://localhost:19530")
+        # `settings_from_env()` is the canonical env resolver shared with
+        # integrations/milvus/client.py — it also honors MILVUS_HOST/MILVUS_PORT
+        # (composed into a URI when MILVUS_URI is unset) plus auth
+        # (MILVUS_USER/PASSWORD/TOKEN/DB_NAME/TIMEOUT). An explicit `uri` arg
+        # still wins over the env-derived one, for callers that build their own.
+        settings = settings_from_env()
+        self.uri = uri or settings.uri
         self.collection_prefix = collection_prefix if collection_prefix is not None else os.environ.get("MILVUS_COLLECTION_PREFIX", "hm_")
-        self._client = MilvusClient(uri=self.uri)
+        self._client = MilvusClient(
+            uri=self.uri,
+            user=settings.user,
+            password=settings.password,
+            token=settings.token,
+            db_name=settings.db_name,
+            timeout=settings.timeout,
+        )
 
     @staticmethod
     def _escape(value: str) -> str:

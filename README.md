@@ -256,8 +256,7 @@ Capture (hooks/MCP/CLI/browser/docs/code/screenshots)
   OS-level vault write enforcement: `./install.sh --with-vault-enforcement` (dedicated service
   user owns `cerebro/`; agents write only to `cerebro/90-intake/`).
 
-Full design: [`docs/11-knowledge-promotion-architecture.md`](docs/11-knowledge-promotion-architecture.md) ·
-phase-by-phase backlog: [`docs/12-knowledge-implementation-plan.md`](docs/12-knowledge-implementation-plan.md).
+Full design and phase-by-phase status: [`docs/01-architecture.md` §22–§31](docs/01-architecture.md#22-arquitetura-de-conhecimento-born-large).
 
 ### Memory dimensions
 
@@ -440,9 +439,8 @@ model/runtime validation lives in integration/E2E suites and `tests/run_real_kno
 | [`docs/04-infrastructure.md`](docs/04-infrastructure.md) | Infrastructure, ports, services, security |
 | [`docs/05-blueprints.md`](docs/05-blueprints.md) | ASCII diagrams of every flow |
 | [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md) | P2P synchronization setup |
-| [`docs/11-knowledge-promotion-architecture.md`](docs/11-knowledge-promotion-architecture.md) | Knowledge promotion architecture |
-| [`docs/12-knowledge-implementation-plan.md`](docs/12-knowledge-implementation-plan.md) | Knowledge implementation plan |
-| [`docs/reports/k9-real-suite-report.md`](docs/reports/k9-real-suite-report.md) | Latest real-suite evidence report |
+| [`docs/01-architecture.md` §22–§31](docs/01-architecture.md#22-arquitetura-de-conhecimento-born-large) | Knowledge promotion architecture and implementation status (K0–K10) |
+| [`docs/reports/POST_AUDIT_FIX_LOG.md`](docs/reports/POST_AUDIT_FIX_LOG.md) | Latest real-suite / post-audit evidence log |
 | [`AGENTS.md`](AGENTS.md) | Guide for AI agents |
 
 ---

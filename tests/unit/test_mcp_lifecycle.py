@@ -6,6 +6,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.skipif(os.name == "nt", reason="POSIX signal semantics test")
 
 ROOT = Path(__file__).resolve().parents[2]
 SUPERVISOR = ROOT / "scripts" / "services" / "mcp-lifecycle.py"

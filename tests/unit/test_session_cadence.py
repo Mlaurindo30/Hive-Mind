@@ -220,7 +220,7 @@ class TestAnatomicalPath:
         # Path NÃO tem 'cortex' entre 'cerebro' e 'cerebelo'
         assert "cortex" not in str(paths.CEREBELO).replace("cerebro/cortex", "X")  # ignora match
         # ... mas o caminho REAL é cerebro/cerebelo (sem cortex)
-        assert str(paths.CEREBELO).endswith("cerebro/cerebelo")
+        assert paths.CEREBELO.as_posix().endswith("cerebro/cerebelo")
 
     def test_session_placeholder_uses_cerebelo_path(self):
         source = SCRIPTS["placeholder"].read_text(encoding="utf-8")

@@ -19,8 +19,11 @@ import time
 from typing import BinaryIO
 
 
+_LABEL = "mcp-lifecycle"
+
+
 def _log(message: str) -> None:
-    print(f"[mcp-lifecycle] {message}", file=sys.stderr, flush=True)
+    print(f"[{_LABEL}] {message}", file=sys.stderr, flush=True)
 
 
 def _pump(src: BinaryIO, dst: BinaryIO | None, *, on_eof) -> None:
@@ -75,8 +78,18 @@ def _exit_code(proc: subprocess.Popen[bytes]) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Proxy stdio and reap orphan MCP servers.")
+    parser.add_argument(
+        "--name",
+        default=None,
+        help="Optional label included in stderr log lines (e.g. 'neural-memory', 'claude-mem') "
+             "so multiple supervised processes are distinguishable in shared logs.",
+    )
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
+
+    global _LABEL
+    if args.name:
+        _LABEL = f"mcp-lifecycle:{args.name}"
 
     command = args.command
     if command and command[0] == "--":

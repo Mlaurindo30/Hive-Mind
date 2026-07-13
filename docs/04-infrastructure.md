@@ -1,7 +1,7 @@
 # 04 — Infrastructure and Configuration
 
 > **Hive-Mind v3.0.0** — Requirements, services, ports, environment variables, and operations.
-> Last review: 2026-06-30 · LightRAG (P4) integrated as `claude-mem/data/lightrag/` · **Born-Large (K0–K10):** VectorBackend with optional Milvus, RAGFlow headless adapter, optional LlamaIndex, negative vendoring contract via `components.lock.json`, `workspace_id` in all critical tables, session→annual cadence with dedicated roles. See [`01-architecture.md` §22–§31](01-architecture.md#22-arquitetura-de-conhecimento-born-large) and [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md).
+> Last review: 2026-06-30 · LightRAG (P4) integrated as `claude-mem/data/lightrag/` · **Born-Large (K0–K10):** VectorBackend with optional Milvus, RAGFlow headless adapter, optional LlamaIndex, negative vendoring contract via `components.lock.json`, `workspace_id` in all critical tables, session→annual cadence with dedicated roles. See [`01-architecture.md` §22–§31](01-architecture.md#22-arquitetura-de-conhecimento-born-large) — the normative reference for this front lives there (see [`docs/README.md`](README.md) for a note on why `docs/11-*` is not a separate file in this checkout).
 
 ---
 

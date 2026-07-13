@@ -118,7 +118,7 @@ def build_updates(provider: str, model: str, env: dict) -> dict:
     if provider in GEMINI_PROVIDERS:
         gmodel = model if model in GEMINI_ALLOWED else GEMINI_DEFAULT
         if gmodel != model:
-            print(f"  ⚠ '{model}' não é um modelo gemini aceito pelo claude-mem "
+            print(f"  ! '{model}' não é um modelo gemini aceito pelo claude-mem "
                   f"({', '.join(sorted(GEMINI_ALLOWED))}); usando {gmodel}.")
         return {
             **runtime_updates(),
@@ -201,7 +201,7 @@ def apply(updates: dict) -> None:
     except Exception as exc:
         # worker pode estar fora (ex.: durante o install) — o seed em settings.json
         # abaixo garante a config no próximo start.
-        print(f"  ⚠ API /api/settings indisponível ({exc}); aplicando só o seed em settings.json")
+            print(f"  ! API /api/settings indisponível ({exc}); aplicando só o seed em settings.json")
     # Mantém o settings.json (seed de startup) coerente com a escolha, para um
     # restart nunca reintroduzir um provider diferente.
     try:
@@ -225,9 +225,14 @@ def restart_worker() -> None:
     """PROVIDER/MODEL aplicam ao vivo via /api/settings, mas o BASE_URL do slot
     OpenAI-compat é lido do seed (settings.json) só no startup — então quando ele
     muda (ex.: trocar pra ollama local), o worker PRECISA reiniciar pra carregar."""
-    import subprocess
-    subprocess.run(("systemctl", "--user", "restart", "sinapse-claude-mem.service"),
-                   check=False, text=True)
+    if os.name == "nt":
+        subprocess.run(
+            ("node", str(ROOT / "npm" / "bin" / "hive-mind.js"), "services", "restart"),
+            check=False,
+            text=True,
+        )
+        return
+    subprocess.run(("systemctl", "--user", "restart", "sinapse-claude-mem.service"), check=False, text=True)
 
 
 def main() -> int:
@@ -240,9 +245,9 @@ def main() -> int:
         provider = env.get("HIVE_DREAMER_PROVIDER", "").strip()
         model = env.get("HIVE_DREAMER_MODEL", "").strip()
         if provider and model:
-            print(f"  ↩ HIVE_CLAUDE_MEM_PROVIDER/MODEL ausente; herdando DREAMER ({provider}/{model})")
+            print(f"  -> HIVE_CLAUDE_MEM_PROVIDER/MODEL ausente; herdando DREAMER ({provider}/{model})")
     if not provider or not model:
-        print("⊘ Papel claude_mem não configurado "
+        print("- Papel claude_mem não configurado "
               "(HIVE_CLAUDE_MEM/DREAMER PROVIDER/MODEL ausentes). Nada a sincronizar.")
         return 0
 
@@ -253,25 +258,25 @@ def main() -> int:
         fb_m = env.get("HIVE_CLAUDE_MEM_FALLBACK_MODEL", "").strip()
         if fb_p and fb_m and fb_p.lower() != provider.lower():
             reason = "--fallback" if force_fallback else "quota esgotada (429) recente"
-            print(f"  ⚠ {reason} em '{provider}'; aplicando fallback '{fb_p}/{fb_m}'")
+            print(f"  ! {reason} em '{provider}'; aplicando fallback '{fb_p}/{fb_m}'")
             provider, model = fb_p, fb_m
         elif force_fallback:
-            print(f"  ⚠ --fallback solicitado mas HIVE_CLAUDE_MEM_FALLBACK_PROVIDER/MODEL não configurados.")
+            print(f"  ! --fallback solicitado mas HIVE_CLAUDE_MEM_FALLBACK_PROVIDER/MODEL não configurados.")
 
     # Guard de compatibilidade: se o provider escolhido (ou o fallback de quota)
     # for CLI/OAuth (antigravity, gemini-cli, code-assist), o worker não consegue
     # usá-lo. Tenta o fallback configurado; se também for incompatível, aborta SEM
     # sobrescrever a config viva (não troca um setup que funciona por um quebrado).
     if not _usable_by_claude_mem(provider, PROVIDERS_CONFIG.get(provider, {})):
-        print(f"  ⚠ provider '{provider}' é CLI/OAuth — incompatível com o worker "
+        print(f"  ! provider '{provider}' é CLI/OAuth — incompatível com o worker "
               f"do claude-mem (que fala Anthropic/Gemini API-key ou OpenAI-compat HTTP).")
         fb_p = env.get("HIVE_CLAUDE_MEM_FALLBACK_PROVIDER", "").strip()
         fb_m = env.get("HIVE_CLAUDE_MEM_FALLBACK_MODEL", "").strip()
         if fb_p and fb_m and _usable_by_claude_mem(fb_p, PROVIDERS_CONFIG.get(fb_p.lower(), {})):
-            print(f"  ↩ usando fallback compatível '{fb_p}/{fb_m}'")
+            print(f"  -> usando fallback compatível '{fb_p}/{fb_m}'")
             provider, model = fb_p, fb_m
         else:
-            print("✗ Nenhum provider compatível disponível para o claude-mem. "
+            print("X Nenhum provider compatível disponível para o claude-mem. "
                   "Configure HIVE_CLAUDE_MEM_PROVIDER/MODEL (ou FALLBACK) com um "
                   "provider HTTP+chave (nvidia, ollama, openrouter, deepseek…) ou "
                   "os slots nativos gemini/claude (API key). Config viva preservada.")
@@ -279,22 +284,22 @@ def main() -> int:
 
     updates = build_updates(provider, model, env)
     safe = {k: ("***" if "KEY" in k or "TOKEN" in k else v) for k, v in updates.items()}
-    print(f"claude-mem ← {provider}/{model}")
+    print(f"claude-mem <- {provider}/{model}")
     print(json.dumps(safe, indent=2))
 
     if "--print" in sys.argv:
         return 0
 
     apply(updates)
-    print("✓ aplicado via /api/settings (live) + seed global ~/.claude-mem")
+    print("OK aplicado via /api/settings (live) + seed global ~/.claude-mem")
     if "CLAUDE_MEM_OPENROUTER_BASE_URL" in updates:
         restart_worker()
-        print("✓ worker reiniciado (base_url do slot OpenAI-compat aplicado)")
+        print("OK worker reiniciado (base_url do slot OpenAI-compat aplicado)")
 
     fb_provider = env.get("HIVE_CLAUDE_MEM_FALLBACK_PROVIDER", "").strip()
     fb_model = env.get("HIVE_CLAUDE_MEM_FALLBACK_MODEL", "").strip()
     if fb_provider and fb_model:
-        print(f"  ℹ Fallback disponível: {fb_provider}/{fb_model} (activa quando quota esgotar)")
+        print(f"  i Fallback disponível: {fb_provider}/{fb_model} (activa quando quota esgotar)")
     return 0
 
 

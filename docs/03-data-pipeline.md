@@ -1,6 +1,6 @@
 # 03 — Data Pipeline
 
-> **Hive-Mind v3.0.0** — Full flow: collection → real-time indexing → Dream Cycle → query → Deep Reflection → Federated Export. **Review 2026-06-30:** consolidation of the Born-Large Knowledge front (K0–K10) with Knowledge Intake (K3), Promotion Layer (K4), hierarchical cadence (K5), `DocumentPipeline` (K6), `RetrievalRouter` (K7), K8 metrics, and workspace contracts (K10). Normative reference in [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md); distilled architecture in [`01-architecture.md` §22–§31](01-architecture.md#22-arquitetura-de-conhecimento-born-large).
+> **Hive-Mind v3.0.0** — Full flow: collection → real-time indexing → Dream Cycle → query → Deep Reflection → Federated Export. **Review 2026-06-30:** consolidation of the Born-Large Knowledge front (K0–K10) with Knowledge Intake (K3), Promotion Layer (K4), hierarchical cadence (K5), `DocumentPipeline` (K6), `RetrievalRouter` (K7), K8 metrics, and workspace contracts (K10). Normative reference in [`01-architecture.md` §22–§31](01-architecture.md#22-arquitetura-de-conhecimento-born-large) (see [`docs/README.md`](README.md) for a note on why `docs/11-*` is not a separate file in this checkout).
 
 ---
 
@@ -471,7 +471,7 @@ Only Python exceptions and timeouts count as failures — empty results (not fou
 
 ## 10. K3 — Knowledge Intake
 
-`core/knowledge/intake.py`. Layer [3] of the canonical flow ([`11-knowledge-promotion-architecture.md` §3](11-knowledge-promotion-architecture.md#3-preenchimento-por-parte-do-cérebro)). Input: raw claude-mem observations (and candidate records from other backends via `KnowledgePromotionPipeline`). Output: normalized/classified/deduplicated candidates, ready for Promotion Layer.
+`core/knowledge/intake.py`. Layer [3] of the canonical flow (see [`01-architecture.md` §27](01-architecture.md#27-knowledge-promotion-pipeline-k3k4)). Input: raw claude-mem observations (and candidate records from other backends via `KnowledgePromotionPipeline`). Output: normalized/classified/deduplicated candidates, ready for Promotion Layer.
 
 **Responsibilities:**
 
@@ -513,7 +513,7 @@ Nothing is deleted due to promotion failure. See [`01-architecture.md` ADR-016](
 
 ## 12. K5 — Hierarchical Write Cadence
 
-The brain's temporal memory advances through **five cadences** — session, daily, weekly, monthly, yearly — with dedicated writers, LLM roles, and promotion rules. Normative details in [`11-knowledge-promotion-architecture.md` §14](11-knowledge-promotion-architecture.md#14-cadencia-hierarquica-de-escrita).
+The brain's temporal memory advances through **five cadences** — session, daily, weekly, monthly, yearly — with dedicated writers, LLM roles, and promotion rules. Normative details in [`01-architecture.md` §29](01-architecture.md#29-hierarchical-writing-cadence).
 
 | Cadence | Writer | Default model | Promotes |
 |---|---|---|---|
@@ -533,7 +533,7 @@ Each cadence produces a file under `cerebro/cerebelo/{sessoes,diario,semanal,men
 
 ## 13. K6 — DocumentPipeline
 
-`core/knowledge/document_pipeline.py`. Inspired by RAGFlow, but **preserving Hive-Mind anatomy**. See [`01-architecture.md` §25](01-architecture.md#25-documentpipeline-k6--ingestao-born-large) for architectural details.
+`core/document_pipeline.py`. Inspired by RAGFlow, but **preserving Hive-Mind anatomy**. See [`01-architecture.md` §25](01-architecture.md#25-documentpipeline-k6--ingestao-born-large) for architectural details.
 
 ```text
 document (.md / .txt / .pdf / .docx)

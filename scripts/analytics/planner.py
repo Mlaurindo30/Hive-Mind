@@ -7,6 +7,7 @@ Decompõe objetivos em passos atômicos e persiste no banco de dados.
 import os
 import sys
 import json
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -54,7 +55,7 @@ def _get_llm_caller():
     """Lazy import of call_llm_with_fallback — kept as module-level binding
     so tests can patch ``scripts.planner.call_llm_with_fallback`` directly."""
     import importlib
-    dc = importlib.import_module("scripts.dream_cycle")
+    dc = importlib.import_module("scripts.dream.dream_cycle")
     return dc.call_llm_with_fallback
 
 
@@ -69,8 +70,6 @@ def decompose_goal(goal: str, context: Optional[str] = None) -> list[dict]:
     Em caso de falha retorna um único passo fallback com o objetivo original.
     """
     global call_llm_with_fallback
-    if call_llm_with_fallback is None:
-        call_llm_with_fallback = _get_llm_caller()
 
     fallback = [{"id": "step-1", "action": goal, "why": "objetivo original não decomposto", "depends_on": []}]
 
@@ -79,6 +78,8 @@ def decompose_goal(goal: str, context: Optional[str] = None) -> list[dict]:
         prompt += f"\n\nCONTEXTO ADICIONAL:\n{context}"
 
     try:
+        if call_llm_with_fallback is None:
+            call_llm_with_fallback = _get_llm_caller()
         result: GoalPlan = call_llm_with_fallback(
             "dreamer",
             prompt,
@@ -99,7 +100,7 @@ def save_goal(goal: str, steps: list[dict], db_conn=None) -> str:
     from core.database import get_connection
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-    goal_id = f"goal-{ts}"
+    goal_id = f"goal-{ts}-{uuid.uuid4().hex[:8]}"
 
     _own_conn = db_conn is None
     conn = get_connection() if _own_conn else db_conn

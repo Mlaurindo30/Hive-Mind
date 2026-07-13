@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -33,7 +34,7 @@ def test_decision_write_path_closes_e2e():
     )
 
     proc = subprocess.run(
-        [".venv/bin/python", "scripts/services/sinapse-write.py", "decision",
+        [sys.executable, "scripts/services/sinapse-write.py", "decision",
          "--title", title, "--content", content],
         capture_output=True, text=True, timeout=30,
     )
@@ -96,7 +97,7 @@ def test_decision_write_path_closes_e2e():
 
     # Step 6+7: sinapse_query for the title; expect a citation back to the file.
     proc = subprocess.run(
-        [".venv/bin/python", "scripts/services/sinapse-write.py", "query", title],
+        [sys.executable, "scripts/services/sinapse-write.py", "query", title],
         capture_output=True, text=True, timeout=30,
     )
     assert proc.returncode == 0, f"query CLI failed: {proc.stderr}"

@@ -38,6 +38,18 @@ def _ollama_running() -> bool:
         return False
 
 
+def _ollama_has_model(model: str) -> bool:
+    import json
+    import urllib.request
+    try:
+        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        names = {item.get("name") for item in data.get("models", [])}
+        return model in names
+    except Exception:
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Testes do backend ativo (fastembed ou ollama)
 # ---------------------------------------------------------------------------
@@ -143,7 +155,7 @@ def test_embed_backend_fastembed(monkeypatch):
 # Teste live do Ollama (skip se não estiver rodando)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.skipif(not _ollama_running(), reason="Ollama não está rodando em localhost:11434")
+@pytest.mark.skipif(not _ollama_running() or not _ollama_has_model("nomic-embed-text:latest"), reason="Ollama/nomic-embed-text indisponível")
 def test_ollama_embedder_live_nomic():
     """Testa embedding real via Ollama nomic-embed-text (requer Ollama rodando)."""
     embedder = OllamaEmbedder("http://localhost:11434", "nomic-embed-text:latest")
@@ -155,7 +167,7 @@ def test_ollama_embedder_live_nomic():
     assert all(isinstance(x, (int, float)) for x in vec)
 
 
-@pytest.mark.skipif(not _ollama_running(), reason="Ollama não está rodando em localhost:11434")
+@pytest.mark.skipif(not _ollama_running() or not _ollama_has_model("nomic-embed-text:latest"), reason="Ollama/nomic-embed-text indisponível")
 def test_ollama_embedder_live_batch():
     """OllamaEmbedder processa múltiplos textos sequencialmente."""
     embedder = OllamaEmbedder("http://localhost:11434", "nomic-embed-text:latest")

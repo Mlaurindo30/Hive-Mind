@@ -6,10 +6,18 @@ services:
     # porque o core/telemetry.py só precisa do OTLP HTTP endpoint e
     # Langfuse v2 serve com SQLite. v3+ quebra o modo self-hosted dev.
     # Langfuse v3+ requer ClickHouse+Postgres+Redis (nao single-binary).
-# Para dev local, levantamos um `hive-otel-collector` stub (veja
-# scripts/services/otel_collector.py) que aceita OTLP/HTTP e escreve
-# em JSONL. Quando o operador quiser Langfuse real, descomentar o
-# bloco `langfuse-v3` abaixo e subir Postgres+ClickHouse+Redis primeiro.
+    #
+    # Para dev local sem Langfuse, levante o `hive-otel-collector` stub
+    # (veja scripts/services/otel_collector.py) que aceita OTLP/HTTP e
+    # escreve em JSONL — esse compose não é necessário nesse caso.
+    #
+    # NOTA (2026-07-09): ao contrário de integrations/milvus e
+    # integrations/ragflow, esta imagem NÃO está pinada por digest ainda
+    # (só por tag). Antes de usar em produção, resolva o sha256 real da
+    # tag abaixo e pin no formato `imagem:tag@sha256:...` (mesmo padrão
+    # dos outros wrappers), e adicione este serviço a
+    # scripts/setup/verify_wrappers.py.
+    image: langfuse/langfuse:2.92.0
     # Roda como root dentro do container (langfuse user nao consegue
     # criar arquivos em volumes montados por usuarios nao-root).
     user: "0:0"

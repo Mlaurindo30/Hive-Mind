@@ -6,6 +6,8 @@ Puro — recebe todos os parâmetros como argumentos.
 
 import json
 import os
+from pathlib import Path
+import shutil
 import subprocess
 from typing import Any, Callable, Dict, Optional
 from urllib.error import URLError
@@ -18,8 +20,8 @@ def check_nmem(nmem_bin: str) -> bool:
 
 
 def check_graphify(graph_json_path: str) -> bool:
-    """Verifica se graph.json existe."""
-    return os.path.isfile(graph_json_path)
+    """Verify that the structural graph is readable and contains nodes."""
+    return get_graph_node_count(graph_json_path) > 0
 
 
 def check_filesystem(vault_dir: str) -> bool:
@@ -29,11 +31,23 @@ def check_filesystem(vault_dir: str) -> bool:
 
 def check_rtk() -> bool:
     """Verifica se o binário rtk está disponível."""
+    candidates = []
+    which_rtk = shutil.which("rtk")
+    if which_rtk:
+        candidates.append(which_rtk)
+    sinapse_home = os.environ.get("SINAPSE_HOME")
+    if sinapse_home:
+        candidates.append(str(Path(sinapse_home) / "integrations" / "rtk" / "target" / "release" / ("rtk.exe" if os.name == "nt" else "rtk")))
+    candidates.append(str(Path(__file__).resolve().parents[2] / "integrations" / "rtk" / "target" / "release" / ("rtk.exe" if os.name == "nt" else "rtk")))
     try:
-        subprocess.run(["rtk", "--version"], capture_output=True, timeout=2)
-        return True
+        for candidate in candidates:
+            if candidate and os.path.isfile(candidate):
+                result = subprocess.run([candidate, "--version"], capture_output=True, timeout=2)
+                if result.returncode == 0:
+                    return True
     except Exception:
-        return False
+        pass
+    return False
 
 
 def check_claude_mem(claude_mem_url: str) -> bool:
@@ -91,6 +105,13 @@ def health_check(
         vec_worker_url: URL base do worker sqlite-vec.
         graphiti_available_fn: callable que checa FalkorDB/Graphiti.
     """
+    try:
+        from core.auth import load_env
+
+        load_env()
+    except Exception:
+        pass
+
     graphify_ok = check_graphify(graph_json_path)
     claude_mem_ok = check_claude_mem(claude_mem_url)
     neural_ok = check_nmem(nmem_bin)

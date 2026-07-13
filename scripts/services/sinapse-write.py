@@ -17,7 +17,11 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-VENV_PYTHON = PROJECT_ROOT / ".venv" / "bin" / "python"
+VENV_PYTHON = (
+    PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"
+    if os.name == "nt"
+    else PROJECT_ROOT / ".venv" / "bin" / "python"
+)
 if (
     VENV_PYTHON.exists()
     and Path(sys.executable).resolve() != VENV_PYTHON.resolve()

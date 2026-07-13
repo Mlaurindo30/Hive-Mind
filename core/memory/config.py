@@ -10,6 +10,7 @@ import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -18,7 +19,20 @@ from typing import Any
 
 DEFAULT_CLAUDE_MEM_URL = "http://127.0.0.1:37700"
 DEFAULT_CLAUDE_MEM_TIMEOUT = 3
-DEFAULT_NMEM_BIN = os.path.expanduser("~/.local/bin/nmem")
+
+
+def _default_nmem_bin() -> str:
+    env_value = os.environ.get("NMEM_BIN")
+    if env_value:
+        return env_value
+    project_root = Path(__file__).resolve().parents[2]
+    local = project_root / ".venv" / ("Scripts" if os.name == "nt" else "bin") / ("nmem.exe" if os.name == "nt" else "nmem")
+    if local.exists():
+        return str(local)
+    return os.path.expanduser("~/.local/bin/nmem")
+
+
+DEFAULT_NMEM_BIN = _default_nmem_bin()
 DEFAULT_NMEM_TIMEOUT = 5
 DEFAULT_VEC_WORKER_URL = "http://127.0.0.1:37701"
 

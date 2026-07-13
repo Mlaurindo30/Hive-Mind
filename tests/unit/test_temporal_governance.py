@@ -107,7 +107,7 @@ class IntakeFallbackTests(unittest.TestCase):
     def test_intake_dir_none_outside_vault(self):
         self.assertIsNone(intake_fallback_dir("/tmp/fora/do/vault.md"))
 
-    @unittest.skipIf(os.geteuid() == 0, "root ignora permissões de diretório")
+    @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0), "chmod readonly POSIX-only")
     def test_decision_falls_back_to_intake_when_vault_readonly(self):
         os.chmod(self.decisions_dir, stat.S_IRUSR | stat.S_IXUSR)
         path = save_decision("Decisao bloqueada", "conteudo", self.decisions_dir)
@@ -117,7 +117,7 @@ class IntakeFallbackTests(unittest.TestCase):
         self.assertIn("promote_to:", text)
         self.assertIn("Decisao bloqueada", text)
 
-    @unittest.skipIf(os.geteuid() == 0, "root ignora permissões de diretório")
+    @unittest.skipIf(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0), "chmod readonly POSIX-only")
     def test_learning_falls_back_to_intake_when_patterns_readonly(self):
         padroes_dir = os.path.join(self.vault, "cerebelo", "padroes")
         os.makedirs(padroes_dir)

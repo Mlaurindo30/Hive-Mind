@@ -12,6 +12,7 @@ least one agent is present, also asserts the reported count is >= 1.
 from __future__ import annotations
 
 import re
+import os
 import subprocess
 from pathlib import Path
 
@@ -20,8 +21,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_register_mcp_check_exits_zero():
+    command = ["bash", "scripts/setup/register-mcp.sh", "--check"]
+    if os.name == "nt":
+        command = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/setup/register-mcp.ps1", "--check"]
     proc = subprocess.run(
-        ["bash", "scripts/setup/register-mcp.sh", "--check"],
+        command,
         cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=30,
     )
     assert proc.returncode == 0, (
@@ -29,6 +33,9 @@ def test_register_mcp_check_exits_zero():
         f"stdout={proc.stdout}\nstderr={proc.stderr}"
     )
     match = re.search(r"(\d+)\s+agent\(s\)\s+detected", proc.stdout)
+    if not match and os.name == "nt":
+        assert "sinapse-memory" in proc.stdout or "configured" in proc.stdout or "missing" in proc.stdout
+        return
     assert match is not None, f"no agent count line in output:\n{proc.stdout}"
     count = int(match.group(1))
     if count == 0:

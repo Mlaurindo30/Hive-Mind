@@ -144,10 +144,6 @@ class RerankResponse:
     raw: Optional[dict] = None
 
 
-def gateway_enabled() -> bool:
-    return os.environ.get("MODEL_GATEWAY_ENABLED", "false").strip().lower() in ("1", "true", "yes")
-
-
 def _mask_error(err: Optional[str]) -> Optional[str]:
     return redact_for_export(err) if err else err
 
@@ -291,6 +287,7 @@ class ModelGateway:
         model_id: Optional[str] = None,
         require: Optional[dict] = None,
         timeout_s: Optional[float] = None,
+        image_path: Optional[str] = None,
     ) -> ModelResponse:
         require = dict(require or {})
         require.setdefault("structured_output", True)
@@ -307,7 +304,7 @@ class ModelGateway:
         return self._run_with_fallback(
             "structured", profile, role, require,
             args=(messages, schema),
-            kwargs=dict(timeout_s=timeout_s or self.registry.defaults.timeout_s),
+            kwargs=dict(timeout_s=timeout_s or self.registry.defaults.timeout_s, image_path=image_path),
             validate_fn=_validate,
         )
 
@@ -449,25 +446,15 @@ class ModelGateway:
         fallback_used = False
         last_response = None
 
-        # Build the chain: primary profile + the registry's primary/fallback
-        # candidates for the role. Using `find_role_candidates` gives us a
-        # full ordered list so we can also emit capability-skip events
-        # (R6.5) for every profile that misses a required capability.
-        if role is not None:
-            role_candidates = self.registry.find_role_candidates(role, require=require)
-            if role_candidates:
-                candidates = role_candidates
-            else:
-                # No role-based candidates at all (e.g. unknown role) —
-                # fall back to the original primary + fallback_chain.
-                candidates = [profile]
-                if self.registry.defaults.fallback_enabled:
-                    candidates += self._fallback_targets(profile)
-        else:
-            candidates = [profile]
-            if self.registry.defaults.fallback_enabled:
-                candidates += self._fallback_targets(profile)
-
+        # The selected profile is the contract boundary. A role can have
+        # several registered models, but they must not become implicit
+        # fallbacks for one another: it would make a deliberately failed
+        # primary/fallback pair succeed through an unrelated role (for
+        # example GRAPHIFY or VISION). Only the selected profile's explicit
+        # fallback_chain is executable.
+        candidates = [profile]
+        if self.registry.defaults.fallback_enabled:
+            candidates += self._fallback_targets(profile)
         for idx, candidate in enumerate(candidates):
             # EC-3 — never dispatch an adapter for a profile the registry
             # explicitly marked unsupported.

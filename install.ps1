@@ -245,12 +245,6 @@ function Install-ClaudeMemCodex {
 
     $oldPath = $env:PATH
     try {
-        if (Test-HiveMindCommand node) {
-            $cli = Join-Path $Root "npm\bin\hive-mind.js"
-            if (Test-Path -LiteralPath $cli) {
-                & node $cli "services" "stop" | Out-Host
-            }
-        }
 
         $env:PATH = (Split-Path -Parent $bun) + ";" + $env:PATH
         $env:CLAUDE_MEM_DATA_DIR = Join-Path $env:USERPROFILE ".claude-mem"
@@ -260,7 +254,7 @@ function Install-ClaudeMemCodex {
         $stdout = Join-Path $env:TEMP "hive-mind-claude-mem-install.out.log"
         $stderr = Join-Path $env:TEMP "hive-mind-claude-mem-install.err.log"
         $proc = Start-Process -FilePath "cmd.exe" -ArgumentList @(
-            "/c", "echo.|npx -y claude-mem@13.6 install --ide codex-cli --runtime worker --provider claude --no-auto-start"
+            "/c", "echo.|npx -y claude-mem@13.6 install --ide codex-cli --runtime worker --provider claude"
         ) -NoNewWindow -Wait -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
         $installCode = $proc.ExitCode
         if (Test-Path -LiteralPath $stdout) { Get-Content -LiteralPath $stdout | Out-Host }

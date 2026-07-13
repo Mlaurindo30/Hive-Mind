@@ -1,6 +1,7 @@
 """Tests for the Antigravity (`agy`) provider wrapper."""
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -59,5 +60,11 @@ def test_run_agy_can_opt_into_isolated_home(monkeypatch, tmp_path):
     assert agy_client._run_agy("ping", "gemini-3.5-flash", timeout=1) == "OK"
     assert captured["home"] == str(isolated)
     assert captured["cwd"] == str(isolated)
-    assert (isolated / ".gemini" / "oauth_creds.json").is_symlink()
-    assert (isolated / ".gemini" / "antigravity-cli" / "antigravity-oauth-token").is_symlink()
+    oauth_link = isolated / ".gemini" / "oauth_creds.json"
+    agy_link = isolated / ".gemini" / "antigravity-cli" / "antigravity-oauth-token"
+    if os.name == "nt":
+        assert oauth_link.exists()
+        assert agy_link.exists()
+    else:
+        assert oauth_link.is_symlink()
+        assert agy_link.is_symlink()

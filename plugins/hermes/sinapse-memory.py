@@ -65,7 +65,24 @@ PATTERNS_FILE = str(P.PADROES_ROOT / "Patterns.md")
 
 CLAUDE_MEM_URL = "http://127.0.0.1:37700"
 CLAUDE_MEM_TIMEOUT = 3
-NMEM_BIN = os.path.expanduser("~/.local/bin/nmem")
+
+
+def _default_nmem_bin() -> str:
+    env_value = os.environ.get("NMEM_BIN")
+    if env_value:
+        return env_value
+    local = os.path.join(
+        _PROJECT_ROOT,
+        ".venv",
+        "Scripts" if os.name == "nt" else "bin",
+        "nmem.exe" if os.name == "nt" else "nmem",
+    )
+    if os.path.exists(local):
+        return local
+    return os.path.expanduser("~/.local/bin/nmem")
+
+
+NMEM_BIN = _default_nmem_bin()
 NMEM_TIMEOUT = 5
 VEC_WORKER_URL = "http://127.0.0.1:37701"
 

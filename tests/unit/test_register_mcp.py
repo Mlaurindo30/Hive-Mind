@@ -5,8 +5,11 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[2]
+pytestmark = pytest.mark.skipif(os.name == "nt", reason="register-mcp.sh tests require POSIX shell/symlink privileges")
 
 
 def _link(binary_dir: Path, name: str, target: str) -> None:

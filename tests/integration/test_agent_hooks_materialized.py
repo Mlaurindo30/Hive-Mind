@@ -16,6 +16,7 @@ import os
 import re
 import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -99,8 +100,11 @@ def test_referenced_scripts_exist():
                 if skip_invocation:
                     continue
                 try:
+                    command = [str(candidate), "--help"]
+                    if os.name == "nt" and candidate.suffix == ".py":
+                        command = [sys.executable, str(candidate), "--help"]
                     subprocess.run(
-                        [str(candidate), "--help"],
+                        command,
                         cwd=PROJECT_ROOT, capture_output=True, timeout=8,
                     )
                 except (subprocess.TimeoutExpired, FileNotFoundError) as e:

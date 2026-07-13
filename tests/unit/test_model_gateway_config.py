@@ -35,17 +35,30 @@ def test_shipped_config_has_the_four_documented_example_profiles():
 
 
 @pytest.mark.parametrize("value,expected", [
+    # "true"/"1"/"yes" (any case) map to MODEL_GATEWAY_MODE=on -> enabled.
     ("true", True), ("1", True), ("yes", True), ("TRUE", True),
-    ("false", False), ("0", False), ("", False),
+    # "false"/"0"/"no" map to MODEL_GATEWAY_MODE=off -> disabled.
+    ("false", False), ("0", False),
+    # Anything else (including "") doesn't match either legacy branch, so
+    # resolve_gateway_mode() falls through to its "auto" default, which
+    # gateway_enabled() treats as enabled (see resolve_gateway_mode docstring).
+    ("", True),
 ])
 def test_gateway_enabled_env_flag(monkeypatch, value, expected):
+    monkeypatch.delenv("MODEL_GATEWAY_MODE", raising=False)
+    monkeypatch.delenv("HIVE_FORCE_LEGACY_LLM", raising=False)
     monkeypatch.setenv("MODEL_GATEWAY_ENABLED", value)
     assert gateway_enabled() is expected
 
 
-def test_gateway_enabled_defaults_false_when_unset(monkeypatch):
+def test_gateway_enabled_defaults_true_when_unset(monkeypatch):
+    # Unset -> resolve_gateway_mode() defaults to "auto", which
+    # gateway_enabled() treats as enabled (gateway is tried first, with
+    # fallback to legacy on failure -- see core/llm_client.py).
     monkeypatch.delenv("MODEL_GATEWAY_ENABLED", raising=False)
-    assert gateway_enabled() is False
+    monkeypatch.delenv("MODEL_GATEWAY_MODE", raising=False)
+    monkeypatch.delenv("HIVE_FORCE_LEGACY_LLM", raising=False)
+    assert gateway_enabled() is True
 
 
 def test_from_config_missing_path_raises(tmp_path):

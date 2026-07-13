@@ -6,8 +6,10 @@ Sincronização CRDT do `hive_mind.db` entre múltiplas instâncias
 
 ## Anatomia
 
-Esta é uma **cliente externa** (política §0.2 do
-[`docs/10-implementation-roadmap.md`](../../docs/10-implementation-roadmap.md)):
+Esta é uma **cliente externa** (política §0.2 do roadmap interno,
+`docs/10-implementation-roadmap.md` — nota: esse arquivo não existe neste
+checkout de `docs/`; o contrato de vendoring vigente está em
+[`docs/01-architecture.md` §2.6](../../docs/01-architecture.md#26-ferramentas-externas-como-órgãos-do-cérebro)):
 
 ```
 integrations/crsqlite/        # este vendor
@@ -87,4 +89,4 @@ convergência entre 2 DBs, conflito LWW, version tracking, finalize.
 
 - [github.com/vlcn-io/cr-sqlite](https://github.com/vlcn-io/cr-sqlite)
 - [Observable notebook do tantaman (basic setup)](https://observablehq.com/@tantaman/cr-sqlite-basic-setup)
-- Roadmap interno: `docs/10-implementation-roadmap.md` §4 P8 + §7 Sprint 3.1
+- Roadmap interno: `docs/10-implementation-roadmap.md` §4 P8 + §7 Sprint 3.1 (não existe neste checkout de `docs/`)

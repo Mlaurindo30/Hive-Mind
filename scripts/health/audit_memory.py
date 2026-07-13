@@ -115,14 +115,17 @@ def _search_vector_exists(conn, neuron_id: str) -> bool:
 
 def _delete_indexed_source(conn, file_path: Path) -> int:
     rel = os.path.relpath(file_path, SINAPSE_HOME)
-    rows = conn.execute("SELECT id FROM neurons WHERE source_file = ?", (rel,)).fetchall()
+    rel_posix = Path(rel).as_posix()
+    rels = tuple(dict.fromkeys((rel, rel_posix)))
+    placeholders = ",".join("?" for _ in rels)
+    rows = conn.execute(f"SELECT id FROM neurons WHERE source_file IN ({placeholders})", rels).fetchall()
     for row in rows:
         neuron_id = row["id"] if isinstance(row, sqlite3.Row) else row[0]
         try:
             conn.execute("DELETE FROM search_vec WHERE neuron_id = ?", (neuron_id,))
         except sqlite3.OperationalError:
             pass
-    conn.execute("DELETE FROM neurons WHERE source_file = ?", (rel,))
+    conn.execute(f"DELETE FROM neurons WHERE source_file IN ({placeholders})", rels)
     conn.commit()
     return len(rows)
 

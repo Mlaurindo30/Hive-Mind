@@ -8,6 +8,7 @@ Requirement 15.
 """
 from __future__ import annotations
 
+import base64
 import json
 import sys
 from typing import Optional
@@ -137,8 +138,22 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
             fallback_used=False, fallback_chain=[], error=None, raw=data,
         )
 
-    def structured(self, profile, messages, schema, timeout_s=60, **_):
+    def structured(self, profile, messages, schema, timeout_s=60, image_path=None, **_):
         from core.model_gateway import ModelResponse
+        if image_path and profile.legacy_provider == "ollama":
+            try:
+                with open(image_path, "rb") as image_file:
+                    image = base64.b64encode(image_file.read()).decode("ascii")
+                endpoint = self._base_url(profile)
+                root = endpoint[:-3] if endpoint.endswith("/v1") else endpoint
+                system = next((m.get("content", "") for m in messages if m.get("role") == "system"), "")
+                user = next((m.get("content", "") for m in reversed(messages) if m.get("role") == "user"), "")
+                response = requests.post(f"{root}/api/chat", headers={"Content-Type": "application/json"}, json={"model": profile.model, "stream": False, "format": schema, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user, "images": [image]}]}, timeout=timeout_s or 60)
+                if response.status_code >= 400:
+                    return ModelResponse(ok=False, content=None, model_id=profile.id, provider=self.provider, endpoint=profile.endpoint, latency_ms=0.0, input_tokens=None, output_tokens=None, cost_estimate=None, fallback_used=False, fallback_chain=[], error=f"client_error:{response.status_code}")
+                return ModelResponse(ok=True, content=json.loads(response.json()["message"]["content"]), model_id=profile.id, provider=self.provider, endpoint=profile.endpoint, latency_ms=0.0, input_tokens=None, output_tokens=None, cost_estimate=None, fallback_used=False, fallback_chain=[], error=None)
+            except Exception as exc:
+                return ModelResponse(ok=False, content=None, model_id=profile.id, provider=self.provider, endpoint=profile.endpoint, latency_ms=0.0, input_tokens=None, output_tokens=None, cost_estimate=None, fallback_used=False, fallback_chain=[], error=f"image_request_error:{exc}")
         payload = {
             "model": profile.model,
             "messages": messages,

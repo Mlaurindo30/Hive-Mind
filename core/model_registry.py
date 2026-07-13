@@ -329,6 +329,7 @@ class ModelRegistry:
 
         # Late import to avoid a core<->core circular import (auth imports
         # llm_client lazily already).
+        role = role.lower()
         if not role:
             raise ModelRegistryError("role is required to build a profile")
         if not provider or not model:
@@ -440,7 +441,7 @@ class ModelRegistry:
                 else:
                     role = key[len("HIVE_"):-len("_PROVIDER")]
                 if role:
-                    roles.add(role)
+                    roles.add(role.lower())
             roles = sorted(roles)
 
         profiles: list[ModelProfile] = []
@@ -450,13 +451,17 @@ class ModelRegistry:
             fallback = (cfg.get("fallback_provider"), cfg.get("fallback_model"))
             fallback2 = (cfg.get("fallback2_provider"), cfg.get("fallback2_model"))
 
+            chain: list[ModelProfile] = []
             for level, (p, m) in zip(
                 ("primary", "fallback", "fallback2"),
                 (primary, fallback, fallback2),
             ):
                 if not p or not m:
                     continue
-                profiles.append(cls.build_profile_from_provider(role, p, m, level=level))
+                chain.append(cls.build_profile_from_provider(role, p, m, level=level))
+            if chain:
+                chain[0].fallback_chain = [profile.id for profile in chain[1:]]
+                profiles.extend(chain)
         return cls(profiles)
 
     @classmethod
@@ -562,6 +567,7 @@ class ModelRegistry:
         require: dict | None = None,
         prefer: dict | None = None,
     ) -> ModelProfile:
+        role = role.lower()
         require = require or {}
         prefer = prefer or {}
         unknown_caps = set(require) - _CAPABILITY_FIELDS

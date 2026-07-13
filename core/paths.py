@@ -140,6 +140,6 @@ def yearly_path(year: int) -> Path:
 def rel_to_vault(p: Path) -> str:
     """Caminho relativo a SINAPSE_HOME (convenção de neurons.source_file)."""
     try:
-        return str(Path(p).resolve().relative_to(SINAPSE_HOME))
+        return Path(p).resolve().relative_to(SINAPSE_HOME).as_posix()
     except ValueError:
-        return str(p)
+        return Path(p).as_posix()

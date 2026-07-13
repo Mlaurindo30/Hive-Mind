@@ -2,7 +2,7 @@
 
 > Canonical architecture reference. Updated on 2026-06-30.
 > For quick use: [`../README.md`](../README.md)
-> **This revision consolidates the Born-Large Knowledge Architecture (K0–K10)** defined in [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md), with execution plan in [`12-knowledge-implementation-plan.md`](12-knowledge-implementation-plan.md).
+> **This revision consolidates the Born-Large Knowledge Architecture (K0–K10)** — see §22–§31 below — and the phase-by-phase status is tracked in §21 ("Phase Governance").
 
 ---
 
@@ -177,7 +177,7 @@ The hierarchical cadence (session → daily → weekly → monthly → yearly) i
 | **Parietal cortex** | Sensory — inbox, references, documents | `scripts/capture/`, `core/knowledge/document_ingest.py` (→ `DocumentPipeline`), `cerebro/cortex/parietal/{inbox,referencias}`, `cerebro/cortex/parietal/inbox/documents/` |
 | **Occipital cortex** | Vision — captures + **graph** | `scripts/capture/visual_capture.py`, MCP `sinapse_capture_screen` (→ `visual_memories`, `capturas-visuais/`), `integrations/graphify/` (→ `cerebro/cortex/occipital/grafo/graph.json`), visual stage in Dream Cycle |
 | **Temporal cortex** | Long-term memory by project | `cerebro/cortex/temporal/<projeto>/<topico>/neuronio-*.md` + UMC `hive_mind.db` (indexer); `core/knowledge/claude_mem_bridge.py` (→ Dream Cycle), `core/knowledge/drift_detector.py`, `core/knowledge/topic_consolidator.py`, `core/knowledge/alias_miner.py` |
-| **Insula cortex** | Health, self-awareness, ambiguities | `scripts/health/{health_dashboard,alert_dispatcher,review_writer,conflict_detector}.py`, `cerebro/cortex/insula/{saude,conflitos}`, `core/knowledge/ambiguities.py` (dialectical synthesis) |
+| **Insula cortex** | Health, self-awareness, ambiguities | `scripts/health/{health_dashboard,alert_dispatcher}.py`, `scripts/knowledge/{review_writer,conflict_detector}.py`, `cerebro/cortex/insula/{saude,conflitos}`, `core/knowledge/ambiguities.py` (dialectical synthesis) |
 | **Cerebellum** | Rhythm — session, daily, weekly, monthly, yearly, patterns | `scripts/dream/{session_consolidator,daily_writer,weekly_synthesizer,monthly_synthesizer,yearly_synthesizer,pattern_distiller}.py`, `cerebro/cerebelo/{sessoes,diario,semanal,mensal,anual,padroes}/` + `cerebro/cerebelo/padroes/Patterns.md` |
 | **Diencephalon** | Cross-project relay | `core/knowledge/sector_classifier.py`, `core/knowledge/generate_mocs.py`, `cerebro/diencefalo/{setores,roteamento}` |
 | **Stem** | Vital infrastructure | `cerebro/tronco/{modelos,paineis,infra,meta}/` — templates, bases, config, sub-vaults; more static than promoted |
@@ -201,7 +201,7 @@ Tools feeding the brain **are not parallel databases**. They are **organs of the
 | **Filesystem scan** | Parietal cortex (immediate sense) | Reads vault directly without waiting for reindex | Internal |
 | **RTK** | Shell optimization | Hooks/plugins/instructions by agent/CLI for command rewriting | **Clone** in `integrations/rtk/` — **not** a `sinapse_query` read backend |
 
-> **Vendoring rule** (negative contract): `components.lock.json` accepts only clones (`graphify`, `neural-memory`, `rtk`, `omniparser`, `crsqlite`). Wrappers (Milvus, RAGFlow, Graphiti) are container/SDK. Pip covers only LlamaIndex and utilities. If Milvus, RAGFlow, or LlamaIndex appear in `components.lock.json` for this front, the implementation is wrong.
+> **Vendoring rule** (negative contract): `components.lock.json` tracks source clones with pinned commits — today that's `graphify`, `neural-memory`, `rtk` (see the file itself). `crsqlite` is vendored differently: it's a **downloaded platform binary** (not a git clone), version-pinned only via a hardcoded string in `integrations/crsqlite/__init__.py`, and is intentionally **not** listed in `components.lock.json`. `omniparser` is not implemented anywhere in this repository yet — treat it as planned, not shipped. Wrappers (Milvus, RAGFlow, Graphiti) are container/SDK. Pip covers only LlamaIndex and utilities. If Milvus, RAGFlow, or LlamaIndex appear in `components.lock.json` for this front, the implementation is wrong.
 
 `sinapse_query` is the brain's single entrypoint. It triggers organs in parallel (circuit breaker + 8s timeout/backend), fuses via Context Fusion, and returns **one context package**. K7 `RetrievalRouter` (see §26) adds: classify query intent, choose specialized route (temporal, memory, document, code, graph, multi-hop, hybrid), and return `retrieval_path`, `citations`, `confidence`, and `missing_context`.
 
@@ -468,7 +468,7 @@ Single SQLite database (`hive_mind.db`) with `sqlite-vec` loaded at runtime. Sch
 
 ## 7. The Dream Cycle (Hive-Dreamer)
 
-`scripts/dream/dream_cycle.py` — offline consolidation with Pydantic-validated output. **Starting with K3/K4 (2026-06-28/29) the cycle is structured into distinct layers** (see §27 and [`11-knowledge-promotion-architecture.md` §3](11-knowledge-promotion-architecture.md#3-preenchimento-por-parte-do-cérebro)):
+`scripts/dream/dream_cycle.py` — offline consolidation with Pydantic-validated output. **Starting with K3/K4 (2026-06-28/29) the cycle is structured into distinct layers** (see §27 below):
 
 ```
   ┌────────────────────────────────────────────────────────────────┐
@@ -885,8 +885,9 @@ Conventions: mandatory YAML frontmatter (`tags`, `status`, `created`); WikiLinks
 | E2E | `tests/e2e/` | Real backends | Full session, graceful degradation, concurrency, recovery, edge cases |
 | Synthesis | `tests/test_synthesis.py` | **Yes** | `run_synthesis_cycle()` with real model from `.env` |
 
-The test set is dynamic; on 2026-07-01 there were **706 `test_` functions
-in 123 files with tests**. Use `rg -n "^\s*(async\s+def|def)\s+test_"
+The test set is dynamic; on 2026-07-09 there were **1032 `test_` functions
+in 172 files with tests** (up from 706/123 on 2026-07-01 — this number is a
+stale snapshot within days, not a target). Use `rg -n "^\s*(async\s+def|def)\s+test_"
 tests | wc -l` and `rg -l "^\s*(async\s+def|def)\s+test_" tests | wc -l`
 to measure current state. Rule: unit tests never call LLM —
 they test logic around the model, not the model itself.
@@ -938,7 +939,7 @@ cron:           # sync_schedule ("0 */6 * * *"), rebuild_schedule ("0 2 * * 0")
 
 ---
 
-*Phase and delivery history: [`PROJECT_STATUS.md`](../PROJECT_STATUS.md) · [`IMPLEMENTATION.md`](../IMPLEMENTATION.md) · [`docs/plans/`](plans/)*
+*Phase and delivery history: §21 above ("Phase Governance") — `PROJECT_STATUS.md`, `IMPLEMENTATION.md`, and `docs/plans/` are cited elsewhere in this project but do not exist in this checkout; §21 is the current phase-status record.*
 
 ---
 
@@ -1166,7 +1167,7 @@ Irreversible redaction applied to neuron `content` and `label` before export. Lo
 
 ### ADR-018 — Negative vendoring contract via `components.lock.json`
 
-**Decision:** `components.lock.json` accepts only source **clones** built/patched by `install.sh` (`graphify`, `neural-memory`, `rtk`, `omniparser`, `crsqlite` binary). Wrappers (Milvus, RAGFlow, Graphiti) enter through container/SDK; pip covers only LlamaIndex and utilities. If Milvus, RAGFlow, or LlamaIndex appear in `components.lock.json` for this front, implementation is wrong.
+**Decision:** `components.lock.json` accepts only source **clones**, pinned by commit, built/patched by `install.sh` — today `graphify`, `neural-memory`, `rtk`. `crsqlite` is vendored as a downloaded platform binary (version string, not commit-pinned) and is deliberately excluded from this lock file; `omniparser` is planned but not yet implemented. Wrappers (Milvus, RAGFlow, Graphiti) enter through container/SDK; pip covers only LlamaIndex and utilities. If Milvus, RAGFlow, or LlamaIndex appear in `components.lock.json` for this front, implementation is wrong.
 
 **Rationale:** explicit clone vs wrapper rules reduce operational ambiguity. Contract is also negative (declares what **does not** belong there) to prevent regression.
 
@@ -1204,16 +1205,16 @@ Violating this rule caused the divergence between declared and real state identi
 | HM-10 | Deep Portal (multimodal) | ✅ Completed | — |
 | HM-11 | Deep Reflection (long-term reasoning) | ✅ Completed | — |
 | HM-12 | Federated Swarm (selective sharing) | ✅ Completed | — |
-| K0 | `VectorBackend` contract (sqlite-vec + Milvus adapter) | ✅ Completed | §24, [11-§9](../11-knowledge-promotion-architecture.md#9-contrato-vectorbackend) |
-| K1 | Canonical collection split + canonical metadata | ✅ Completed | §24, [11-§8](../11-knowledge-promotion-architecture.md#8-estrategia-de-vector-search) |
-| K2 | `DocumentPipeline` (K6) parent/chunk/citation | ✅ Completed | §25, [11-§10](../11-knowledge-promotion-architecture.md#10-documentpipeline-born-large) |
-| K3 | Knowledge Intake (intake.py) | ✅ Completed | §27, [11-§5](../11-knowledge-promotion-architecture.md#5-fluxo-ideal-de-promocao) |
-| K4 | Promotion Layer (promotion.py) + claude-mem bridge | ✅ Completed | §27, [11-§6](../11-knowledge-promotion-architecture.md#6-claude-mem-nao-e-apenas-dado-bruto) |
-| K5 | Hierarchical session→yearly cadence | ✅ Completed | §29, [11-§14](../11-knowledge-promotion-architecture.md#14-cadencia-hierarquica-de-escrita) |
+| K0 | `VectorBackend` contract (sqlite-vec + Milvus adapter) | ✅ Completed | §24 |
+| K1 | Canonical collection split + canonical metadata | ✅ Completed | §24 |
+| K2 | `DocumentPipeline` (K6) parent/chunk/citation | ✅ Completed | §25 |
+| K3 | Knowledge Intake (intake.py) | ✅ Completed | §27 |
+| K4 | Promotion Layer (promotion.py) + claude-mem bridge | ✅ Completed | §27 |
+| K5 | Hierarchical session→yearly cadence | ✅ Completed | §29 |
 | K6 | `DocumentPipeline` parent/chunk/citation | ✅ Completed | §25 |
-| K7 | `RetrievalRouter` (router.py) | ✅ Completed (v3.5.0, 2026-06-30) | §26, [11-§11](../11-knowledge-promotion-architecture.md#11-retrievalrouter-born-large) |
-| K8 | Health metrics (knowledge_health.py) | ✅ Completed (v3.6.0, 2026-06-30) | §28, [11-§13](../11-knowledge-promotion-architecture.md#13-metricas-de-saude) |
-| K9 | Real acceptance harness (`tests/real/`) | ✅ Contract (implementation in [12-§17.4](../11-knowledge-promotion-architecture.md#174-harness-real-e-skip-de-servicos)) | §31.4 |
+| K7 | `RetrievalRouter` (router.py) | ✅ Completed (v3.5.0, 2026-06-30) | §26 |
+| K8 | Health metrics (knowledge_health.py) | ✅ Completed (v3.6.0, 2026-06-30) | §28 |
+| K9 | Real acceptance harness (`tests/real/`) | ✅ Contract | §31.4 |
 | K10 | Born-large (workspace, federation, versioned embedding) | ✅ Contract | §30 |
 
 ### Vault files with old convention
@@ -1232,7 +1233,7 @@ renamed in the next manual vault edit (NOT via git — vault syncs through Synct
 
 Hive-Mind is not only local RAG — it is a **persistent brain** with temporal capture, consolidated memory, documents, code, vision, structural graph, temporal causality, and hybrid/vector search. Knowledge architecture must **separate capture, promotion, storage, indexing, and retrieval from day one** — without depending on later structural refactoring to support Milvus, advanced document pipelines, or composite routers.
 
-Detailed normative reference lives in [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md), and detailed phase execution plan (K0–K10) is in [`12-knowledge-implementation-plan.md`](12-knowledge-implementation-plan.md). Sections §23–§31 in this document **distill** that canonical reference at architecture level.
+Sections §23–§31 in this document are the normative reference for the Born-Large Knowledge Architecture (K0–K10) and its phase-by-phase status (see §21, "Phase Governance").
 
 ### 22.1 Product decision
 
@@ -1263,7 +1264,7 @@ No external backend can replace the brain. External backends **accelerate, scale
 
 ### 22.3 Vendoring: clone vs wrapper vs pip
 
-- **Clone** (`integrations/<name>/` via `components.lock.json`): only what `install.sh` builds/patches from source — `graphify`, `neural-memory`, `rtk`, `omniparser`, `crsqlite` binary.
+- **Clone** (`integrations/<name>/` via `components.lock.json`, pinned commit): only what `install.sh` builds/patches from source — `graphify`, `neural-memory`, `rtk`. `crsqlite` is a related-but-distinct case: a downloaded platform binary pinned by version string, not by commit, and deliberately outside `components.lock.json` (see §2.6). `omniparser` is planned but not yet implemented in this repo.
 - **Wrapper** (`client.py` + `docker-compose.yml` with digest-pinned image): service run via container/SDK — `graphiti`, **Milvus** (`pymilvus`), **RAGFlow** (`ragflow-sdk`, headless).
 - **Pip**: **LlamaIndex** (`llama-index` in `pyproject.toml`).
 
@@ -1287,7 +1288,7 @@ Milvus and RAGFlow are **not cloned**. RAGFlow runs headless: output flows into 
 
 ## 23. Capture → Promotion → Retrieval Flow
 
-Canonical 9-step flow (from [`11-knowledge-promotion-architecture.md` §2](11-knowledge-promotion-architecture.md#2-fluxo-completo)):
+Canonical 9-step flow:
 
 ```text
 Agent / Human / System
@@ -1373,6 +1374,15 @@ Hive-Mind **separates collections by content type** — it does not put everythi
 
 `sqlite-vec` is mandatory for local-first/offline. Milvus is production backend, **not replacing source of truth** — it only scales vector index.
 
+> **Implementation status (2026-07-03, per `docs/reports/POST_AUDIT_FIX_LOG.md` Q2/R3.1/R3.3):** the
+> contract and schema exist for all 7 collections, but only 4 currently have real semantic
+> indexing wired end-to-end — `memory_vectors`, `observation_vectors`, `document_vectors`,
+> `visual_vectors`. The other 3 — `code_vectors`, `graph_vectors`, `summary_vectors` — have their
+> tables created and `vector_jobs` enqueue logic in place (`core/indexing/vector_jobs_worker.py`),
+> but no producer populates them with real embeddings yet. Treat rows for those 3 collections in
+> this table as the target contract, not a delivered feature, until a K-phase entry marks them
+> complete.
+
 ### 24.3 Canonical metadata per vector item
 
 Each item carries: `parent_id`, `parent_type`, `brain_lobe`, `knowledge_type`, `project`, `source_uri`, `hash`, `valid_at`, `workspace_id`. In UMC, helper collections store these in `vector_metadata`; in Milvus they are required schema fields. Embedding model and dimension are controlled by global contract: `snowflake-arctic-embed2:latest`, **1024d**, unless explicit env override.
@@ -1388,7 +1398,7 @@ Each item carries: `parent_id`, `parent_type`, `brain_lobe`, `knowledge_type`, `
 
 ## 25. DocumentPipeline (K6) — born-large ingestion
 
-Inspired by RAGFlow, but **preserving Hive-Mind anatomy** (K6 implemented in `core/knowledge/document_pipeline.py`):
+Inspired by RAGFlow, but **preserving Hive-Mind anatomy** (K6 implemented in `core/document_pipeline.py`):
 
 ```text
 document input
@@ -1768,7 +1778,7 @@ Current implementation: `tests/real/service_registry.py` + hook in `tests/real/c
 
 ## 32. Design Decisions (ADRs)
 
-Record of architecture decisions shaping current design. Each ADR documents context, chosen decision, rationale, and accepted trade-offs. ADRs **001–009** were inherited from v2.0.0 architecture; **010–018** were created in Born-Large Knowledge front (K0–K10) and mirrored in [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md). In case of divergence, this canonical section prevails.
+Record of architecture decisions shaping current design. Each ADR documents context, chosen decision, rationale, and accepted trade-offs. ADRs **001–009** were inherited from v2.0.0 architecture; **010–018** were created in Born-Large Knowledge front (K0–K10). This section is canonical; if any other document appears to disagree with an ADR here, this section prevails.
 
 ### ADR-001 — Obsidian Vault as single source of truth
 
@@ -1874,7 +1884,7 @@ Record of architecture decisions shaping current design. Each ADR documents cont
 
 ### ADR-018 — Negative vendoring contract via `components.lock.json`
 
-**Decision:** `components.lock.json` accepts only source **clones** built/patched by `install.sh` (`graphify`, `neural-memory`, `rtk`, `omniparser`, `crsqlite` binary). Wrappers (Milvus, RAGFlow, Graphiti) enter through container/SDK; pip covers only LlamaIndex and utilities. If Milvus, RAGFlow, or LlamaIndex appear in `components.lock.json` for this front, implementation is wrong.
+**Decision:** `components.lock.json` accepts only source **clones**, pinned by commit, built/patched by `install.sh` — today `graphify`, `neural-memory`, `rtk`. `crsqlite` is vendored as a downloaded platform binary (version string, not commit-pinned) and is deliberately excluded from this lock file; `omniparser` is planned but not yet implemented. Wrappers (Milvus, RAGFlow, Graphiti) enter through container/SDK; pip covers only LlamaIndex and utilities. If Milvus, RAGFlow, or LlamaIndex appear in `components.lock.json` for this front, implementation is wrong.
 **Rationale:** explicit clone vs wrapper rules reduce operational ambiguity. Contract is also negative (declares what **does not** belong there) to prevent regression.
 **Trade-off:** lock-file maintenance; mitigated by generation from `install.sh` and PR review.
 
@@ -1886,4 +1896,4 @@ Record of architecture decisions shaping current design. Each ADR documents cont
 
 ---
 
-*This section consolidates ADRs inherited from v2.0.0 (001–009), ADRs created by Born-Large Knowledge front (010–018), and Priority 1 (019). In case of divergence, this canonical section prevails over [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md).*
+*This section consolidates ADRs inherited from v2.0.0 (001–009), ADRs created by Born-Large Knowledge front (010–018), and Priority 1 (019). This section is the canonical record; if any other document appears to disagree, this section prevails.*

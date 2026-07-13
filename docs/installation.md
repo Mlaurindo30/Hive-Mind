@@ -68,6 +68,53 @@ performance without compiler friction.
 
 ---
 
+## Windows install (native, no WSL2 — 🚧 beta)
+
+**Hive-Mind** also has a native Windows install path that runs directly against a project-local
+`.venv`, with no WSL2 requirement, via PowerShell scripts sharing a common helper module
+(`scripts/lib/HiveMind.Windows.psm1`). This is the path exercised when host agents (Claude Code,
+Cursor, Copilot) need to reach the memory directly on a machine without WSL2/Git installed for
+Linux tooling — see the README's platform table.
+
+```powershell
+git clone <repo-url> Hive-Mind
+cd Hive-Mind
+./install.ps1 -Profile local-min
+```
+
+Useful switches: `-Profile local-min|local-full`, `-WithTests`, `-WithRealTests`,
+`-SkipAgents`, `-SkipServices`, `-NonInteractive`, `-Force`. `install.bat` and
+`setup-brain.bat` are thin wrappers that just invoke the matching `.ps1` under
+`powershell.exe -ExecutionPolicy Bypass`. Register/re-register MCP for a single agent with:
+
+```powershell
+./scripts/setup/register-mcp.ps1 -ClaudeOnly    # or -CodexOnly, or omit both for all supported targets
+```
+
+**Known gaps versus `install.sh`'s 12-step process (as of 2026-07-09), so you aren't surprised:**
+
+- No automatic Ollama model pull — if you want local embeddings/vision, pull
+  `snowflake-arctic-embed2:latest` / `qwen2.5:3b` / `minicpm-v4.6:latest` yourself first.
+- `scripts/graph/build-graph.ps1` always does structural (AST-only) reindexing; it doesn't yet
+  select a semantic-extraction backend (Gemini/Ollama) the way `build-graph.sh` does.
+- `register-mcp.ps1` currently registers 3 targets (project `.mcp.json`, Codex, `~/.claude.json`)
+  versus the 14 agent keys `register-mcp.sh` supports, and does not yet inject the mandatory
+  `config/sinapse-agent-prompt.md` operational block into `CLAUDE.md`/`AGENTS.md`/etc. — register
+  manually per-agent, and copy that block into your agent's instructions file if it's missing.
+- No cron/Task Scheduler equivalent is installed yet — periodic jobs (graph rebuild, Dream Cycle,
+  backups, quarantine drain) need to be scheduled by hand (e.g. via `Register-ScheduledTask`) or run
+  manually.
+- `scripts/capture/copilot-wrapper.ps1` is currently a plain passthrough — it does not capture
+  Copilot CLI sessions into claude-mem the way the bash wrapper does.
+- claude-mem native-plugin detection currently targets Codex CLI only; other IDEs need their hooks
+  installed by hand if you're not also running Codex.
+
+None of this blocks day-to-day use of the memory itself (MCP, CLI, REST all work once installed) —
+it mainly means the *automated* onboarding/maintenance a Linux/WSL2 install gets for free is, for
+now, something you do once by hand on native Windows.
+
+---
+
 ## What `install.sh` does (12 steps)
 
 ```

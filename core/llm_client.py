@@ -312,7 +312,7 @@ def call_llm_structured(prompt: str, system_prompt: str, response_model: Any,
         )
 
 
-def _call_via_model_gateway(role: str, prompt: str, system_prompt: str, response_model: Any) -> Any:
+def _call_via_model_gateway(role: str, prompt: str, system_prompt: str, response_model: Any, image_path: Optional[str] = None) -> Any:
     """Routes a structured call through the Model Gateway (canonical path).
 
     Returns the validated Pydantic instance on success, or raises whatever
@@ -348,7 +348,7 @@ def _call_via_model_gateway(role: str, prompt: str, system_prompt: str, response
         {"role": "user", "content": prompt},
     ]
     try:
-        resp = gateway.structured(messages, schema, role=role)
+        resp = gateway.structured(messages, schema, role=role, image_path=image_path)
     except Exception as exc:
         model_telemetry.record_gateway_failure(
             request_id=request_id,
@@ -534,17 +534,6 @@ def call_llm_with_fallback(role: str, prompt: str, system_prompt: str, response_
             role, prompt, system_prompt, response_model, image_path, max_retries,
         )
 
-    # Ponte vision explícita.
-    if image_path is not None:
-        print(
-            "  [ModelGateway] legacy_vision_bridge_used=true; image_path routed "
-            "through legacy llm_client",
-            file=sys.stderr,
-        )
-        return _legacy_call_llm_with_fallback(
-            role, prompt, system_prompt, response_model, image_path, max_retries,
-        )
-
     mode = resolve_gateway_mode()
     if mode == "off":
         print(
@@ -556,7 +545,7 @@ def call_llm_with_fallback(role: str, prompt: str, system_prompt: str, response_
         )
 
     # mode in {"auto", "on"} — tenta o gateway.
-    gateway_result = _call_via_model_gateway(role, prompt, system_prompt, response_model)
+    gateway_result = _call_via_model_gateway(role, prompt, system_prompt, response_model, image_path=image_path)
     if gateway_result is not None:
         return gateway_result
 

@@ -40,6 +40,15 @@ def antigravity_cli_auth_file() -> Optional[Path]:
             return path
     return gemini_cli_oauth_file()
 
+
+def _read_env_lines() -> List[str]:
+    """Read .env robustly across Windows legacy files and UTF-8 templates."""
+    try:
+        return ENV_FILE.read_text(encoding="utf-8-sig").splitlines(keepends=True)
+    except UnicodeDecodeError:
+        return ENV_FILE.read_text(encoding="cp1252").splitlines(keepends=True)
+
+
 def _env(key: str, default: str = "") -> str:
     """Lê uma variável do ambiente, com fallback para o .env do projeto."""
     val = os.environ.get(key)
@@ -47,13 +56,12 @@ def _env(key: str, default: str = "") -> str:
         return val
     if ENV_FILE.exists():
         try:
-            with open(ENV_FILE, "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if "=" in line and not line.startswith("#"):
-                        k, _, v = line.partition("=")
-                        if k == key and v:
-                            return v
+            for line in _read_env_lines():
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, _, v = line.partition("=")
+                    if k == key and v:
+                        return v
         except OSError:
             pass
     return default
@@ -233,15 +241,14 @@ def load_env() -> dict:
         return {}
     vars_ = {}
     try:
-        with open(ENV_FILE, "r") as f:
-            for line in f:
-                line = line.strip()
-                if "=" in line and not line.startswith("#"):
-                    # partition é tolerante a valores com '=' no meio (ex.: URLs)
-                    k, _, v = line.partition("=")
-                    if k and v:
-                        v = v.strip().strip('"').strip("'")
-                        vars_[k] = v
+        for line in _read_env_lines():
+            line = line.strip()
+            if "=" in line and not line.startswith("#"):
+                # partition é tolerante a valores com '=' no meio (ex.: URLs)
+                k, _, v = line.partition("=")
+                if k and v:
+                    v = v.strip().strip('"').strip("'")
+                    vars_[k] = v
     except OSError:
         pass
     # CRÍTICO: injetar de fato no ambiente. setdefault → o shell vence sobre o .env.
@@ -253,7 +260,7 @@ def save_env(key: str, value: str):
     lines = []
     found = False
     if ENV_FILE.exists():
-        with open(ENV_FILE, "r") as f: lines = f.readlines()
+        lines = _read_env_lines()
     for i, line in enumerate(lines):
         if line.startswith(f"{key}="):
             lines[i] = f"{key}={value}\n"
@@ -262,7 +269,7 @@ def save_env(key: str, value: str):
     if not found:
         if lines and not lines[-1].endswith("\n"): lines.append("\n")
         lines.append(f"{key}={value}\n")
-    with open(ENV_FILE, "w") as f: f.writelines(lines)
+    with open(ENV_FILE, "w", encoding="utf-8") as f: f.writelines(lines)
     
     # Sincronização automática com claude-mem global
     sync_keys = ["HIVE_DREAMER_PROVIDER", "GOOGLE_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "HIVE_CLAUDE_MEM_PROVIDER", "HIVE_CLAUDE_MEM_MODEL"]
@@ -430,7 +437,7 @@ def refresh_oauth_token(provider_name: str):
 # Cadência hierárquica: weekly/monthly/yearly synthesizers.
 # Fase 3 (infra adiantada): drift_detector.
 HIVE_LLM_ROLES = (
-    "dreamer", "graphify", "vision", "synthesis", "claude_mem",
+    "dreamer", "graphify", "vision", "ocr", "synthesis", "claude_mem",
     "session_summarizer", "daily_writer",
     "alias_miner", "topic_router", "sector_classifier",
     "weekly_synthesizer", "monthly_synthesizer", "yearly_synthesizer",

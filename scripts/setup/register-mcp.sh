@@ -351,6 +351,19 @@ PYEOF
     echo -e "    ${GREEN}↳${NC} prompt injetado em ${target#$PROJECT_ROOT/}"
 }
 
+# Hive-Mind capture hooks (additive; a failure here must never block MCP
+# registration — the hooks themselves are non-blocking by contract).
+install_capture_hooks() {
+    local INSTALLER="$PROJECT_ROOT/scripts/setup/install-capture-hooks.py"
+    [ -f "$INSTALLER" ] || return 0
+    [ -n "$PYTHON" ] || return 0
+    if $CHECK_ONLY; then
+        "$PYTHON" "$INSTALLER" --check || true
+    else
+        "$PYTHON" "$INSTALLER" --install || true
+    fi
+}
+
 # Registers the agent's MCP and injects the policy into its prompt (unless
 # --check ou --no-instructions). Fonte única: $PROMPT_SRC.
 run_agent() {
@@ -371,6 +384,7 @@ echo ""
 if [ -n "$ONLY" ]; then
     echo "Modo single-agent: $ONLY"
     run_agent "$ONLY"
+    install_capture_hooks
     echo ""
     if $CHECK_ONLY; then
         echo "Verification completed for: $ONLY"
@@ -399,6 +413,8 @@ fi
 command -v opencode &>/dev/null && run_agent opencode
 command -v openclaw &>/dev/null && run_agent openclaw
 { command -v swarmclaw &>/dev/null || [ -d "$HOME/.swarmclaw" ]; } && run_agent swarmclaw
+
+install_capture_hooks
 
 echo ""
 if [ "$AGENTS_FOUND" -eq 0 ]; then

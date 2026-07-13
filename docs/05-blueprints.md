@@ -1,7 +1,7 @@
 # 05 — Blueprints and Flowcharts
 
 > **Hive-Mind v3.0.0** — Architecture diagrams and flows in ASCII (compatible with any Markdown editor).
-> Last review: 2026-06-30. Includes the **canonical 9-step flow** (K0–K10), `RetrievalRouter` (K7), `DocumentPipeline` (K6), hierarchical cadence (K5), and the extended anatomy with `workspace_id` (K10). Normative reference in [`11-knowledge-promotion-architecture.md`](11-knowledge-promotion-architecture.md); distilled architecture in [`01-architecture.md`](01-architecture.md).
+> Last review: 2026-06-30. Includes the **canonical 9-step flow** (K0–K10), `RetrievalRouter` (K7), `DocumentPipeline` (K6), hierarchical cadence (K5), and the extended anatomy with `workspace_id` (K10). Normative reference in [`01-architecture.md` §22–§31](01-architecture.md#22-arquitetura-de-conhecimento-born-large) (see [`docs/README.md`](README.md) for a note on why `docs/11-*` is not a separate file in this checkout).
 
 ---
 
@@ -506,7 +506,7 @@ Components involved:
 
 ## 13. Canonical 9-Step Flow (K0–K10)
 
-Complete version of the knowledge flow ([`11-knowledge-promotion-architecture.md` §2](11-knowledge-promotion-architecture.md#2-fluxo-completo), [`01-architecture.md` §23](01-architecture.md#23-fluxo-de-captura--promoção--recuperação)):
+Complete version of the knowledge flow ([`01-architecture.md` §23](01-architecture.md#23-fluxo-de-captura--promoção--recuperação)):
 
 ```text
   Agent / Human / System

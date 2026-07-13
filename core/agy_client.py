@@ -97,7 +97,8 @@ def _ensure_isolated_home() -> Path:
                 link.unlink()
             link.symlink_to(src)
         except OSError:
-            pass
+            if src.is_file():
+                shutil.copy2(src, link)
     return _ISOLATED_HOME
 
 

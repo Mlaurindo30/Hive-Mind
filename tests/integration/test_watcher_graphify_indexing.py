@@ -37,6 +37,12 @@ GRAPHIFY_OUT = cp.OCCIPITAL / "grafo"
 
 
 def _watcher_running() -> bool:
+    if os.name == "nt":
+        proc = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-Command", "Get-Process powershell -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path"],
+            capture_output=True, text=True,
+        )
+        return proc.returncode == 0 and bool(proc.stdout.strip())
     proc = subprocess.run(
         ["ps", "-eo", "comm"],
         capture_output=True, text=True,
@@ -62,8 +68,11 @@ def test_graphify_updates_graph_on_new_markdown():
                 time.sleep(2)
         else:
             # Watcher not running; run graphify synchronously.
+            command = [str(PROJECT_ROOT / ".venv" / "bin" / "graphify"), "update", str(VAULT)]
+            if os.name == "nt":
+                command = [str(PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"), "-m", "graphify", "update", str(VAULT)]
             subprocess.run(
-                [".venv/bin/graphify", "update", str(VAULT)],
+                command,
                 cwd=PROJECT_ROOT, check=False, capture_output=True, timeout=120,
             )
 

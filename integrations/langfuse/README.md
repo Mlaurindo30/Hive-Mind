@@ -47,6 +47,6 @@ docker compose -f integrations/langfuse/docker-compose.yml down
 
 ## Refs
 
-- P9 (Fase 9) do roadmap: `docs/10-implementation-roadmap.md §2 P9`
+- P9 (Fase 9) do roadmap interno (`docs/10-implementation-roadmap.md §2 P9`) — nota: esse arquivo não existe neste checkout de `docs/`; a integração Langfuse em si está descrita em `docs/04-infrastructure.md`.
 - Spec Langfuse: https://langfuse.com/docs
 - OTLP endpoint: `/api/public/otel/v1/traces` (hardcoded em `core/telemetry.py:71`)

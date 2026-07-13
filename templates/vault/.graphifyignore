@@ -1,3 +1,8 @@
+# Hive-Mind indexes the vault even though the repository ignores `cerebro/`.
+# This must precede the exclusions below: Graphify reads ancestor .gitignore
+# rules, and without this explicit override it discovers zero vault documents.
+!**
+
 # Hive-Mind vault noise: agent configs, UI state and generated graph artifacts.
 .claude/
 .claude-flow/

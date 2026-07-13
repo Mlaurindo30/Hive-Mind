@@ -34,10 +34,10 @@ def setup_security():
     
     existing_content = ""
     if env_path.exists():
-        with open(env_path, "r") as f:
+        with open(env_path, "r", encoding="utf-8") as f:
             existing_content = f.read()
 
-    with open(env_path, "a") as f:
+    with open(env_path, "a", encoding="utf-8") as f:
         if "HIVE_MIND_API_KEY" not in existing_content:
             new_api_key = secrets.token_hex(32)
             f.write(f"\nHIVE_MIND_API_KEY={new_api_key}\n")

@@ -321,4 +321,4 @@ if test does not depend on external service: always run
 
 Known services today: `ollama`, `milvus`, `falkordb`, `claude_mem`, `ragflow`. Each new real backend must register its fixture or service registry before becoming a phase gate.
 
-Suite `./tests/run_all.sh` covers Smoke → Unit → Integration → E2E. On 2026-07-01 the repo had **706 `test_` functions in 123 files with tests**; real K9 suite (`tests/run_real_knowledge.sh`) is separate and, in validated `local-full` profile, runs real Milvus, RAGFlow, FalkorDB, claude-mem, and Ollama with 59/59 passed and 0 skipped.
+Suite `./tests/run_all.sh` covers Smoke → Unit → Integration → E2E. On 2026-07-09 the repo had **1032 `test_` functions in 172 files with tests** (up from 706/123 on 2026-07-01 — re-measure with `rg -n "^\s*(async\s+def|def)\s+test_" tests | wc -l` rather than trusting this line); real K9 suite (`tests/run_real_knowledge.sh`) is separate and, in validated `local-full` profile, runs real Milvus, RAGFlow, FalkorDB, claude-mem, and Ollama with 59/59 passed and 0 skipped.

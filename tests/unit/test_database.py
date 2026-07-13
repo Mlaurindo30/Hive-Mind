@@ -268,6 +268,24 @@ def test_query_hybrid_vec0_error_goes_to_stderr(monkeypatch, capsys):
     assert "Erro na busca vetorial" in captured.err
 
 
+def test_query_hybrid_treats_hyphenated_terms_as_literal_fts_text(monkeypatch, capsys):
+    import core.database as db_module
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute("CREATE VIRTUAL TABLE search_fts USING fts5(neuron_id UNINDEXED, label, content)")
+    conn.execute("CREATE TABLE neurons (id TEXT PRIMARY KEY, label TEXT, content TEXT)")
+    conn.execute("INSERT INTO neurons VALUES ('n1', 'AUDIT-E2E-test', 'decision')")
+    conn.execute("INSERT INTO search_fts VALUES ('n1', 'AUDIT-E2E-test', 'decision')")
+    conn.commit()
+    monkeypatch.setattr(db_module, "get_connection", lambda: conn)
+    monkeypatch.setattr(db_module, "embed_text", lambda _text: [0.0] * 1024)
+
+    result = db_module.query_hybrid("AUDIT-E2E-test", limit=1)
+
+    assert result[0]["id"] == "n1"
+    assert "Erro na busca FTS5" not in capsys.readouterr().err
+
 def test_add_observation_persists_intent_fields(monkeypatch, tmp_path):
     import core.database as db_module
 

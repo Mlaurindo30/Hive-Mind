@@ -99,6 +99,33 @@ class TestLoadEnvInjectsIntoOsEnviron:
         # partition('=') é tolerante: o valor inteiro (incluindo '=') é preservado
         assert os.environ["GOOGLE_API_KEY"] == "AIzaSyD-abc123=https://example.com?x=1"
 
+    def test_load_env_handles_utf8_bom_and_unicode_header(self, tmp_path, clean_hive_env, monkeypatch):
+        """Windows: .env UTF-8 com BOM e cabeçalho Unicode não pode quebrar em cp1252."""
+        env_file = tmp_path / ".env"
+        env_file.write_text(
+            "# Sinapse Agent - Configuracao com acento e travessao\n"
+            "HIVE_DREAMER_PROVIDER=google\n",
+            encoding="utf-8-sig",
+        )
+        monkeypatch.setattr(auth, "ENV_FILE", env_file)
+
+        result = auth.load_env()
+
+        assert result["HIVE_DREAMER_PROVIDER"] == "google"
+        assert os.environ["HIVE_DREAMER_PROVIDER"] == "google"
+
+    def test_env_fallback_handles_utf8_bom_and_unicode_header(self, tmp_path, clean_hive_env, monkeypatch):
+        """_env() roda durante import/config; ele tambem precisa ser UTF-8-safe."""
+        env_file = tmp_path / ".env"
+        env_file.write_text(
+            "# Cabecalho UTF-8: memória, decisão, visão\n"
+            "GOOGLE_OAUTH_CLIENT_ID=client-123\n",
+            encoding="utf-8-sig",
+        )
+        monkeypatch.setattr(auth, "ENV_FILE", env_file)
+
+        assert auth._env("GOOGLE_OAUTH_CLIENT_ID") == "client-123"
+
     def test_load_env_strips_double_quotes(self, tmp_env_file, clean_hive_env):
         """Aspas duplas em volta do valor devem ser removidas."""
         auth.load_env()

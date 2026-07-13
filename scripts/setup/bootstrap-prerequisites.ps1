@@ -31,7 +31,7 @@ function Update-HiveMindPrerequisitePath {
     ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
     $wingetPackages = Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages"
     if (Test-Path -LiteralPath $wingetPackages) {
-        $locations += Get-ChildItem -LiteralPath $wingetPackages -Recurse -File -Include "uv.exe", "bun.exe" -ErrorAction SilentlyContinue |
+        $locations += Get-ChildItem -LiteralPath $wingetPackages -Recurse -File -Include "uv.exe", "bun.exe", "syncthing.exe" -ErrorAction SilentlyContinue |
             ForEach-Object { Split-Path -Parent $_.FullName }
     }
     $visualStudioMsBuild = Get-HiveMindVisualStudioMsBuildDirectory
@@ -56,6 +56,7 @@ function Get-HiveMindPrerequisites {
         @{ Name = "Rustup"; WinGetId = "Rustlang.Rustup"; Command = "cargo"; Required = $true },
         @{ Name = "Ollama"; WinGetId = "Ollama.Ollama"; Command = "ollama"; Required = $true },
         @{ Name = "Docker Desktop"; WinGetId = "Docker.DockerDesktop"; Command = "docker"; Required = $fullProfile },
+        @{ Name = "Syncthing"; WinGetId = "Syncthing.Syncthing"; Command = "syncthing"; Required = $fullProfile },
         @{ Name = "WSL 2"; WinGetId = $null; Command = "wsl"; Required = $fullProfile },
         @{ Name = "Visual Studio Build Tools"; WinGetId = "Microsoft.VisualStudio.2022.BuildTools"; Command = "msbuild"; Required = $fullProfile }
     )
