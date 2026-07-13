@@ -62,7 +62,7 @@ def init_telemetry() -> bool:
             resource=Resource.create(
                 {
                     "service.name": service_name,
-                    "service.version": "3.0.0",
+                    "service.version": "3.10.1",
                 }
             )
         )

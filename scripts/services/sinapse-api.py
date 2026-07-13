@@ -139,7 +139,7 @@ async def api_lifespan(_app: FastAPI):
 app = FastAPI(
     title="Hive-Mind Vault API",
     description="Interface com Criptografia de Segredos para o Cérebro de IA",
-    version="1.4.0",
+    version="3.10.1",
     lifespan=api_lifespan,
 )
 

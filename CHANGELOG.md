@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — planned v3.10.1
+
+- Windows installation reliability and operational gate corrections are pending validation; this is not a published release.
+
 ## v3.10.0 — Model Gateway + Unified Provider Routing
 
 Release date: 2026-07-06

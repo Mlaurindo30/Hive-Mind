@@ -802,7 +802,7 @@ def handle_request(req: dict) -> dict | None:
             "result": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "sinapse-memory", "version": "1.0.0"},
+                "serverInfo": {"name": "sinapse-memory", "version": "3.10.1"},
                 "instructions": SINAPSE_INSTRUCTIONS,
             }
         }
