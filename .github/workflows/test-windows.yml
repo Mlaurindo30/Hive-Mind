@@ -1,0 +1,49 @@
+name: Windows Installer Contracts
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  windows-contracts:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate release version contract
+        run: python scripts/release/validate_package.py --source-root .
+
+      - name: Validate PowerShell installer syntax and dry runs
+        shell: pwsh
+        run: |
+          $tokens = $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("install.ps1", [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
+          ./tests/install/test_windows_bootstrap.ps1
+          ./install.ps1 -Profile local-min -DryRun
+          ./install.ps1 -Profile local-full -DryRun
+
+      - name: Run supervisor regression tests
+        run: node --test npm/test/supervisor.test.js
+
+      - name: Run stdlib Windows contract tests
+        shell: pwsh
+        run: |
+          python -m py_compile scripts/health/validate_after_reboot_windows.py tests/unit/test_validate_after_reboot_windows.py tests/unit/test_release_validate_package.py
+          python -c "import importlib.util; from pathlib import Path; p=Path('tests/unit/test_validate_after_reboot_windows.py'); s=importlib.util.spec_from_file_location('post_reboot', p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); m.test_required_service_assessment_ignores_optional_entries(); m.test_required_service_assessment_reports_missing_and_degraded_required_services()"
+          python -c "import importlib.util; from pathlib import Path; p=Path('tests/unit/test_release_validate_package.py'); s=importlib.util.spec_from_file_location('release_contract', p); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); m.test_release_validator_accepts_the_repository_version_contract()"
