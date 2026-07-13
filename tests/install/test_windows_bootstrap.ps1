@@ -13,7 +13,27 @@ function Assert-True {
     }
 }
 
+function Assert-Contains {
+    param(
+        [object[]]$Values,
+        [string]$Expected,
+        [string]$Message
+    )
+
+    if ($Values -notcontains $Expected) {
+        throw "Assertion failed: $Message. Expected '$Expected' in '$($Values -join ', ')'"
+    }
+}
+
 . "$Root\scripts\setup\bootstrap-prerequisites.ps1"
+. "$Root\scripts\setup\fullstack-readiness.ps1"
+
+$fullStack = Test-HiveMindFullStackReadiness -Root $Root -Profile local-full -Probe {
+    param([string]$Name)
+    return $false
+}
+Assert-True (-not $fullStack.Ready) "local-full must reject unavailable required services"
+Assert-Contains -Values $fullStack.Missing -Expected "docker-desktop" -Message "Docker must be reported when unavailable"
 
 $result = Invoke-HiveMindPrerequisiteBootstrap -Profile local-full -DryRun -CommandRunner {
     param($file, $arguments)

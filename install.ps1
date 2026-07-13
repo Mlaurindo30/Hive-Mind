@@ -35,6 +35,7 @@ Import-Module (Join-Path $Root "scripts\lib\HiveMind.Windows.psm1") -Force -Disa
 Set-Location -LiteralPath $Root
 . (Join-Path $Root "scripts\setup\backup-install-state.ps1")
 . (Join-Path $Root "scripts\setup\bootstrap-prerequisites.ps1")
+. (Join-Path $Root "scripts\setup\fullstack-readiness.ps1")
 
 $profileContract = Join-Path $Root "config\profiles\$Profile.env.example"
 if (-not (Test-Path -LiteralPath $profileContract)) {
@@ -326,12 +327,22 @@ function Start-LocalFullStack {
     Invoke-LocalFullCompose -Name "Milvus" -ComposeFile (Join-Path $Root "integrations\milvus\docker-compose.yml")
     Invoke-LocalFullCompose -Name "RAGFlow" -ComposeFile (Join-Path $Root "integrations\ragflow\docker-compose.yml")
 
+    if (-not (Test-HiveMindHttpReadiness -Url "http://127.0.0.1:8384/rest/noauth/health" -AcceptedStatus @(200, 401, 403))) {
+        $syncthing = (Get-Command syncthing -ErrorAction Stop).Source
+        Start-Process -FilePath $syncthing -ArgumentList @("serve", "--no-browser", "--gui-address=127.0.0.1:8384") -WindowStyle Hidden
+    }
+
     Set-HiveMindDotEnvValue -Root $Root -Name "VECTOR_BACKEND" -Value "milvus"
     Set-HiveMindDotEnvValue -Root $Root -Name "MILVUS_URI" -Value "http://localhost:19530"
     Set-HiveMindDotEnvValue -Root $Root -Name "HIVE_KNOWLEDGE_HEALTH_MILVUS" -Value "1"
     Set-HiveMindDotEnvValue -Root $Root -Name "FALKORDB_HOST" -Value "localhost"
     Set-HiveMindDotEnvValue -Root $Root -Name "FALKORDB_PORT" -Value "6379"
     Set-HiveMindDotEnvValue -Root $Root -Name "RAGFLOW_BASE" -Value "http://localhost:9380"
+
+    $readiness = Test-HiveMindFullStackReadiness -Root $Root -Profile "local-full"
+    if (-not $readiness.Ready) {
+        throw "local-full required services are not ready: $($readiness.Missing -join ', '). $($readiness.Diagnostics -join '; ')"
+    }
 }
 
 Step "Preflight"
