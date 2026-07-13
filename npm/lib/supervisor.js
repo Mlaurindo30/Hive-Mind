@@ -230,7 +230,7 @@ function daemon() {
       } catch (error) {
         setState(svc, "degraded", { last_error: error.message });
         log("external degraded " + svc.name + ": " + error.message);
-        throw error;
+        return;
       }
       return;
     }
@@ -265,7 +265,7 @@ function daemon() {
     } catch (error) {
       setState(svc, "degraded", { pid: child.pid, last_error: error.message });
       log(`degraded ${svc.name}: ${error.message}`);
-      throw error;
+      return;
     }
   };
 
