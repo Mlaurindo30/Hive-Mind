@@ -59,7 +59,7 @@ def test_audit_script_reports_zero_orphans():
     vectors_without_chunk: 0 after the backfill."""
     project = Path(__file__).resolve().parents[2]
     proc = subprocess.run(
-        [".venv/bin/python", "scripts/health/audit_document_pipeline_consistency.py"],
+        [sys.executable, "scripts/health/audit_document_pipeline_consistency.py"],
         cwd=project, capture_output=True, text=True, timeout=30,
     )
     assert proc.returncode == 0, f"audit script failed: {proc.stderr}"
@@ -69,7 +69,7 @@ def test_audit_script_reports_zero_orphans():
     assert "chunks_without_parent: 0" in proc.stdout, (
         f"audit reports chunks without parent:\n{proc.stdout}"
     )
-def test_document_query_returns_auditable_citation():
+def test_document_query_returns_auditable_citation(tmp_path):
     """R4.2 last bullet: every document query response MUST include
     source_uri, offset_start, offset_end, and a parent reference.
 
@@ -82,10 +82,17 @@ def test_document_query_returns_auditable_citation():
     conn = get_connection()
     try:
         ensure_migrations(conn)
-        # Use the existing audit-ws test fixture from the prior round if
-        # present; otherwise use a generic term and pick whatever hit comes
-        # back. The assertion is on shape, not content.
+        # The real suite must not depend on fixtures left by another test run.
+        # Ingest a concrete document and query its citation through the same
+        # local DocumentPipeline used by the production adapter.
+        source = tmp_path / "audit-document.md"
+        source.write_text(
+            "Contrato único para vetores documentais com citação auditável.",
+            encoding="utf-8",
+        )
         pipeline = DocumentPipeline(conn, workspace_id="audit-ws")
+        result = pipeline.ingest(source, project="Hive-Mind")
+        assert result.chunks_count > 0
         hits = pipeline.query("contrato único para vetores documentais",
                               top_k=3, project="Hive-Mind")
         assert hits, "DocumentPipeline returned no hits"

@@ -87,7 +87,7 @@ class TestSaveLearning:
         monkeypatch.setattr("sinapse_memory.PATTERNS_FILE", patterns_file)
         path = _save_learning("Padrão encontrado", "Descobriu-se que...")
         assert path is not None
-        with open(patterns_file) as f:
+        with open(patterns_file, encoding="utf-8") as f:
             content = f.read()
         assert "Padrão encontrado" in content
 
@@ -97,11 +97,11 @@ class TestSaveLearning:
         # Write first time
         _save_learning("Unique Pattern", "Some insight")
         # Second save should be skipped
-        with open(patterns_file) as f:
+        with open(patterns_file, encoding="utf-8") as f:
             before = f.read()
         result = _save_learning("Unique Pattern", "Some insight again")
         assert result is None  # dedup skipped
-        with open(patterns_file) as f:
+        with open(patterns_file, encoding="utf-8") as f:
             assert f.read() == before  # unchanged
 
 

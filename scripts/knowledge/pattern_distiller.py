@@ -15,6 +15,10 @@ import argparse
 import re
 import sys
 from datetime import datetime
+
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
 from pathlib import Path
 from typing import Optional
 

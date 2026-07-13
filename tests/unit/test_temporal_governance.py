@@ -42,7 +42,7 @@ class WriterFrontmatterTests(unittest.TestCase):
     def test_decision_without_evidence_is_hypothesis_with_review_dates(self):
         path = save_decision("Escolha do backend", "conteudo", self.decisions_dir)
         self.assertTrue(path)
-        text = Path(path).read_text()
+        text = Path(path).read_text(encoding="utf-8")
         today = datetime.now().strftime("%Y-%m-%d")
         expected_review = (
             datetime.now() + timedelta(days=REVIEW_TTL_DAYS)
@@ -57,7 +57,7 @@ class WriterFrontmatterTests(unittest.TestCase):
             "Escolha validada", "conteudo", self.decisions_dir,
             evidence="pytest tests/unit -x passou",
         )
-        text = Path(path).read_text()
+        text = Path(path).read_text(encoding="utf-8")
         self.assertIn("confidence: verified", text)
         self.assertIn('evidence: "pytest tests/unit -x passou"', text)
 
@@ -65,7 +65,7 @@ class WriterFrontmatterTests(unittest.TestCase):
         patterns = os.path.join(self.tmpdir, "cerebro", "cerebelo", "Patterns.md")
         os.makedirs(os.path.dirname(patterns))
         save_learning("Padrao novo", "descricao", patterns)
-        text = Path(patterns).read_text()
+        text = Path(patterns).read_text(encoding="utf-8")
         self.assertIn("> confidence: hypothesis · next_review:", text)
 
     def test_learning_with_evidence_is_verified(self):
@@ -73,7 +73,7 @@ class WriterFrontmatterTests(unittest.TestCase):
         os.makedirs(os.path.dirname(patterns))
         save_learning("Padrao validado", "descricao", patterns,
                       evidence="./tests/run_all.sh verde")
-        text = Path(patterns).read_text()
+        text = Path(patterns).read_text(encoding="utf-8")
         self.assertIn("> confidence: verified", text)
         self.assertIn("evidence: ./tests/run_all.sh verde", text)
 
@@ -113,7 +113,7 @@ class IntakeFallbackTests(unittest.TestCase):
         path = save_decision("Decisao bloqueada", "conteudo", self.decisions_dir)
         self.assertTrue(path)
         self.assertIn("90-intake", path)
-        text = Path(path).read_text()
+        text = Path(path).read_text(encoding="utf-8")
         self.assertIn("promote_to:", text)
         self.assertIn("Decisao bloqueada", text)
 
@@ -127,7 +127,7 @@ class IntakeFallbackTests(unittest.TestCase):
         path = save_learning("Aprendizado bloqueado", "conteudo", patterns)
         self.assertTrue(path)
         self.assertIn("90-intake", path)
-        text = Path(path).read_text()
+        text = Path(path).read_text(encoding="utf-8")
         self.assertIn("promote_to:", text)
         self.assertIn("Aprendizado bloqueado", text)
 
@@ -252,7 +252,7 @@ class BackfillReviewDatesTests(unittest.TestCase):
             self.assertEqual(first["skipped_no_frontmatter"], 1)
             self.assertEqual(second["updated"], 0)
             self.assertEqual(second["skipped_has_review"], 1)
-            text = note.read_text()
+            text = note.read_text(encoding="utf-8")
             self.assertIn("review_date:", text)
             self.assertIn("next_review:", text)
             self.assertTrue(text.startswith("---"))

@@ -14,17 +14,25 @@ Builds `/tmp/hive-mind-recovery-test/` with copies of `cerebro/` and
 runs a vector/fts sanity check against the copy via the .venv (so
 sqlite-vec is loaded).
 """
+import os
 import shutil
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-RECOVERY_ROOT = Path("/tmp/hive-mind-recovery-test")
+RECOVERY_ROOT = Path(tempfile.gettempdir()) / "hive-mind-recovery-test"
 def _venv_python() -> str:
-    return str(PROJECT_ROOT / ".venv" / "bin" / "python")
+    return sys.executable
+def _recover_command(action: str) -> list[str]:
+    if os.name == "nt":
+        return ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "scripts/utils/recover.ps1", action]
+    return ["bash", "scripts/utils/recover.sh", action]
 def test_recover_sh_verify_passes():
     """recover.sh verify on the live DB exits 0 with no FK violations."""
     proc = subprocess.run(
-        ["bash", "scripts/utils/recover.sh", "verify"],
+        _recover_command("verify"),
         cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=180,
     )
     assert proc.returncode == 0, (

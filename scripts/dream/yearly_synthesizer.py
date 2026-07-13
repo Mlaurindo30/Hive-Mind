@@ -15,6 +15,10 @@ _HERE = Path(__file__).resolve().parent
 SINAPSE_HOME = os.environ.get("SINAPSE_HOME", str(_HERE.parent.parent))
 sys.path.append(SINAPSE_HOME)
 
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 try:
     from dotenv import load_dotenv
 
@@ -132,7 +136,7 @@ generated_by: scripts/dream/yearly_synthesizer.py
     if existing_content and "<!-- auto:start -->" in existing_content:
         auto = re.search(r"<!-- auto:start -->.*?<!-- auto:end -->", rendered, flags=re.DOTALL)
         if auto:
-            return re.sub(r"<!-- auto:start -->.*?<!-- auto:end -->", auto.group(0), existing_content, flags=re.DOTALL)
+            return re.sub(r"<!-- auto:start -->.*?<!-- auto:end -->", lambda _match: auto.group(0), existing_content, flags=re.DOTALL)
     return rendered
 
 

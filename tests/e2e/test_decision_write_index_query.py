@@ -101,10 +101,17 @@ def test_decision_write_path_closes_e2e():
         capture_output=True, text=True, timeout=30,
     )
     assert proc.returncode == 0, f"query CLI failed: {proc.stderr}"
-    assert str(written) in proc.stdout, (
-        f"query for {title!r} did not cite {written}. stdout: {proc.stdout[:600]}"
+    payload = json.loads(proc.stdout)
+    citation_uris = {_citation_path(uri) for citation in payload["citations"] if (uri := citation.get("source_uri"))}
+    assert written.resolve() in citation_uris, (
+        f"query for {title!r} did not cite {written}. citations: {payload['citations']!r}"
     )
 
+
+def _citation_path(uri: str) -> Path:
+    """Resolve absolute and vault-relative citation URIs on every platform."""
+    path = Path(uri)
+    return path.resolve() if path.is_absolute() else (Path("cerebro") / path).resolve()
 
 def _find_written_path(title: str) -> Path | None:
     base = Path("cerebro/cortex")

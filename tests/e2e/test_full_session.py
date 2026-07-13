@@ -37,12 +37,12 @@ class TestFullSession:
         )
 
         # Verifica Current State
-        with open(f"{temp_vault}/brain/Current State.md") as f:
+        with open(f"{temp_vault}/brain/Current State.md", encoding="utf-8") as f:
             state = f.read()
         assert "Last Update:" in state
 
         # Verifica aprendizado (Patterns.md) — deve ter sido detectado
-        with open(f"{temp_vault}/brain/Patterns.md") as f:
+        with open(f"{temp_vault}/brain/Patterns.md", encoding="utf-8") as f:
             patterns = f.read()
         assert "Migrar servidor" in patterns
 
@@ -57,7 +57,7 @@ class TestFullSession:
         sm._post_session_end(session_summary="Nada aconteceu nesta sessão")
 
         # Não deve crashar e Last Update deve existir
-        with open(f"{temp_vault}/brain/Current State.md") as f:
+        with open(f"{temp_vault}/brain/Current State.md", encoding="utf-8") as f:
             state = f.read()
         assert "Last Update:" in state
         assert "Nenhuma decisão" in state

@@ -12,7 +12,7 @@ class TestWriteReadCycle:
         path = _save_decision("Teste de integração", "Conteúdo do teste")
         assert path is not None
         assert os.path.isfile(path)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
         assert "Teste de integração" in content
 
@@ -24,7 +24,7 @@ class TestWriteReadCycle:
         r2 = _save_learning("Pattern X", "Duplicate write")
         assert r1 is not None
         assert r2 is None  # dedup skipped
-        with open(patterns_file) as f:
+        with open(patterns_file, encoding="utf-8") as f:
             content = f.read()
             assert content.count("Pattern X") == 1
 

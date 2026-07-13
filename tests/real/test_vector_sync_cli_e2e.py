@@ -9,7 +9,47 @@ import uuid
 
 import pytest
 
+from core.database import serialize_f32
 from core.vector_backend import MilvusBackend
+from core.vector_collections import EMBED_DIM
+
+
+def _seed_cli_auxiliary_sources(conn, token: str) -> tuple[str, str, str]:
+    """Create one real local source for each auxiliary collection."""
+    code_id = f"audit-cli-code-{token}"
+    visual_id = f"audit-cli-visual-{token}"
+    edge_id = f"audit-cli-edge-{token}"
+    conn.execute(
+        """INSERT INTO neurons(id, label, type, source_file, content, hash, workspace_id,
+                                embedding_model, embedding_dim)
+           VALUES (?, ?, 'code', ?, ?, ?, 'default', 'snowflake-arctic-embed2:latest', ?)""",
+        (code_id, "CLI K2 code source", f"cortex/occipital/{code_id}.py",
+         "real CLI K2 code vector source", f"hash-{code_id}", EMBED_DIM),
+    )
+    conn.execute("INSERT INTO search_vec(neuron_id, embedding) VALUES (?, ?)",
+                 (code_id, serialize_f32([0.31] * EMBED_DIM)))
+    conn.execute("""INSERT INTO visual_memories(id, image_path, description, ocr_text, workspace_id)
+                    VALUES (?, ?, ?, ?, 'default')""",
+                 (visual_id, f"audit/{visual_id}.png", "CLI K2 visual source", "OCR CLI K2"))
+    conn.execute("""INSERT INTO causal_edges(id, cause_neuron_id, effect_neuron_id, label, confidence, source)
+                    VALUES (?, ?, ?, 'causes', 0.9, 'cli-e2e')""",
+                 (edge_id, code_id, code_id))
+    conn.commit()
+    return code_id, visual_id, edge_id
+
+
+def _cleanup_cli_auxiliary_sources(conn, seeded_ids: tuple[str, str, str]) -> None:
+    """Remove every local record created by this real test in FK-safe order."""
+    code_id, visual_id, edge_id = seeded_ids
+    conn.execute("DELETE FROM vector_metadata WHERE id IN (?, ?, ?)", seeded_ids)
+    conn.execute("DELETE FROM vec_code WHERE symbol_id = ?", (code_id,))
+    conn.execute("DELETE FROM vec_visual WHERE image_id = ?", (visual_id,))
+    conn.execute("DELETE FROM vec_graph WHERE entity_id = ?", (edge_id,))
+    conn.execute("DELETE FROM search_vec WHERE neuron_id = ?", (code_id,))
+    conn.execute("DELETE FROM causal_edges WHERE id = ?", (edge_id,))
+    conn.execute("DELETE FROM visual_memories WHERE id = ?", (visual_id,))
+    conn.execute("DELETE FROM neurons WHERE id = ?", (code_id,))
+    conn.commit()
 
 
 @pytest.mark.real
@@ -22,7 +62,12 @@ def test_vector_sync_cli_exports_all_live_k2_collections_to_milvus():
     assert Path(db.DB_PATH).exists(), f"hive_mind.db ausente em {db.DB_PATH}"
     assert claude_mem_db.exists(), f"claude-mem.db ausente em {claude_mem_db}"
 
-    prefix = f"hm_cli_e2e_{uuid.uuid4().hex[:12]}_"
+    token = uuid.uuid4().hex[:12]
+    conn = db.get_connection()
+    db.ensure_migrations(conn)
+    seeded_ids = _seed_cli_auxiliary_sources(conn, token)
+    conn.close()
+    prefix = f"hm_cli_e2e_{token}_"
     backend = MilvusBackend(collection_prefix=prefix)
     live_collections = [
         "memory_vectors",
@@ -102,3 +147,9 @@ def test_vector_sync_cli_exports_all_live_k2_collections_to_milvus():
         for collection in collections:
             if backend._client.has_collection(collection):
                 backend._client.drop_collection(collection)
+        conn = db.get_connection()
+        try:
+            db.ensure_migrations(conn)
+            _cleanup_cli_auxiliary_sources(conn, seeded_ids)
+        finally:
+            conn.close()

@@ -43,7 +43,7 @@ def atomic_write(filepath: str, content: str) -> bool:
     os.makedirs(dirname, exist_ok=True)
     try:
         fd, tmp_path = tempfile.mkstemp(dir=dirname, suffix=".tmp")
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
             f.write(content)
         os.replace(tmp_path, filepath)
         return True
@@ -243,7 +243,7 @@ def save_learning(
 
     # Verifica duplicação — match de heading exato
     try:
-        with open(patterns_file, "r") as f:
+        with open(patterns_file, "r", encoding="utf-8") as f:
             existing = f.read()
         if re.search(rf"^## {re.escape(title)} \(", existing, re.MULTILINE):
             if log_fn:
@@ -262,7 +262,7 @@ def save_learning(
     try:
         existing = ""
         try:
-            with open(patterns_file, "r") as f:
+            with open(patterns_file, "r", encoding="utf-8") as f:
                 existing = f.read()
         except FileNotFoundError:
             pass
@@ -336,7 +336,7 @@ def update_current_state(
 
     existing = ""
     try:
-        with open(memory_file, "r") as f:
+        with open(memory_file, "r", encoding="utf-8") as f:
             existing = f.read()
     except FileNotFoundError:
         pass

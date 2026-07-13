@@ -417,14 +417,26 @@ class RetrievalRouter:
 
     def _route_hybrid(self, query: str, *, top_k: int) -> dict[str, Any]:
         result = self.sinapse_query_fn(query) if self.sinapse_query_fn else None
-        context = _context_from_legacy_result(result, top_k=top_k) if result else []
+        legacy_context = _context_from_legacy_result(result, top_k=top_k) if result else []
+        # K5 summaries live in the canonical auxiliary collection. Context
+        # Fusion alone cannot discover them, so merge them after direct legacy
+        # matches: an exact fresh decision must not be displaced by summaries.
+        summary = self._route_vector("summary_vectors", query, top_k=top_k)
+        summary_context = summary["answer_context"]
+        # Queries explicitly about a synthesis must surface a cited K5 artifact
+        # even when Context Fusion has enough generic legacy hits to fill top_k.
+        # For every other query keep direct/fresh legacy evidence first.
+        if _is_synthesis_query(query):
+            context = [*summary_context, *legacy_context][:top_k]
+        else:
+            context = [*legacy_context, *summary_context][:top_k]
         return {
-            "backend": "sinapse_query/context_fusion",
+            "backend": "summary_vectors+sinapse_query/context_fusion",
             "answer_context": context,
             "citations": [_citation_from_context(item) for item in context],
             "missing_context": [] if result else ["hybrid:context_fusion_indisponivel"],
             "path": [],
-            "details": {"source": result.get("source") if isinstance(result, dict) else None},
+            "details": {"source": result.get("source") if isinstance(result, dict) else None, "summary_vectors": True},
             "legacy_result": result,
         }
 
@@ -638,6 +650,12 @@ def _classify_heuristic(query: str) -> IntentDecision:
     return IntentDecision(intent="hybrid", confidence=0.52, reason="fallback_hybrid")
 
 
+def _is_synthesis_query(query: str) -> bool:
+    """Whether the request explicitly asks for a K5 synthesis artifact."""
+    normalized = _norm(query)
+    return "sintese" in normalized or "synthesis" in normalized
+
+
 def _norm(text: str) -> str:
     import unicodedata
 
@@ -711,6 +729,17 @@ def _apply_governance_penalty(context: list[dict[str, Any]]) -> list[dict[str, A
     return fresh + penalized
 
 
+def _citation_source_uri(source_uri: Any) -> str:
+    """Return a portable citation path while retaining external URIs verbatim."""
+    raw = str(source_uri or "")
+    if not raw:
+        return raw
+    try:
+        vault = Path(os.environ.get("SINAPSE_HOME", Path.cwd())) / "cerebro"
+        return Path(raw).resolve().relative_to(vault.resolve()).as_posix()
+    except (OSError, ValueError):
+        return raw.replace("\\", "/")
+
 def _metadata_context(collection: str, hit: dict[str, Any]) -> dict[str, Any] | None:
     metadata = hit.get("metadata") or {}
     if not metadata:
@@ -720,7 +749,7 @@ def _metadata_context(collection: str, hit: dict[str, Any]) -> dict[str, Any] | 
         "type": metadata.get("knowledge_type") or collection,
         "title": metadata.get("source_uri") or str(hit["id"]),
         "content": metadata.get("source_uri") or "",
-        "source_uri": metadata.get("source_uri"),
+        "source_uri": _citation_source_uri(metadata.get("source_uri")),
         "parent_id": metadata.get("parent_id"),
         "parent_type": metadata.get("parent_type"),
         "score": hit.get("score"),
@@ -735,7 +764,7 @@ def _neuron_context(row: Any, *, score: float | None, route: str) -> dict[str, A
         "type": row["type"],
         "title": row["label"],
         "content": row["content"] or "",
-        "source_uri": row["source_file"] or f"hive_mind.db:neurons/{row['id']}",
+        "source_uri": _citation_source_uri(row["source_file"] or f"hive_mind.db:neurons/{row['id']}"),
         "score": score,
         "route": route,
         "metadata": _loads(row["metadata"]),
@@ -788,9 +817,9 @@ def _legacy_projection(answer_context: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _citation_from_context(item: dict[str, Any]) -> dict[str, Any]:
     return {
-        "id": item.get("id"),
+        "id": _citation_source_uri(item.get("id")),
         "title": item.get("title"),
-        "source_uri": item.get("source_uri"),
+        "source_uri": _citation_source_uri(item.get("source_uri")),
         "offset_start": item.get("offset_start"),
         "offset_end": item.get("offset_end"),
         "parent_id": item.get("parent_id"),

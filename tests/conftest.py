@@ -51,6 +51,16 @@ def _reset_global_state():
     _restore_original_state()
 
 
+@pytest.fixture(autouse=True)
+def _disable_umc_writes_for_in_process_tests(monkeypatch):
+    """Keep unit/integration writer checks out of the persistent UMC database.
+
+    CLI E2E tests run in a child process and therefore retain their real UMC
+    coverage. In-process tests still validate their temporary vault writes.
+    """
+    monkeypatch.setattr(_sm, "_umc_save_observation", lambda *args, **kwargs: True)
+    yield
+
 @pytest.fixture
 def sample_graph():
     """Grafo mínimo para testes unitários."""

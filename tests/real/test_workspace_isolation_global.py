@@ -14,9 +14,47 @@ as A and B, and asserts no cross-workspace leakage. Also asserts the
 `query_route_log` does not carry raw text that crosses workspaces.
 """
 import uuid
+from collections.abc import Iterator
 
 WORKSPACE_A = f"audit-ws-A-{uuid.uuid4().hex[:6]}"
 WORKSPACE_B = f"audit-ws-B-{uuid.uuid4().hex[:6]}"
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_isolation_artifacts() -> Iterator[None]:
+    """Always remove this module's generated data, including after assertions fail."""
+    yield
+    from core.database import get_connection, ensure_migrations
+
+    conn = get_connection()
+    try:
+        ensure_migrations(conn)
+        workspace_ids = (WORKSPACE_A, WORKSPACE_B)
+        document_vector_ids = [
+            row[0]
+            for row in conn.execute(
+                "SELECT id FROM vector_metadata "
+                "WHERE collection = 'document_vectors' AND workspace_id IN (?, ?)",
+                workspace_ids,
+            ).fetchall()
+        ]
+        if document_vector_ids:
+            placeholders = ", ".join("?" for _ in document_vector_ids)
+            conn.execute(
+                f"DELETE FROM vec_documents WHERE chunk_id IN ({placeholders})",
+                document_vector_ids,
+            )
+        conn.execute("DELETE FROM synapses WHERE workspace_id IN (?, ?)", workspace_ids)
+        conn.execute("DELETE FROM causal_edges WHERE workspace_id IN (?, ?)", workspace_ids)
+        conn.execute("DELETE FROM observations WHERE workspace_id IN (?, ?)", workspace_ids)
+        conn.execute("DELETE FROM query_route_log WHERE workspace_id IN (?, ?)", workspace_ids)
+        conn.execute("DELETE FROM vector_metadata WHERE workspace_id IN (?, ?)", workspace_ids)
+        conn.execute("DELETE FROM document_chunks WHERE workspace_id IN (?, ?)", workspace_ids)
+        conn.execute("DELETE FROM document_memories WHERE file_path LIKE '/tmp/audit-iso-doc-%'")
+        conn.execute("DELETE FROM neurons WHERE workspace_id IN (?, ?)", workspace_ids)
+        conn.commit()
+    finally:
+        conn.close()
 def _ws_rows(conn, table: str, workspace_id: str, label: str) -> list:
     if table in ("neurons", "observations", "document_chunks", "document_memories"):
         col = "workspace_id"

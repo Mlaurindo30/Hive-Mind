@@ -113,6 +113,13 @@ def _process_one(conn: sqlite3.Connection) -> bool:
         return False
 
     collection = job["collection"]
+    # observation_vectors belongs to the Claude Mem sqlite-vec worker. It
+    # must never be materialized in Hive UMC vec_documents, otherwise it
+    # creates document vectors without document_chunks.
+    if collection == "observation_vectors":
+        _mark_done(conn, job["id"])
+        conn.commit()
+        return True
     if collection not in COLLECTIONS:
         _mark_failed(conn, job["id"], f"unknown collection: {collection}")
         conn.commit()

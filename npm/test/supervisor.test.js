@@ -46,6 +46,13 @@ test('reported state does not promote a live PID to healthy', () => {
   assert.equal(reportedServiceState(undefined, true), 'starting');
 });
 
+test('a recovered readiness probe clears stale degradation evidence', () => {
+  const { healthStateTransition } = require('../lib/supervisor');
+  assert.deepEqual(
+    healthStateTransition({ state: 'degraded', pid: 42, last_error: 'healthcheck failed' }, true),
+    { state: 'healthy', extra: { pid: 42 } },
+  );
+});
 test('required services are reported when a capability excludes them', () => {
   const { requiredServiceErrors } = require('../lib/supervisor');
   const unavailable = { ...manifest, claude_mem_plugin_available: false, services: [
@@ -100,4 +107,51 @@ test('waitForRequiredHealthy blocks until every required manifest service is hea
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('healthStateTransition: starting to healthy', () => {
+  const { healthStateTransition } = require('../lib/supervisor');
+  assert.deepEqual(
+    healthStateTransition({ state: 'starting', pid: 100 }, true),
+    { state: 'healthy', extra: { pid: 100 } },
+  );
+});
+
+test('healthStateTransition: healthy to degraded', () => {
+  const { healthStateTransition } = require('../lib/supervisor');
+  assert.deepEqual(
+    healthStateTransition({ state: 'healthy', pid: 100 }, false),
+    { state: 'degraded', extra: { pid: 100, last_error: 'healthcheck failed' } },
+  );
+});
+
+test('healthStateTransition: degraded recovery clears last_error', () => {
+  const { healthStateTransition } = require('../lib/supervisor');
+  const result = healthStateTransition(
+    { state: 'degraded', pid: 55, last_error: 'healthcheck failed', restart_count: 2 },
+    true,
+  );
+  assert.equal(result.state, 'healthy');
+  assert.equal(result.extra.last_error, undefined);
+  assert.equal(result.extra.restart_count, 2);
+  assert.equal(result.extra.pid, 55);
+});
+
+test('healthStateTransition: failed stays degraded on continued failure', () => {
+  const { healthStateTransition } = require('../lib/supervisor');
+  const result = healthStateTransition({ state: 'degraded', pid: 10 }, false);
+  assert.equal(result.state, 'degraded');
+  assert.equal(result.extra.last_error, 'healthcheck failed');
+});
+
+test('healthStateTransition: null/undefined current state handled', () => {
+  const { healthStateTransition } = require('../lib/supervisor');
+  assert.deepEqual(
+    healthStateTransition(null, true),
+    { state: 'healthy', extra: {} },
+  );
+  assert.deepEqual(
+    healthStateTransition(undefined, false),
+    { state: 'degraded', extra: { last_error: 'healthcheck failed' } },
+  );
 });

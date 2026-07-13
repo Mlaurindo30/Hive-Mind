@@ -87,6 +87,7 @@ class TestSinapseMCP:
     def test_save_decision_tool_dryrun(self, temp_vault, monkeypatch):
         monkeypatch.setenv("SINAPSE_HOME", temp_vault)
         monkeypatch.setenv("SINAPSE_DRY_RUN", "1")
+        monkeypatch.setattr(mcp.sm, "DRY_RUN", True)
         req = {
             "jsonrpc": "2.0",
             "id": 5,
@@ -104,6 +105,7 @@ class TestSinapseMCP:
     def test_save_learning_tool_dryrun(self, temp_vault, monkeypatch):
         monkeypatch.setenv("SINAPSE_HOME", temp_vault)
         monkeypatch.setenv("SINAPSE_DRY_RUN", "1")
+        monkeypatch.setattr(mcp.sm, "DRY_RUN", True)
         req = {
             "jsonrpc": "2.0",
             "id": 6,

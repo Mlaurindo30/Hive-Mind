@@ -14,11 +14,12 @@ to the corresponding synthesis file under cerebro/cerebelo/.
 """
 import json
 import subprocess
+import sys
 from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 def test_query_for_synthesis_term_returns_citation():
     proc = subprocess.run(
-        [".venv/bin/python", "scripts/services/sinapse-write.py", "query",
+        [sys.executable, "scripts/services/sinapse-write.py", "query",
          "síntese semanal"],
         cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=30,
     )

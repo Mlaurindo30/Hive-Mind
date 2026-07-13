@@ -13,11 +13,12 @@ asserts the gate reports `gate_passed: true`.
 """
 import json
 import subprocess
+import sys
 from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 def test_k8_gate_passes():
     proc = subprocess.run(
-        [".venv/bin/python", "scripts/health/k8_gate.py", "--json"],
+        [sys.executable, "scripts/health/k8_gate.py", "--json"],
         cwd=PROJECT_ROOT, capture_output=True, text=True, timeout=30,
     )
     assert proc.returncode == 0, (

@@ -2,6 +2,9 @@
   "name": "hive-sinapse-mind",
   "version": "3.10.1",
   "description": "Universal, persistent, local-first memory layer for swarms of AI agents — installer & runtime CLI",
+  "scripts": {
+    "test": "node --test test/doctor.test.js test/supervisor.test.js"
+  },
   "bin": {
     "hive-mind": "bin/hive-mind.js"
   },

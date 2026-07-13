@@ -27,6 +27,10 @@ _HERE = Path(__file__).resolve().parent
 SINAPSE_HOME = os.environ.get("SINAPSE_HOME", str(_HERE.parent.parent))
 sys.path.append(SINAPSE_HOME)
 
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 # Carrega .env cedo (antes de qualquer leitura de role_config)
 try:
     from dotenv import load_dotenv

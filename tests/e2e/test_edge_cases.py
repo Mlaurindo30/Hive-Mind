@@ -12,7 +12,7 @@ class TestEdgeCases:
         path = sm._save_decision("🚀 Lançamento do produto", "Conteúdo")
         assert path is not None
         assert os.path.isfile(path)
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
         assert "lançamento" in content.lower() or "Lancamento" in content or "Lançamento" in content
 
@@ -40,7 +40,7 @@ class TestEdgeCases:
         monkeypatch.setattr(sm, "DECISIONS_DIR", f"{temp_vault}/work/active")
         path = sm._save_decision("Test", "Linha 1\nLinha 2\n\nLinha 4")
         assert path is not None
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             content = f.read()
         assert "Linha 1\nLinha 2" in content
 
@@ -62,7 +62,7 @@ class TestEdgeCases:
         """Current State lida com lista vazia de decisões."""
         monkeypatch.setattr(sm, "MEMORY_FILE", f"{temp_vault}/brain/Current State.md")
         sm._update_current_state([], [], "Resumo vazio")
-        with open(f"{temp_vault}/brain/Current State.md") as f:
+        with open(f"{temp_vault}/brain/Current State.md", encoding="utf-8") as f:
             content = f.read()
         assert "Last Update:" in content
         assert "Nenhuma decisão" in content

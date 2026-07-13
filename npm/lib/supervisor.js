@@ -112,6 +112,15 @@ function restartDelayMs(service, attempt) {
 function canRestart(service, attempts) {
   return attempts < Math.max(0, service.restart_limit ?? 10);
 }
+function healthStateTransition(current, healthy) {
+  const extra = { ...(current || {}) };
+  delete extra.state;
+  delete extra.updated_at;
+  if (healthy) delete extra.last_error;
+  return healthy
+    ? { state: 'healthy', extra }
+    : { state: 'degraded', extra: { ...extra, last_error: 'healthcheck failed' } };
+}
 function probeReadiness(check) {
   if (!check || check.type === "none") return Promise.resolve(true);
   const timeoutMs = Math.max(100, (check.timeout_seconds || 10) * 1000);
@@ -282,10 +291,15 @@ function daemon() {
       const check = service.healthcheck || service.readiness;
       if (!check || check.type === "none") continue;
       const ok = await probeReadiness(check);
+      const current = states[service.name] || {};
+      const transition = healthStateTransition(current, ok);
+      if (current.state !== transition.state || current.last_error) {
+        setState(service, transition.state, transition.extra);
+      }
       if (!ok) {
-        const current = states[service.name] || {};
-        setState(service, "degraded", { ...current, last_error: "healthcheck failed" });
         log("healthcheck failed " + service.name);
+      } else if (current.state !== 'healthy' || current.last_error) {
+        log("healthcheck recovered " + service.name);
       }
     }
   }, 15000);
@@ -406,4 +420,4 @@ if (require.main === module && process.argv[2] === '__daemon') {
   daemon();
 }
 
-module.exports = { start, stop, status, loadManifest, runnableServices, selectServices, selectedProfile, topologicalServices, requiredServiceErrors, probeReadiness, waitForReadiness, requiredServiceHealth, waitForRequiredHealthy, platformCommand, reportedServiceState, restartDelayMs, canRestart };
+module.exports = { start, stop, status, loadManifest, runnableServices, selectServices, selectedProfile, topologicalServices, requiredServiceErrors, probeReadiness, waitForReadiness, requiredServiceHealth, waitForRequiredHealthy, platformCommand, reportedServiceState, restartDelayMs, canRestart, healthStateTransition };
