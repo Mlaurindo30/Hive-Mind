@@ -21,7 +21,11 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-AGENTS_ROOT = PROJECT_ROOT / "cerebro" / "tronco" / "infra" / "agentes"
+# The runtime vault is intentionally ignored: a clean checkout has no `cerebro/`
+# until installation materializes it. The Windows installer contract exercises
+# Sync-HiveMindVaultTemplates; this integration test validates the shipped
+# hook template that the installer must copy unchanged.
+AGENTS_ROOT = PROJECT_ROOT / "templates" / "vault" / "tronco" / "infra" / "agentes"
 
 
 # Each agent is associated with the config files that must exist and parse.

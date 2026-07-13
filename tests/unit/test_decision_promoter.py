@@ -52,7 +52,7 @@ def test_apply_materializa_registro(vault, tmp_path):
     dp.run(temporal_root=vault, decisions_root=dec_root, apply=True)
     rec = dec_root / "Hive-Mind" / "dec-dec1.md"
     assert rec.exists()
-    txt = rec.read_text()
+    txt = rec.read_text(encoding="utf-8")
     assert "type: decision-record" in txt
     assert "[[neuronio-dec1]]" in txt              # wikilink à origem
     assert "## Decisão" in txt and "## Alternativas Consideradas" in txt
@@ -63,7 +63,7 @@ def test_apply_materializa_registro(vault, tmp_path):
 def test_idempotente(vault, tmp_path):
     dec_root = tmp_path / "decisoes"
     dp.run(temporal_root=vault, decisions_root=dec_root, apply=True)
-    first = (dec_root / "Hive-Mind" / "dec-dec1.md").read_text()
+    first = (dec_root / "Hive-Mind" / "dec-dec1.md").read_text(encoding="utf-8")
     dp.run(temporal_root=vault, decisions_root=dec_root, apply=True)
-    assert (dec_root / "Hive-Mind" / "dec-dec1.md").read_text() == first
+    assert (dec_root / "Hive-Mind" / "dec-dec1.md").read_text(encoding="utf-8") == first
     assert len(list((dec_root / "Hive-Mind").glob("*.md"))) == 1

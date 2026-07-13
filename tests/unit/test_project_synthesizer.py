@@ -43,7 +43,7 @@ def test_dry_run_nao_escreve(vault, tmp_path):
 def test_apply_escreve_por_projeto(vault, tmp_path):
     proj_root = tmp_path / "projetos"
     ps.write_all(temporal_root=vault, projects_root=proj_root, apply=True)
-    txt = (proj_root / "ComfyUI.md").read_text()
+    txt = (proj_root / "ComfyUI.md").read_text(encoding="utf-8")
     assert "type: project-status" in txt
     assert ps.AUTO_START in txt and ps.AUTO_END in txt
     assert "| Decisões | 1 |" in txt
@@ -54,8 +54,8 @@ def test_idempotente_preserva_edicao_manual(vault, tmp_path):
     ps.write_all(temporal_root=vault, projects_root=proj_root, apply=True)
     f = proj_root / "ComfyUI.md"
     # usuário adiciona nota fora do bloco auto
-    f.write_text(f.read_text() + "\nNOTA MANUAL IMPORTANTE\n")
+    f.write_text(f.read_text(encoding="utf-8") + "\nNOTA MANUAL IMPORTANTE\n", encoding="utf-8")
     ps.write_all(temporal_root=vault, projects_root=proj_root, apply=True)
-    txt = f.read_text()
+    txt = f.read_text(encoding="utf-8")
     assert "NOTA MANUAL IMPORTANTE" in txt          # preservada
     assert txt.count(ps.AUTO_START) == 1            # bloco auto não duplicou

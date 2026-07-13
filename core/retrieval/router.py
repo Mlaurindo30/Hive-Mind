@@ -102,7 +102,7 @@ class RetrievalRouter:
         self.claude_mem_url = (claude_mem_url or os.environ.get("CLAUDE_MEM_URL") or "http://127.0.0.1:37700").rstrip("/")
         # Explicit connections are usually scoped DBs (tests, maintenance,
         # route_retrieval(conn=...)); querying global Milvus would mix states.
-        self.vector_backend = SQLiteVecBackend(conn=self.conn) if conn is not None else get_vector_backend(conn=self.conn)
+        self.vector_backend = SQLiteVecBackend(conn=self.conn) if (conn is not None or sinapse_query_fn is not None) else get_vector_backend(conn=self.conn)
 
     def close(self) -> None:
         if self._owns_conn:

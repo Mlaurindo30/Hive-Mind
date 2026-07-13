@@ -32,7 +32,10 @@ import pytest
 # ModelGateway. The post-unification gateway is the default; this
 # test suite is explicitly testing the legacy chain-failure
 # behaviour that the gateway preserves verbatim.
-os.environ.setdefault("HIVE_FORCE_LEGACY_LLM", "true")
+@pytest.fixture(autouse=True)
+def force_legacy_for_chain_contract(monkeypatch):
+    """Keep this legacy-chain suite independent from installed profile env."""
+    monkeypatch.setenv("HIVE_FORCE_LEGACY_LLM", "true")
 
 from core import llm_client
 

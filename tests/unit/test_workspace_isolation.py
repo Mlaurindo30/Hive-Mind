@@ -39,8 +39,7 @@ class WorkspaceIsolationTests(unittest.TestCase):
         import core.database as db_mod
         self._original_db_path = db_mod.DB_PATH
         db_mod.DB_PATH = str(self.db_path)
-        from core.database import get_connection
-        self.conn = get_connection()
+        self.conn = db_mod.get_connection()
         # Inicializa o schema completo (9 tabelas + indices) via o script
         # SQL canonico, depois roda migrations de workspace.
         from core.database import ensure_migrations, SCHEMA_PATH
@@ -121,14 +120,32 @@ class WorkspaceIsolationTests(unittest.TestCase):
 class WorkspaceFederationRealTests(unittest.TestCase):
     """Teste real (K10) que prova isolamento end-to-end com knowledge_health."""
 
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.db_path = Path(self.tmpdir) / "workspace-health.db"
+        import core.database as db_mod
+
+        self._original_db_path = db_mod.DB_PATH
+        db_mod.DB_PATH = str(self.db_path)
+        db_mod.init_db()
+        self.conn = db_mod.get_connection()
+        db_mod.ensure_migrations(self.conn)
+        db_mod.migrate_workspace_and_federation(self.conn)
+
+    def tearDown(self):
+        self.conn.close()
+        import core.database as db_mod
+
+        db_mod.DB_PATH = self._original_db_path
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
     def test_knowledge_health_isolated_by_workspace(self):
-        from core.database import get_connection
         from scripts.health.knowledge_health import (
             compute_knowledge_health,
             find_orphan_vectors,
         )
 
-        conn = get_connection()
+        conn = self.conn
         try:
             # Insere 2 neurons no workspace 'acme', 1 no 'default'
             conn.execute(
@@ -156,10 +173,9 @@ class WorkspaceFederationRealTests(unittest.TestCase):
             self.assertEqual(metrics_acme["workspace_id"], "acme")
             self.assertEqual(metrics_default["workspace_id"], "default")
         finally:
-            # Limpa dados de teste
+            # Limpa dados de teste sem tocar no banco do workspace real.
             conn.execute("DELETE FROM neurons WHERE id LIKE 'k10-n-%'")
             conn.commit()
-            conn.close()
 
 
 if __name__ == "__main__":

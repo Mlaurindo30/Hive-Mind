@@ -38,9 +38,20 @@ GRAPHIFY_OUT = cp.OCCIPITAL / "grafo"
 
 def _watcher_running() -> bool:
     if os.name == "nt":
+        # PowerShell is the normal test host on Windows. Only a process whose
+        # command line explicitly starts the watcher (or Graphify watch) counts.
         proc = subprocess.run(
-            ["powershell.exe", "-NoProfile", "-Command", "Get-Process powershell -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path"],
-            capture_output=True, text=True,
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-Command",
+                "Get-CimInstance Win32_Process | Where-Object { "
+                "($_.Name -in @('powershell.exe', 'pwsh.exe')) -and "
+                "$_.CommandLine -match 'start-watcher|graphify.*watch' "
+                "} | Select-Object -ExpandProperty ProcessId",
+            ],
+            capture_output=True,
+            text=True,
         )
         return proc.returncode == 0 and bool(proc.stdout.strip())
     proc = subprocess.run(
@@ -51,6 +62,7 @@ def _watcher_running() -> bool:
 
 
 def test_graphify_updates_graph_on_new_markdown():
+    VAULT.mkdir(parents=True, exist_ok=True)
     probe = VAULT / f"audit-watcher-probe-{uuid.uuid4().hex[:8]}.md"
     probe.write_text(
         "---\ntags: [test]\n---\n\n# audit probe\n",
@@ -67,10 +79,21 @@ def test_graphify_updates_graph_on_new_markdown():
                     break
                 time.sleep(2)
         else:
-            # Watcher not running; run graphify synchronously.
-            command = [str(PROJECT_ROOT / ".venv" / "bin" / "graphify"), "update", str(VAULT)]
+            # Match the installer bootstrap. `graphify update` alone returns 1
+            # for a Markdown-only vault; build-graph.ps1 creates the canonical
+            # empty graph artifact in that case.
             if os.name == "nt":
-                command = [str(PROJECT_ROOT / ".venv" / "Scripts" / "python.exe"), "-m", "graphify", "update", str(VAULT)]
+                command = [
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(PROJECT_ROOT / "scripts" / "graph" / "build-graph.ps1"),
+                    "-SkipHnsw",
+                ]
+            else:
+                command = [str(PROJECT_ROOT / ".venv" / "bin" / "graphify"), "update", str(VAULT)]
             subprocess.run(
                 command,
                 cwd=PROJECT_ROOT, check=False, capture_output=True, timeout=120,

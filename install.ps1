@@ -301,11 +301,37 @@ function Invoke-LocalFullCompose {
         [string]$ComposeFile,
 
         [Parameter(Mandatory = $true)]
-        [string]$Name
+        [string]$Name,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$ContainerNames
     )
 
     if (-not (Test-Path -LiteralPath $ComposeFile)) {
         throw "$Name compose file was not found at $ComposeFile"
+    }
+
+    $existing = @()
+    foreach ($containerName in $ContainerNames) {
+        & docker container inspect $containerName *> $null
+        if ($LASTEXITCODE -eq 0) {
+            $existing += $containerName
+        }
+    }
+
+    if ($existing.Count -eq $ContainerNames.Count) {
+        Write-Host "Reusing existing $Name containers: $($ContainerNames -join ', ')"
+        foreach ($containerName in $ContainerNames) {
+            & docker start $containerName | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "$Name container '$containerName' could not be started."
+            }
+        }
+        return
+    }
+
+    if ($existing.Count -gt 0) {
+        throw "$Name has a partial existing container set ($($existing -join ', ')). Resolve it before rerunning installation."
     }
 
     Write-Host "Starting $Name from $ComposeFile"
@@ -323,9 +349,9 @@ function Start-LocalFullStack {
         throw "Docker is installed, but the Docker engine is not reachable. Start Docker Desktop and rerun install.ps1 -Profile local-full."
     }
 
-    Invoke-LocalFullCompose -Name "FalkorDB" -ComposeFile (Join-Path $Root "docker-compose.falkordb.yml")
-    Invoke-LocalFullCompose -Name "Milvus" -ComposeFile (Join-Path $Root "integrations\milvus\docker-compose.yml")
-    Invoke-LocalFullCompose -Name "RAGFlow" -ComposeFile (Join-Path $Root "integrations\ragflow\docker-compose.yml")
+    Invoke-LocalFullCompose -Name "FalkorDB" -ComposeFile (Join-Path $Root "docker-compose.falkordb.yml") -ContainerNames @("sinapse-falkordb")
+    Invoke-LocalFullCompose -Name "Milvus" -ComposeFile (Join-Path $Root "integrations\milvus\docker-compose.yml") -ContainerNames @("hive-mind-milvus")
+    Invoke-LocalFullCompose -Name "RAGFlow" -ComposeFile (Join-Path $Root "integrations\ragflow\docker-compose.yml") -ContainerNames @("hive-mind-ragflow-mysql", "es01", "redis", "minio", "hive-mind-ragflow")
 
     if (-not (Test-HiveMindHttpReadiness -Url "http://127.0.0.1:8384/rest/noauth/health" -AcceptedStatus @(200, 401, 403))) {
         $syncthing = (Get-Command syncthing -ErrorAction Stop).Source
@@ -417,10 +443,7 @@ Invoke-HiveMindPython -Root $Root -Arguments @("scripts/setup/setup_umc.py")
 
 Step "Vault materialization"
 $vault = Join-Path $Root "cerebro"
-$templateVault = Join-Path $Root "templates\vault"
-if (-not (Test-Path -LiteralPath $vault) -and (Test-Path -LiteralPath $templateVault)) {
-    Copy-Item -LiteralPath $templateVault -Destination $vault -Recurse
-}
+Sync-HiveMindVaultTemplates -Root $Root
 $vaultDirs = @(
     "cortex\temporal\_global",
     "cortex\temporal\hipocampo",
@@ -460,7 +483,7 @@ foreach ($dir in $vaultDirs) {
 Step "Graph/index bootstrap"
 $buildGraph = Join-Path $Root "scripts\graph\build-graph.ps1"
 if (Test-Path -LiteralPath $buildGraph) {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $buildGraph
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $buildGraph -SkipHnsw
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 } else {
     Write-Warning "build-graph.ps1 not found yet; skipping graph build."

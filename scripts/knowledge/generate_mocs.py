@@ -35,7 +35,7 @@ AUTO = "<!-- auto:gerado por generate_mocs.py — não editar à mão -->"
 
 def _title(md: Path) -> str:
     """Título do neurônio = 1ª linha '# ...' ou o nome do arquivo."""
-    for ln in md.read_text(errors="ignore").splitlines():
+    for ln in md.read_text(encoding="utf-8", errors="replace").splitlines():
         if ln.startswith("# "):
             return ln[2:].strip()
     return md.stem
@@ -44,7 +44,7 @@ def _title(md: Path) -> str:
 def _frontmatter(md: Path) -> dict:
     """Parse YAML real do frontmatter (lida com listas em bloco, ex.: sectors)."""
     import yaml
-    txt = md.read_text(errors="ignore")
+    txt = md.read_text(encoding="utf-8", errors="replace")
     m = re.match(r"^---\n(.*?)\n---", txt, re.S)
     if not m:
         return {}
@@ -84,7 +84,7 @@ def scan_neurons() -> list[dict]:
 
 def _write(path: Path, body: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(body)
+    path.write_text(body, encoding="utf-8")
 
 
 def gen_topic_moc(project: str, topic: str, neurons: list[dict]) -> None:
@@ -189,7 +189,7 @@ def add_synapses(neurons: list[dict]) -> int:
     from fastembed import TextEmbedding
     import numpy as np
     model = TextEmbedding()   # default: BAAI/bge-small ou all-MiniLM (fastembed)
-    texts = [n["path"].read_text(errors="ignore")[:2000] for n in neurons]
+    texts = [n["path"].read_text(encoding="utf-8", errors="replace")[:2000] for n in neurons]
     embs = list(model.embed(texts))
     embs = [e / (np.linalg.norm(e) + 1e-9) for e in embs]
     written = 0
@@ -199,12 +199,12 @@ def add_synapses(neurons: list[dict]) -> int:
         if not top:
             continue
         rel = ", ".join(f'"[[{t["stem"]}]]"' for t in top)
-        txt = n["path"].read_text(errors="ignore")
+        txt = n["path"].read_text(encoding="utf-8", errors="replace")
         if "related:" in txt:
             txt = re.sub(r"related:.*", f"related: [{rel}]", txt, count=1)
         else:
             txt = re.sub(r"^---\n", f"---\nrelated: [{rel}]\n", txt, count=1)
-        n["path"].write_text(txt)
+        n["path"].write_text(txt, encoding="utf-8")
         written += 1
     return written
 

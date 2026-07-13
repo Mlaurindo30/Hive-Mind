@@ -49,8 +49,8 @@ def _run_script(name: str, *args: str, stdin: str = "", env: dict | None = None)
     sinapse_home = full_env.get("SINAPSE_HOME", str(PROJECT_ROOT))
     full_env.setdefault("SESSIONS_ROOT_OVERRIDE", str(Path(sinapse_home) / "cerebro" / "cerebelo" / "sessoes"))
     full_env.setdefault("DAILY_ROOT_OVERRIDE", str(Path(sinapse_home) / "cerebro" / "cerebelo" / "diario"))
-    full_env.setdefault("SESSION_TEMPLATE_PATH", str(PROJECT_ROOT / "cerebro" / "tronco" / "modelos" / "session-log.md"))
-    full_env.setdefault("DAILY_TEMPLATE_PATH", str(PROJECT_ROOT / "cerebro" / "tronco" / "modelos" / "daily-log.md"))
+    full_env.setdefault("SESSION_TEMPLATE_PATH", str(PROJECT_ROOT / "templates" / "vault" / "tronco" / "modelos" / "session-log.md"))
+    full_env.setdefault("DAILY_TEMPLATE_PATH", str(PROJECT_ROOT / "templates" / "vault" / "tronco" / "modelos" / "daily-log.md"))
     return subprocess.run(
         [_venv_python(), str(SCRIPTS[name]), *args],
         input=stdin,

@@ -69,15 +69,15 @@ def test_run_apply_gera_report(vault, tmp_path):
                    llm_fn=lambda a, b: ConflictJudgement(is_conflict=True, explanation="contradição"))
     assert stats["conflicts"] >= 1
     report = croot / "2026-06-18.md" if (croot / "2026-06-18.md").exists() else next(croot.glob("*.md"))
-    txt = report.read_text()
+    txt = report.read_text(encoding="utf-8")
     assert "type: conflict-report" in txt and "⚔️" in txt
 
 
 def test_read_only_nao_altera_neuronios(vault, tmp_path):
-    before = {p: p.read_text() for p in vault.rglob("*.md")}
+    before = {p: p.read_text(encoding="utf-8") for p in vault.rglob("*.md")}
     cd.run(temporal_root=vault, conflicts_root=tmp_path / "c", apply=True, threshold=0.9,
            embed_fn=_fake_embed, llm_fn=lambda a, b: ConflictJudgement(is_conflict=False))
-    after = {p: p.read_text() for p in vault.rglob("*.md")}
+    after = {p: p.read_text(encoding="utf-8") for p in vault.rglob("*.md")}
     assert before == after
 
 
@@ -98,4 +98,4 @@ def test_report_vazio_quando_sem_conflito(vault, tmp_path):
     stats = cd.run(temporal_root=vault, conflicts_root=croot, apply=True, threshold=0.9,
                    embed_fn=_fake_embed, llm_fn=lambda a, b: ConflictJudgement(is_conflict=False))
     assert stats["conflicts"] == 0
-    assert "Nenhum conflito" in next(croot.glob("*.md")).read_text()
+    assert "Nenhum conflito" in next(croot.glob("*.md")).read_text(encoding="utf-8")

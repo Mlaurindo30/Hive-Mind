@@ -30,6 +30,11 @@ import sys
 from datetime import datetime, date
 from pathlib import Path
 
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(errors="replace")
+    except (AttributeError, OSError):
+        pass
 _HERE = Path(__file__).resolve().parent
 SINAPSE_HOME = os.environ.get("SINAPSE_HOME", str(_HERE.parent.parent))
 sys.path.append(SINAPSE_HOME)

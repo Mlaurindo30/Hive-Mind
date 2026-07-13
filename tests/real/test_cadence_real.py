@@ -46,7 +46,7 @@ def _seed_tmp_hive(tmp_path: Path) -> Path:
     modelos = home / "cerebro" / "tronco" / "modelos"
     modelos.mkdir(parents=True)
     for name in ("session-log.md", "daily-log.md"):
-        src = PROJECT_ROOT / "cerebro" / "tronco" / "modelos" / name
+        src = PROJECT_ROOT / "templates" / "vault" / "tronco" / "modelos" / name
         (modelos / name).write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
 
     session = home / "cerebro" / "cerebelo" / "sessoes" / "2026" / "01" / "02" / "2026-01-02-1000-k5-real.md"

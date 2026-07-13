@@ -16,7 +16,7 @@ def run_powershell(tmp_path: Path, script: str) -> None:
         pytest.skip("PowerShell is required to test the Windows runtime contract")
 
     script_path = tmp_path / "runtime-contract.ps1"
-    script_path.write_text(script, encoding="utf-8")
+    script_path.write_text('$ErrorActionPreference = "Stop"\n' + script, encoding="utf-8")
     env = os.environ | {
         "HIVEMIND_MODULE": str(MODULE),
         "HIVEMIND_TEST_ROOT": str(tmp_path),
@@ -34,6 +34,29 @@ def run_powershell(tmp_path: Path, script: str) -> None:
         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
     )
 
+
+def test_vault_template_sync_restores_missing_files_without_overwrite(tmp_path):
+    run_powershell(
+        tmp_path,
+        r'''
+Import-Module $env:HIVEMIND_MODULE -Force -DisableNameChecking
+$root = $env:HIVEMIND_TEST_ROOT
+$template = Join-Path $root "templates\vault\tronco\modelos"
+$existing = Join-Path $root "cerebro\tronco\modelos"
+New-Item -ItemType Directory -Path $template -Force | Out-Null
+New-Item -ItemType Directory -Path $existing -Force | Out-Null
+Set-Content -LiteralPath (Join-Path $template "session-log.md") -Value "shipped session" -Encoding UTF8
+Set-Content -LiteralPath (Join-Path $template "daily-log.md") -Value "shipped daily" -Encoding UTF8
+Set-Content -LiteralPath (Join-Path $existing "session-log.md") -Value "user session" -Encoding UTF8
+Sync-HiveMindVaultTemplates -Root $root
+if ((Get-Content -LiteralPath (Join-Path $existing "session-log.md") -Raw).Trim() -ne "user session") {
+    throw "existing template was overwritten"
+}
+if ((Get-Content -LiteralPath (Join-Path $existing "daily-log.md") -Raw).Trim() -ne "shipped daily") {
+    throw "missing template was not materialized"
+}
+''',
+    )
 
 def test_runtime_version_accepts_only_python_312(tmp_path):
     run_powershell(

@@ -476,37 +476,40 @@ def _sinapse_query_with_diagnostics(query: str) -> dict:
     de erro estruturado para o chamador MCP entender (sem exception
     silenciosa).
     """
-    legacy_holder = {"result": None}
-
-    def _legacy_query(q: str):
-        if legacy_holder["result"] is None:
-            legacy_holder["result"] = sm._query_vault_knowledge(q)
-        return legacy_holder["result"]
-
-    try:
-        from core.retrieval.router import route_query
-
-        routed = route_query(query, sinapse_query_fn=_legacy_query)
-    except Exception as e:
-        return {
-            "source": "context-fusion",
-            "observations": [],
-            "query": query,
-            "error": str(e),
-            "error_type": type(e).__name__,
-        }
-    legacy = legacy_holder["result"]
-    if legacy is None and not routed.get("answer_context"):
+    legacy = sm._query_vault_knowledge(query)
+    if legacy is None:
         return {
             "source": "context-fusion",
             "observations": [],
             "query": query,
             "error": "_query_vault_knowledge returned None (nenhum backend saudável)",
             "error_type": "BackendUnavailable",
-            "retrieval_path": routed.get("retrieval_path", []),
-            "citations": routed.get("citations", []),
-            "confidence": routed.get("confidence", 0.0),
-            "missing_context": routed.get("missing_context", []),
+            "retrieval_path": [],
+            "citations": [],
+            "confidence": 0.0,
+            "missing_context": ["hybrid:context_fusion_indisponivel"],
+        }
+
+    # Context Fusion is the canonical read path. The RetrievalRouter only
+    # enriches a successful federated result; it must never prevent that result
+    # from being returned when an optional backend (for example Milvus) is down.
+    def _legacy_query(_query: str):
+        return legacy
+
+    try:
+        from core.retrieval.router import route_query
+
+        routed = route_query(query, sinapse_query_fn=_legacy_query)
+    except Exception:
+        routed = {
+            "intent": None,
+            "intent_confidence": 0.0,
+            "intent_reason": "retrieval_router_unavailable",
+            "answer_context": [],
+            "citations": [],
+            "retrieval_path": [],
+            "confidence": 0.0,
+            "missing_context": ["retrieval_router_unavailable"],
         }
     if isinstance(legacy, dict):
         enriched = dict(legacy)

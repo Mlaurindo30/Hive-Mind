@@ -21,6 +21,22 @@ def test_versioned_profiles_define_their_required_runtime_contracts():
     assert "HIVE_FORCE_LEGACY_LLM=false" in full
 
 
+def test_fullstack_tcp_probe_is_compatible_with_windows_powershell(tmp_path):
+    readiness = ROOT / "scripts" / "setup" / "fullstack-readiness.ps1"
+    command = f"""
+. '{readiness}'
+if (Test-HiveMindTcpReadiness -TargetHost '127.0.0.1' -Port 1) {{
+    throw 'an unused port unexpectedly passed the TCP probe'
+}}
+"""
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
 def test_npm_windows_flags_map_to_the_canonical_powershell_contract():
     script = """
 const init = require('./npm/lib/init');
@@ -151,3 +167,27 @@ def test_windows_autostart_contract_is_versioned():
     assert "HiveMind-Supervisor" in source
     assert "Register-ScheduledTask" in source
     assert "validate_after_reboot_windows.py" in source
+
+
+def test_local_full_reuses_complete_canonical_container_sets():
+    source = (ROOT / "install.ps1").read_text(encoding="utf-8")
+
+    assert "Reusing existing $Name containers" in source
+    assert "partial existing container set" in source
+    assert '-ContainerNames @("sinapse-falkordb")' in source
+    assert '-ContainerNames @("hive-mind-milvus")' in source
+    assert '"hive-mind-ragflow-mysql", "es01", "redis", "minio", "hive-mind-ragflow"' in source
+
+def test_vault_materialization_initializes_the_runtime_vault_path_before_use():
+    source = (ROOT / "install.ps1").read_text(encoding="utf-8")
+    section = source[source.index('Step "Vault materialization"'):source.index('Step "Graph/index bootstrap"')]
+
+    assert '$vault = Join-Path $Root "cerebro"' in section
+    assert section.index('$vault = Join-Path $Root "cerebro"') < section.index('Sync-HiveMindVaultTemplates -Root $Root')
+    assert section.index('$vault = Join-Path $Root "cerebro"') < section.index('Join-Path $vault $dir')
+
+def test_initial_graph_bootstrap_defers_optional_hnsw_embedding_work():
+    source = (ROOT / "install.ps1").read_text(encoding="utf-8")
+    section = source[source.index('Step "Graph/index bootstrap"'):source.index('if (-not $SkipAgents)')]
+
+    assert '-File $buildGraph -SkipHnsw' in section

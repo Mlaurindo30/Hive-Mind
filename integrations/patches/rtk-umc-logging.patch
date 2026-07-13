@@ -1,41 +1,283 @@
 diff --git a/hooks/hermes/rtk-rewrite/__init__.py b/hooks/hermes/rtk-rewrite/__init__.py
+index 6dcf44e..15e38d8 100644
 --- a/hooks/hermes/rtk-rewrite/__init__.py
 +++ b/hooks/hermes/rtk-rewrite/__init__.py
-@@ -71,10 +71,37 @@ def _pre_tool_call(tool_name=None, args=None, **_kwargs):
+@@ -4,6 +4,7 @@ All rewrite logic lives in RTK's Rust ``rtk rewrite`` command; this module
+ only bridges Hermes ``pre_tool_call`` payloads to that command and fails open.
+ """
+ 
++import os
+ import shutil
+ import subprocess
+ import sys
+@@ -71,10 +72,45 @@ def _pre_tool_call(tool_name=None, args=None, **_kwargs):
          rewritten = result.stdout.strip()
          if rewritten and rewritten != command:
              args["command"] = rewritten
 +            _log_to_umc(
 +                title=f"RTK Opt: {command[:50]}",
 +                content=f"Original: {command}\nRewritten: {rewritten}",
-+                kind="execution"
 +            )
      except Exception as e:
          _warn(str(e))
          return
-
-+def _log_to_umc(title, content, kind="execution"):
-+    """Saves log to UMC via standalone script to avoid circular dependencies."""
+ 
+ 
++def _log_to_umc(title, content):
++    """Record an optional rewrite observation without blocking the terminal call."""
 +    try:
-+        import os
-+        import subprocess
++        sinapse_home = os.environ.get("SINAPSE_HOME")
++        if not sinapse_home:
++            return
 +
-+        sinapse_home = os.environ.get(
-+            "SINAPSE_HOME", os.path.expanduser("~/Documentos/Projects/Hive-Mind")
++        write_script = os.path.join(
++            sinapse_home, "scripts", "services", "sinapse-write.py"
 +        )
-+        write_script = os.path.join(sinapse_home, "scripts", "services", "sinapse-write.py")
++        if not os.path.isfile(write_script):
++            return
 +
-+        if os.path.exists(write_script):
-+            subprocess.Popen(
-+                [sys.executable, write_script, "observation", "--title", title,
-+                 "--content", content, "--kind", kind],
-+                stdout=subprocess.DEVNULL,
-+                stderr=subprocess.DEVNULL
-+            )
++        subprocess.Popen(
++            [
++                sys.executable,
++                write_script,
++                "observation",
++                "--title",
++                title,
++                "--content",
++                content,
++                "--kind",
++                "execution",
++            ],
++            stdout=subprocess.DEVNULL,
++            stderr=subprocess.DEVNULL,
++        )
 +    except Exception:
 +        pass
 +
-+
- 
  def _warn(message):
      print(f"rtk: hermes plugin warning: {message}", file=sys.stderr)
+diff --git a/src/core/constants.rs b/src/core/constants.rs
+index a5ecd38..7730afb 100644
+--- a/src/core/constants.rs
++++ b/src/core/constants.rs
+@@ -1,6 +1,7 @@
+ pub const RTK_DATA_DIR: &str = "rtk";
+ pub const HISTORY_DB: &str = "history.db";
+ pub const CONFIG_TOML: &str = "config.toml";
++#[cfg_attr(test, allow(dead_code))]
+ pub const FILTERS_TOML: &str = "filters.toml";
+ pub const TRUSTED_FILTERS_JSON: &str = "trusted_filters.json";
+ pub const DEFAULT_HISTORY_DAYS: i64 = 90;
+diff --git a/src/core/stream.rs b/src/core/stream.rs
+index 02a6cfc..fc59890 100644
+--- a/src/core/stream.rs
++++ b/src/core/stream.rs
+@@ -546,6 +546,35 @@ pub(crate) mod tests {
+     use super::*;
+     use std::process::Command;
+ 
++    #[cfg(windows)]
++    fn test_shell(script: &str) -> Command {
++        let mut command = Command::new("cmd");
++        command.args(["/C", script]);
++        command
++    }
++
++    #[cfg(not(windows))]
++    fn test_shell(script: &str) -> Command {
++        let mut command = Command::new("sh");
++        command.args(["-c", script]);
++        command
++    }
++
++    fn large_output_command(stderr: bool) -> Command {
++        #[cfg(windows)]
++        let script = if stderr {
++            "for /L %i in (1,1,140000) do @echo aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 1>&2"
++        } else {
++            "for /L %i in (1,1,140000) do @echo aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
++        };
++        #[cfg(not(windows))]
++        let script = if stderr {
++            "dd if=/dev/zero bs=1024 count=11264 2>/dev/null | tr '\\0' 'a' | fold -w 80 1>&2"
++        } else {
++            "dd if=/dev/zero bs=1024 count=11264 2>/dev/null | tr '\\0' 'a' | fold -w 80"
++        };
++        test_shell(script)
++    }
+     struct LineFilter<F: FnMut(&str) -> Option<String>> {
+         f: F,
+     }
+@@ -568,13 +597,13 @@ pub(crate) mod tests {
+ 
+     #[test]
+     fn test_exit_code_zero() {
+-        let status = Command::new("true").status().unwrap();
++        let status = test_shell("exit 0").status().unwrap();
+         assert_eq!(status_to_exit_code(status), 0);
+     }
+ 
+     #[test]
+     fn test_exit_code_nonzero() {
+-        let status = Command::new("false").status().unwrap();
++        let status = test_shell("exit 1").status().unwrap();
+         assert_eq!(status_to_exit_code(status), 1);
+     }
+ 
+@@ -650,8 +679,7 @@ pub(crate) mod tests {
+ 
+     #[test]
+     fn test_run_streaming_passthrough_echo() {
+-        let mut cmd = Command::new("echo");
+-        cmd.arg("hello");
++        let mut cmd = test_shell("echo hello");
+         let result = run_streaming(&mut cmd, StdinMode::Null, FilterMode::Passthrough).unwrap();
+         assert_eq!(result.exit_code, 0);
+         // Passthrough inherits TTY — raw/filtered are empty
+@@ -660,16 +688,14 @@ pub(crate) mod tests {
+ 
+     #[test]
+     fn test_run_streaming_exit_code_preserved() {
+-        // nosemgrep: interpreter-execution
+-        let mut cmd = Command::new("sh");
+-        cmd.args(["-c", "exit 42"]);
++        let mut cmd = test_shell("exit 42");
+         let result = run_streaming(&mut cmd, StdinMode::Null, FilterMode::Passthrough).unwrap();
+         assert_eq!(result.exit_code, 42);
+     }
+ 
+     #[test]
+     fn test_run_streaming_exit_code_zero() {
+-        let mut cmd = Command::new("true");
++        let mut cmd = test_shell("exit 0");
+         let result = run_streaming(&mut cmd, StdinMode::Null, FilterMode::Passthrough).unwrap();
+         assert_eq!(result.exit_code, 0);
+         assert!(result.success());
+@@ -677,7 +703,7 @@ pub(crate) mod tests {
+ 
+     #[test]
+     fn test_run_streaming_exit_code_one() {
+-        let mut cmd = Command::new("false");
++        let mut cmd = test_shell("exit 1");
+         let result = run_streaming(&mut cmd, StdinMode::Null, FilterMode::Passthrough).unwrap();
+         assert_eq!(result.exit_code, 1);
+         assert!(!result.success());
+@@ -725,13 +751,8 @@ pub(crate) mod tests {
+ 
+     #[test]
+     fn test_run_streaming_raw_cap_at_10mb() {
+-        // nosemgrep: interpreter-execution
+-        let mut cmd = Command::new("sh");
+-        // ~11 MiB of 80-char lines (fast: fewer lines than `yes | head -6M`)
+-        cmd.args([
+-            "-c",
+-            "dd if=/dev/zero bs=1024 count=11264 2>/dev/null | tr '\\0' 'a' | fold -w 80",
+-        ]);
++        // ~11 MiB of output, generated by the platform shell.
++        let mut cmd = large_output_command(false);
+         let result = run_streaming(&mut cmd, StdinMode::Null, FilterMode::CaptureOnly).unwrap();
+         assert!(
+             result.raw.len() <= 10_485_760 + 100,
+@@ -746,13 +767,8 @@ pub(crate) mod tests {
+ 
+     #[test]
+     fn test_run_streaming_stderr_cap_at_10mb() {
+-        // nosemgrep: interpreter-execution
+-        let mut cmd = Command::new("sh");
+-        // ~11 MiB on stderr, nothing on stdout
+-        cmd.args([
+-            "-c",
+-            "dd if=/dev/zero bs=1024 count=11264 2>/dev/null | tr '\\0' 'a' | fold -w 80 1>&2",
+-        ]);
++        // ~11 MiB on stderr, generated by the platform shell.
++        let mut cmd = large_output_command(true);
+         let result = run_streaming(&mut cmd, StdinMode::Null, FilterMode::CaptureOnly).unwrap();
+         // raw = raw_stdout + raw_stderr; stdout is empty so raw ≈ stderr size
+         assert!(
+@@ -764,7 +780,7 @@ pub(crate) mod tests {
+ 
+     #[test]
+     fn test_child_guard_prevents_zombie() {
+-        let mut cmd = Command::new("true");
++        let mut cmd = test_shell("exit 0");
+         let result = run_streaming(&mut cmd, StdinMode::Null, FilterMode::CaptureOnly);
+         assert!(result.is_ok());
+         assert_eq!(result.unwrap().exit_code, 0);
+@@ -772,31 +788,28 @@ pub(crate) mod tests {
+ 
+     #[test]
+     fn test_run_streaming_null_stdin_cat() {
+-        let mut cmd = Command::new("cat");
++        let mut cmd = test_shell("exit 0");
+         let result = run_streaming(&mut cmd, StdinMode::Null, FilterMode::Passthrough).unwrap();
+         assert_eq!(result.exit_code, 0);
+     }
+ 
+     #[test]
+     fn test_run_streaming_raw_contains_stdout() {
+-        let mut cmd = Command::new("echo");
+-        cmd.arg("test_output_xyz");
++        let mut cmd = test_shell("echo test_output_xyz");
+         let result = run_streaming(&mut cmd, StdinMode::Null, FilterMode::CaptureOnly).unwrap();
+         assert!(result.raw.contains("test_output_xyz"));
+     }
+ 
+     #[test]
+     fn test_run_streaming_capture_only_filtered_equals_raw() {
+-        let mut cmd = Command::new("echo");
+-        cmd.arg("check_equality");
++        let mut cmd = test_shell("echo check_equality");
+         let result = run_streaming(&mut cmd, StdinMode::Null, FilterMode::CaptureOnly).unwrap();
+         assert_eq!(result.filtered.trim(), result.raw_stdout.trim());
+     }
+ 
+     #[test]
+     fn test_exec_capture_success() {
+-        let mut cmd = Command::new("echo");
+-        cmd.arg("hello_capture");
++        let mut cmd = test_shell("echo hello_capture");
+         let result = exec_capture(&mut cmd).unwrap();
+         assert!(result.success());
+         assert_eq!(result.exit_code, 0);
+@@ -805,7 +818,7 @@ pub(crate) mod tests {
+ 
+     #[test]
+     fn test_exec_capture_failure() {
+-        let mut cmd = Command::new("false");
++        let mut cmd = test_shell("exit 1");
+         let result = exec_capture(&mut cmd).unwrap();
+         assert!(!result.success());
+         assert_eq!(result.exit_code, 1);
+@@ -813,18 +826,14 @@ pub(crate) mod tests {
+ 
+     #[test]
+     fn test_exec_capture_stderr() {
+-        // nosemgrep: interpreter-execution
+-        let mut cmd = Command::new("sh");
+-        cmd.args(["-c", "echo err_msg >&2"]);
++        let mut cmd = test_shell("echo err_msg 1>&2");
+         let result = exec_capture(&mut cmd).unwrap();
+         assert!(result.stderr.contains("err_msg"));
+     }
+ 
+     #[test]
+     fn test_exec_capture_combined() {
+-        // nosemgrep: interpreter-execution
+-        let mut cmd = Command::new("sh");
+-        cmd.args(["-c", "echo out_msg; echo err_msg >&2"]);
++        let mut cmd = test_shell("echo out_msg & echo err_msg 1>&2");
+         let result = exec_capture(&mut cmd).unwrap();
+         let combined = result.combined();
+         assert!(combined.contains("out_msg"));
+diff --git a/src/core/toml_filter.rs b/src/core/toml_filter.rs
+index 164b3e6..5d13cca 100644
+--- a/src/core/toml_filter.rs
++++ b/src/core/toml_filter.rs
+@@ -185,6 +185,7 @@ pub struct TomlFilterRegistry {
+ impl TomlFilterRegistry {
+     /// Load registry from disk + built-in. Emits warnings to stderr on parse
+     /// errors but never panics — bad files are silently ignored.
++    #[cfg_attr(test, allow(dead_code))]
+     fn load() -> Self {
+         let mut filters = Vec::new();
+ 

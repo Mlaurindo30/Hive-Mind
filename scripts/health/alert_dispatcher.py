@@ -48,7 +48,7 @@ def load_alerts(saude_root: Path = cp.SAUDE_ROOT, *,
     snapshot = saude_root / f"{today.isoformat()}.md"
     if not snapshot.exists():
         return []
-    text = snapshot.read_text(errors="ignore")
+    text = snapshot.read_text(encoding="utf-8", errors="replace")
     # Encontra seção ## Alertas
     m = re.search(r"^## Alertas\s*\n(.*?)(?=^##|\Z)", text, re.MULTILINE | re.DOTALL)
     if not m:
@@ -126,7 +126,7 @@ def m13_alerts_dispatched_today(inbox_root: Path = cp.INBOX_ROOT, *,
         return 0
     count = 0
     for f in day_dir.glob("alerta-*.md"):
-        text = f.read_text(errors="ignore")
+        text = f.read_text(encoding="utf-8", errors="replace")
         m = re.match(r"^---\s*\n(.*?)\n---", text, re.DOTALL)
         if not m:
             continue

@@ -91,7 +91,7 @@ def scan_neuronios(temporal_root: Path, *, now: Optional[datetime] = None) -> li
         # Não reprocessa o que já está arquivado (idempotência).
         if "arquivo" in md.relative_to(temporal_root).parts[:1]:
             continue
-        data, fm, body = parse_frontmatter(md.read_text(errors="ignore"))
+        data, fm, body = parse_frontmatter(md.read_text(encoding="utf-8", errors="replace"))
         ntype = str(data.get("type", "")).strip().lower()
         project, topic = _project_topic(md, temporal_root)
         out.append({

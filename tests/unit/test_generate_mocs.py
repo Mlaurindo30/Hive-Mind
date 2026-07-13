@@ -17,7 +17,7 @@ def _neuron(temporal: Path, project: str, topic: str, name: str, title: str, sec
     d = temporal / project / topic
     d.mkdir(parents=True, exist_ok=True)
     fm = f"sectors: {sectors}\n" if sectors else ""
-    (d / f"{name}.md").write_text(f"---\ntype: fact\n{fm}---\n# {title}\n\nconteúdo\n")
+    (d / f"{name}.md").write_text(f"---\ntype: fact\n{fm}---\n# {title}\n\nconteúdo\n", encoding="utf-8")
 
 
 def test_build_mocs_gera_hierarquia(monkeypatch, tmp_path):
@@ -34,19 +34,19 @@ def test_build_mocs_gera_hierarquia(monkeypatch, tmp_path):
     assert stats == {"neurons": 3, "projects": 2, "topics": 2, "sectors": 1}
 
     # Consciência (Home) lista os projetos
-    home = (tmp_path / "_Consciencia.md").read_text()
+    home = (tmp_path / "_Consciencia.md").read_text(encoding="utf-8")
     assert "[[_Hive-Mind|Hive-Mind]]" in home and "[[_Thoth|Thoth]]" in home
 
     # MOC de projeto lista o tópico
-    proj = cp.project_moc("Hive-Mind").read_text()
+    proj = cp.project_moc("Hive-Mind").read_text(encoding="utf-8")
     assert "[[_seguranca|seguranca]]" in proj
 
     # MOC de tópico lista os neurônios pelo título
-    top = cp.topic_moc("Hive-Mind", "seguranca").read_text()
+    top = cp.topic_moc("Hive-Mind", "seguranca").read_text(encoding="utf-8")
     assert "[[neuronio-a|Auditoria real]]" in top and "[[neuronio-b|Outro fato]]" in top
 
     # MOC de setor cruza projetos
-    sec = cp.sector_moc("ai-infra").read_text()
+    sec = cp.sector_moc("ai-infra").read_text(encoding="utf-8")
     assert "[[neuronio-a|Auditoria real]]" in sec
 
 

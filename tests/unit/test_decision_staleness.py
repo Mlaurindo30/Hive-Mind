@@ -64,7 +64,7 @@ def test_render_markdown_tabela(vault):
 
 
 def test_read_only_nao_altera_arquivos(vault):
-    before = {p: p.read_text() for p in vault.rglob("*.md")}
+    before = {p: p.read_text(encoding="utf-8") for p in vault.rglob("*.md")}
     ds.stale_decisions(vault, days=180, now=NOW)
-    after = {p: p.read_text() for p in vault.rglob("*.md")}
+    after = {p: p.read_text(encoding="utf-8") for p in vault.rglob("*.md")}
     assert before == after   # nenhum arquivo tocado

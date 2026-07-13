@@ -316,6 +316,37 @@ function New-HiveMindApiKey {
     return [Convert]::ToBase64String($bytes).TrimEnd("=") -replace "\+", "-" -replace "/", "_"
 }
 
+function Sync-HiveMindVaultTemplates {
+    <#
+    .SYNOPSIS
+    Materializes shipped vault templates without replacing user-owned files.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root
+    )
+
+    $templateVault = Join-Path $Root "templates\vault"
+    if (-not (Test-Path -LiteralPath $templateVault -PathType Container)) {
+        throw "Shipped vault template directory was not found: $templateVault"
+    }
+
+    $vault = Join-Path $Root "cerebro"
+    Ensure-HiveMindDirectory -Path $vault
+    foreach ($source in Get-ChildItem -LiteralPath $templateVault -Recurse -Force) {
+        $relative = $source.FullName.Substring($templateVault.Length + 1)
+        $destination = Join-Path $vault $relative
+        if ($source.PSIsContainer) {
+            Ensure-HiveMindDirectory -Path $destination
+            continue
+        }
+
+        if (-not (Test-Path -LiteralPath $destination)) {
+            Ensure-HiveMindDirectory -Path (Split-Path -Path $destination -Parent)
+            Copy-Item -LiteralPath $source.FullName -Destination $destination
+        }
+    }
+}
 function Ensure-HiveMindDirectory {
     param(
         [Parameter(Mandatory = $true)]
