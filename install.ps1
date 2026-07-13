@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [ValidateSet("local-min", "local-full")]
     [string]$Profile = "local-min",
@@ -488,11 +488,26 @@ if (-not $SkipServices -and (Test-HiveMindCommand node)) {
 }
 
 if (-not $SkipServices) {
+    Step "Scheduled knowledge jobs (Task Scheduler)"
+    $registerJobs = Join-Path $Root "scripts\setup\register-windows-jobs.ps1"
+    if (Test-Path -LiteralPath $registerJobs) {
+        $jobsArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $registerJobs, "-Root", $Root)
+        if ($DryRun) { $jobsArgs += "-WhatIfOnly" }
+        & powershell.exe @jobsArgs
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    } else {
+        Write-Warning "register-windows-jobs.ps1 not found yet; skipping scheduled jobs."
+    }
+
     Step "Windows autostart"
     $registerRuntime = Join-Path $Root "scripts\setup\register-windows-runtime.ps1"
     if (Test-Path -LiteralPath $registerRuntime) {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $registerRuntime -Root $Root
+        $runtimeArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $registerRuntime, "-Root", $Root)
+        if ($DryRun) { $runtimeArgs += "-WhatIfOnly" }
+        & powershell.exe @runtimeArgs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    } else {
+        Write-Warning "register-windows-runtime.ps1 not found yet; skipping autostart."
     }
 }
 if ($WithTests) {
