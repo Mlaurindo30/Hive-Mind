@@ -75,3 +75,29 @@ test('selectServices reads the persisted installation profile', () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('waitForRequiredHealthy blocks until every required manifest service is healthy', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const { waitForRequiredHealthy } = require('../lib/supervisor');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hive-required-health-'));
+  const stateFile = path.join(root, 'state.json');
+  const requiredManifest = {
+    root,
+    claude_mem_plugin_available: true,
+    services: [{ name: 'milvus', required: true, enabled_profiles: ['local-full'], dependencies: [] }],
+  };
+  fs.writeFileSync(stateFile, JSON.stringify({ milvus: { state: 'starting' } }));
+
+  try {
+    setTimeout(() => fs.writeFileSync(stateFile, JSON.stringify({ milvus: { state: 'healthy' } })), 10);
+    await assert.doesNotReject(waitForRequiredHealthy(requiredManifest, 'local-full', {
+      stateFile,
+      timeoutMs: 500,
+      pollMs: 5,
+    }));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

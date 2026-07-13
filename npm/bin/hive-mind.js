@@ -14,7 +14,7 @@ Commands:
                      Clone and install Hive-Mind (Linux/WSL/macOS)
   init wizard        Interactive installation wizard
   doctor             Health check of the runtime (API, services)
-  services start|stop|status|restart
+  services start|stop|status|restart|wait
                      Manage services (systemd/launchd/supervisor)
   mcp register --agent <claude|codex|gemini|cursor|...>
                      Register the sinapse-memory MCP server in the agent
@@ -92,8 +92,8 @@ async function main() {
       return doctor();
     case 'services': {
       const action = rest[0];
-      if (!['start', 'stop', 'status', 'restart'].includes(action)) {
-        console.error('usage: hive-mind services start|stop|status|restart');
+      if (!['start', 'stop', 'status', 'restart', 'wait'].includes(action)) {
+        console.error('usage: hive-mind services start|stop|status|restart|wait');
         return 1;
       }
       const { dispatch } = require('../lib/services');

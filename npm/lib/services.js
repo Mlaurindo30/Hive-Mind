@@ -57,6 +57,11 @@ function dispatch(action) {
       return supervisor.start();
     }
     if (action === 'stop') return supervisor.stop();
+    if (action === 'wait') {
+      return supervisor.waitForRequiredHealthy(supervisor.loadManifest())
+        .then(() => { console.log('required services are healthy'); return 0; })
+        .catch((error) => { console.error(error.message); return 1; });
+    }
     return supervisor.status();
   }
   if (b === 'launchd') {

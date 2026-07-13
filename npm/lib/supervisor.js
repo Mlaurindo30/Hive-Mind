@@ -347,6 +347,29 @@ function reportedServiceState(record, pidIsAlive) {
 function loadState(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return {}; }
 }
+
+async function waitForRequiredHealthy(manifest, profile, options = {}) {
+  const missingRequirements = requiredServiceErrors(manifest, profile);
+  if (missingRequirements.length) throw new Error(missingRequirements.join('; '));
+
+  const required = runnableServices(manifest, profile)
+    .filter((service) => service.required)
+    .map((service) => service.name);
+  const stateFile = options.stateFile || paths().stateFile;
+  const timeoutMs = Math.max(1, options.timeoutMs ?? 300000);
+  const pollMs = Math.max(1, options.pollMs ?? 250);
+  const deadline = Date.now() + timeoutMs;
+  let missing = required;
+
+  do {
+    const states = loadState(stateFile);
+    missing = required.filter((name) => states[name]?.state !== 'healthy');
+    if (!missing.length) return;
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  } while (Date.now() < deadline);
+
+  throw new Error(`required services are not healthy: ${missing.join(', ')}`);
+}
 function status() {
   const p = paths();
   const manifest = loadManifest();
@@ -369,4 +392,4 @@ if (require.main === module && process.argv[2] === '__daemon') {
   daemon();
 }
 
-module.exports = { start, stop, status, loadManifest, runnableServices, selectServices, selectedProfile, topologicalServices, requiredServiceErrors, probeReadiness, waitForReadiness, platformCommand, reportedServiceState, restartDelayMs, canRestart };
+module.exports = { start, stop, status, loadManifest, runnableServices, selectServices, selectedProfile, topologicalServices, requiredServiceErrors, probeReadiness, waitForReadiness, waitForRequiredHealthy, platformCommand, reportedServiceState, restartDelayMs, canRestart };

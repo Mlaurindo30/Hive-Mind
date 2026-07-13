@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [ValidateSet("local-min", "local-full")]
     [string]$Profile = "local-min",
@@ -490,6 +490,8 @@ if (-not $SkipServices -and (Test-HiveMindCommand node)) {
     try {
         $env:HIVE_MIND_HOME = $Root
         & node (Join-Path $Root "npm\bin\hive-mind.js") "services" "restart"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        & node (Join-Path $Root "npm\bin\hive-mind.js") "services" "wait"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         & node (Join-Path $Root "npm\bin\hive-mind.js") "services" "status"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
