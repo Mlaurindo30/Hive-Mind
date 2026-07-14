@@ -1371,3 +1371,223 @@ O Anexo A do desenho v1 ja cobre esses pontos; nao precisa de revisao adicional.
 | Captura Claude Mem mencionada, mas implicita em "scripts/capture/*" | Categoria `user-session` explicita; NAO roda em Session 0 | 14.2, 14.4 |
 | Containers do `local-full` nao enumerados | 7 containers canonicos: sinapse-falkordb, hive-mind-milvus, hive-mind-ragflow-mysql, es01, redis, minio, hive-mind-ragflow | 12.1 |
 | Perfis com contradicao sobre RAGFlow opt-in vs obrigatorio | RAGFlow **obrigatorio** em `local-full`; `lightrag` e `langfuse` sao `required: false` | 8 (external_services) |
+
+
+---
+
+# Anexo D. Addendum obrigatorio para F1 (resolucao das correcoes da revisao)
+
+Este addendum registra as correcoes obrigatorias exigidas na aprovacao
+condicional para execucao de F1. Cada item abaixo **fecha uma lacuna
+identificada durante a revisao** e deve estar refletido na implementacao
+de F1 antes de qualquer commit alem de `docs(architecture): establish
+control plane redesign v2` e `docs(architecture): resolve F1 approval conditions`.
+
+## D.1. Windows: Desktop padrao e Service opcional
+
+```text
+Desktop padrao:
+um unico hive-mindd run iniciado no logon do usuario.
+
+Modo system service:
+opcional, somente para instalacoes headless/dedicadas.
+```
+
+Task Scheduler, WinSW, systemd ou launchd sao apenas **launchers** de um
+processo. Nenhum deles e um control plane paralelo. Existe **um unico
+processo** `hive-mindd` no host, nao importa o modo escolhido.
+
+Implicacoes em F1: o stub de `hive-mindd` (Secao 4) **nao cria nem
+manipula nenhuma entrada de Task Scheduler, WinSW, systemd ou launchd**.
+A escolha entre desktop default e system service acontece em F9
+(adapter de SO), nao em F1.
+
+## D.2. Instancia unica: named mutex / lock exclusivo
+
+`hive-mindd` deve usar **exatamente um** mecanismo de instancia unica
+por host, escolhido nesta ordem de preferencia:
+
+1. **Windows**: named mutex `Local\Hive-Mind\hive-mindd` via
+   `ctypes.windll.kernel32.CreateMutexW`.
+2. **Linux**: file lock `flock` em `state_dir/daemon.lock` (modo LOCK_EX
+   com `LOCK_NB`).
+3. **macOS**: file lock `flock` em `state_dir/daemon.lock` (mesma
+   implementacao de Linux; `flock` funciona em Darwin).
+
+Em F1 o lock nao precisa ser adquirido; a implementacao fica em F3
+(discovery) e F4 (cutover). Porem o **contrato do lock** ja precisa
+estar documentado e stub-criado em `hive_mind.daemon.lock` para que
+testes possam validar o comportamento (tentativa de segunda instancia
+falha com mensagem clara).
+
+## D.3. Cutover journal: persistencia transacional
+
+Cutovers (F4) precisam ser **transacionais**: o daemon deve ser capaz de
+recuperar estado apos um crash no meio de uma transicao entre
+`legacy` <-> `shadow` <-> `managed`. O journal vive em
+`state_dir/cutover.journal` e segue o padrao write-ahead:
+
+```text
+BEGIN <cutover-id> <service-name> <from-state> <to-state>
+  CAPTURE_PID <pid>
+  STOP_LEGACY <service-name>           # escreve ANTES de chamar stop
+  WAIT_PID_DEAD
+  ACQUIRE_PORT
+  MARK <new-state>
+  START_MANAGED
+  WAIT_READINESS
+COMMIT
+```
+
+Em F1 o journal NAO precisa ser implementado, mas o **caminho do
+arquivo** (`state_dir/cutover.journal`) precisa estar documentado e o
+modulo `hive_mind.daemon.cutover_journal` precisa existir como stub
+(funcoes `begin/commit/rollback` que levantam `NotImplementedError` em
+F1, com testes apontando que elas serao preenchidas em F4).
+
+Apos qualquer crash, no boot, o daemon detecta transacoes com
+`BEGIN` mas sem `COMMIT` e executa o `rollback` automaticamente
+antes de subir qualquer servico.
+
+## D.4. Shadow mode passivo: proibicao absoluta de mutacao
+
+Em `ownership: shadow` (Secao 9.1), o daemon **nao** pode:
+
+- Escrever em `runtime.yaml` alem de `ownership` (campo interno).
+- Criar ou modificar entradas de Task Scheduler, systemd timer,
+  crontab, WinSW XML ou launchd plist.
+- Iniciar processos filhos.
+- Disparar jobs.
+- Modificar state alem de `state_dir/services.shadow.json`
+  (arquivo separado do state managed).
+
+`state_dir/services.shadow.json` registra **apenas observacoes**
+(read-only sobre o legado, sem efeitos colaterais). Nenhum outro
+arquivo de state e criado em shadow.
+
+Em F1 isso e documentado como restricao de design no stub de
+`hive_mind.daemon.supervisor.ShadowSupervisor` e em teste
+`tests/unit/test_shadow_purity.py` que verifica que um daemon em
+shadow **nao** chama `subprocess.Popen`, **nao** escreve em
+`runtime.yaml`, e **nao** cria arquivos em `state_dir` alem de
+`services.shadow.json`.
+
+## D.5. Project root: resolucao obrigatoria
+
+A resolucao do project root (Secao 5.7 e 6 do v2) deve seguir esta
+ordem explicita em F1:
+
+1. Argumento `--project-root` na linha de comando.
+2. Variavel de ambiente `HIVE_MIND_HOME`.
+3. Config persistida: `<user_config>/project-root` (resolve para
+   `~/.config/hive-mind/project-root` no Linux, `~/Library/Application
+   Support/Hive-Mind/project-root` no macOS, `%APPDATA%\Hive-Mind\project-root`
+   no Windows).
+4. Descoberta ascendente por **combinacao segura** de marcadores:
+   `pyproject.toml` + `AGENTS.md` + `config/sinapse.yaml` **presentes
+   no mesmo diretorio**. Um unico marcador isolado NAO e suficiente.
+5. **Erro explicito**: se nenhum dos 4 caminhos acima resolver, o
+   comando imprime em stderr uma mensagem clara listando o que foi
+   procurado e onde, e sai com codigo 78 (`EX_CONFIG` de sysexits.h).
+   **Nunca** cair em fallback silencioso (ex.: `cwd`).
+
+Marcadores aceitos: `pyproject.toml`, `AGENTS.md`, `config/sinapse.yaml`.
+A combinacao minima para ascender e **2 dos 3**. Marcador isolado
+(`pyproject.toml` sozinho) e recusado com erro explicito.
+
+## D.6. Scheduler: persistencia, leases, max_instances
+
+A persistencia do scheduler **nao pode depender apenas da memoria do
+processo**. Em F1 isso e **documentado e stub-criado**:
+
+- O modulo `hive_mind.daemon.scheduler_store` define a interface
+  `SchedulerStore` com metodos `acquire_lease`, `release_lease`,
+  `next_run`, `set_next_run`, `last_run`, `set_last_run`.
+- A implementacao default em F1 e `MemorySchedulerStore` (in-process,
+  com a restricao documentada de que **nao sobrevive a restart**).
+- A implementacao `SqliteSchedulerStore` (chave de F7) deve estar
+  documentada como a default de producao, com persistencia em
+  `state_dir/jobs.db` (SQLite). Nao implementada em F1.
+
+`max_instances` e enforced **no store, nao no daemon**. O daemon
+impede de subir o mesmo job se o store disser que ja existe uma
+instancia ativa. Isso vale mesmo em F1 (testes precisam
+exercitar).
+
+## D.7. Dependencias: servico obrigatorio satisfeito por `healthy`
+
+`services[].required: true` significa: o servico e considerado
+satisfeito **somente** quando `state == "healthy"`. Politica diferente
+deve ser declarada explicitamente em `services[].required_policy`
+(p.ex. `required: true, required_policy: best_effort` para casos em
+que `degraded` ja basta para o gate).
+
+Estado `degraded` NAO satisfaz `required: true` por default. Isso
+implica:
+
+- `hive-mind doctor` retorna exit 1 se algum servico `required: true`
+  nao esta `healthy`.
+- `hive-mind service status` lista `required-but-degraded` em
+  destaque.
+- `runtime.yaml` rejeita `required: true` com `required_policy`
+  ausente se o autor quis dizer "best-effort"; precisa explicitar.
+
+Em F1, `tests/unit/test_required_policy.py` valida que o parser de
+`runtime.yaml` rejeita combinacoes ambiguas.
+
+## D.8. Itens da F1 (escopo minimo do commit 3)
+
+Conforme Secao 3 do pedido:
+
+```text
+src/hive_mind/
+  __init__.py
+  cli.py
+  project.py
+  daemon/
+    __init__.py
+    main.py
+```
+
+`hive_mind.cli` expoe: `hive-mind --version`, `hive-mind --help`,
+`hive-mind project-root` (com a resolucao da Secao D.5).
+
+`hive_mind.daemon.main` expoe: `hive-mindd --version`, `hive-mindd --help`,
+`hive-mindd run` (stub que retorna `not implemented in F1` para stdout
+e exit 0; **nao** inicia processos).
+
+Stubs documentados mas NAO implementados em F1 (testes apontam
+NotImplementedError):
+
+- `hive_mind.daemon.lock` (Secao D.2).
+- `hive_mind.daemon.cutover_journal` (Secao D.3).
+- `hive_mind.daemon.supervisor.ShadowSupervisor` (Secao D.4).
+- `hive_mind.daemon.scheduler_store.SchedulerStore` + `MemorySchedulerStore` (Secao D.6).
+
+A F1 NAO cria `core/`, `scripts/`, `config/`, `integrations/`, nem
+altera qualquer arquivo de Claude Mem.
+
+## D.9. Restricoes adicionais da F1
+
+- Nenhum merge, push, PR, tag, release.
+- Nenhuma alteracao em `install.sh`, `install.ps1`, `install.bat`,
+  `scripts/setup/install_services.py`, `npm/lib/supervisor.js`,
+  `npm/lib/services.js`, `register-mcp.ps1`, `register-mcp.sh`,
+  `scripts/services/*`, `scripts/capture/*`, Docker Compose, Task
+  Scheduler, systemd, launchd.
+- A versao do projeto (3.10.1) NAO muda.
+- Nenhum servico e iniciado; nenhum cutover e executado.
+- Nenhum script e removido.
+
+## D.10. Sequencia de commits da F1
+
+```text
+docs(architecture): establish control plane redesign v2
+docs(architecture): resolve F1 approval conditions
+feat(control-plane): add package and entry point foundation
+test(control-plane): verify package and project root contracts
+```
+
+Nenhum commit combina papeis. Nenhum commit inclui arquivos
+nao-listados. Nenhum commit altera arquivos da lista de proibicoes.
+
