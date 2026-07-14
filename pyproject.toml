@@ -1,3 +1,13 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hive_mind"]
+
+[tool.hatch.version]
+path = "src/hive_mind/__init__.py"
+
 [project]
 name = "hive-mind"
 version = "3.10.1"
@@ -42,6 +52,10 @@ reranker = [
     "sentence-transformers>=3.0",
 ]
 
+[project.scripts]
+hive-mind = "hive_mind.cli:main"
+hive-mindd = "hive_mind.daemon.main:main"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0",
@@ -51,7 +65,7 @@ dev = [
 ]
 
 [tool.uv]
-package = false
+package = true
 
 [tool.uv.sources]
 graphifyy = { path = "integrations/graphify", editable = true }
