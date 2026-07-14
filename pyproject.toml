@@ -4,6 +4,23 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/hive_mind"]
+include = ["src/hive_mind/resources/*.md", "src/hive_mind/resources/config/*.yaml", "src/hive_mind/resources/profiles/*.env.example"]
+exclude = [
+    ".venv/**", ".tmp/**", ".git/**", "backups/**", "dist/**", "build/**",
+    "node_modules/**", "target/**", "**/__pycache__", "**/*.pyc",
+    "hive_mind.db", "hive_mind.db-*", "logs/**",
+]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    ".venv/**", ".tmp/**", ".git/**", "backups/**", "dist/**", "build/**",
+    "node_modules/**", "target/**", "**/__pycache__", "**/*.pyc",
+    "hive_mind.db", "hive_mind.db-*", "logs/**",
+    "cerebro/**", "core/**", "scripts/**", "tests/**", "docs/**",
+    "integrations/**", "plugins/**", "claude-mem/**",
+    "templates/**", "templates",
+    "hive_mind.db-shm", "hive_mind.db-wal",
+]
 
 [project]
 name = "hive-mind"
