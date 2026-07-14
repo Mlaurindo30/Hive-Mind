@@ -73,40 +73,50 @@ def resolve_project_root(
 ) -> Path:
     """Resolve the project root using the F1 priority chain.
 
-    Raises ``ProjectRootNotFound`` with a precise diagnostic when no
-    candidate can be located. Never falls back to ``cwd`` silently.
+    Priority:
+      1. ``--project-root`` CLI argument (strict: must exist and be a dir).
+      2. ``HIVE_MIND_HOME`` environment variable (strict: same).
+      3. Persisted config at ``<user_config>/project-root``.
+      4. Upward search requiring 2 of 3 markers in the same directory.
+      5. Explicit error (exit 78 / ``EX_CONFIG``).
+
+    Explicit overrides (CLI and HIVE_MIND_HOME) are strict: a non-existent
+    or non-directory path raises ProjectRootNotFound immediately, without
+    falling back to lower-priority sources.
     """
     tried: "list[tuple[str, str]]" = []
     env_map = env if env is not None else os.environ
 
     if cli_root is not None:
         p = Path(str(cli_root)).expanduser().resolve(strict=False)
-        tried.append(("cli --project-root", str(p)))
         if p.is_dir():
             return p
+        raise ProjectRootNotFound([
+            ("cli --project-root", str(p)),
+            ("reason", "path does not exist or is not a directory"),
+        ])
 
     env_root = env_map.get("HIVE_MIND_HOME")
     if env_root:
         p = Path(env_root).expanduser().resolve(strict=False)
-        tried.append(("HIVE_MIND_HOME", str(p)))
         if p.is_dir():
             return p
+        raise ProjectRootNotFound([
+            ("HIVE_MIND_HOME", str(p)),
+            ("reason", "path does not exist or is not a directory"),
+        ])
 
+    tried.append(("persisted config", str(_user_config_dir() / "project-root")))
     persisted = _persisted_root()
     if persisted is not None:
         return persisted
-    tried.append(("persisted config", str(_user_config_dir() / "project-root")))
 
-    start = (cwd or Path.cwd()).resolve()
+    start = (cwd if cwd is not None else Path.cwd()).resolve()
+    tried.append(("upward search (2 of 3 markers) from cwd", str(start)))
     ascended = _ascend(start)
     if ascended is not None:
         return ascended
-    tried.append(
-        (
-            "upward search (2 of 3 markers)",
-            ", ".join(_MARKERS),
-        )
-    )
+    tried.append(("markers required", ", ".join(_MARKERS)))
 
     raise ProjectRootNotFound(tried)
 
