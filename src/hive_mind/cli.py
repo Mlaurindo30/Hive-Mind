@@ -15,7 +15,32 @@ import sys
 
 from hive_mind.project import EX_CONFIG, ProjectRootNotFound, add_cli_argument, resolve_project_root
 
-__version__ = "0.0.0+f1"  # F1 stub; aligned with control plane, not project version
+
+def _get_version() -> str:
+    """Return the installed package version.
+
+    The single source of truth is ``pyproject.toml::project.version``,
+    read at runtime via importlib.metadata. This guarantees
+    ``hive-mind --version`` matches the wheel filename and the
+    project release version (3.10.1).
+    """
+    try:
+        from importlib.metadata import version
+        return version("hive-mind")
+    except Exception:
+        import re
+        from pathlib import Path
+        for candidate in (Path.cwd(), Path(__file__).resolve().parents[3]):
+            pyproject = candidate / "pyproject.toml"
+            if pyproject.is_file():
+                m = re.search(
+                    r"^version\s*=\s*\"([^\"]+)\"",
+                    pyproject.read_text(encoding="utf-8"),
+                    re.M,
+                )
+                if m:
+                    return m.group(1)
+        return "unknown"
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -34,7 +59,7 @@ def main(argv: "list[str] | None" = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     if args.version:
-        print(f"hive-mind {__version__}")
+        print(f"hive-mind {_get_version()}")
         return 0
     if args.command == "project-root":
         try:

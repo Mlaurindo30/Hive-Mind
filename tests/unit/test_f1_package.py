@@ -1,138 +1,115 @@
 """F1 contract tests: entry points, version, help.
 
-Covers items from F1 Secao 7 of the F1 approval:
-- entry points;
-- versao sem mudanca;
-- help.
+The F1 contract is that hive-mind --version and hive-mindd --version
+print the project version (3.10.1) read from pyproject.toml via
+importlib.metadata. The daemon run command is not implemented
+in F1 and returns EX_UNAVAILABLE=69.
 """
 from __future__ import annotations
 
-import os
-import re
-import subprocess
-import sys
-from pathlib import Path
 
+import os, re, subprocess, sys
+from pathlib import Path
 import pytest
 
+
 REPO = Path(__file__).resolve().parents[2]
-SRC = REPO / "src"
+SRC = REPO / 'src'
+EXPECTED_VERSION = '3.10.1'
+EX_UNAVAILABLE = 69
 
 
 def _env():
-    return {
-        "PYTHONPATH": str(SRC),
-        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-    }
+    return {'PYTHONPATH': str(SRC), 'PATH': os.environ.get('PATH', '/usr/bin:/bin')}
 
 
 def _run_module(module, *args):
-    return subprocess.run(
-        [sys.executable, "-m", module, *args],
-        capture_output=True,
-        text=True,
-        env=_env(),
-        cwd=str(REPO),
-        check=False,
-    )
+    return subprocess.run([sys.executable, '-m', module, *args], capture_output=True, text=True, env=_env(), cwd=str(REPO), check=False)
 
 
-def test_cli_version_returns_zero():
-    r = _run_module("hive_mind.cli", "--version")
+def test_cli_version_matches_project_version():
+    r = _run_module('hive_mind.cli', '--version')
     assert r.returncode == 0, r.stderr
-    assert r.stdout.startswith("hive-mind ")
-    assert r.stdout.strip() == "hive-mind 0.0.0+f1"
+    assert r.stdout.strip() == 'hive-mind ' + EXPECTED_VERSION
 
 
-def test_daemon_version_returns_zero():
-    r = _run_module("hive_mind.daemon.main", "--version")
+def test_daemon_version_matches_project_version():
+    r = _run_module('hive_mind.daemon.main', '--version')
     assert r.returncode == 0, r.stderr
-    assert r.stdout.strip() == "hive-mindd 0.0.0+f1"
+    assert r.stdout.strip() == 'hive-mindd ' + EXPECTED_VERSION
 
 
 def test_cli_help_returns_zero_and_lists_project_root():
-    r = _run_module("hive_mind.cli", "--help")
+    r = _run_module('hive_mind.cli', '--help')
     assert r.returncode == 0, r.stderr
-    assert "project-root" in r.stdout
-    assert "--version" in r.stdout
+    assert 'project-root' in r.stdout
+    assert '--version' in r.stdout
 
 
 def test_daemon_help_returns_zero_and_lists_run():
-    r = _run_module("hive_mind.daemon.main", "--help")
+    r = _run_module('hive_mind.daemon.main', '--help')
     assert r.returncode == 0, r.stderr
-    assert "run" in r.stdout
+    assert 'run' in r.stdout
 
 
-def test_daemon_run_stub_prints_marker_and_exits_zero():
-    r = _run_module("hive_mind.daemon.main", "run")
-    assert r.returncode == 0, r.stderr
-    assert r.stdout.strip() == "not implemented in F1"
+def test_daemon_run_returns_ex_unavailable_and_does_not_exit_zero():
+    r = _run_module('hive_mind.daemon.main', 'run')
+    assert r.returncode == EX_UNAVAILABLE, ('daemon run must return EX_UNAVAILABLE (got %s); stdout=%r stderr=%r' % (r.returncode, r.stdout, r.stderr))
+    assert 'not implemented in F1' in r.stderr
 
 
-def test_package_version_is_not_project_version():
-    """F1 explicitly forbids bumping the project version (3.10.1)."""
-    pyproject = (REPO / "pyproject.toml").read_text(encoding="utf-8")
-    m = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.M)
-    assert m is not None, "pyproject.toml missing version"
-    assert m.group(1) == "3.10.1"
+def test_daemon_run_via_in_process_call():
+    """Run the daemon via -m to validate the entry point."""
+    r = _run_module('hive_mind.daemon.main', 'run')
+    assert r.returncode == EX_UNAVAILABLE, r.stderr
+
+
+def test_consistency_across_all_version_sources():
+    """All version sources must report the same value."""
+    pyproject = (REPO / 'pyproject.toml').read_text(encoding='utf-8')
+    m = re.search('^version\\s*=\\s*"([^"]+)"', pyproject, re.M)
+    assert m is not None, 'pyproject.toml missing [project].version'
+    assert m.group(1) == EXPECTED_VERSION
+
+
+    core = (REPO / 'core' / 'version.py').read_text(encoding='utf-8')
+    m2 = re.search('^__version__\\s*=\\s*"([^"]+)"', core, re.M)
+    assert m2 is not None, 'core/version.py missing __version__'
+    assert m2.group(1) == EXPECTED_VERSION
+
+
+    cli = _run_module('hive_mind.cli', '--version')
+    assert cli.stdout.strip() == 'hive-mind ' + EXPECTED_VERSION
+
+
+    d = _run_module('hive_mind.daemon.main', '--version')
+    assert d.stdout.strip() == 'hive-mindd ' + EXPECTED_VERSION
 
 
 def test_no_subprocess_spawned_by_daemon_run():
-    """The F1 daemon run stub must not call subprocess.Popen.
-
-    Runs the daemon module in a clean subprocess with PYTHONPATH set
-    to the src/ tree and a spy in place. The spy is installed by
-    wrapping the daemon main() with a sitecustomize-style import
-    shim: a tiny helper script (``_f1_popen_spy.py``) is written to
-    ``tmp_path`` and put first on PYTHONPATH, so it patches
-    ``subprocess.Popen`` before the daemon module is imported.
-    """
-    import subprocess as sp
-    import sys as _sys
-    import textwrap
-    from pathlib import Path as _P
-
-    spy = _P(_sys.exec_prefix)  # not used; placeholder
-
-    # We rely on the subprocess run output: the daemon prints exactly
-    # "not implemented in F1" and exits 0. We then re-run the daemon
-    # under a tmp interpreter with a sitecustomize that patches
-    # Popen, and we assert that the patch reports zero Popen calls.
-    tmp = _P(_sys.executable).parent
-    # Inline a tiny Python script that imports the daemon, monkey-
-    # patches Popen, calls main(["run"]), and prints the call count.
-    helper = textwrap.dedent(
-        """
-        import sys, subprocess
-        calls = []
-        real = subprocess.Popen
-        def spy(*a, **kw):
-            calls.append((a, kw))
-            return real(*a, **kw)
-        subprocess.Popen = spy
-        import hive_mind.daemon.main as dmain
-        rc = dmain.main(["run"])
-        subprocess.Popen = real
-        print("CALLS=" + str(len(calls)))
-        sys.exit(rc)
-        """
-    ).strip()
-    r = sp.run(
-        [_sys.executable, "-c", helper],
+    """The F1 daemon run stub must not call subprocess.Popen."""
+    helper = (
+        'import sys, subprocess' + chr(10)
+        + 'calls = []' + chr(10)
+        + 'real = subprocess.Popen' + chr(10)
+        + 'def spy(*a, **kw):' + chr(10)
+        + '    calls.append((a, kw))' + chr(10)
+        + '    return real(*a, **kw)' + chr(10)
+        + 'subprocess.Popen = spy' + chr(10)
+        + 'import hive_mind.daemon.main as dmain' + chr(10)
+        + 'rc = dmain.main(["run"])' + chr(10)
+        + 'subprocess.Popen = real' + chr(10)
+        + 'sys.stdout.write("CALLS=" + str(len(calls)) + chr(10))' + chr(10)
+        + 'sys.exit(rc)'
+    )
+    r = subprocess.run(
+        [sys.executable, '-c', helper],
         capture_output=True,
         text=True,
-        env={"PYTHONPATH": str(SRC), "PATH": os.environ.get("PATH", "/usr/bin:/bin")},
+        env={'PYTHONPATH': str(SRC), 'PATH': os.environ.get('PATH', '/usr/bin:/bin')},
         cwd=str(REPO),
         check=False,
     )
-    assert r.returncode == 0, r.stderr
-    assert r.stdout.strip() == "not implemented in F1" + chr(10) + "CALLS=0" or r.stdout.strip().endswith("CALLS=0")
-    assert "not implemented in F1" in r.stdout
-    assert r.stdout.rstrip().endswith("CALLS=0")
+    assert r.returncode == EX_UNAVAILABLE, (r.returncode, r.stderr)
+    assert r.stdout.rstrip().endswith('CALLS=0')
 
-
-def test_daemon_run_is_noop_in_subprocess():
-    r = _run_module("hive_mind.daemon.main", "run")
-    assert r.returncode == 0
-    assert r.stdout.strip() == "not implemented in F1"
-    assert r.stderr == ""

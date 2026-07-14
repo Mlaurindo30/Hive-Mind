@@ -147,5 +147,5 @@ def test_no_service_started_in_daemon_run():
         cwd=str(REPO),
         check=False,
     )
-    assert r.returncode == 0
-    assert r.stdout.strip() == "not implemented in F1"
+    assert r.returncode == 69
+    assert 'not implemented in F1' in r.stderr
