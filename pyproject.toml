@@ -9,6 +9,9 @@ exclude = [
     ".venv/**", ".tmp/**", ".git/**", "backups/**", "dist/**", "build/**",
     "node_modules/**", "target/**", "**/__pycache__", "**/*.pyc",
     "hive_mind.db", "hive_mind.db-*", "logs/**",
+    ".env", ".env.*", "*.secret", "config/keys/**",
+    "uv.lock", "pyproject.toml.orig",
+    ".github/**", ".circleci/**", "dist/.gitignore",
 ]
 
 [tool.hatch.build.targets.sdist]
@@ -20,6 +23,9 @@ exclude = [
     "integrations/**", "plugins/**", "claude-mem/**",
     "templates/**", "templates",
     "hive_mind.db-shm", "hive_mind.db-wal",
+    ".env", ".env.*", "*.secret", "config/keys/**",
+    "uv.lock", "pyproject.toml.orig",
+    ".github/**", ".circleci/**", "dist/.gitignore",
 ]
 
 [project]
