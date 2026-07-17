@@ -86,6 +86,14 @@ def test_auxiliary_collections_backfill_to_sqlite_and_query(real_db, tmp_path):
 
     backend = SQLiteVecBackend(real_db)
     assert backend.query("document_vectors", _vec(0.21), top_k=1)[0]["id"] == "doc-seed"
+    chunk = real_db.execute(
+        "SELECT document_id, parent_type, content, source_uri FROM document_chunks WHERE id = 'doc-seed'"
+    ).fetchone()
+    assert chunk is not None
+    assert chunk["document_id"]
+    assert chunk["parent_type"] == "document"
+    assert chunk["content"] == "document content doc-seed"
+    assert chunk["source_uri"].endswith("/document/doc-seed.md")
     assert backend.query("code_vectors", _vec(0.31), top_k=1)[0]["id"] == "code-seed"
     assert backend.count("visual_vectors") == 1
     assert backend.count("graph_vectors") == 1

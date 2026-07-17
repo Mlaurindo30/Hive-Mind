@@ -7,6 +7,7 @@ DECISIONS_DIR, PATTERNS_FILE, MEMORY_FILE funcione corretamente quando o
 chamador (sinapse-memory.py) passa seus próprios valores atuais.
 """
 
+import hashlib
 import os
 import re
 import tempfile
@@ -169,6 +170,7 @@ def save_decision(
 
     confidence = "verified" if evidence else "hypothesis"
     evidence_line = f"evidence: \"{evidence}\"\n" if evidence else ""
+    integrity_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
     note = (
         f"---\n"
         f"tags: [decision]\n"
@@ -179,6 +181,7 @@ def save_decision(
         f"updated: {today}\n"
         f"review_date: {today}\n"
         f"next_review: {next_review}\n"
+        f"integrity_hash: {integrity_hash}\n"
         f"source: hermes-session\n"
         f"---\n\n"
         f"# {title}\n\n"

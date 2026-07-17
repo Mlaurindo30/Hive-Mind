@@ -5,7 +5,7 @@ Live sync paths:
 - `observation_vectors`: global/local `claude-mem.db/vec_observations` -> Milvus.
 
 Auxiliary collection sync paths:
-- `document_vectors`: document neurons with existing search_vec embeddings.
+- `document_vectors`: legacy document neurons promoted to canonical document chunks.
 - `code_vectors`: code neurons with existing search_vec embeddings.
 - `visual_vectors`: visual_memories embedded from description/OCR/path.
 - `graph_vectors`: causal_edges embedded from edge text.
@@ -368,6 +368,77 @@ def _backfill_neuron_collection(conn, collection: str, neuron_type: str, *, limi
     return report
 
 
+def _backfill_document_vectors(conn, *, limit: int | None = None) -> VectorSyncReport:
+    """Promote legacy document neurons before indexing ``document_vectors``.
+
+    ``vec_documents.chunk_id`` is a foreign reference by contract.  Older
+    captures stored documents as neurons with a search_vec embedding; using
+    that neuron id directly created orphan vectors.  Materializing a canonical
+    parent and chunk retains the original content and source URI while keeping
+    the legacy id stable for callers and existing embeddings.
+    """
+    report = VectorSyncReport(collection="document_vectors")
+    rows = list(_iter_neuron_type_vectors(conn, "document", limit=limit))
+    for row in rows:
+        report.scanned += 1
+        item_id = str(row["id"])
+        source_uri = str(row["source_file"] or f"hive_mind.db:neurons/{item_id}")
+        source_hash = _stable_hash(row)
+        document_id = f"legacy-doc-{_sha256(source_uri)[:24]}"
+        try:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO document_memories(
+                    id, file_path, file_hash, summary, topics, metadata
+                ) VALUES (?, ?, ?, '', '[]', ?)
+                """,
+                (
+                    document_id,
+                    source_uri,
+                    _sha256(source_uri),
+                    json.dumps({"legacy_document_neuron": True}, ensure_ascii=False),
+                ),
+            )
+            parent = conn.execute(
+                "SELECT id FROM document_memories WHERE file_path = ?", (source_uri,)
+            ).fetchone()
+            if parent is None:
+                raise RuntimeError(f"document parent unavailable for {source_uri}")
+            document_id = str(parent["id"])
+            content = str(row["content"] or "")
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO document_chunks(
+                    id, document_id, parent_id, parent_type, source_uri,
+                    chunk_index, heading, content, offset_start, offset_end,
+                    hash, metadata, workspace_id
+                ) VALUES (?, ?, ?, 'document', ?, 0, ?, ?, 0, ?, ?, ?, ?)
+                """,
+                (
+                    item_id,
+                    document_id,
+                    document_id,
+                    source_uri,
+                    str(row["label"] or ""),
+                    content,
+                    len(content),
+                    source_hash,
+                    json.dumps({"legacy_document_neuron": True}, ensure_ascii=False),
+                    str(row["workspace_id"] or "default"),
+                ),
+            )
+            metadata = _metadata_for_neuron_collection(row, "document_vectors", "document")
+            metadata["parent_id"] = document_id
+            metadata["parent_type"] = "document"
+            metadata["knowledge_type"] = "document_chunk"
+            _upsert_sqlite_vector(conn, "document_vectors", item_id, _decode_f32(row["embedding"]), metadata)
+            report.upserted += 1
+        except Exception as exc:
+            report.failed += 1
+            report.errors.append(f"{item_id}: {type(exc).__name__}: {exc}")
+    return report
+
+
 def _backfill_visual_vectors(conn, *, limit: int | None = None) -> VectorSyncReport:
     report = VectorSyncReport(collection="visual_vectors")
     sql = """
@@ -528,7 +599,7 @@ def backfill_auxiliary_vectors_to_sqlite(
 ) -> list[VectorSyncReport]:
     """Backfill K2 auxiliary sqlite-vec collections from real local sources."""
     reports = [
-        _backfill_neuron_collection(conn, "document_vectors", "document", limit=limit),
+        _backfill_document_vectors(conn, limit=limit),
         _backfill_neuron_collection(conn, "code_vectors", "code", limit=limit),
         _backfill_visual_vectors(conn, limit=limit),
         _backfill_graph_vectors(conn, limit=limit),

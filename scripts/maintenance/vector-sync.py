@@ -22,6 +22,10 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core.auth import load_env
+
+load_env()
+
 from core.vector_backend import MilvusBackend
 from core.vector_sync import (
     AUXILIARY_COLLECTIONS,

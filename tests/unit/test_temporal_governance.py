@@ -5,6 +5,7 @@ para a área de intake quando a escrita direta no vault é negada, penalidade de
 staleness/hypothesis no RetrievalRouter, check de staleness do audit e o
 backfill idempotente.
 """
+import hashlib
 import os
 import shutil
 import sqlite3
@@ -60,6 +61,13 @@ class WriterFrontmatterTests(unittest.TestCase):
         text = Path(path).read_text(encoding="utf-8")
         self.assertIn("confidence: verified", text)
         self.assertIn('evidence: "pytest tests/unit -x passou"', text)
+
+    def test_decision_has_integrity_hash_of_content(self):
+        content = "A decisão precisa ter integridade verificável."
+        path = save_decision("Decisão íntegra", content, self.decisions_dir)
+        text = Path(path).read_text(encoding="utf-8")
+        expected = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+        self.assertIn(f"integrity_hash: {expected}", text)
 
     def test_learning_entry_has_governance_line(self):
         patterns = os.path.join(self.tmpdir, "cerebro", "cerebelo", "Patterns.md")
