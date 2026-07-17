@@ -32,8 +32,13 @@ def get_content_hash(content: str) -> str:
 
 def parse_markdown(path: Path):
     """Extrai frontmatter e conteúdo de um arquivo Markdown."""
-    with open(path, 'r', encoding='utf-8') as f:
-        text = f.read()
+    raw = path.read_bytes()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        # Entradas históricas do vault no Windows podem ter sido gravadas em
+        # CP1252. Essa decodificação é reversível e preserva o hash do conteúdo.
+        text = raw.decode("cp1252")
     
     frontmatter = {}
     content = text
