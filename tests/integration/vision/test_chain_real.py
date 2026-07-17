@@ -1,10 +1,10 @@
 """Smoke C1-C4 (origem: /tmp/smoke_chain.py e /tmp/smoke_c3.py).
 
 Cenários:
-  C1 — primary=ollama local (qwen3:8b) sem fallback
+  C1 — primary=ollama local (qwen2.5:3b) sem fallback
   C2 — primary=google fake-404 → fallback=ollama local
   C3 — primary=ollama-cloud real (config do .env)
-  C4 — primary=google fake + fallback=google fake → LLMChainFailure
+  C4 — primary=google fake + fallback=google fake → falha do Model Gateway
 
 Cobertura: PATCH 2 (load_env), PATCH 3 (LLMChainFailure preserva primary_exc +
 fallback_exc), Bug 5 (ollama /v1 base_url).
@@ -51,15 +51,17 @@ def _call(role, prompt, env, max_retries=1):
 
 # ============== C1 ==============
 
-def test_c1_ollama_local_primary_no_fallback(saved_env, ollama_local_alive):
+def test_c1_ollama_local_primary_no_fallback(saved_env, ollama_local_alive, ollama_model_available):
     """C1: caminho feliz ollama local sem fallback."""
     if not ollama_local_alive:
         pytest.skip("Ollama local :11434 offline")
+    if not ollama_model_available("qwen2.5:3b"):
+        pytest.skip("qwen2.5:3b não está instalado localmente")
     load_env()
-    _set_dreamer(saved_env, prov="ollama", mod="qwen3:8b")
+    _set_dreamer(saved_env, prov="ollama", mod="qwen2.5:3b")
     cfg = get_role_config("dreamer")
     assert cfg["provider"] == "ollama"
-    assert cfg["model"] == "qwen3:8b"
+    assert cfg["model"] == "qwen2.5:3b"
 
     t0 = time.time()
     out = _call("dreamer", "Diga OK. Conte palavras: 'casa carro livro'.", saved_env)
@@ -71,15 +73,17 @@ def test_c1_ollama_local_primary_no_fallback(saved_env, ollama_local_alive):
 
 # ============== C2 ==============
 
-def test_c2_google_fake_404_falls_back_to_ollama_local(saved_env, ollama_local_alive):
+def test_c2_google_fake_404_falls_back_to_ollama_local(saved_env, ollama_local_alive, ollama_model_available):
     """C2: PRIMARY google/fake-404 → FALLBACK ollama local."""
     if not ollama_local_alive:
         pytest.skip("Ollama local :11434 offline (precisa pro fallback)")
+    if not ollama_model_available("qwen2.5:3b"):
+        pytest.skip("qwen2.5:3b não está instalado localmente")
     load_env()
     _set_dreamer(
         saved_env,
         prov="google", mod="gemini-2.5-flash-not-exist",
-        fb_prov="ollama", fb_mod="qwen3:8b",
+        fb_prov="ollama", fb_mod="qwen2.5:3b",
     )
     cfg = get_role_config("dreamer")
     assert cfg["provider"] == "google"
@@ -116,18 +120,13 @@ def test_c3_ollama_cloud_real_primary(saved_env, requires_ollama_cloud):
 
 # ============== C4 ==============
 
-def test_c4_both_targets_dead_raises_chain_failure_with_both_exceptions(saved_env):
-    """C4: PRIMARY google/fake + FALLBACK google/fake → LLMChainFailure com
-    primary_exc E fallback_exc preservados (PATCH 3)."""
+def test_c4_both_targets_dead_fail_closed_in_gateway_mode(saved_env):
+    """C4: gateway obrigatório falha fechado para os dois destinos inválidos."""
     load_env()
     _set_dreamer(
         saved_env,
         prov="google", mod="gemini-fake-1",
         fb_prov="google", fb_mod="gemini-fake-2",
     )
-    with pytest.raises(LLMChainFailure) as exc_info:
+    with pytest.raises(RuntimeError, match="ModelGateway MODE=on failed"):
         _call("dreamer", "Diga OK.", saved_env)
-    e = exc_info.value
-    assert e.primary_exc is not None, "LLMChainFailure.primary_exc deve preservar exceção do primário"
-    assert e.fallback_exc is not None, "LLMChainFailure.fallback_exc deve preservar exceção do fallback"
-    assert len(e.chain) == 2

@@ -150,20 +150,16 @@ def test_v2_configured_vision_direct(saved_env, ollama_local_alive, vision_png):
     assert dt < 180
 
 
-def test_v1_fallback_chain_failure_when_both_targets_dead(saved_env, vision_png):
-    """V1 negativo: PRIMARY e FALLBACK ambos fake → LLMChainFailure preserva ambos exc."""
+def test_v1_gateway_failure_when_both_targets_dead(saved_env, vision_png):
+    """V1 negativo: gateway obrigatório recusa PRIMARY e FALLBACK inválidos."""
     load_env()
     _set_vision(
         saved_env,
         prov="google-fake-404", mod="gemini-2.5-flash",
         fb_prov="google-fake-503", fb_mod="gemini-2.5-flash",
     )
-    with pytest.raises(LLMChainFailure) as exc_info:
+    with pytest.raises(RuntimeError, match="ModelGateway MODE=on failed"):
         call_llm_with_fallback(
             role="vision", prompt=PROMPT, system_prompt=SYSTEM,
             response_model=VisionResponse, image_path=str(vision_png), max_retries=1,
         )
-    e = exc_info.value
-    assert e.primary_exc is not None
-    assert e.fallback_exc is not None
-    assert len(e.chain) == 2
