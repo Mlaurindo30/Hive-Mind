@@ -120,6 +120,17 @@ def _embed_model() -> str:
     return os.environ.get("GRAPHITI_EMBED_MODEL", "snowflake-arctic-embed2:latest")
 
 
+def _group_id() -> str:
+    """Return the Graphiti group/graph name for this runtime.
+
+    Graphiti clones its Falkor driver to ``group_id`` when an episode is
+    written.  Keeping the production default preserves the canonical
+    ``hive-mind`` graph, while an explicit value makes real-test and audit
+    namespaces genuinely isolated.
+    """
+    return os.environ.get("HIVE_GRAPHITI_GROUP_ID", "hive-mind")
+
+
 # ---------------------------------------------------------------------------
 # Health / availability
 # ---------------------------------------------------------------------------
@@ -464,7 +475,7 @@ def push_neuron(neuron_id: str, content: str, source: str = "dream") -> bool:
             source_description=f"Hive-Mind dream — neuron {neuron_id} ({source})",
             reference_time=datetime.now(timezone.utc),
             source=EpisodeType.text,
-            group_id="hive-mind",
+            group_id=_group_id(),
         )
 
     success, error = _retry_with_backoff(lambda: _run_async(_do_push))
@@ -503,7 +514,7 @@ def search_graph(query: str, num_results: int = 10) -> list[dict]:
     async def _do_search():
         return await _client().search(
             query=query,
-            group_ids=["hive-mind"],
+            group_ids=[_group_id()],
             num_results=num_results,
         )
 

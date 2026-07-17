@@ -257,6 +257,10 @@ def falkordb_or_skip(monkeypatch) -> tuple[str, int, str]:
     port = int(os.environ.get("FALKORDB_PORT", "6379"))
     database = f"hm_test_{uuid.uuid4().hex[:12]}"
     monkeypatch.setenv("FALKORDB_DB", database)
+    # Graphiti uses group_id as the actual Falkor graph name when writing.
+    # Keep this aligned with the fixture namespace so teardown can remove the
+    # graph that was actually used.
+    monkeypatch.setenv("HIVE_GRAPHITI_GROUP_ID", database)
 
     # Limpa o singleton do Graphiti (se o teste anterior construiu um cliente
     # contra um DB diferente, o cache precisa ser invalidado).
@@ -268,11 +272,14 @@ def falkordb_or_skip(monkeypatch) -> tuple[str, int, str]:
 
     yield host, port, database
 
-    # Teardown: dropa o DB unico e invalida o cache do Graphiti.
+    # Teardown: apaga o grafo isolado e invalida o cache do Graphiti.
+    # FalkorDB Python 1.x exposes graph.delete(), not delete_database().
+    # Calling the unavailable method left hm_test_* graphs behind after every
+    # real run, which defeats the fixture's isolation contract.
     try:
         client = falkordb.FalkorDB(host=host, port=port)
         try:
-            client.delete_database(database)
+            client.select_graph(database).delete()
         finally:
             client.close()
     except Exception:

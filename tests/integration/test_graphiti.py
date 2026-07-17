@@ -192,6 +192,13 @@ def test_build_client_uses_env(monkeypatch):
     assert captured.get("database") == "testdb"
 
 
+def test_group_id_uses_explicit_isolated_namespace(monkeypatch):
+    monkeypatch.delenv("HIVE_GRAPHITI_GROUP_ID", raising=False)
+    assert gc.client._group_id() == "hive-mind"
+    monkeypatch.setenv("HIVE_GRAPHITI_GROUP_ID", "hm_test_isolated")
+    assert gc.client._group_id() == "hm_test_isolated"
+
+
 # ---------------------------------------------------------------------------
 # Testes live (skip se FalkorDB não estiver rodando)
 # ---------------------------------------------------------------------------

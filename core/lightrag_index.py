@@ -30,6 +30,42 @@ _LIGHTRAG_CHAT_MODEL = os.environ.get("HIVE_LIGHTRAG_MODEL", "qwen2.5:3b")
 _LIGHTRAG_CHAT_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1/chat/completions")
 
 
+def should_use_extraction_schema(prompt: str) -> bool:
+    """Return true only for LightRAG entity/relation extraction prompts.
+
+    The keyword phase mentions entities and relationships in its instructions,
+    but its response contract is ``high_level_keywords`` and
+    ``low_level_keywords``. Sending it the extraction schema erases those
+    fields and leaves hybrid queries without retrievable context.
+    """
+    normalized = prompt.lower()
+    if "high_level_keywords" in normalized or "low_level_keywords" in normalized:
+        return False
+    return "entities" in normalized and "relationships" in normalized and "extract" in normalized
+
+
+def lightrag_system_prompt(prompt: str, supplied_system_prompt: str | None = None) -> str:
+    """Choose the model instruction that matches the LightRAG pipeline stage."""
+    if supplied_system_prompt:
+        return supplied_system_prompt
+    if should_use_extraction_schema(prompt):
+        return (
+            "You are a Knowledge Graph Specialist responsible for extracting "
+            "entities and relationships from the input text. For each entity, "
+            "extract: name, type (category like Technology, Organization, "
+            "Concept, Person, or Other), and description. For each relationship, "
+            "extract: source, target, keywords (comma-separated), and description. "
+            "Use exactly these field names. Always include all fields. Only extract "
+            "entities and relationships explicitly present in the input text; never "
+            "invent unrelated examples."
+        )
+    return (
+        "Follow the task and output contract in the user's message exactly. "
+        "For a retrieval query, answer only from the supplied context and preserve "
+        "multi-hop relationships when the context establishes them."
+    )
+
+
 def get_rag():
     """Singleton: cria instância LightRAG alinhada ao projeto (Ollama 1024d)."""
     global _rag, _rag_ready
@@ -109,7 +145,7 @@ def get_rag():
                 "required": ["entities", "relationships"],
             }
 
-            def _ollama_chat(prompt: str) -> str:
+            def _ollama_chat(prompt: str, supplied_system_prompt: str | None = None) -> str:
                 """Chama modelo de chat local do Ollama (sem depender de Gemini/quota).
 
                 Força JSON schema em modo extração para garantir que modelos menores
@@ -117,7 +153,7 @@ def get_rag():
                 """
                 import json as _json
                 messages = [
-                    {"role": "system", "content": "You are a Knowledge Graph Specialist responsible for extracting entities and relationships from the input text. For each entity, extract: name, type (category like Technology, Organization, Concept, Person, or Other), and description. For each relationship, extract: source, target, keywords (comma-separated), and description. Use exactly these field names. Always include all fields. Only extract entities and relationships explicitly present in the input text; never invent unrelated examples."},
+                    {"role": "system", "content": lightrag_system_prompt(prompt, supplied_system_prompt)},
                     {"role": "user", "content": prompt},
                 ]
                 payload: dict = {
@@ -127,8 +163,7 @@ def get_rag():
                     "temperature": 0.1,
                 }
                 # Força schema JSON estruturado quando o prompt solicita extração
-                extract_keywords = ("entity", "relation", "description", "extract", "JSON")
-                use_schema = any(kw in prompt for kw in extract_keywords)
+                use_schema = should_use_extraction_schema(prompt)
                 if use_schema:
                     payload["response_format"] = {
                         "type": "json_schema",
@@ -148,7 +183,9 @@ def get_rag():
 
             async def _llm_func(prompt, **kwargs):
                 loop = asyncio.get_event_loop()
-                return await loop.run_in_executor(None, _ollama_chat, prompt)
+                return await loop.run_in_executor(
+                    None, _ollama_chat, prompt, kwargs.get("system_prompt")
+                )
 
             Path(_WORKING_DIR).mkdir(parents=True, exist_ok=True)
             _rag = LightRAG(
