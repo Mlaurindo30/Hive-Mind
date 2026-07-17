@@ -6,6 +6,8 @@ import json
 import subprocess
 from pathlib import Path
 
+from core.auth import HIVE_LLM_ROLES
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -19,6 +21,12 @@ def test_versioned_profiles_define_their_required_runtime_contracts():
     assert "VECTOR_BACKEND=milvus" in full
     assert "HIVE_KNOWLEDGE_HEALTH_MILVUS=1" in full
     assert "HIVE_FORCE_LEGACY_LLM=false" in full
+    for role in ("VALIDATOR", "ROUTER", "DISTILLER"):
+        assert f"HIVE_{role}_PROVIDER=ollama" in full
+        assert f"HIVE_{role}_MODEL=qwen2.5:3b" in full
+        assert role.lower() in HIVE_LLM_ROLES
+    assert "HIVE_GRAPHITI_PROVIDER=ollama" in full
+    assert "HIVE_GRAPHITI_MODEL=granite4.1:8b" in full
 
 
 def test_fullstack_tcp_probe_is_compatible_with_windows_powershell(tmp_path):
@@ -177,6 +185,13 @@ def test_local_full_reuses_complete_canonical_container_sets():
     assert '-ContainerNames @("sinapse-falkordb")' in source
     assert '-ContainerNames @("hive-mind-milvus")' in source
     assert '"hive-mind-ragflow-mysql", "es01", "redis", "minio", "hive-mind-ragflow"' in source
+
+
+def test_ragflow_compose_uses_a_minio_host_without_an_embedded_port():
+    source = (ROOT / "integrations" / "ragflow" / "docker-compose.yml").read_text(encoding="utf-8")
+
+    assert 'MINIO_HOST: "minio"' in source
+    assert 'MINIO_HOST: "minio:9000"' not in source
 
 def test_vault_materialization_initializes_the_runtime_vault_path_before_use():
     source = (ROOT / "install.ps1").read_text(encoding="utf-8")

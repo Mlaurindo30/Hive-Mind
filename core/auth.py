@@ -438,6 +438,9 @@ def refresh_oauth_token(provider_name: str):
 # Fase 3 (infra adiantada): drift_detector.
 HIVE_LLM_ROLES = (
     "dreamer", "graphify", "vision", "ocr", "synthesis", "claude_mem",
+    # Gateway control-plane roles. They are configured explicitly by the
+    # local-full profile and must not be diagnosed as misspelled custom roles.
+    "validator", "router", "distiller",
     "session_summarizer", "daily_writer",
     "alias_miner", "topic_router", "sector_classifier",
     "weekly_synthesizer", "monthly_synthesizer", "yearly_synthesizer",

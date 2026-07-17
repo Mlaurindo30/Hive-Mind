@@ -96,7 +96,8 @@ services:
       ES_HOSTS: "http://es01:9200"
       REDIS_HOST: "redis"
       REDIS_PASSWORD: "${RAGFLOW_REDIS_PASSWORD:-infini_rag_flow}"
-      MINIO_HOST: "minio:9000"
+      # RAGFlow adds the MinIO port from its service template.
+      MINIO_HOST: "minio"
       MINIO_USER: "${RAGFLOW_MINIO_USER:-rag_flow}"
       MINIO_PASSWORD: "${RAGFLOW_MINIO_PASSWORD:-infini_rag_flow}"
     volumes:
