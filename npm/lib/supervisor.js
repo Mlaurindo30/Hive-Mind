@@ -194,6 +194,10 @@ function platformCommand(service) {
     : (process.platform === 'darwin' ? 'darwin' : 'linux');
   return service.commands?.[platform] || service.command;
 }
+function shouldAdoptExistingService(service, healthy) {
+  const check = service.healthcheck || service.readiness;
+  return !service.external && Boolean(healthy) && Boolean(check) && check.type !== 'none';
+}
 function spawnService(svc, manifest, p) {
   const base = svc.env_file ? loadDotEnv(svc.env_file) : {};
   const env = { ...process.env, ...base, ...svc.env };
@@ -241,6 +245,17 @@ function daemon() {
         log("external degraded " + svc.name + ": " + error.message);
         return;
       }
+      return;
+    }
+    const existingCheck = svc.healthcheck || svc.readiness;
+    const existingHealthy = existingCheck && existingCheck.type !== 'none'
+      && await probeReadiness(existingCheck);
+    if (shouldAdoptExistingService(svc, existingHealthy)) {
+      const existingPid = readPid(p.pidFile(svc.name));
+      const extra = { adopted: true };
+      if (existingPid && pidAlive(existingPid)) extra.pid = existingPid;
+      setState(svc, "healthy", extra);
+      log(`adopted healthy ${svc.name}${extra.pid ? ` pid=${extra.pid}` : ""}`);
       return;
     }
     const child = spawnService(svc, manifest, p);
@@ -420,4 +435,4 @@ if (require.main === module && process.argv[2] === '__daemon') {
   daemon();
 }
 
-module.exports = { start, stop, status, loadManifest, runnableServices, selectServices, selectedProfile, topologicalServices, requiredServiceErrors, probeReadiness, waitForReadiness, requiredServiceHealth, waitForRequiredHealthy, platformCommand, reportedServiceState, restartDelayMs, canRestart, healthStateTransition };
+module.exports = { start, stop, status, loadManifest, runnableServices, selectServices, selectedProfile, topologicalServices, requiredServiceErrors, probeReadiness, waitForReadiness, requiredServiceHealth, waitForRequiredHealthy, platformCommand, shouldAdoptExistingService, reportedServiceState, restartDelayMs, canRestart, healthStateTransition };

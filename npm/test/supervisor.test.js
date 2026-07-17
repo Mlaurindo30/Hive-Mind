@@ -40,6 +40,15 @@ test('waitForReadiness verifies an HTTP endpoint instead of a PID', async () => 
   }
 });
 
+test('supervisor adopts an already healthy managed service', () => {
+  const { shouldAdoptExistingService } = require('../lib/supervisor');
+  const service = { name: 'api', healthcheck: { type: 'http', url: 'http://127.0.0.1/health' } };
+  assert.equal(shouldAdoptExistingService(service, true), true);
+  assert.equal(shouldAdoptExistingService(service, false), false);
+  assert.equal(shouldAdoptExistingService({ ...service, external: true }, true), false);
+  assert.equal(shouldAdoptExistingService({ name: 'collector', healthcheck: { type: 'none' } }, true), false);
+});
+
 test('reported state does not promote a live PID to healthy', () => {
   const { reportedServiceState } = require('../lib/supervisor');
   assert.equal(reportedServiceState({ state: 'degraded', pid: 42 }, true), 'degraded');
