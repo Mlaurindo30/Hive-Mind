@@ -89,7 +89,7 @@ def main():
         # returned by the indexer is propagated to stdout so the caller can
         # see neuron_id, fts_indexed, vector_indexed, query_recoverable.
         indexer_result = {"saved": result is not None, "path": result or None, "dry_run": args.dry_run}
-        if result and not args.dry_run:
+        if result and not args.dry_run and os.environ.get("SINAPSE_WRITE_INDEX", "1") != "0":
             try:
                 from core.indexing.write_indexer import WriteIndexer
                 indexer_result["indexer"] = WriteIndexer().index_markdown_file(
@@ -104,7 +104,7 @@ def main():
         # patterns file path. We index the file only when it actually changed.
         result = sm._save_learning(args.title, args.content)
         indexer_result = {"saved": result is not None, "path": result or None, "dry_run": args.dry_run}
-        if result and not args.dry_run:
+        if result and not args.dry_run and os.environ.get("SINAPSE_WRITE_INDEX", "1") != "0":
             try:
                 from core.indexing.write_indexer import WriteIndexer
                 indexer_result["indexer"] = WriteIndexer().index_markdown_file(

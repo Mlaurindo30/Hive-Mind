@@ -37,6 +37,7 @@ class TestSinapseWriteCLI:
 
     def test_decision_command_no_dryrun(self, temp_vault, monkeypatch):
         monkeypatch.setenv("SINAPSE_HOME", temp_vault)
+        monkeypatch.setenv("SINAPSE_WRITE_INDEX", "0")
         result = subprocess.run(
             [sys.executable, str(self.SCRIPT), "decision",
              "--title", "Real Decision Save",
