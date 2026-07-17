@@ -534,7 +534,7 @@ source_image: {img_path.name}
 ---
 ![[../../inbox/visual/{img_path.name}]]
 """
-            with open(note_file, "w") as f:
+            with open(note_file, "w", encoding="utf-8") as f:
                 f.write(content)
                 
             processed_count += 1

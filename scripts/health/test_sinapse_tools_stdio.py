@@ -102,7 +102,7 @@ if __name__ == "__main__":
         txt = tool_text(r)
         ok = is_ok(r, txt)
         results.append((name, ok, elapsed, txt))
-        tag = "✅" if ok else "❌"
+        tag = "[OK]" if ok else "[FALHA]"
         print(f"  [{i}/{len(run)}] {tag} {name:<40} {elapsed:.1f}s")
         for ln in txt.split("\n")[:5]:
             print(f"       {ln}")
@@ -113,4 +113,4 @@ if __name__ == "__main__":
     if args.all:
         print(f"{'='*60}")
         for name, ok, et, _ in results:
-            print(f"  {'✅' if ok else '❌'} {name:<40} {et:.1f}s")
+            print(f"  {'[OK]' if ok else '[FALHA]'} {name:<40} {et:.1f}s")

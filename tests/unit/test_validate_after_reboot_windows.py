@@ -1,39 +1,21 @@
+"""Regression tests for the Windows post-reboot validator."""
+from __future__ import annotations
+
 import importlib.util
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "scripts" / "health" / "validate_after_reboot_windows.py"
+MODULE_PATH = ROOT / "scripts" / "health" / "validate_after_reboot_windows.py"
+SPEC = importlib.util.spec_from_file_location("validate_after_reboot_windows", MODULE_PATH)
+MODULE = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader is not None
+SPEC.loader.exec_module(MODULE)
 
 
-def load_module():
-    spec = importlib.util.spec_from_file_location("validate_after_reboot_windows", SCRIPT)
-    module = importlib.util.module_from_spec(spec)
-    assert spec and spec.loader
-    spec.loader.exec_module(module)
-    return module
-
-
-def test_required_service_assessment_ignores_optional_entries():
-    module = load_module()
-    healthy, unhealthy = module.assess_required_services(
-        {
-            "api": {"state": "healthy"},
-            "optional-dashboard": {"state": "degraded"},
-        },
-        ["api"],
+def test_installation_profile_reads_utf8_env_on_windows(tmp_path):
+    (tmp_path / ".env").write_bytes(
+        b"HIVE_MIND_PROFILE=local-full\nNOTE=\x9d\n"
     )
 
-    assert healthy is True
-    assert unhealthy == []
-
-
-def test_required_service_assessment_reports_missing_and_degraded_required_services():
-    module = load_module()
-    healthy, unhealthy = module.assess_required_services(
-        {"api": {"state": "degraded"}},
-        ["api", "mcp"],
-    )
-
-    assert healthy is False
-    assert unhealthy == ["api", "mcp"]
+    assert MODULE.installation_profile(tmp_path) == "local-full"

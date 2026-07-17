@@ -34,7 +34,7 @@ def load_state(root: Path = ROOT, timeout: int = 120) -> dict:
 
 def installation_profile(root: Path = ROOT) -> str:
     try:
-        for line in (root / ".env").read_text().splitlines():
+        for line in (root / ".env").read_text(encoding="utf-8", errors="replace").splitlines():
             if line.startswith("HIVE_MIND_PROFILE="):
                 return line.split("=", 1)[1].strip().strip('"\'') or "local-min"
     except OSError:
