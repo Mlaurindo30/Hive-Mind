@@ -83,13 +83,14 @@ def test_parse_markdown_accepts_legacy_windows_cp1252(tmp_path):
     from scripts.health.audit_memory import parse_markdown
 
     path = tmp_path / "legado.md"
-    path.write_bytes("---\ntype: fact\n---\n# Decisão\nAção válida.".encode("cp1252"))
+    path.write_bytes("---\r\ntype: fact\r\n---\r\n# Decisão\r\nAção válida.".encode("cp1252"))
 
     frontmatter, content = parse_markdown(path)
 
     assert frontmatter == {"type": "fact"}
     assert "Decisão" in content
     assert "Ação válida" in content
+    assert "\r" not in content
 
 
 # ---------------------------------------------------------------------------

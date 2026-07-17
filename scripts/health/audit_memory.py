@@ -39,6 +39,7 @@ def parse_markdown(path: Path):
         # Entradas históricas do vault no Windows podem ter sido gravadas em
         # CP1252. Essa decodificação é reversível e preserva o hash do conteúdo.
         text = raw.decode("cp1252")
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     
     frontmatter = {}
     content = text
