@@ -11,7 +11,11 @@ import json
 from typing import Any
 
 from scripts.capture.capture_events import EventType, ProviderEvent
-from scripts.capture.project_identity import ProjectIdentityResolver
+from scripts.capture.project_identity import (
+    ProjectIdentity,
+    ProjectIdentityError,
+    ProjectIdentityResolver,
+)
 
 
 def _text(value: Any) -> str:
@@ -77,6 +81,69 @@ def _known_legacy_project(resolver: ProjectIdentityResolver, value: str | None) 
     return value if callable(by_alias) and by_alias(value) is not None else None
 
 
+def _identity_slug(value: Any) -> str:
+    text = _text(value).strip().casefold()
+    slug = "".join(
+        character
+        if character.isascii() and (character.isalnum() or character in "._-")
+        else "-"
+        for character in text
+    )
+    while "--" in slug:
+        slug = slug.replace("--", "-")
+    return slug.strip("-._")
+
+
+def _fallback_references(value: Any) -> tuple[str, ...]:
+    values = (value,) if isinstance(value, str) else value
+    if not isinstance(values, (list, tuple, set, frozenset)):
+        return ()
+    references: list[str] = []
+    seen: set[str] = set()
+    for item in values:
+        if not isinstance(item, str) or not item.strip():
+            continue
+        reference = item.strip()
+        key = reference.casefold()
+        if key not in seen:
+            seen.add(key)
+            references.append(reference)
+    return tuple(references)
+
+
+_IDENTITY_FALLBACK_DIAGNOSTIC = {
+    "component": "project_identity",
+    "status": "degraded",
+    "reason": "invalid_evidence",
+}
+
+
+def _invalid_evidence_fallback(
+    provider: str,
+    surface: str,
+    workspace: str | None,
+    referenced_projects: Any,
+) -> ProjectIdentity:
+    """Build a safe identity without consulting the failed resolver again."""
+    provider_key = _identity_slug(provider) or "unknown"
+    surface_key = _identity_slug(surface) or "unknown"
+    return ProjectIdentity(
+        project_id=f"unclassified/{provider_key}",
+        project_name=f"Unclassified ({provider_key})",
+        workspace_root=workspace,
+        repository_root=None,
+        repository_remote=None,
+        git_common_dir=None,
+        worktree_name=None,
+        branch=None,
+        provider=provider_key,
+        surface=surface_key,
+        resolution_method="invalid_evidence_fallback",
+        resolution_confidence=0.0,
+        referenced_projects=_fallback_references(referenced_projects),
+    )
+
+
 def attach_project_identity(
     provider: str,
     session: dict,
@@ -109,7 +176,18 @@ def attach_project_identity(
         "official_workspace": workspace,
         "referenced_projects": normalized.get("referenced_projects") or (),
     }
-    identity = resolver.resolve(**kwargs)
+    try:
+        identity = resolver.resolve(**kwargs)
+    except ProjectIdentityError:
+        identity = _invalid_evidence_fallback(
+            provider,
+            surface,
+            workspace or cwd,
+            normalized.get("referenced_projects"),
+        )
+        normalized["project_identity_diagnostics"] = [
+            dict(_IDENTITY_FALLBACK_DIAGNOSTIC)
+        ]
 
     envelope = identity.to_dict()
     normalized.update(envelope)

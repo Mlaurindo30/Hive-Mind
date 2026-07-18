@@ -130,6 +130,17 @@ class RealtimeCapture:
                         resolver=self._resolver,
                         default_surface=adapter.get("surface") or "unknown",
                     )
+                    for diagnostic in normalized.get(
+                        "project_identity_diagnostics", ()
+                    ):
+                        if isinstance(diagnostic, dict):
+                            log_event(
+                                "warning",
+                                "project_identity_fallback",
+                                provider=provider,
+                                status=diagnostic.get("status", "degraded"),
+                                reason=diagnostic.get("reason", "invalid_evidence"),
+                            )
                     delivered += core.ingest(provider, normalized, self._store)
             except Exception as exc:
                 log_event("warning", "parse_or_delivery_failed", provider=provider, path=str(path), error=str(exc))

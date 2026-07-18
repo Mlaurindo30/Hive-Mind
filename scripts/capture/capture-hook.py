@@ -113,6 +113,7 @@ class SessionContextStore:
                 (provider, session_id),
             ).fetchone()
             envelope = None
+            identity_diagnostics = None
             if row is not None:
                 try:
                     persisted = json.loads(row["project_identity"])
@@ -130,6 +131,9 @@ class SessionContextStore:
                 envelope = ProjectIdentity.from_dict(
                     normalized["project_identity"]
                 ).to_dict()
+                identity_diagnostics = normalized.get(
+                    "project_identity_diagnostics"
+                )
                 serialized = json.dumps(
                     envelope,
                     ensure_ascii=False,
@@ -163,6 +167,12 @@ class SessionContextStore:
         normalized.update(envelope)
         normalized["project_identity"] = dict(envelope)
         normalized["project"] = envelope["project_name"]
+        if identity_diagnostics:
+            normalized["project_identity_diagnostics"] = [
+                dict(item)
+                for item in identity_diagnostics
+                if isinstance(item, dict)
+            ]
         return normalized
 
     def close(self) -> None:
@@ -180,7 +190,7 @@ def _resolve_session_context(
     provider: str,
     session_id: str,
     session: dict,
-) -> tuple[dict, dict[str, str] | None]:
+) -> tuple[dict, list[dict[str, str]]]:
     """Use the auxiliary cache when available without risking event loss."""
     context_store = None
     normalized_session = None
@@ -215,8 +225,14 @@ def _resolve_session_context(
             default_surface="hook",
         )
 
-    diagnostic = dict(_CONTEXT_CACHE_DIAGNOSTIC) if degraded else None
-    return normalized_session, diagnostic
+    diagnostics = [
+        dict(item)
+        for item in normalized_session.get("project_identity_diagnostics", ())
+        if isinstance(item, dict)
+    ]
+    if degraded:
+        diagnostics.append(dict(_CONTEXT_CACHE_DIAGNOSTIC))
+    return normalized_session, diagnostics
 
 
 def read_stdin_capped(stream=None) -> bytes:
@@ -350,7 +366,7 @@ def process(provider: str, event_type: str, raw: bytes) -> dict:
         }
 
     db_path = default_db_path()
-    normalized_session, context_diagnostic = _resolve_session_context(
+    normalized_session, diagnostics = _resolve_session_context(
         provider,
         session_id,
         {**payload, "sid": session_id},
@@ -391,8 +407,8 @@ def process(provider: str, event_type: str, raw: bytes) -> dict:
         "event_type": event_type,
         "session_id": session_id,
     }
-    if context_diagnostic is not None:
-        result["diagnostics"] = [context_diagnostic]
+    if diagnostics:
+        result["diagnostics"] = diagnostics
     return result
 
 

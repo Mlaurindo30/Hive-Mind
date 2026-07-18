@@ -10,7 +10,11 @@ import pytest
 
 from scripts.capture.capture_events import ProviderEvent
 from scripts.capture.capture_queue import CaptureQueue
-from scripts.capture.project_identity import ProjectIdentity, ProjectIdentityResolver
+from scripts.capture.project_identity import (
+    ProjectIdentity,
+    ProjectIdentityError,
+    ProjectIdentityResolver,
+)
 from scripts.capture.session_events import attach_project_identity, session_to_events
 
 
@@ -634,3 +638,167 @@ def test_hook_reuses_persisted_identity_across_callbacks_and_store_reopen(tmp_pa
     assert captured[1].cwd == r"C:\\different-workspace"
     assert captured[1].metadata["tool_name"] == "Read"
     assert captured[1].metadata["native_event_id"] == "native-tool-event"
+
+
+def test_attach_project_identity_falls_back_once_on_invalid_identity_evidence(tmp_path):
+    class InvalidEvidenceResolver:
+        registry = _Registry()
+
+        def __init__(self):
+            self.calls = 0
+
+        def resolve(self, **kwargs):
+            self.calls += 1
+            raise ProjectIdentityError("unsafe project_id: 'secret invalid value'")
+
+    resolver = InvalidEvidenceResolver()
+    normalized = attach_project_identity(
+        "Copilot IDE",
+        {
+            "sid": "invalid-boundary",
+            "cwd": str(tmp_path),
+            "project_id": "not safe!",
+            "prompt": "preserve this prompt",
+            "referenced_projects": ["Hive-Mind"],
+        },
+        resolver=resolver,
+        default_surface="IDE Extension",
+    )
+
+    assert resolver.calls == 1
+    assert normalized["sid"] == "invalid-boundary"
+    assert normalized["prompt"] == "preserve this prompt"
+    assert normalized["project_id"] == "unclassified/copilot-ide"
+    assert normalized["project"] == "Unclassified (copilot-ide)"
+    assert (
+        normalized["project_identity"]["resolution_method"]
+        == "invalid_evidence_fallback"
+    )
+    assert normalized["project_identity"]["resolution_confidence"] == 0.0
+    assert normalized["project_identity"]["provider"] == "copilot-ide"
+    assert normalized["project_identity"]["surface"] == "ide-extension"
+    assert normalized["project_identity_diagnostics"] == [
+        {
+            "component": "project_identity",
+            "status": "degraded",
+            "reason": "invalid_evidence",
+        }
+    ]
+    assert "secret invalid value" not in json.dumps(normalized)
+
+
+def test_attach_project_identity_does_not_hide_unexpected_resolver_failure():
+    class UnexpectedFailureResolver:
+        registry = _Registry()
+
+        def resolve(self, **kwargs):
+            raise RuntimeError("unexpected resolver failure")
+
+    with pytest.raises(RuntimeError, match="unexpected resolver failure"):
+        attach_project_identity(
+            "codex",
+            {"sid": "unexpected", "prompt": "must fail visibly"},
+            resolver=UnexpectedFailureResolver(),
+            default_surface="hook",
+        )
+
+
+def test_realtime_ingests_safe_fallback_when_environment_project_id_is_invalid(
+    tmp_path, monkeypatch, capsys
+):
+    module = _load(REALTIME_SCRIPT, "capture_realtime_invalid_environment_identity")
+    transcript = tmp_path / "invalid-env-session.jsonl"
+    transcript.write_text("{}\n", encoding="utf-8")
+    monkeypatch.setenv("HIVE_PROJECT_ID", "not safe!")
+    monkeypatch.delenv("HIVE_PROJECT_ROOT", raising=False)
+    delivered: list[dict] = []
+    monkeypatch.setattr(
+        module.core,
+        "ingest",
+        lambda provider, session, store: delivered.append(session) or 1,
+    )
+    daemon = module.RealtimeCapture(
+        {
+            "copilot": {
+                "parser": lambda path: [
+                    {
+                        "sid": "invalid-env-session",
+                        "cwd": str(tmp_path),
+                        "surface": "ide",
+                        "prompt": "realtime survives invalid environment evidence",
+                    }
+                ],
+                "sources": [str(transcript)],
+                "watch": [str(tmp_path)],
+                "surface": "ide",
+            }
+        },
+        object(),
+        resolver=ProjectIdentityResolver(),
+    )
+
+    assert daemon.handle_change(
+        module.SourceChange("copilot", transcript, time.time())
+    ) == 1
+    assert len(delivered) == 1
+    normalized = delivered[0]
+    assert normalized["project_id"] == "unclassified/copilot"
+    assert (
+        normalized["project_identity"]["resolution_method"]
+        == "invalid_evidence_fallback"
+    )
+    assert normalized["project_identity"]["resolution_confidence"] == 0.0
+    assert (
+        normalized["project_identity_diagnostics"][0]["reason"]
+        == "invalid_evidence"
+    )
+    output = capsys.readouterr()
+    assert "not safe!" not in output.out
+    assert "not safe!" not in output.err
+
+
+def test_hook_enqueues_safe_fallback_when_payload_project_id_is_invalid(
+    tmp_path, monkeypatch
+):
+    module = _load(HOOK_SCRIPT, "capture_hook_invalid_payload_identity")
+    outbox_path = tmp_path / "capture-outbox.db"
+    monkeypatch.setenv("HIVE_CAPTURE_DB", str(outbox_path))
+    monkeypatch.delenv("HIVE_PROJECT_ID", raising=False)
+    monkeypatch.delenv("HIVE_PROJECT_ROOT", raising=False)
+
+    result = module.process(
+        "codex",
+        "prompt",
+        json.dumps(
+            {
+                "session_id": "invalid-payload-session",
+                "event_id": "invalid-payload-event",
+                "cwd": str(tmp_path),
+                "project_id": "not safe!",
+                "prompt": "hook survives invalid explicit evidence",
+            }
+        ).encode("utf-8"),
+    )
+
+    assert result["enqueued"] is True
+    assert result["diagnostics"] == [
+        {
+            "component": "project_identity",
+            "status": "degraded",
+            "reason": "invalid_evidence",
+        }
+    ]
+    assert "not safe!" not in json.dumps(result)
+    queue = CaptureQueue(outbox_path)
+    try:
+        event = queue.pending(1)[0].event
+    finally:
+        queue.close()
+    assert event.event_id == "invalid-payload-event"
+    assert event.content == "hook survives invalid explicit evidence"
+    assert event.project == "Unclassified (codex)"
+    envelope = event.metadata["project_identity"]
+    assert envelope["project_id"] == "unclassified/codex"
+    assert envelope["resolution_method"] == "invalid_evidence_fallback"
+    assert envelope["resolution_confidence"] == 0.0
+    assert "not safe!" not in json.dumps(event.as_payload())

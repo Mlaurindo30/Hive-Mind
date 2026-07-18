@@ -277,3 +277,71 @@ git diff --check: PASS
 ```
 
 All database paths used by these tests were under pytest `tmp_path`. No real/protected database, provider, Hermes implementation, service, backlog, active root, or historical data was opened or modified.
+## P1 Review Correction — Invalid Identity Evidence Fallback
+
+The final review found that a syntactically invalid explicit project_id or
+HIVE_PROJECT_ID raised ProjectIdentityError at the common attachment boundary.
+Realtime swallowed that failure in its provider loop and delivered nothing; the
+hook aborted before enqueue. Realtime also logged the rejected value through
+the exception text.
+
+attach_project_identity now catches only ProjectIdentityError, calls the
+resolver exactly once, and constructs a validated ProjectIdentity directly:
+
+    project_id = unclassified/<safe-provider>
+    resolution_method = invalid_evidence_fallback
+    resolution_confidence = 0.0
+
+The fallback keeps the original session, prompt, CWD, native event ID, content,
+event hash inputs and compatible identity metadata. It does not retry the same
+invalid resolver. Unexpected exceptions still propagate. The common boundary
+adds only this stable non-sensitive diagnostic:
+
+    {"component":"project_identity","status":"degraded","reason":"invalid_evidence"}
+
+Realtime logs that fixed diagnostic and continues to capture_core.ingest. The
+hook carries it through the auxiliary session-context cache, still enqueues
+through the unchanged CaptureQueue, and returns it to the caller. No rejected
+value, exception message, database path or secret is exposed.
+
+### TDD RED
+
+Command:
+
+    ./.venv/Scripts/python.exe -m pytest -q tests/unit/test_capture_project_identity.py -k "falls_back_once_on_invalid_identity_evidence or does_not_hide_unexpected_resolver_failure or realtime_ingests_safe_fallback or hook_enqueues_safe_fallback"
+
+Result before production changes:
+
+    3 failed, 1 passed, 12 deselected in 0.93s
+
+The failures proved that the common boundary raised, realtime returned zero and
+logged the unsafe value, and hook raised before enqueue. The passing control
+proved that unexpected RuntimeError must remain visible.
+
+### GREEN
+
+Focused fallback regressions:
+
+    4 passed, 12 deselected in 0.72s
+
+Complete Task 4 suite (final rerun after formatting):
+
+    125 passed in 17.36s
+
+Additional gates:
+
+    python -m compileall session_events.py capture-hook.py capture-realtime.py: PASS
+    git diff --check: PASS
+
+The new coverage proves:
+
+- invalid HIVE_PROJECT_ID still reaches realtime ingest;
+- invalid explicit payload project_id still reaches hook enqueue;
+- neither invalid value becomes the active ID or appears in diagnostics/logs;
+- the fallback envelope is complete, safe and auditable;
+- the resolver is called once; and
+- exceptions other than ProjectIdentityError are not hidden.
+
+All SQLite paths used by the hook regression were under pytest tmp_path. No
+real/protected database, provider, Hermes implementation, service, backlog,
+active root or historical data was opened or modified.
