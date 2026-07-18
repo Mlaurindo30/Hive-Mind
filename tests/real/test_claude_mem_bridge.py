@@ -109,7 +109,25 @@ def _create_claude_mem_db(path: Path) -> None:
             "2026-06-29T10:00:00Z",
             100,
             "obs-rich-hash",
-            json.dumps({"workspace_id": "ws-observation"}, ensure_ascii=False),
+            json.dumps({
+                "project_identity": {
+                    "project_id": "root/bridge-real-91f4c73f31ab",
+                    "project_name": "Bridge Real Workspace",
+                    "workspace_root": r"D:\BridgeReal",
+                    "repository_root": None,
+                    "repository_remote": None,
+                    "git_common_dir": None,
+                    "worktree_name": None,
+                    "branch": None,
+                    "provider": "hermes",
+                    "surface": "desktop",
+                    "resolution_method": "official_workspace",
+                    "resolution_confidence": 1.0,
+                    "referenced_projects": [],
+                    "schema_version": 1,
+                    "future_optional_field": "preserved",
+                }
+            }, ensure_ascii=False),
         ),
     )
     conn.execute(
@@ -180,6 +198,7 @@ def test_claude_mem_bridge_imports_rich_sources_and_promotes_fields(real_db, tmp
     assert stats["scanned"] == 3
     assert stats["inserted"] == 3
     assert stats["skipped"] == 0
+    assert stats["by_identity"] == {"canonical": 1, "legacy": 2}
     assert stats["by_source"] == {
         "discoveries": 1,
         "observations": 1,
@@ -195,7 +214,11 @@ def test_claude_mem_bridge_imports_rich_sources_and_promotes_fields(real_db, tmp
         """
     ).fetchall()
     assert len(rows) == 3
-    assert {row["project"] for row in rows} == {"Hive-Mind"}
+    assert {row["project"] for row in rows} == {"Hive-Mind", "Bridge Real Workspace"}
+    assert {row["workspace_id"] for row in rows} == {
+        "root/bridge-real-91f4c73f31ab",
+        "unclassified/legacy",
+    }
     assert {row["archived"] for row in rows} == {0}
     metadata_by_table = {
         json.loads(row["metadata"])["source_table"]: json.loads(row["metadata"])
@@ -203,6 +226,14 @@ def test_claude_mem_bridge_imports_rich_sources_and_promotes_fields(real_db, tmp
     }
     assert metadata_by_table["discoveries"]["source_id"] == "claude-mem:discoveries:20"
     assert metadata_by_table["session_summaries"]["source_id"] == "claude-mem:session_summaries:30"
+    observation_meta = metadata_by_table["observations"]
+    assert observation_meta["project_id"] == "root/bridge-real-91f4c73f31ab"
+    assert observation_meta["project_name"] == "Bridge Real Workspace"
+    assert observation_meta["provider"] == "hermes"
+    assert observation_meta["surface"] == "desktop"
+    assert observation_meta["source_session"] == "s-1"
+    assert observation_meta["project_identity"]["future_optional_field"] == "preserved"
+    assert metadata_by_table["discoveries"]["identity_status"] == "legacy"
 
     report = promote_pending_observations(real_db, limit=10, apply=True)
 

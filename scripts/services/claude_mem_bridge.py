@@ -33,15 +33,29 @@ def _sync_core_hooks() -> None:
     _core_bridge.open_claude_mem = open_claude_mem
 
 
-def bridge(*args, **kwargs):
+def _call_with_synced_hooks(func, *args, **kwargs):
+    original = (
+        _core_bridge.get_connection,
+        _core_bridge.ensure_migrations,
+        _core_bridge.open_claude_mem,
+    )
     _sync_core_hooks()
-    return _core_bridge.bridge(*args, **kwargs)
+    try:
+        return func(*args, **kwargs)
+    finally:
+        (
+            _core_bridge.get_connection,
+            _core_bridge.ensure_migrations,
+            _core_bridge.open_claude_mem,
+        ) = original
+
+
+def bridge(*args, **kwargs):
+    return _call_with_synced_hooks(_core_bridge.bridge, *args, **kwargs)
 
 
 def quarantine_legacy(*args, **kwargs):
-    _sync_core_hooks()
-    return _core_bridge.quarantine_legacy(*args, **kwargs)
-
+    return _call_with_synced_hooks(_core_bridge.quarantine_legacy, *args, **kwargs)
 
 if __name__ == "__main__":
     raise SystemExit(main())

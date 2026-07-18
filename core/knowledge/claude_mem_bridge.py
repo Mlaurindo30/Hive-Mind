@@ -19,6 +19,7 @@ import sqlite3
 from typing import Any, Iterable, Optional
 
 from core.database import ensure_migrations, get_connection
+from scripts.capture.project_identity import ProjectIdentity, ProjectIdentityError
 
 
 logger = logging.getLogger("claude_mem_bridge")
@@ -27,6 +28,12 @@ CLAUDE_MEM_DB = Path(os.environ.get("CLAUDE_MEM_DB", str(Path.home() / ".claude-
 DEFAULT_LIMIT = 1000
 BRIDGE_SOURCE = "claude-mem-bridge"
 SOURCE_TABLES = ("observations", "discoveries", "session_summaries")
+IDENTITY_FIELDS = (
+    "project_id", "project_name", "workspace_root", "repository_root",
+    "repository_remote", "git_common_dir", "worktree_name", "branch",
+    "provider", "surface", "resolution_method", "resolution_confidence",
+    "referenced_projects", "schema_version",
+)
 
 
 @dataclass(frozen=True)
@@ -222,7 +229,7 @@ def _record_from_observation(row: sqlite3.Row) -> SourceRecord | None:
         table="observations",
         source_id=sid,
         observation_id=_observation_id("observations", raw, payload),
-        project=str(raw.get("project") or "Hive-Mind"),
+        project=str(raw.get("project") or "Unclassified (legacy)"),
         obs_type=str(raw.get("type") or "event"),
         title=str(raw.get("title") or "(sem titulo)"),
         content=content,
@@ -253,7 +260,7 @@ def _record_from_discovery(row: sqlite3.Row) -> SourceRecord | None:
         table="discoveries",
         source_id=sid,
         observation_id=_observation_id("discoveries", raw, payload),
-        project=str(raw.get("project") or "Hive-Mind"),
+        project=str(raw.get("project") or "Unclassified (legacy)"),
         obs_type="discovery",
         title=str(raw.get("title") or "Claude-Mem discovery"),
         content=json.dumps(payload, ensure_ascii=False, sort_keys=True),
@@ -287,7 +294,7 @@ def _record_from_session_summary(row: sqlite3.Row) -> SourceRecord | None:
         table="session_summaries",
         source_id=sid,
         observation_id=_observation_id("session_summaries", raw, payload),
-        project=str(raw.get("project") or "Hive-Mind"),
+        project=str(raw.get("project") or "Unclassified (legacy)"),
         obs_type="session_summary",
         title=str(raw.get("request") or "Claude-Mem session summary")[:240],
         content=json.dumps(payload, ensure_ascii=False, sort_keys=True),
@@ -352,7 +359,65 @@ def _hm_observation_columns(hm_conn: sqlite3.Connection) -> set[str]:
     return {row[1] for row in hm_conn.execute("PRAGMA table_info(observations)").fetchall()}
 
 
-def _insert_observation(hm_conn: sqlite3.Connection, rec: SourceRecord, project: str, metadata: dict[str, Any]) -> None:
+def _unclassified_identity(
+    rec: SourceRecord,
+    metadata: dict[str, Any],
+    status: str,
+    error: str | None = None,
+) -> tuple[str, str, dict[str, Any], str]:
+    project = rec.project.strip() or f"Unclassified ({status})"
+    project_id = f"unclassified/{status}"
+    metadata.update({
+        "project_id": project_id,
+        "project_name": project,
+        "source_session": metadata.get("source_session") or metadata.get("memory_session_id"),
+        "identity_status": status,
+        "legacy_identity": status == "legacy",
+    })
+    if error:
+        metadata["identity_error"] = error
+    return project, project_id, metadata, status
+
+
+def _resolve_record_identity(rec: SourceRecord) -> tuple[str, str, dict[str, Any], str]:
+    """Resolve identity without deriving project IDs from provider labels."""
+    metadata = dict(rec.metadata)
+    envelope = metadata.get("project_identity")
+    if envelope is None:
+        return _unclassified_identity(rec, metadata, "legacy")
+    if not isinstance(envelope, dict):
+        return _unclassified_identity(
+            rec, metadata, "invalid", "project_identity must be an object"
+        )
+
+    try:
+        identity = ProjectIdentity.from_dict({
+            key: envelope[key] for key in IDENTITY_FIELDS if key in envelope
+        })
+    except (KeyError, TypeError, ProjectIdentityError, ValueError) as error:
+        return _unclassified_identity(rec, metadata, "invalid", str(error))
+
+    metadata.update({
+        "project": identity.project_name,
+        "project_id": identity.project_id,
+        "project_name": identity.project_name,
+        "provider": identity.provider,
+        "surface": identity.surface,
+        "branch": identity.branch,
+        "worktree_name": identity.worktree_name,
+        "source_session": metadata.get("source_session") or metadata.get("memory_session_id"),
+        "identity_status": "canonical",
+        "legacy_identity": False,
+    })
+    return identity.project_name, identity.project_id, metadata, "canonical"
+
+def _insert_observation(
+    hm_conn: sqlite3.Connection,
+    rec: SourceRecord,
+    project: str,
+    workspace_id: str,
+    metadata: dict[str, Any],
+) -> None:
     columns = _hm_observation_columns(hm_conn)
     base_cols = ["id", "project", "type", "title", "content", "created_at", "archived", "metadata"]
     values: list[Any] = [
@@ -367,7 +432,7 @@ def _insert_observation(hm_conn: sqlite3.Connection, rec: SourceRecord, project:
     ]
     if "workspace_id" in columns:
         base_cols.append("workspace_id")
-        values.append(str(metadata.get("workspace_id") or "default"))
+        values.append(workspace_id)
     placeholders = ", ".join("?" for _ in base_cols)
     hm_conn.execute(
         f"""
@@ -396,7 +461,7 @@ def bridge(
     """
     if not cm_db.exists():
         logger.warning("claude-mem.db not found at %s", cm_db)
-        return {"scanned": 0, "inserted": 0, "skipped": 0, "by_source": {}}
+        return {"scanned": 0, "inserted": 0, "skipped": 0, "by_source": {}, "by_identity": {}}
     hm = get_connection()
     ensure_migrations(hm)
     cm = open_claude_mem(cm_db)
@@ -412,21 +477,27 @@ def bridge(
         )
         inserted = skipped = 0
         by_source: dict[str, int] = {}
+        by_identity: dict[str, int] = {}
         for rec in records:
             if rec.observation_id in already:
                 skipped += 1
                 continue
-            project = rec.project.strip() or default_project
-            metadata = dict(rec.metadata)
-            metadata.setdefault("project", project)
+            project, workspace_id, metadata, identity_status = _resolve_record_identity(rec)
             if not dry_run:
-                _insert_observation(hm, rec, project, metadata)
+                _insert_observation(hm, rec, project, workspace_id, metadata)
             already.add(rec.observation_id)
             inserted += 1
             by_source[rec.table] = by_source.get(rec.table, 0) + 1
+            by_identity[identity_status] = by_identity.get(identity_status, 0) + 1
         if not dry_run:
             hm.commit()
-        stats = {"scanned": len(records), "inserted": inserted, "skipped": skipped, "by_source": by_source}
+        stats = {
+            "scanned": len(records),
+            "inserted": inserted,
+            "skipped": skipped,
+            "by_source": by_source,
+            "by_identity": by_identity,
+        }
         logger.info("claude_mem_bridge: %s", stats)
         return stats
     finally:

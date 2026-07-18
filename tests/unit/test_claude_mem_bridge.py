@@ -117,3 +117,94 @@ def test_quarantine_legacy(hm_path, cm_path):
     # bridged (cm-*) nunca é quarentenado
     br.bridge(cm_db=cm_path)
     assert _count(hm_path, "id LIKE 'cm-%' AND archived=2") == 0
+
+
+def _identity_envelope(**overrides):
+    envelope = {
+        "project_id": "root/canonical-2fbe6cbe9d3a",
+        "project_name": "Canonical Project",
+        "workspace_root": r"D:\\Canonical",
+        "repository_root": r"D:\\Canonical",
+        "repository_remote": "github.com/example/canonical-project",
+        "git_common_dir": r"D:\\Canonical\\.git",
+        "worktree_name": "canonical-worktree",
+        "branch": "feature/identity",
+        "provider": "copilot",
+        "surface": "ide-extension",
+        "resolution_method": "git_remote",
+        "resolution_confidence": 1.0,
+        "referenced_projects": [],
+        "schema_version": 1,
+        "future_optional_field": "preserved",
+    }
+    envelope.update(overrides)
+    return envelope
+
+
+def test_bridge_uses_versioned_identity_envelope_for_project_and_workspace(hm_path, cm_path):
+    import json
+
+    hm = _connect(hm_path)
+    hm.execute("ALTER TABLE observations ADD COLUMN workspace_id TEXT")
+    hm.commit()
+    hm.close()
+
+    cm = _connect(cm_path)
+    cm.execute("ALTER TABLE observations ADD COLUMN metadata TEXT")
+    cm.execute("ALTER TABLE observations ADD COLUMN memory_session_id TEXT")
+    cm.execute(
+        "UPDATE observations SET project=?, memory_session_id=?, metadata=? WHERE id=1",
+        (
+            "provider-free-form-label",
+            "source-session-1",
+            json.dumps({"project_identity": _identity_envelope()}),
+        ),
+    )
+    cm.commit()
+    cm.close()
+
+    stats = br.bridge(cm_db=cm_path, source_ids=["claude-mem:observations:1"])
+
+    hm = _connect(hm_path)
+    row = hm.execute(
+        "SELECT project, workspace_id, metadata FROM observations WHERE id='cm-h-comfy'"
+    ).fetchone()
+    hm.close()
+    metadata = json.loads(row["metadata"])
+    assert row["workspace_id"] == "root/canonical-2fbe6cbe9d3a"
+    assert row["project"] == "Canonical Project"
+    assert metadata["project_id"] == "root/canonical-2fbe6cbe9d3a"
+    assert metadata["project_name"] == "Canonical Project"
+    assert metadata["provider"] == "copilot"
+    assert metadata["surface"] == "ide-extension"
+    assert metadata["branch"] == "feature/identity"
+    assert metadata["worktree_name"] == "canonical-worktree"
+    assert metadata["source_session"] == "source-session-1"
+    assert metadata["identity_status"] == "canonical"
+    assert metadata["project_identity"]["future_optional_field"] == "preserved"
+    assert stats["by_identity"] == {"canonical": 1}
+
+
+def test_bridge_marks_legacy_identity_unclassified_without_inference(hm_path, cm_path):
+    import json
+
+    hm = _connect(hm_path)
+    hm.execute("ALTER TABLE observations ADD COLUMN workspace_id TEXT")
+    hm.commit()
+    hm.close()
+
+    stats = br.bridge(cm_db=cm_path, source_ids=["claude-mem:observations:2"])
+
+    hm = _connect(hm_path)
+    row = hm.execute(
+        "SELECT project, workspace_id, metadata FROM observations WHERE id='cm-h-thoth'"
+    ).fetchone()
+    hm.close()
+    metadata = json.loads(row["metadata"])
+    assert row["project"] == "Thoth"
+    assert row["workspace_id"] == "unclassified/legacy"
+    assert metadata["project_id"] == "unclassified/legacy"
+    assert metadata["identity_status"] == "legacy"
+    assert metadata["legacy_identity"] is True
+    assert metadata["project_id"] not in {"thoth", "provider", "surface"}
+    assert stats["by_identity"] == {"legacy": 1}
