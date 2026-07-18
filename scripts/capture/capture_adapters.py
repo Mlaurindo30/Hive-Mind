@@ -26,6 +26,7 @@ from parsers import (
     hermes as _hermes,
     kilo as _kilo,
     kimi as _kimi,
+    qwen as _qwen,
     mimo as _mimo,
     openclaw as _openclaw,
     roo as _roo,
@@ -64,6 +65,42 @@ def _vscode_user_dir() -> Path:
 
 VSCODE_USER = _vscode_user_dir()
 
+
+def _local_appdata_dir() -> Path:
+    if os.name == "nt":
+        value = os.environ.get("LOCALAPPDATA")
+        return Path(value) if value else HOME / "AppData" / "Local"
+    return HOME / ".local" / "share"
+
+
+def _hermes_paths() -> tuple[list[str], list[str]]:
+    if os.name == "nt":
+        base = _local_appdata_dir() / "hermes"
+        return [str(base)], [str(base / "state.db")]
+    base = HOME / ".hermes"
+    return [str(base)], [str(base / "state.db")]
+
+
+def _kilo_paths() -> tuple[list[str], list[str]]:
+    if os.name == "nt":
+        canonical_cli = HOME / ".local" / "share" / "kilo"
+        roots = [
+            canonical_cli,
+            VSCODE_USER / "globalStorage" / "kilocode.kilo-code",
+            HOME / ".kilocode",
+            HOME / ".kilo",
+        ]
+        watches = [str(root) for root in roots]
+        sources = [str(canonical_cli / "kilo.db")]
+        sources.extend(str(root / "**" / "kilo.db") for root in roots[1:])
+        return watches, sources
+    base = HOME / "snap" / "code" / "*" / ".local" / "share" / "kilo"
+    return [str(base)], [str(base / "kilo.db")]
+
+
+HERMES_WATCH, HERMES_SOURCES = _hermes_paths()
+KILO_WATCH, KILO_SOURCES = _kilo_paths()
+
 ADAPTERS = {
     # ── append-only ──────────────────────────────────────────────────────────
     # Codex CLI e extensão VS Code do OpenAI Codex gravam cada sessão em
@@ -83,14 +120,22 @@ ADAPTERS = {
         ],
     },
     "copilot": {
-        "owner": "realtime", "mode": "tail", "parser": _copilot.parse,
-        "watch": [str(VSCODE_USER / "workspaceStorage/*/GitHub.copilot-chat/transcripts")],
-        "sources": [str(VSCODE_USER / "workspaceStorage/*/GitHub.copilot-chat/transcripts/*.jsonl")],
+        "owner": "realtime", "mode": "reparse", "parser": _copilot.parse,
+        "watch": [
+            str(HOME / ".copilot"),
+            str(VSCODE_USER / "globalStorage/github.copilot-chat"),
+            str(VSCODE_USER / "workspaceStorage/*/GitHub.copilot-chat/transcripts"),
+        ],
+        "sources": [
+            str(HOME / ".copilot/session-store.db"),
+            str(VSCODE_USER / "globalStorage/github.copilot-chat/session-store.db"),
+            str(VSCODE_USER / "workspaceStorage/*/GitHub.copilot-chat/transcripts/*.jsonl"),
+        ],
     },
     "hermes": {
         "owner": "realtime", "mode": "reparse", "parser": _hermes.parse,
-        "watch": [str(HOME / ".hermes")],
-        "sources": [str(HOME / ".hermes/state.db")],
+        "watch": HERMES_WATCH,
+        "sources": HERMES_SOURCES,
     },
     # ── reescrito / array / sqlite ───────────────────────────────────────────
     # Antigravity tem DOIS layouts com o mesmo esquema de transcript:
@@ -100,27 +145,41 @@ ADAPTERS = {
         "owner": "realtime", "mode": "reparse", "parser": _antigravity.parse,
         "watch": [
             str(HOME / ".gemini/antigravity/brain"),                                 # sentinela: detecta novos UUIDs (Desktop)
+            str(HOME / ".gemini/antigravity-ide/brain"),                         # storage real do IDE Windows
+            str(HOME / ".gemini/antigravity-ide/conversations"),                 # SQLite real do IDE Windows
             str(HOME / ".gemini/antigravity/brain/*/.system_generated/logs"),        # filtrado por mtime em refresh()
             str(HOME / ".gemini/antigravity-cli/brain"),                             # sentinela: detecta novos UUIDs (CLI)
+            str(HOME / ".gemini/antigravity-cli/conversations"),                 # SQLite real do CLI Windows
             str(HOME / ".gemini/antigravity-cli/brain/*/.system_generated/logs"),    # filtrado por mtime em refresh()
         ],
         "sources": [
             str(HOME / ".gemini/antigravity/brain/*/.system_generated/logs/transcript_full.jsonl"),
+            str(HOME / ".gemini/antigravity-ide/brain/*/.system_generated/logs/transcript_full.jsonl"),
+            str(HOME / ".gemini/antigravity-ide/conversations/*.db"),
             str(HOME / ".gemini/antigravity-cli/brain/*/.system_generated/logs/transcript_full.jsonl"),
+            str(HOME / ".gemini/antigravity-cli/conversations/*.db"),
         ],
     },
     "kimi": {
         "owner": "realtime", "mode": "reparse", "parser": _kimi.parse,
         "watch": [
-            str(HOME / ".kimi/sessions"),    # sentinela: detecta novas sessões
-            str(HOME / ".kimi/sessions/*/*"), # filtrado por mtime em refresh()
+            str(HOME / ".kimi/sessions"),
+            str(HOME / ".kimi/sessions/*/*"),
+            str(HOME / ".kimi-code/sessions"),
         ],
-        "sources": [str(HOME / ".kimi/sessions/*/*/context.jsonl")],
+        "sources": [
+            str(HOME / ".kimi/sessions/*/*/context.jsonl"),
+            str(HOME / ".kimi-code/sessions/**/agents/main/wire.jsonl"),
+        ],
     },
-    "kilo": {
+    "qwen": {
+        "owner": "realtime", "mode": "tail", "parser": _qwen.parse,
+        "watch": [str(HOME / ".qwen/projects")],
+        "sources": [str(HOME / ".qwen/projects/**/chats/*.jsonl")],
+    },    "kilo": {
         "owner": "realtime", "mode": "reparse", "parser": _kilo.parse,
-        "watch": [str(HOME / "snap/code/*/.local/share/kilo")],
-        "sources": [str(HOME / "snap/code/*/.local/share/kilo/kilo.db")],
+        "watch": KILO_WATCH,
+        "sources": KILO_SOURCES,
     },
     "roo": {
         "owner": "realtime", "mode": "reparse", "parser": _roo.parse,

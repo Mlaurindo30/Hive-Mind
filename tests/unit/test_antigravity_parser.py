@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -45,6 +46,45 @@ def _write_transcript(tmp_path: Path, lines: list[str]) -> Path:
     transcript.write_text("\n".join(lines), encoding="utf-8")
     return transcript
 
+
+def _protobuf_varint(value: int) -> bytes:
+    out = bytearray()
+    while value > 0x7F:
+        out.append((value & 0x7F) | 0x80)
+        value >>= 7
+    out.append(value)
+    return bytes(out)
+
+
+def _protobuf_blob(field: int, payload: bytes) -> bytes:
+    return _protobuf_varint((field << 3) | 2) + _protobuf_varint(len(payload)) + payload
+
+
+def _protobuf_text(field: int, text: str) -> bytes:
+    return _protobuf_blob(field, text.encode("utf-8"))
+
+
+def test_antigravity_cli_reads_windows_conversation_database(tmp_path: Path) -> None:
+    sid = "e2f6cb6e-5172-4586-af7b-634d88c52374"
+    db = tmp_path / ".gemini" / "antigravity-cli" / "conversations" / f"{sid}.db"
+    db.parent.mkdir(parents=True)
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE steps (idx INTEGER PRIMARY KEY, step_type INTEGER, step_payload BLOB)")
+    con.execute("INSERT INTO steps VALUES (?,?,?)", (0, 14, _protobuf_blob(19, _protobuf_text(2, "prompt real"))))
+    con.execute("INSERT INTO steps VALUES (?,?,?)", (2, 15, _protobuf_blob(20, _protobuf_text(1, "resposta real"))))
+    con.commit()
+    con.close()
+
+    session = _load_parser().parse(db)[0]
+
+    assert session["sid"] == sid
+    assert session["prompts"] == ["prompt real"]
+    assert session["prompt_events"] == [{
+        "event_id": "0",
+        "content": "prompt real",
+        "source_position": f"{sid}.db:step:0",
+    }]
+    assert session["last"] == "resposta real"
 
 def test_antigravity_keeps_every_user_input(tmp_path: Path) -> None:
     transcript = _write_transcript(
@@ -171,6 +211,10 @@ def test_session_to_events_maps_prompts_tools_and_assistant(tmp_path: Path) -> N
     assert all(event.session_id == session["sid"] for event in events)
     assert [event.content for event in events[:2]] == ["one", "two"]
     assert [event.event_id for event in events[:2]] == ["1", "2"]
+    assert all(event.project == session.get("project") for event in events)
+    assert all(event.cwd == session.get("cwd") for event in events)
+    assert events[2].metadata["tool_name"] == "ViewFile"
+    assert events[2].metadata["tool_use_id"] == events[3].metadata["tool_use_id"]
     assert events[-1].content == "resposta final"
 
 
