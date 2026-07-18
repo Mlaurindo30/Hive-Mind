@@ -98,10 +98,55 @@ Created:
 - No service/process/database/backlog interaction.
 - No identity field participates in content/event hashes.
 - The realtime resolver is long-lived per daemon and called once per parsed session.
-- The hook resolver is long-lived per hook process and called once per callback/session event.
+- Hook identity is persisted atomically per `(provider, session_id)` and reused across callback processes.
 
 ## Remaining concerns outside Task 4
 
 - Providers that do not yet emit an authoritative `surface` continue as `unknown` at realtime; provider-specific surface normalization belongs to Task 6.
 - Hermes Desktop source parsing remains intentionally untouched and belongs to Task 5.
 - Downstream Claude Mem bridge/UMC workspace mapping belongs to Task 7.
+## P1 Review Correction — Cross-process Hook Identity
+
+The review identified that a process-local resolver did not satisfy the once-per-session contract because real hook callbacks may start a fresh Python process for every event. The hook now uses a SQLite-backed `SessionContextStore` with a separate `capture_session_context` table keyed by `(provider, session_id)`. Its `BEGIN IMMEDIATE` get-or-create transaction serializes competing processes: the first callback resolves and persists the complete envelope; every later callback reuses it without consulting cwd, environment, or resolver again.
+
+The test uses `HIVE_CAPTURE_DB` pointing at pytest `tmp_path`; no protected or runtime database was opened, drained, or modified.
+
+### RED
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q `
+  tests\unit\test_capture_project_identity.py `
+  -k "reuses_persisted_identity"
+```
+
+Result before production changes:
+
+```text
+1 failed, 5 deselected in 0.59s
+AssertionError: assert (1 + 1) == 1
+```
+
+The first prompt callback resolved once; a second tool-result callback loaded through a distinct module instance after `cwd`, `HIVE_PROJECT_ID`, and `HIVE_PROJECT_ROOT` changed, and incorrectly resolved again.
+
+### GREEN
+
+Focused hook identity:
+
+```text
+2 passed, 4 deselected in 0.42s
+```
+
+Complete Task 4 suite:
+
+```text
+115 passed in 12.89s
+```
+
+Additional gates:
+
+```text
+compileall scripts/capture/capture-hook.py scripts/capture/session_events.py: PASS
+git diff --check: PASS
+```
+
+The regression test also proves that both native event IDs, tool metadata, current callback cwd, replay behavior, and the original canonical envelope survive the process/store boundary unchanged. The resolver is called exactly once across the two callbacks.

@@ -211,8 +211,9 @@ def test_capture_core_sends_identity_metadata_without_changing_content_hash(tmp_
     assert calls[0][1]["project"] == "Hive-Mind"
 
 
-def test_hook_resolves_once_and_preserves_identity_in_event_metadata(monkeypatch):
+def test_hook_resolves_once_and_preserves_identity_in_event_metadata(tmp_path, monkeypatch):
     module = _load(HOOK_SCRIPT, "capture_hook_project_identity")
+    monkeypatch.setenv("HIVE_CAPTURE_DB", str(tmp_path / "capture.db"))
     resolver = RecordingResolver(_identity(provider="codex", surface="hook"))
     captured: list[ProviderEvent] = []
 
@@ -249,3 +250,86 @@ def test_hook_resolves_once_and_preserves_identity_in_event_metadata(monkeypatch
     assert captured[0].project == "Hive-Mind"
     assert captured[0].cwd == r"D:\\Hive-Mind"
     assert captured[0].metadata == {"project_identity": resolver.identity.to_dict()}
+
+
+def test_hook_reuses_persisted_identity_across_callbacks_and_store_reopen(tmp_path, monkeypatch):
+    db_path = tmp_path / "capture.db"
+    monkeypatch.setenv("HIVE_CAPTURE_DB", str(db_path))
+    first_module = _load(HOOK_SCRIPT, "capture_hook_project_identity_first_process")
+    first_resolver = RecordingResolver(_identity(provider="codex", surface="hook"))
+    captured: list[ProviderEvent] = []
+
+    class Queue:
+        def __init__(self, path):
+            assert Path(path) == db_path
+
+        def enqueue(self, event):
+            captured.append(event)
+            return True
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(first_module, "IDENTITY_RESOLVER", first_resolver)
+    monkeypatch.setattr(first_module, "CaptureQueue", Queue)
+    first_payload = {
+        "session_id": "cross-process-session",
+        "event_id": "native-prompt-event",
+        "cwd": r"D:\\Hive-Mind",
+        "project": "Hive-Mind",
+        "prompt": "first callback",
+    }
+    assert first_module.process(
+        "codex", "prompt", json.dumps(first_payload).encode("utf-8")
+    )["enqueued"] is True
+
+    monkeypatch.setenv("HIVE_PROJECT_ID", "changed-after-session-start")
+    monkeypatch.setenv("HIVE_PROJECT_ROOT", r"C:\\different-workspace")
+    second_module = _load(HOOK_SCRIPT, "capture_hook_project_identity_second_process")
+    second_resolver = RecordingResolver(
+        ProjectIdentity(
+            project_id="wrong-if-resolved-again",
+            project_name="Wrong If Resolved Again",
+            workspace_root=r"C:\\different-workspace",
+            repository_root=None,
+            repository_remote=None,
+            git_common_dir=None,
+            worktree_name=None,
+            branch=None,
+            provider="codex",
+            surface="hook",
+            resolution_method="explicit",
+            resolution_confidence=1.0,
+            referenced_projects=(),
+        )
+    )
+    monkeypatch.setattr(second_module, "IDENTITY_RESOLVER", second_resolver)
+    monkeypatch.setattr(second_module, "CaptureQueue", Queue)
+    second_payload = {
+        "session_id": "cross-process-session",
+        "event_id": "native-tool-event",
+        "cwd": r"C:\\different-workspace",
+        "project_id": "changed-after-session-start",
+        "tool_name": "Read",
+        "tool_input": {"path": "README.md"},
+        "tool_response": {"content": "ok"},
+    }
+    assert second_module.process(
+        "codex", "tool_result", json.dumps(second_payload).encode("utf-8")
+    )["enqueued"] is True
+
+    assert len(first_resolver.calls) + len(second_resolver.calls) == 1
+    assert len(first_resolver.calls) == 1
+    assert len(second_resolver.calls) == 0
+    assert [event.event_id for event in captured] == [
+        "native-prompt-event",
+        "native-tool-event",
+    ]
+    first_envelope = captured[0].metadata["project_identity"]
+    second_envelope = captured[1].metadata["project_identity"]
+    assert second_envelope == first_envelope
+    assert first_envelope["project_id"] == "hive-mind"
+    assert captured[0].project == captured[1].project == "Hive-Mind"
+    assert captured[1].cwd == r"C:\\different-workspace"
+    assert captured[1].metadata["tool_name"] == "Read"
+    assert captured[1].metadata["native_event_id"] == "native-tool-event"

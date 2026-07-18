@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -51,6 +52,94 @@ def default_db_path() -> Path:
         return Path(override)
     home = Path(os.environ.get("SINAPSE_HOME", str(ROOT)))
     return home / "logs" / "capture-outbox.db"
+
+
+class SessionContextStore:
+    """Persist one canonical identity envelope per provider session."""
+
+    def __init__(self, db_path: Path) -> None:
+        self._path = Path(db_path)
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._connection = sqlite3.connect(
+            str(self._path),
+            timeout=30,
+            isolation_level=None,
+        )
+        self._connection.row_factory = sqlite3.Row
+        self._connection.execute("PRAGMA journal_mode=WAL")
+        self._connection.execute("PRAGMA synchronous=NORMAL")
+        self._connection.execute("PRAGMA busy_timeout=10000")
+        self._connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS capture_session_context (
+                provider TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                project_identity TEXT NOT NULL,
+                PRIMARY KEY (provider, session_id)
+            )
+            """
+        )
+
+    def get_or_resolve(
+        self,
+        provider: str,
+        session_id: str,
+        session: dict,
+        *,
+        resolver: ProjectIdentityResolver,
+        default_surface: str,
+    ) -> dict:
+        """Atomically resolve once, or reuse the persisted session envelope."""
+        self._connection.execute("BEGIN IMMEDIATE")
+        try:
+            row = self._connection.execute(
+                """
+                SELECT project_identity
+                FROM capture_session_context
+                WHERE provider = ? AND session_id = ?
+                """,
+                (provider, session_id),
+            ).fetchone()
+            if row is None:
+                normalized = attach_project_identity(
+                    provider,
+                    session,
+                    resolver=resolver,
+                    default_surface=default_surface,
+                )
+                envelope = dict(normalized["project_identity"])
+                self._connection.execute(
+                    """
+                    INSERT INTO capture_session_context (
+                        provider, session_id, project_identity
+                    ) VALUES (?, ?, ?)
+                    """,
+                    (
+                        provider,
+                        session_id,
+                        json.dumps(
+                            envelope,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                            sort_keys=True,
+                        ),
+                    ),
+                )
+            else:
+                envelope = json.loads(row["project_identity"])
+            self._connection.commit()
+        except BaseException:
+            self._connection.rollback()
+            raise
+
+        normalized = dict(session)
+        normalized.update(envelope)
+        normalized["project_identity"] = dict(envelope)
+        normalized["project"] = envelope["project_name"]
+        return normalized
+
+    def close(self) -> None:
+        self._connection.close()
 
 
 def read_stdin_capped(stream=None) -> bytes:
@@ -183,12 +272,18 @@ def process(provider: str, event_type: str, raw: bytes) -> dict:
             "reason": "empty content",
         }
 
-    normalized_session = attach_project_identity(
-        provider,
-        {**payload, "sid": session_id},
-        resolver=IDENTITY_RESOLVER,
-        default_surface="hook",
-    )
+    db_path = default_db_path()
+    context_store = SessionContextStore(db_path)
+    try:
+        normalized_session = context_store.get_or_resolve(
+            provider,
+            session_id,
+            {**payload, "sid": session_id},
+            resolver=IDENTITY_RESOLVER,
+            default_surface="hook",
+        )
+    finally:
+        context_store.close()
     cwd = normalized_session.get("cwd")
     project = normalized_session["project"]
     event_metadata = _event_metadata(payload) or {}
@@ -213,7 +308,7 @@ def process(provider: str, event_type: str, raw: bytes) -> dict:
         metadata=event_metadata,
     )
 
-    queue = CaptureQueue(default_db_path())
+    queue = CaptureQueue(db_path)
     try:
         enqueued = queue.enqueue(event)
     finally:
