@@ -659,9 +659,6 @@ class ProjectIdentityResolver:
         common_dir = self._run_git(
             workspace, "rev-parse", "--path-format=absolute", "--git-common-dir"
         )
-        git_dir = self._run_git(
-            workspace, "rev-parse", "--path-format=absolute", "--git-dir"
-        )
         if common_dir is None:
             raw_common = self._run_git(workspace, "rev-parse", "--git-common-dir")
             if raw_common is None:
@@ -673,16 +670,12 @@ class ProjectIdentityResolver:
         )
         root_display = _path_display(root)
         common_display = _path_display(common_dir)
-        linked = (
-            git_dir is not None
-            and canonical_path_key(git_dir) != canonical_path_key(common_display)
-        )
         return _GitEvidence(
             repository_root=root_display,
             git_common_dir=common_display,
             repository_remote=remote,
             branch=branch,
-            worktree_name=Path(root_display).name if linked else None,
+            worktree_name=Path(root_display).name,
         )
 
     def _resolve_references(self, references: Iterable[str] | None) -> tuple[str, ...]:
