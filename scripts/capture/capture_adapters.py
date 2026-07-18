@@ -201,9 +201,8 @@ ADAPTERS = {
         "watch": [str(HOME / ".openclaw/tasks")],
         "sources": [str(HOME / ".openclaw/tasks/runs.sqlite")],
     },
-    # SwarmClaw armazena sessões e runs em SQLite. O CWD dos agents é
-    # .swarmclaw/workspace/ → project deriva como 'workspace'; o parser
-    # IGNORA o CWD e hardcoda project='swarmclaw' para identificação correta.
+    # SwarmClaw armazena sessões e runs em SQLite. O parser preserva o CWD
+    # bruto; a identidade canônica é resolvida depois por attach_project_identity.
     "swarmclaw": {
         "owner": "realtime", "mode": "reparse", "parser": _swarmclaw.parse,
         "watch": [str(HOME / ".swarmclaw/data")],

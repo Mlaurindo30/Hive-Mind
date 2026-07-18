@@ -15,7 +15,7 @@ import re
 import uuid as _uuid
 from pathlib import Path
 
-from capture_core import project_from_cwd, text_content
+from capture_core import text_content
 
 _UUID = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 
@@ -30,13 +30,12 @@ def _session_id(path: Path) -> str:
     return str(_uuid.uuid5(_uuid.NAMESPACE_URL, str(path)))
 
 
-def _session_context(path: Path) -> tuple[str | None, str | None]:
+def _session_context(path: Path) -> str | None:
     try:
         state = json.loads((path.parents[2] / "state.json").read_text(encoding="utf-8"))
     except (OSError, ValueError, IndexError):
-        return None, None
-    cwd = state.get("workDir")
-    return project_from_cwd(cwd), cwd
+        return None
+    return state.get("workDir")
 
 
 def _parse_wire(path: Path) -> list[dict]:
@@ -99,7 +98,7 @@ def _parse_wire(path: Path) -> list[dict]:
                 "tool_response": text_content(output) or "ok",
             })
 
-    project, cwd = _session_context(path)
+    cwd = _session_context(path)
     if not prompts and not turns and not last_text:
         return []
     return [{
@@ -109,7 +108,9 @@ def _parse_wire(path: Path) -> list[dict]:
         "prompt_events": prompt_events,
         "turns": turns,
         "last": last_text,
-        "project": project,
+        "source": "kimi-code",
+        "surface": "cli",
+        "official_workspace": cwd,
         "cwd": cwd,
     }]
 
@@ -136,7 +137,8 @@ def _parse_legacy(path: Path) -> list[dict]:
                 "tool_response": (text or "ok")[:4000],
             })
             pending_user = None
-    return [{"sid": sid, "prompt": prompt, "turns": turns, "last": last_text}]
+    return [{"sid": sid, "prompt": prompt, "turns": turns, "last": last_text,
+             "source": "kimi", "surface": "cli"}]
 
 
 def parse(path: Path):

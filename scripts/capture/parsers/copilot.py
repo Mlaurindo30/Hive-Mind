@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from capture_core import project_from_cwd, text_content
+from capture_core import text_content
 
 
 def _workspace_cwd(path: Path) -> str | None:
@@ -21,7 +21,10 @@ def _workspace_cwd(path: Path) -> str | None:
     try:
         ws = path.parents[2] / "workspace.json"   # <hash>/workspace.json
         folder = (json.loads(ws.read_text()).get("folder") or "")
-        return folder.replace("file://", "") or None
+        cwd = folder.replace("file://", "")
+        if len(cwd) >= 4 and cwd[0] == "/" and cwd[2] == ":":
+            cwd = cwd[1:]
+        return cwd or None
     except Exception:
         return None
 
@@ -83,7 +86,8 @@ def _parse_transcript(path: Path):
     if not prompt and not turns:
         return []
     return [{"sid": sid, "prompt": prompt, "turns": turns, "last": last_text,
-             "project": project_from_cwd(cwd), "cwd": cwd}]
+             "source": "vscode", "surface": "ide",
+             "official_workspace": cwd, "cwd": cwd}]
 
 
 def _parse_sqlite(db_path: Path):
@@ -112,7 +116,8 @@ def _parse_sqlite(db_path: Path):
                     "tool_input": {"prompt": (r["user_message"] or "")[:2000]},
                     "tool_response": (resp or "ok")[:4000],
                 })
-            out.append({"sid": sid, "prompt": prompt, "turns": turns, "last": last})
+            out.append({"sid": sid, "prompt": prompt, "turns": turns, "last": last,
+                        "source": "copilot-cli", "surface": "cli"})
     finally:
         con.close()
     return out

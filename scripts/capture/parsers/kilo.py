@@ -61,8 +61,11 @@ def parse(db_path: Path):
                     })
                     pending_user = None
             if prompt or turns:
+                normalized_path = str(db_path).replace("\\", "/").lower()
+                surface = "cli" if "/.local/share/kilo/" in normalized_path else "ide"
                 out.append({"sid": sid, "prompt": prompt, "turns": turns, "last": last_text,
-                            "project": core.project_from_cwd(directory), "cwd": directory})
+                            "source": "kilo", "surface": surface,
+                            "official_workspace": directory, "cwd": directory})
     finally:
         con.close()
     return out

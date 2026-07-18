@@ -81,6 +81,15 @@ def _step_text(payload: bytes | None, wrapper_field: int, text_field: int) -> st
     messages = envelope.get(wrapper_field, [])
     return _text_field(messages[0], text_field) if messages else None
 
+def _storage_identity(path: Path) -> tuple[str, str]:
+    parts = {part.lower() for part in path.parts}
+    if "antigravity-cli" in parts:
+        return "antigravity-cli", "cli"
+    if "antigravity-ide" in parts:
+        return "antigravity-ide", "ide"
+    return "antigravity", "ide"
+
+
 def _parse_database(path: Path) -> list[dict]:
     sid = path.stem if re.fullmatch(r"[0-9a-f-]{36}", path.stem) else None
     if not sid:
@@ -127,8 +136,11 @@ def _parse_database(path: Path) -> list[dict]:
         con.close()
     if not prompts and not last_text:
         return []
+    source, surface = _storage_identity(path)
     return [{
         "sid": sid,
+        "source": source,
+        "surface": surface,
         "prompt": prompts[0] if prompts else None,
         "prompts": prompts,
         "prompt_events": prompt_events,
@@ -187,8 +199,11 @@ def _parse_transcript(path: Path) -> list[dict]:
                 last_text = content
     if not sid:
         return []
+    source, surface = _storage_identity(path)
     return [{
         "sid": sid,
+        "source": source,
+        "surface": surface,
         "prompt": prompts[0] if prompts else None,
         "prompts": prompts,
         "prompt_events": prompt_events,

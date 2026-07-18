@@ -80,7 +80,8 @@ def parse(db_path: Path):
                     pending_user = None
             if not skip_session and (prompt or turns):
                 out.append({"sid": sid, "prompt": prompt, "turns": turns, "last": last_text,
-                            "project": core.project_from_cwd(directory), "cwd": directory})
+                            "source": "mimo", "surface": "cli",
+                            "official_workspace": directory, "cwd": directory})
     finally:
         con.close()
     return out

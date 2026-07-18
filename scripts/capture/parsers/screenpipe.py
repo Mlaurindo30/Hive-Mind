@@ -69,6 +69,8 @@ def fetch_recent_ocr(since_minutes: int = 60, limit: int = 50) -> list[dict]:
         app = content.get("app_name", "unknown")
         sessions.append({
             "sid": f"screenpipe:{frame_id}",
+            "source": "screenpipe-ocr",
+            "surface": "ocr",
             "prompt": f"[{app}] {text[:120]}",
             "turns": [{
                 "tool_name": "ScreenCapture",
@@ -95,6 +97,8 @@ def fetch_recent_audio(since_minutes: int = 60, limit: int = 20) -> list[dict]:
         chunk_id = str(item.get("content_id", item.get("id", "")))
         sessions.append({
             "sid": f"screenpipe:audio:{chunk_id}",
+            "source": "screenpipe-audio",
+            "surface": "audio",
             "prompt": f"[áudio] {text[:120]}",
             "turns": [{
                 "tool_name": "AudioTranscription",

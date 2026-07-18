@@ -15,7 +15,6 @@ import json
 import re
 from pathlib import Path
 
-from capture_core import project_from_cwd
 
 
 def _roo_cwd(path: Path) -> str | None:
@@ -85,4 +84,5 @@ def parse(path: Path):
     if not prompt and not turns:
         return []
     return [{"sid": sid, "prompt": prompt, "turns": turns, "last": last_text,
-             "project": project_from_cwd(cwd), "cwd": cwd}]
+             "source": "roo-code", "surface": "ide",
+             "official_workspace": cwd, "cwd": cwd}]

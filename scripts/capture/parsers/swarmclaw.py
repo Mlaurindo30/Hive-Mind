@@ -7,8 +7,8 @@ Tabelas:
   runtime_runs   — cada turno de conversa (data JSON: messagePreview, resultPreview,
                    queuedAt, status, sessionId)
 
-Sessões ficam em `.swarmclaw/workspace/` como CWD, mas o projeto deve ser 'swarmclaw'
-— não derivado do basename (que seria 'workspace').
+O parser preserva o CWD bruto da sessão; a identidade de projeto é resolvida
+posteriormente pelo ProjectIdentityResolver compartilhado.
 """
 from __future__ import annotations
 
@@ -17,7 +17,6 @@ from pathlib import Path
 
 import capture_core as core
 
-SWARMCLAW_PROJECT = "swarmclaw"
 
 
 def parse(db_path: Path):
@@ -79,7 +78,9 @@ def parse(db_path: Path):
                     "prompt": prompt,
                     "turns": turns,
                     "last": last_text,
-                    "project": SWARMCLAW_PROJECT,
+                    "source": "swarmclaw",
+                    "surface": "app",
+                    "official_workspace": sess["cwd"],
                     "cwd": sess["cwd"],
                 })
     finally:

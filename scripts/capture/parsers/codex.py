@@ -15,6 +15,7 @@ import json
 import re
 from pathlib import Path
 
+
 _VSCODE_REQUEST_RE = re.compile(
     r"## My request for (?:Codex|you):\s*\n(.*?)(?=\n##|\Z)", re.S
 )
@@ -59,7 +60,7 @@ def parse(path: Path):
     except Exception:
         return []
 
-    sid = cwd = project = None
+    sid = cwd = source = None
     first_prompt = last_text = None
     prompts: list[str] = []
     turns: list[dict] = []
@@ -81,8 +82,7 @@ def parse(path: Path):
         if t == "session_meta":
             sid = pl.get("id")
             cwd = pl.get("cwd") or cwd
-            if cwd:
-                project = Path(cwd).name
+            source = pl.get("source") or source
 
         elif t == "response_item":
             role = pl.get("role")
@@ -134,6 +134,7 @@ def parse(path: Path):
         "prompts": prompts,
         "turns": turns,
         "last": last_text,
-        "project": project,
+        "source": source,
+        "surface": "ide" if source == "vscode" else (source or "unknown"),
         "cwd": cwd,
     }]

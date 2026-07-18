@@ -10,7 +10,7 @@ import json
 import uuid as _uuid
 from pathlib import Path
 
-from capture_core import project_from_cwd, text_content
+from capture_core import text_content
 
 
 def _message_text(record: dict) -> str | None:
@@ -26,6 +26,8 @@ def parse(path: Path) -> list[dict]:
     last_text: str | None = None
     sid: str | None = None
     cwd: str | None = None
+    source: str | None = None
+    surface: str | None = None
 
     for lineno, line in enumerate(path.read_text(errors="ignore").splitlines(), start=1):
         try:
@@ -34,6 +36,8 @@ def parse(path: Path) -> list[dict]:
             continue
         sid = sid or record.get("sessionId")
         cwd = cwd or record.get("cwd")
+        source = source or record.get("source") or record.get("client")
+        surface = surface or record.get("surface")
         record_type = record.get("type")
         text = _message_text(record)
         if record_type == "user" and text:
@@ -64,6 +68,8 @@ def parse(path: Path) -> list[dict]:
         "prompt_events": prompt_events,
         "turns": turns,
         "last": last_text,
-        "project": project_from_cwd(cwd),
+        "source": source or "qwen",
+        "surface": surface or "unknown",
+        "official_workspace": cwd,
         "cwd": cwd,
     }]
