@@ -227,3 +227,38 @@ def test_screenpipe_distinguishes_ocr_and_audio_surfaces(monkeypatch) -> None:
     assert (audio["source"], audio["surface"]) == ("screenpipe-audio", "audio")
     assert "project" not in ocr
     assert "project" not in audio
+
+
+def test_antigravity_generic_storage_is_desktop_surface(tmp_path: Path) -> None:
+    module = _load("antigravity")
+    path = tmp_path / ".gemini" / "antigravity" / "brain" / "session" / "transcript_full.jsonl"
+
+    assert module._storage_identity(path) == ("antigravity", "desktop")
+
+
+def test_antigravity_cli_storage_is_cli_surface(tmp_path: Path) -> None:
+    module = _load("antigravity")
+    path = tmp_path / ".gemini" / "antigravity-cli" / "conversations" / "session.db"
+
+    assert module._storage_identity(path) == ("antigravity-cli", "cli")
+
+
+@pytest.mark.parametrize(
+    ("folder_uri", "expected"),
+    [
+        ("file:///D:/My%20Project/%E2%9C%93", "D:/My Project/✓"),
+        ("file://server/share/My%20Repo", r"\\server\share\My Repo"),
+    ],
+)
+def test_copilot_workspace_file_uri_is_decoded_robustly(
+    folder_uri: str, expected: str, tmp_path: Path
+) -> None:
+    module = _load("copilot")
+    root = tmp_path / "workspaceStorage" / "hash"
+    transcript = root / "GitHub.copilot-chat" / "transcripts" / "session.jsonl"
+    transcript.parent.mkdir(parents=True)
+    (root / "workspace.json").write_text(
+        json.dumps({"folder": folder_uri}), encoding="utf-8"
+    )
+
+    assert module._workspace_cwd(transcript) == expected

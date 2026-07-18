@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 from capture_core import text_content
 
@@ -21,10 +22,17 @@ def _workspace_cwd(path: Path) -> str | None:
     try:
         ws = path.parents[2] / "workspace.json"   # <hash>/workspace.json
         folder = (json.loads(ws.read_text()).get("folder") or "")
-        cwd = folder.replace("file://", "")
-        if len(cwd) >= 4 and cwd[0] == "/" and cwd[2] == ":":
-            cwd = cwd[1:]
-        return cwd or None
+        parsed = urlsplit(folder)
+        if parsed.scheme.lower() != "file":
+            return folder or None
+        uri_path = unquote(parsed.path)
+        if parsed.netloc and parsed.netloc.lower() != "localhost":
+            host = unquote(parsed.netloc)
+            share = uri_path.replace("/", "\\").lstrip("\\")
+            return f"\\\\{host}\\{share}" if share else f"\\\\{host}"
+        if len(uri_path) >= 4 and uri_path[0] == "/" and uri_path[2] == ":":
+            uri_path = uri_path[1:]
+        return uri_path or None
     except Exception:
         return None
 

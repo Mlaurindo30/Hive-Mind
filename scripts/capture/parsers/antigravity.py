@@ -87,7 +87,7 @@ def _storage_identity(path: Path) -> tuple[str, str]:
         return "antigravity-cli", "cli"
     if "antigravity-ide" in parts:
         return "antigravity-ide", "ide"
-    return "antigravity", "ide"
+    return "antigravity", "desktop"
 
 
 def _parse_database(path: Path) -> list[dict]:
