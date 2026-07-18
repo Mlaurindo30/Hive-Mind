@@ -150,3 +150,72 @@ git diff --check: PASS
 ```
 
 The regression test also proves that both native event IDs, tool metadata, current callback cwd, replay behavior, and the original canonical envelope survive the process/store boundary unchanged. The resolver is called exactly once across the two callbacks.
+## P1 Review Correction — Dedicated Context DB and Cache Repair
+
+The second review found two P1 issues in the cross-process hook cache. Both were corrected without changing the legacy `CaptureQueue` outbox path, delivery ownership, providers, Hermes, services, backlog, or protected databases.
+
+### P1 A — Context DB isolation
+
+`SessionContextStore` now resolves `HIVE_CAPTURE_CONTEXT_DB`, defaulting to `logs/capture-context.db`. `CaptureQueue` continues to resolve `HIVE_CAPTURE_DB`, defaulting to `logs/capture-outbox.db`; its path and schema are unchanged.
+
+A tmp-path regression test proves:
+
+- the two defaults are distinct;
+- explicit outbox and context paths remain distinct;
+- `capture_session_context` is created only in the context DB;
+- no context table is created in the queue DB.
+
+All hook tests force `HIVE_CAPTURE_CONTEXT_DB` to pytest `tmp_path`. No real or protected runtime database was opened or modified.
+
+### P1 B — Invalid persisted envelope repair
+
+Every cache hit is parsed and validated through `ProjectIdentity.from_dict`. Invalid JSON, missing/invalid fields, unsupported schema versions, and other contract failures become a cache miss. Under the existing `BEGIN IMMEDIATE` transaction, the resolver runs once, the canonical envelope is validated again, and the existing row is atomically replaced before commit. The current callback then continues to `CaptureQueue.enqueue`.
+
+Parameterized regression coverage proves both `{not-json` and an invalid schema payload are repaired, persisted as a valid `ProjectIdentity`, and the callback event is still enqueued with the repaired envelope. Existing once-per-session and serialized cross-process behavior remains unchanged for valid cache rows.
+
+### TDD RED
+
+Command:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_capture_project_identity.py `
+  -k "context_database_is_isolated or repairs_invalid_persisted"
+```
+
+Result before production changes:
+
+```text
+3 failed, 6 deselected in 1.11s
+```
+
+Expected failures:
+
+- `default_context_db_path` did not exist;
+- both corruption cases found no context table in the dedicated DB because production still wrote it into the outbox.
+
+### GREEN
+
+New regression cases:
+
+```text
+3 passed, 6 deselected in 0.34s
+```
+
+Focused hook/identity/idempotency set:
+
+```text
+17 passed in 3.06s
+```
+
+Complete Task 4 suite:
+
+```text
+118 passed in 15.92s
+```
+
+Additional gates:
+
+```text
+compileall scripts/capture/capture-hook.py scripts/capture/project_identity.py scripts/capture/session_events.py: PASS
+git diff --check: PASS
+```

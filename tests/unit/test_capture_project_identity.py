@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sqlite3
 import time
 from pathlib import Path
+
+import pytest
 
 from scripts.capture.capture_events import ProviderEvent
 from scripts.capture.project_identity import ProjectIdentity, ProjectIdentityResolver
@@ -13,6 +16,16 @@ from scripts.capture.session_events import attach_project_identity, session_to_e
 ROOT = Path(__file__).resolve().parents[2]
 REALTIME_SCRIPT = ROOT / "scripts" / "capture" / "capture-realtime.py"
 HOOK_SCRIPT = ROOT / "scripts" / "capture" / "capture-hook.py"
+
+
+@pytest.fixture(autouse=True)
+def isolate_hook_context_database(tmp_path, monkeypatch):
+    monkeypatch.setenv(
+        "HIVE_CAPTURE_CONTEXT_DB", str(tmp_path / "capture-context.db")
+    )
+
+
+
 IDENTITY_KEYS = {
     "schema_version",
     "project_id",
@@ -209,6 +222,159 @@ def test_capture_core_sends_identity_metadata_without_changing_content_hash(tmp_
     expected = {"project_identity": session["project_identity"]}
     assert all(payload["metadata"] == expected for _, payload in calls)
     assert calls[0][1]["project"] == "Hive-Mind"
+
+
+def test_hook_context_database_is_isolated_from_outbox(tmp_path, monkeypatch):
+    module = _load(HOOK_SCRIPT, "capture_hook_context_database_isolation")
+    outbox_path = tmp_path / "capture-outbox.db"
+    context_path = tmp_path / "capture-context.db"
+    monkeypatch.delenv("HIVE_CAPTURE_DB", raising=False)
+    monkeypatch.delenv("HIVE_CAPTURE_CONTEXT_DB", raising=False)
+    monkeypatch.setenv("SINAPSE_HOME", str(tmp_path / "default-home"))
+    assert module.default_db_path() == (
+        tmp_path / "default-home" / "logs" / "capture-outbox.db"
+    )
+    assert module.default_context_db_path() == (
+        tmp_path / "default-home" / "logs" / "capture-context.db"
+    )
+    assert module.default_context_db_path() != module.default_db_path()
+
+    monkeypatch.setenv("HIVE_CAPTURE_DB", str(outbox_path))
+    monkeypatch.setenv("HIVE_CAPTURE_CONTEXT_DB", str(context_path))
+    resolver = RecordingResolver(_identity(provider="codex", surface="hook"))
+    monkeypatch.setattr(module, "IDENTITY_RESOLVER", resolver)
+    result = module.process(
+        "codex",
+        "prompt",
+        json.dumps(
+            {
+                "session_id": "isolated-session",
+                "cwd": r"D:\\Hive-Mind",
+                "project": "Hive-Mind",
+                "prompt": "isolated prompt",
+            }
+        ).encode("utf-8"),
+    )
+
+    assert result["enqueued"] is True
+    assert outbox_path.exists()
+    assert context_path.exists()
+    with sqlite3.connect(outbox_path) as connection:
+        outbox_tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+    with sqlite3.connect(context_path) as connection:
+        context_tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+    assert "capture_session_context" not in outbox_tables
+    assert "capture_session_context" in context_tables
+
+
+@pytest.mark.parametrize(
+    "persisted",
+    [
+        "{not-json",
+        json.dumps({"schema_version": 999, "project_id": "stale"}),
+    ],
+    ids=["invalid-json", "invalid-schema"],
+)
+def test_hook_repairs_invalid_persisted_identity_and_enqueues_callback(
+    tmp_path, monkeypatch, persisted
+):
+    module = _load(HOOK_SCRIPT, f"capture_hook_context_repair_{abs(hash(persisted))}")
+    outbox_path = tmp_path / "capture-outbox.db"
+    context_path = tmp_path / "capture-context.db"
+    monkeypatch.setenv("HIVE_CAPTURE_DB", str(outbox_path))
+    monkeypatch.setenv("HIVE_CAPTURE_CONTEXT_DB", str(context_path))
+    captured: list[ProviderEvent] = []
+
+    class Queue:
+        def __init__(self, path):
+            assert Path(path) == outbox_path
+
+        def enqueue(self, event):
+            captured.append(event)
+            return True
+
+        def close(self):
+            pass
+
+    first_resolver = RecordingResolver(_identity(provider="codex", surface="hook"))
+    monkeypatch.setattr(module, "IDENTITY_RESOLVER", first_resolver)
+    monkeypatch.setattr(module, "CaptureQueue", Queue)
+    first_payload = {
+        "session_id": "repair-session",
+        "event_id": "repair-first",
+        "cwd": r"D:\\Hive-Mind",
+        "project": "Hive-Mind",
+        "prompt": "first prompt",
+    }
+    assert module.process(
+        "codex", "prompt", json.dumps(first_payload).encode("utf-8")
+    )["enqueued"] is True
+
+    with sqlite3.connect(context_path) as connection:
+        connection.execute(
+            """
+            UPDATE capture_session_context
+            SET project_identity = ?
+            WHERE provider = ? AND session_id = ?
+            """,
+            (persisted, "codex", "repair-session"),
+        )
+        connection.commit()
+
+    repaired_identity = ProjectIdentity(
+        project_id="repaired-project",
+        project_name="Repaired Project",
+        workspace_root=r"D:\\repaired",
+        repository_root=None,
+        repository_remote=None,
+        git_common_dir=None,
+        worktree_name=None,
+        branch=None,
+        provider="codex",
+        surface="hook",
+        resolution_method="explicit",
+        resolution_confidence=1.0,
+        referenced_projects=(),
+    )
+    repair_resolver = RecordingResolver(repaired_identity)
+    monkeypatch.setattr(module, "IDENTITY_RESOLVER", repair_resolver)
+    second_payload = {
+        "session_id": "repair-session",
+        "event_id": "repair-second",
+        "cwd": r"D:\\repaired",
+        "project_id": "repaired-project",
+        "prompt": "second prompt",
+    }
+    result = module.process(
+        "codex", "prompt", json.dumps(second_payload).encode("utf-8")
+    )
+
+    assert result["enqueued"] is True
+    assert len(repair_resolver.calls) == 1
+    assert captured[-1].event_id == "repair-second"
+    assert captured[-1].metadata["project_identity"] == repaired_identity.to_dict()
+    with sqlite3.connect(context_path) as connection:
+        repaired_payload = json.loads(
+            connection.execute(
+                """
+                SELECT project_identity
+                FROM capture_session_context
+                WHERE provider = ? AND session_id = ?
+                """,
+                ("codex", "repair-session"),
+            ).fetchone()[0]
+        )
+    assert ProjectIdentity.from_dict(repaired_payload) == repaired_identity
 
 
 def test_hook_resolves_once_and_preserves_identity_in_event_metadata(tmp_path, monkeypatch):

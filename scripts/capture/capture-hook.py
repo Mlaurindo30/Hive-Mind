@@ -26,7 +26,10 @@ if str(ROOT) not in sys.path:
 
 from scripts.capture.capture_events import ProviderEvent  # noqa: E402
 from scripts.capture.capture_queue import CaptureQueue  # noqa: E402
-from scripts.capture.project_identity import ProjectIdentityResolver  # noqa: E402
+from scripts.capture.project_identity import (  # noqa: E402
+    ProjectIdentity,
+    ProjectIdentityResolver,
+)
 from scripts.capture.session_events import attach_project_identity  # noqa: E402
 from scripts.utils.sanitizer import sanitize  # noqa: E402
 
@@ -52,6 +55,15 @@ def default_db_path() -> Path:
         return Path(override)
     home = Path(os.environ.get("SINAPSE_HOME", str(ROOT)))
     return home / "logs" / "capture-outbox.db"
+
+
+def default_context_db_path() -> Path:
+    """Resolve the hook identity cache without sharing the event outbox."""
+    override = os.environ.get("HIVE_CAPTURE_CONTEXT_DB")
+    if override:
+        return Path(override)
+    home = Path(os.environ.get("SINAPSE_HOME", str(ROOT)))
+    return home / "logs" / "capture-context.db"
 
 
 class SessionContextStore:
@@ -100,33 +112,48 @@ class SessionContextStore:
                 """,
                 (provider, session_id),
             ).fetchone()
-            if row is None:
+            envelope = None
+            if row is not None:
+                try:
+                    persisted = json.loads(row["project_identity"])
+                    envelope = ProjectIdentity.from_dict(persisted).to_dict()
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    envelope = None
+
+            if envelope is None:
                 normalized = attach_project_identity(
                     provider,
                     session,
                     resolver=resolver,
                     default_surface=default_surface,
                 )
-                envelope = dict(normalized["project_identity"])
-                self._connection.execute(
-                    """
-                    INSERT INTO capture_session_context (
-                        provider, session_id, project_identity
-                    ) VALUES (?, ?, ?)
-                    """,
-                    (
-                        provider,
-                        session_id,
-                        json.dumps(
-                            envelope,
-                            ensure_ascii=False,
-                            separators=(",", ":"),
-                            sort_keys=True,
-                        ),
-                    ),
+                envelope = ProjectIdentity.from_dict(
+                    normalized["project_identity"]
+                ).to_dict()
+                serialized = json.dumps(
+                    envelope,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
                 )
-            else:
-                envelope = json.loads(row["project_identity"])
+                if row is None:
+                    self._connection.execute(
+                        """
+                        INSERT INTO capture_session_context (
+                            provider, session_id, project_identity
+                        ) VALUES (?, ?, ?)
+                        """,
+                        (provider, session_id, serialized),
+                    )
+                else:
+                    self._connection.execute(
+                        """
+                        UPDATE capture_session_context
+                        SET project_identity = ?
+                        WHERE provider = ? AND session_id = ?
+                        """,
+                        (serialized, provider, session_id),
+                    )
             self._connection.commit()
         except BaseException:
             self._connection.rollback()
@@ -273,7 +300,7 @@ def process(provider: str, event_type: str, raw: bytes) -> dict:
         }
 
     db_path = default_db_path()
-    context_store = SessionContextStore(db_path)
+    context_store = SessionContextStore(default_context_db_path())
     try:
         normalized_session = context_store.get_or_resolve(
             provider,

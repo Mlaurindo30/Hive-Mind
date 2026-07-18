@@ -11,12 +11,21 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from scripts.capture.capture_queue import CaptureQueue
 
 
 ROOT = Path(__file__).resolve().parents[2]
 HOOK = ROOT / "scripts" / "capture" / "capture-hook.py"
 MAX_STDIN_BYTES = 2 * 1024 * 1024
+
+
+@pytest.fixture(autouse=True)
+def isolate_hook_context_database(tmp_path, monkeypatch):
+    monkeypatch.setenv(
+        "HIVE_CAPTURE_CONTEXT_DB", str(tmp_path / "capture-context.db")
+    )
 
 
 def run_hook(

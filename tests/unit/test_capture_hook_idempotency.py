@@ -23,6 +23,9 @@ def test_replayed_hook_callback_enqueues_only_one_event(tmp_path, monkeypatch) -
     module = _load_hook_module()
     db_path = tmp_path / "capture.db"
     monkeypatch.setenv("HIVE_CAPTURE_DB", str(db_path))
+    monkeypatch.setenv(
+        "HIVE_CAPTURE_CONTEXT_DB", str(tmp_path / "capture-context.db")
+    )
     payload = json.dumps(
         {
             "session_id": "session-1",
