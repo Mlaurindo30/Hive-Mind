@@ -276,8 +276,19 @@ def ingest(platform: str, sess: dict, store: SeenStore) -> int:
 
 def _ingest_body(platform, sess, store, sid, prompt, prompts, turns, last_text) -> int:
     """Corpo de ingest() extraído p/ permitir wrap por span de telemetria P9."""
-    proj = sess.get("project") or PROJECT
+    proj = sess.get("project_name") or sess.get("project") or PROJECT
     cwd = sess.get("cwd") or str(Path.cwd())
+    envelope = sess.get("project_identity")
+    identity_metadata = (
+        {"project_identity": dict(envelope)}
+        if isinstance(envelope, dict)
+        else None
+    )
+
+    def with_identity(payload: dict) -> dict:
+        if identity_metadata is not None:
+            payload["metadata"] = identity_metadata
+        return payload
 
     def emit_prompt(text: str) -> bool:
         norm = _norm(text)
@@ -286,20 +297,20 @@ def _ingest_body(platform, sess, store, sid, prompt, prompts, turns, last_text) 
         h = content_hash(sid, "p", norm)
         if store.contains(platform, sid, h):
             return False
-        init_res = _post("/api/sessions/init", {
+        init_res = _post("/api/sessions/init", with_identity({
             "contentSessionId": sid, "project": proj, "platformSource": platform,
             "prompt": text, "customTitle": f"[{platform}] {text[:60]}",
-        })
+        }))
         if init_res.get("error") or init_res.get("stored") is False:
             return False
         store.add(platform, sid, h)
         return True
 
     if not store.is_inited(platform, sid):
-        init_res = _post("/api/sessions/init", {
+        init_res = _post("/api/sessions/init", with_identity({
             "contentSessionId": sid, "project": proj, "platformSource": platform,
             "prompt": prompt or "(sessão)", "customTitle": f"[{platform}] {(prompt or '')[:60]}",
-        })
+        }))
         if not init_res.get("error") and init_res.get("stored") is not False:
             store.mark_inited(platform, sid)
             if prompt:
@@ -322,25 +333,24 @@ def _ingest_body(platform, sess, store, sid, prompt, prompts, turns, last_text) 
         ho = content_hash(sid, "o", tn, _norm(resp))
         if store.contains(platform, sid, ho):
             continue
-        obs_res = _post("/api/sessions/observations", {
+        obs_res = _post("/api/sessions/observations", with_identity({
             "contentSessionId": sid, "tool_name": tn,
             "tool_input": t.get("tool_input") or {}, "tool_response": {"result": resp},
             "platformSource": platform, "cwd": cwd,
             "tool_use_id": f"{platform}:{sid}:{ho[:20]}",
-        })
+        }))
         if obs_res.get("error") or obs_res.get("stored") is False:
             continue
         store.add(platform, sid, ho)
         sent += 1
 
     if sent:
-        _post("/api/sessions/summarize", {
+        _post("/api/sessions/summarize", with_identity({
             "contentSessionId": sid, "platformSource": platform,
             "last_assistant_message": last_text or prompt or "sessão concluída",
-        })
+        }))
         print(f"  [ok] {platform}:{sid[:12]} -> {sent} nova(s)")
     return sent
-
 
 # ── stubs de compatibilidade (não usar em código novo) ─────────────────────────
 def _migrate_legacy_state() -> None:

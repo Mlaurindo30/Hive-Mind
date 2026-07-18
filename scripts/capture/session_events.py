@@ -11,6 +11,7 @@ import json
 from typing import Any
 
 from scripts.capture.capture_events import EventType, ProviderEvent
+from scripts.capture.project_identity import ProjectIdentityResolver
 
 
 def _text(value: Any) -> str:
@@ -63,6 +64,75 @@ def _prompt_entries(session: dict) -> list[dict]:
     return entries
 
 
+def _clean_string(value: Any) -> str | None:
+    text = _text(value).strip()
+    return text or None
+
+
+def _known_legacy_project(resolver: ProjectIdentityResolver, value: str | None) -> str | None:
+    if value is None:
+        return None
+    registry = getattr(resolver, "registry", None)
+    by_alias = getattr(registry, "by_alias", None)
+    return value if callable(by_alias) and by_alias(value) is not None else None
+
+
+def attach_project_identity(
+    provider: str,
+    session: dict,
+    *,
+    resolver: ProjectIdentityResolver,
+    default_surface: str | None = None,
+) -> dict:
+    """Return a normalized session with one canonical identity envelope."""
+    normalized = dict(session or {})
+    cwd = _clean_string(normalized.get("cwd"))
+    surface = (
+        _clean_string(normalized.get("surface"))
+        or _clean_string(normalized.get("source"))
+        or _clean_string(default_surface)
+        or "unknown"
+    )
+    workspace = (
+        _clean_string(normalized.get("official_workspace"))
+        or _clean_string(normalized.get("workspace_root"))
+        or _clean_string(normalized.get("workspace"))
+    )
+    legacy_project = _clean_string(normalized.get("project"))
+    kwargs = {
+        "provider": provider,
+        "surface": surface,
+        "cwd": cwd,
+        "explicit_project_id": _clean_string(normalized.get("project_id")),
+        "explicit_project_name": _clean_string(normalized.get("project_name")),
+        "explicit_project": _known_legacy_project(resolver, legacy_project),
+        "official_workspace": workspace,
+        "referenced_projects": normalized.get("referenced_projects") or (),
+    }
+    identity = resolver.resolve(**kwargs)
+
+    envelope = identity.to_dict()
+    normalized.update(envelope)
+    normalized["project_identity"] = envelope
+    normalized["project"] = identity.project_name
+    return normalized
+
+
+def _project_identity_metadata(session: dict) -> dict[str, object] | None:
+    envelope = session.get("project_identity")
+    if not isinstance(envelope, dict):
+        return None
+    return {"project_identity": dict(envelope)}
+
+
+def _merge_event_metadata(
+    identity: dict[str, object] | None,
+    event_metadata: dict[str, object] | None,
+) -> dict[str, object] | None:
+    merged = dict(event_metadata or {})
+    merged.update(identity or {})
+    return merged or None
+
 def session_to_events(provider: str, session: dict) -> list[ProviderEvent]:
     """Map a parser session dict to ordered, deduplicatable ProviderEvents."""
     session = session or {}
@@ -73,6 +143,7 @@ def session_to_events(provider: str, session: dict) -> list[ProviderEvent]:
     project = _text(session.get("project")).strip() or None
     cwd = _text(session.get("cwd")).strip() or None
     common = {"project": project, "cwd": cwd}
+    identity_metadata = _project_identity_metadata(session)
     events: list[ProviderEvent] = []
 
     for entry in _prompt_entries(session):
@@ -83,7 +154,7 @@ def session_to_events(provider: str, session: dict) -> list[ProviderEvent]:
             entry["content"],
             event_id=entry["event_id"],
             source_position=entry["source_position"],
-            metadata=entry["metadata"],
+            metadata=_merge_event_metadata(identity_metadata, entry["metadata"]),
             **common,
         ))
 
@@ -97,11 +168,11 @@ def session_to_events(provider: str, session: dict) -> list[ProviderEvent]:
         tool_use_id = _text(turn.get("tool_use_id")).strip() or (
             f"{provider}:{sid}:turn:{turn_index}"
         )
-        metadata = {
+        metadata = _merge_event_metadata(identity_metadata, {
             "tool_name": tool_name,
             "tool_input": tool_input,
             "tool_use_id": tool_use_id,
-        }
+        }) or {}
         try:
             use_content = json.dumps(
                 {"tool_name": tool_name, "tool_input": tool_input},
@@ -142,6 +213,7 @@ def session_to_events(provider: str, session: dict) -> list[ProviderEvent]:
             EventType.ASSISTANT,
             last_text,
             source_position="assistant:last",
+            metadata=identity_metadata,
             **common,
         ))
 

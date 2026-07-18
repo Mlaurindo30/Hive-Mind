@@ -153,7 +153,8 @@ def test_hook_replay_is_idempotent_and_preserves_context(tmp_path, monkeypatch):
     try:
         item = queue.pending(1)[0]
         assert item.event.event_id == "native-event-1"
-        assert item.event.project == "project"
+        assert item.event.project == "Unclassified (codex)"
         assert item.event.cwd == r"C:\\work\\project"
+        assert item.event.metadata["project_identity"]["project_id"] == "unclassified/codex"
     finally:
         queue.close()

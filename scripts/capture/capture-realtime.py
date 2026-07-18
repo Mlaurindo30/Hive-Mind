@@ -32,6 +32,8 @@ for _entry in (str(_HERE), str(ROOT)):
 
 import capture_core as core                                # noqa: E402
 from capture_adapters import adapters_by_owner             # noqa: E402
+from scripts.capture.project_identity import ProjectIdentityResolver  # noqa: E402
+from scripts.capture.session_events import attach_project_identity  # noqa: E402
 from scripts.capture.capture_sources import (              # noqa: E402
     PollingReconciler,
     SourceChange,
@@ -70,12 +72,14 @@ class RealtimeCapture:
         window_s: float = WINDOW_S,
         live_max_age_s: float = LIVE_MAX_AGE_S,
         clock=time.time,
+        resolver: ProjectIdentityResolver | None = None,
     ) -> None:
         self._registry = registry
         self._store = store
         self._window_s = float(window_s)
         self._live_max_age_s = float(live_max_age_s)
         self._clock = clock
+        self._resolver = resolver or ProjectIdentityResolver()
         self._lock = threading.Lock()
 
     def handle_change(self, change: SourceChange) -> int:
@@ -120,7 +124,13 @@ class RealtimeCapture:
         for path in targets:
             try:
                 for session in parser(path) or []:
-                    delivered += core.ingest(provider, session, self._store)
+                    normalized = attach_project_identity(
+                        provider,
+                        session,
+                        resolver=self._resolver,
+                        default_surface=adapter.get("surface") or "unknown",
+                    )
+                    delivered += core.ingest(provider, normalized, self._store)
             except Exception as exc:
                 log_event("warning", "parse_or_delivery_failed", provider=provider, path=str(path), error=str(exc))
         if delivered:

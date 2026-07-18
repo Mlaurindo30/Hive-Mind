@@ -25,10 +25,14 @@ if str(ROOT) not in sys.path:
 
 from scripts.capture.capture_events import ProviderEvent  # noqa: E402
 from scripts.capture.capture_queue import CaptureQueue  # noqa: E402
+from scripts.capture.project_identity import ProjectIdentityResolver  # noqa: E402
+from scripts.capture.session_events import attach_project_identity  # noqa: E402
 from scripts.utils.sanitizer import sanitize  # noqa: E402
 
 # Reject anything larger than 2 MiB before attempting to parse JSON.
 MAX_STDIN_BYTES = 2 * 1024 * 1024
+
+IDENTITY_RESOLVER = ProjectIdentityResolver()
 
 _SESSION_KEYS = ("session_id", "sessionId", "conversation_id", "thread_id")
 _PROMPT_KEYS = ("prompt", "user_prompt", "input")
@@ -179,8 +183,16 @@ def process(provider: str, event_type: str, raw: bytes) -> dict:
             "reason": "empty content",
         }
 
-    cwd = payload.get("cwd")
-    project = payload.get("project") or payload.get("project_name")
+    normalized_session = attach_project_identity(
+        provider,
+        {**payload, "sid": session_id},
+        resolver=IDENTITY_RESOLVER,
+        default_surface="hook",
+    )
+    cwd = normalized_session.get("cwd")
+    project = normalized_session["project"]
+    event_metadata = _event_metadata(payload) or {}
+    event_metadata["project_identity"] = normalized_session["project_identity"]
     timestamp = _occurred_at(payload)
     source_parts = ["hook"]
     if timestamp:
@@ -198,7 +210,7 @@ def process(provider: str, event_type: str, raw: bytes) -> dict:
         source_position=":".join(source_parts),
         project=project if isinstance(project, str) else None,
         cwd=cwd if isinstance(cwd, str) else None,
-        metadata=_event_metadata(payload),
+        metadata=event_metadata,
     )
 
     queue = CaptureQueue(default_db_path())
