@@ -286,21 +286,24 @@ def _ingest_body(platform, sess, store, sid, prompt, prompts, turns, last_text) 
         h = content_hash(sid, "p", norm)
         if store.contains(platform, sid, h):
             return False
-        _post("/api/sessions/init", {
+        init_res = _post("/api/sessions/init", {
             "contentSessionId": sid, "project": proj, "platformSource": platform,
             "prompt": text, "customTitle": f"[{platform}] {text[:60]}",
         })
+        if init_res.get("error") or init_res.get("stored") is False:
+            return False
         store.add(platform, sid, h)
         return True
 
     if not store.is_inited(platform, sid):
-        _post("/api/sessions/init", {
+        init_res = _post("/api/sessions/init", {
             "contentSessionId": sid, "project": proj, "platformSource": platform,
             "prompt": prompt or "(sessão)", "customTitle": f"[{platform}] {(prompt or '')[:60]}",
         })
-        store.mark_inited(platform, sid)
-        if prompt:
-            store.add(platform, sid, content_hash(sid, "p", _norm(prompt)))
+        if not init_res.get("error") and init_res.get("stored") is not False:
+            store.mark_inited(platform, sid)
+            if prompt:
+                store.add(platform, sid, content_hash(sid, "p", _norm(prompt)))
 
     for item in prompts:
         emit_prompt(str(item))

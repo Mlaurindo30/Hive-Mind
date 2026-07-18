@@ -125,6 +125,74 @@ def test_prompt_novo_sem_turno_emite_init(capture_posts, store):
     assert novos[0][1]["prompt"] == "segundo"
 
 
+
+@pytest.mark.parametrize("failed_response", [{"error": "worker offline"}, {"stored": False}])
+def test_init_falha_nao_confirma_prompt_e_reenvia_quando_worker_volta(store, monkeypatch, failed_response):
+    """Falha no init não pode tornar o prompt inicial permanentemente perdido."""
+    calls = []
+    online = False
+
+    def fake_post(path, payload):
+        calls.append((path, payload))
+        if path == "/api/sessions/init" and not online:
+            return failed_response
+        return {"stored": True}
+
+    monkeypatch.setattr(core, "_post", fake_post)
+    core.ingest("teste", _session(), store)
+
+    sid = "ses_test_1"
+    initial = core.content_hash(sid, "p", core._norm("pergunta inicial do usuário"))
+    additional = core.content_hash(sid, "p", core._norm("segunda pergunta"))
+    observation = core.content_hash(sid, "o", "Message", core._norm("resposta 1"))
+    assert not store.is_inited("teste", sid)
+    assert not store.contains("teste", sid, initial)
+    assert not store.contains("teste", sid, additional)
+    assert store.contains("teste", sid, observation), "observações entregues continuam confirmadas"
+
+    online = True
+    before_retry = len(calls)
+    assert core.ingest("teste", _session(), store) == 0
+
+    retried_inits = [payload for path, payload in calls[before_retry:] if path == "/api/sessions/init"]
+    assert [payload["prompt"] for payload in retried_inits] == [
+        "pergunta inicial do usuário",
+        "segunda pergunta",
+    ]
+    assert store.is_inited("teste", sid)
+    assert store.contains("teste", sid, initial)
+    assert store.contains("teste", sid, additional)
+
+
+@pytest.mark.parametrize("failed_response", [{"error": "worker offline"}, {"stored": False}])
+def test_emit_prompt_falho_e_retentado_sem_perder_prompt_adicional(store, monkeypatch, failed_response):
+    """emit_prompt só grava seu hash depois de o init adicional ser aceito."""
+    calls = []
+    online = True
+
+    def fake_post(path, payload):
+        calls.append((path, payload))
+        if path == "/api/sessions/init" and payload["prompt"] == "segundo" and not online:
+            return failed_response
+        return {"stored": True}
+
+    monkeypatch.setattr(core, "_post", fake_post)
+    session = {"sid": "ses_extra", "prompt": "primeiro", "prompts": ["primeiro", "segundo"]}
+
+    online = False
+    core.ingest("teste", session, store)
+
+    second_hash = core.content_hash("ses_extra", "p", core._norm("segundo"))
+    assert store.is_inited("teste", "ses_extra")
+    assert not store.contains("teste", "ses_extra", second_hash)
+
+    online = True
+    before_retry = len(calls)
+    assert core.ingest("teste", session, store) == 0
+
+    retried_inits = [payload for path, payload in calls[before_retry:] if path == "/api/sessions/init"]
+    assert [payload["prompt"] for payload in retried_inits] == ["segundo"]
+    assert store.contains("teste", "ses_extra", second_hash)
 def test_dois_processos_nao_duplicam(capture_posts, tmp_path):
     """Dois SeenStore no mesmo DB (concorrência) → sem duplicatas."""
     db = tmp_path / "shared.db"
