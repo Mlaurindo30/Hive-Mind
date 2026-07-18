@@ -94,12 +94,16 @@ def normalize_git_remote(remote: str | None) -> str | None:
     parsed = urlsplit(raw)
     if parsed.scheme and parsed.hostname:
         host = parsed.hostname.casefold()
-        if parsed.port is not None:
+        try:
+            port = parsed.port
+        except ValueError:
+            port = None
+        if port is not None:
             default_port = (
-                parsed.scheme.casefold() == "https" and parsed.port == 443
-            ) or (parsed.scheme.casefold() == "ssh" and parsed.port == 22)
+                parsed.scheme.casefold() == "https" and port == 443
+            ) or (parsed.scheme.casefold() == "ssh" and port == 22)
             if not default_port:
-                host = f"{host}:{parsed.port}"
+                host = f"{host}:{port}"
         path = parsed.path
     else:
         match = _SCP_REMOTE_RE.match(raw)
@@ -358,9 +362,16 @@ class ProjectAliasRegistry:
         if path.is_file():
             path = path.parent
         for directory in (path, *path.parents):
-            for marker_set, entry in self._markers.items():
-                if all((directory / marker).exists() for marker in marker_set):
-                    return entry, str(directory.resolve(strict=False))
+            matches = {
+                entry.project_id: entry
+                for marker_set, entry in self._markers.items()
+                if all((directory / marker).exists() for marker in marker_set)
+            }
+            if len(matches) > 1:
+                return None
+            if matches:
+                entry = next(iter(matches.values()))
+                return entry, str(directory.resolve(strict=False))
         return None
 
 

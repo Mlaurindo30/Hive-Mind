@@ -281,6 +281,41 @@ def test_remote_normalization_removes_credentials_and_syntax(raw, expected):
     assert normalize_git_remote(raw) == expected
 
 
+def test_malformed_remote_port_is_safe_and_deterministic(tmp_path):
+    remote = "https://user:secret@github.com:invalid/Owner/Repo.git"
+    repo = _repo(tmp_path / "malformed remote", remote=remote)
+    resolver = ProjectIdentityResolver(registry=ProjectAliasRegistry.empty())
+
+    first = resolver.resolve(provider="qwen", surface="cli", cwd=repo, env={})
+    second = resolver.resolve(provider="qwen", surface="cli", cwd=repo, env={})
+
+    assert normalize_git_remote(remote) == "github.com/owner/repo"
+    assert first.repository_remote == "github.com/owner/repo"
+    assert first.project_id == second.project_id
+    assert first.project_id.startswith("git/repo-")
+    assert "user" not in first.repository_remote
+    assert "secret" not in first.repository_remote
+
+
+def test_non_git_directory_with_conflicting_markers_is_unclassified(tmp_path):
+    workspace = tmp_path / "ambiguous markers"
+    workspace.mkdir()
+    (workspace / ".alpha-project").write_text("alpha", encoding="utf-8")
+    (workspace / ".beta-project").write_text("beta", encoding="utf-8")
+    registry = _registry(
+        tmp_path,
+        _entry("alpha", "Alpha", markers=[{"all": [".alpha-project"]}]),
+        _entry("beta", "Beta", markers=[{"all": [".beta-project"]}]),
+    )
+
+    identity = ProjectIdentityResolver(registry_path=registry).resolve(
+        provider="mimo", surface="ide", cwd=workspace, env={}
+    )
+
+    assert identity.project_id == "unclassified/mimo"
+    assert identity.resolution_method == "unclassified_provider"
+
+
 def test_non_git_directory_does_not_use_basename(tmp_path):
     directory = tmp_path / "ImportantProject"
     directory.mkdir()
