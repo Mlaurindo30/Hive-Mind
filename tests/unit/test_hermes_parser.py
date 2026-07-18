@@ -41,6 +41,9 @@ def _session(
     sid: str,
     source: str,
     started_at: float,
+    *,
+    cwd: str = r"D:\\Hive-Mind\\workspace",
+    git_repo_root: str | None = r"D:\\Hive-Mind",
 ) -> None:
     connection.execute(
         "INSERT INTO sessions"
@@ -51,9 +54,9 @@ def _session(
             source,
             "test-model",
             started_at,
-            r"D:\\Hive-Mind\\workspace",
+            cwd,
             "feature/hermes-desktop",
-            r"D:\\Hive-Mind",
+            git_repo_root,
         ),
     )
 
@@ -143,3 +146,55 @@ def test_note_is_only_stripped_when_complete_leading_note_exists():
     assert hermes._strip_note("[Note: model changed] real prompt") == "real prompt"
     assert hermes._strip_note("[Note: incomplete real prompt") == "[Note: incomplete real prompt"
     assert hermes._strip_note("prefix [Note: keep] prompt") == "prefix [Note: keep] prompt"
+
+
+def test_user_workspace_is_forwarded_as_official_workspace(tmp_path, monkeypatch):
+    monkeypatch.setattr(hermes.core, "SESSION_CUTOFF_MS", 0)
+    database = tmp_path / "state.db"
+    with sqlite3.connect(database) as connection:
+        _schema(connection)
+        _session(
+            connection, "user-workspace", "desktop", 300.0,
+            cwd=r"D:\Workspaces\Cliente", git_repo_root=None,
+        )
+        _message(connection, "user-workspace", "user", "prompt", 301.0)
+
+    session = hermes.parse(database)[0]
+
+    assert session["cwd"] == r"D:\Workspaces\Cliente"
+    assert session["official_workspace"] == r"D:\Workspaces\Cliente"
+    assert session["git_repo_root"] is None
+    assert "project" not in session
+
+
+def test_internal_app_workspace_is_not_promoted_and_falls_back_unclassified(
+    tmp_path, monkeypatch
+):
+    from scripts.capture.project_identity import ProjectAliasRegistry, ProjectIdentityResolver
+    from scripts.capture.session_events import attach_project_identity
+
+    monkeypatch.setattr(hermes.core, "SESSION_CUTOFF_MS", 0)
+    database = tmp_path / "state.db"
+    internal = r"C:\Users\miche\AppData\Local\hermes\workspace"
+    with sqlite3.connect(database) as connection:
+        _schema(connection)
+        _session(
+            connection, "internal-workspace", "desktop", 400.0,
+            cwd=internal, git_repo_root=None,
+        )
+        _message(connection, "internal-workspace", "user", "prompt", 401.0)
+
+    session = hermes.parse(database)[0]
+
+    assert session["cwd"] == internal
+    assert "official_workspace" not in session
+    normalized = attach_project_identity(
+        "hermes", session,
+        resolver=ProjectIdentityResolver(registry=ProjectAliasRegistry.empty()),
+    )
+    assert normalized["project_id"] == "unclassified/hermes"
+    assert normalized["resolution_method"] == "unclassified_provider"
+
+
+def test_known_posix_internal_workspace_is_not_official():
+    assert hermes._official_workspace("/home/user/.hermes/workspace") is None

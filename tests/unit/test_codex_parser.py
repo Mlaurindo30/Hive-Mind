@@ -61,3 +61,5 @@ def test_codex_parser_returns_all_user_prompts(tmp_path: Path) -> None:
     assert len(parsed) == 1
     assert parsed[0]["prompt"] == "primeiro prompt"
     assert parsed[0]["prompts"] == ["primeiro prompt", "segundo prompt"]
+    assert parsed[0]["official_workspace"] == "/work/Hive-Mind"
+    assert "project" not in parsed[0]

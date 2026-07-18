@@ -30,6 +30,19 @@ def _strip_note(text: str) -> str:
     return text[end + 1:].lstrip()
 
 
+def _official_workspace(cwd: object) -> str | None:
+    if not isinstance(cwd, str) or not cwd.strip():
+        return None
+    value = cwd.strip()
+    normalized = value.replace("\\", "/").rstrip("/").casefold()
+    if (
+        normalized.endswith("/.hermes/workspace")
+        or normalized.endswith("/appdata/local/hermes/workspace")
+    ):
+        return None
+    return value
+
+
 def _readonly_uri(db_path: Path) -> str:
     return f"{db_path.resolve().as_uri()}?mode=ro"
 
@@ -111,7 +124,7 @@ def parse(db_path: Path) -> list[dict]:
                 continue
 
             source = str(session_row["source"])
-            sessions_out.append({
+            session = {
                 "sid": sid,
                 "source": source,
                 "surface": source,
@@ -126,7 +139,11 @@ def parse(db_path: Path) -> list[dict]:
                 "turns": turns,
                 "messages": messages,
                 "last": last_text,
-            })
+            }
+            official_workspace = _official_workspace(session_row["cwd"])
+            if official_workspace is not None:
+                session["official_workspace"] = official_workspace
+            sessions_out.append(session)
     except sqlite3.Error:
         return []
     finally:

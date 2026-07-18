@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -505,3 +506,30 @@ def test_unsafe_marker_traversal_is_rejected(tmp_path):
 
     with pytest.raises(RegistryValidationError):
         ProjectAliasRegistry.load(path)
+
+
+def test_official_non_git_workspaces_use_full_path_identity_without_collisions(tmp_path):
+    first = tmp_path / "customer-a" / "Cliente"
+    second = tmp_path / "customer-b" / "Cliente"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+    resolver = ProjectIdentityResolver(registry=ProjectAliasRegistry.empty())
+
+    first_identity = resolver.resolve(
+        provider="codex", surface="cli", cwd=first,
+        official_workspace=first, env={},
+    )
+    second_identity = resolver.resolve(
+        provider="codex", surface="cli", cwd=second,
+        official_workspace=second, env={},
+    )
+
+    expected_digest = hashlib.sha256(
+        canonical_path_key(first).encode("utf-8")
+    ).hexdigest()[:12]
+    assert first_identity.project_id == f"root/cliente-{expected_digest}"
+    assert first_identity.project_name == "Cliente"
+    assert first_identity.resolution_method == "official_workspace"
+    assert first_identity.workspace_root == str(first.resolve())
+    assert second_identity.project_id.startswith("root/cliente-")
+    assert second_identity.project_id != first_identity.project_id

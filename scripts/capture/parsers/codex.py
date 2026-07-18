@@ -136,5 +136,6 @@ def parse(path: Path):
         "last": last_text,
         "source": source,
         "surface": "ide" if source == "vscode" else (source or "unknown"),
+        "official_workspace": cwd,
         "cwd": cwd,
     }]
