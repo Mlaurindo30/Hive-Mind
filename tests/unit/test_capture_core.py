@@ -262,3 +262,69 @@ def test_delivery_log_is_cp1252_safe_on_windows(capture_posts, store, monkeypatc
 
     monkeypatch.setattr(sys, "stdout", Cp1252Stream())
     assert core.ingest("copilot", _session(), store) == 2
+
+def test_ordered_messages_retry_after_worker_returns_and_replay_is_idempotent(
+    store, monkeypatch
+):
+    session = {
+        "sid": "hermes-ordered-retry",
+        "prompt": "prompt one",
+        "prompts": ["prompt one", "prompt two"],
+        "turns": [
+            {
+                "tool_name": "Message",
+                "tool_input": {"prompt": "prompt one"},
+                "tool_response": "answer one",
+            },
+            {
+                "tool_name": "Message",
+                "tool_input": {"prompt": "prompt two"},
+                "tool_response": "answer two",
+            },
+        ],
+        "messages": [
+            {"role": "user", "content": "prompt one", "timestamp": 101.0},
+            {"role": "assistant", "content": "answer one", "timestamp": 102.0},
+            {"role": "tool", "content": "tool output", "timestamp": 103.0},
+            {"role": "user", "content": "prompt two", "timestamp": 104.0},
+            {"role": "assistant", "content": "answer two", "timestamp": 105.0},
+        ],
+        "last": "answer two",
+    }
+    calls = []
+    online = False
+
+    def fake_post(path, payload):
+        calls.append((path, payload))
+        return {"stored": True} if online else {"error": "worker offline"}
+
+    monkeypatch.setattr(core, "_post", fake_post)
+
+    assert core.ingest("hermes", session, store) == 0
+    assert not store.is_inited("hermes", session["sid"])
+    assert not store.contains(
+        "hermes",
+        session["sid"],
+        core.content_hash(session["sid"], "p", core._norm("prompt one")),
+    )
+    assert not store.contains(
+        "hermes",
+        session["sid"],
+        core.content_hash(session["sid"], "o", "Tool", core._norm("tool output")),
+    )
+
+    online = True
+    calls.clear()
+    assert core.ingest("hermes", session, store) == 3
+    assert [path for path, _ in calls] == [
+        "/api/sessions/init",
+        "/api/sessions/observations",
+        "/api/sessions/observations",
+        "/api/sessions/init",
+        "/api/sessions/observations",
+        "/api/sessions/summarize",
+    ]
+
+    delivered_call_count = len(calls)
+    assert core.ingest("hermes", session, store) == 0
+    assert len(calls) == delivered_call_count

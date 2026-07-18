@@ -103,3 +103,67 @@ No new delivery route or second source was introduced. Existing realtime behavio
 - `tests/unit/test_hermes_parser.py`
 - `tests/integration/test_hermes_parser_sqlite.py`
 - `.superpowers/sdd/task-5-report.md`
+
+## P1 Review Correction — Native Hermes Message Chronology
+
+The review found that the Hermes parser preserved its ordered `messages` list, but `capture_core.ingest` ignored it and delivered only the derived `prompts` and `turns`. That grouped both user prompts before both assistant observations and silently dropped the interleaved tool message and all native timestamps.
+
+### TDD RED
+
+A realistic SQLite parser-to-core regression used this native order:
+
+```text
+user1(101) -> assistant1(102) -> tool1(103) -> user2(104) -> assistant2(105)
+```
+
+Before the production correction, the test failed with `ingest == 2` instead of `3`. The observed POST order was:
+
+```text
+init, init, observations, observations, summarize
+```
+
+The second call was an `init` where the first assistant observation belonged; the tool message produced no POST.
+
+### Implementation
+
+When a normalized session has a non-empty ordered `messages` list, `capture_core.ingest` now walks it once in native order:
+
+- `user` -> session init or additional prompt init;
+- `assistant` -> `Message` observation;
+- `tool` -> `Tool` observation with `message_role`, `message_type`, tool name, and timestamp metadata;
+- summarize only after the ordered walk.
+
+Each message timestamp is preserved at the payload boundary and in event metadata. The complete canonical `project_identity` remains merged into every init, observation, and summarize payload. The messages path never replays the derived `prompts`, `turns`, or `last` lists, so it cannot duplicate the same content through both representations. Sessions without `messages` continue through the unchanged legacy path.
+
+Content-hash inputs, SeenStore keys, tool-use IDs, offline confirmation rules, and the direct parser -> `capture_core.ingest` -> Claude Mem path remain unchanged. No outbox, drainer, provider parser, service, process, live database, backlog, or active root was changed.
+
+### GREEN and regression evidence
+
+Focused Hermes/parser/core suite:
+
+```text
+20 passed in 0.71s
+```
+
+The new retry regression proves an offline first pass confirms neither init nor content hashes, the online pass delivers all three observations in native order, and a third replay emits zero new POSTs.
+
+Complete Task 4 + Task 5 + capture sources matrix:
+
+```text
+137 passed in 23.05s
+```
+
+All parser and capture unit regressions:
+
+```text
+121 passed, 3 skipped in 29.21s
+```
+
+The three skips were pre-existing service/environment skips; there were no failures. The broad matrix also exposed test-order pollution from `SESSION_CUTOFF_MS`; Hermes parser tests now isolate that global explicitly and the repeated matrix passed.
+
+Final gates:
+
+```text
+python -m compileall -q scripts\capture: PASS
+git diff --check: PASS
+```

@@ -265,12 +265,21 @@ def ingest(platform: str, sess: dict, store: SeenStore) -> int:
     prompt = sess.get("prompt")
     prompts = sess.get("prompts") or []
     turns, last_text = sess.get("turns") or [], sess.get("last")
-    if not sid or (not prompt and not turns):
+    messages = sess.get("messages") or []
+    if not sid or (not prompt and not turns and not messages):
         return 0
 
     store.touch(platform, sid)
 
-    with span("capture.ingest", {"platform": platform, "sid": sid, "turns_count": len(turns)}):
+    with span(
+        "capture.ingest",
+        {
+            "platform": platform,
+            "sid": sid,
+            "turns_count": len(turns),
+            "messages_count": len(messages),
+        },
+    ):
         return _ingest_body(platform, sess, store, sid, prompt, prompts, turns, last_text)
 
 
@@ -286,26 +295,173 @@ def _ingest_body(platform, sess, store, sid, prompt, prompts, turns, last_text) 
     )
 
     def with_identity(payload: dict) -> dict:
+        metadata = payload.get("metadata")
+        merged = dict(metadata) if isinstance(metadata, dict) else {}
         if identity_metadata is not None:
-            payload["metadata"] = identity_metadata
+            merged.update(identity_metadata)
+        if merged:
+            payload["metadata"] = merged
         return payload
 
-    def emit_prompt(text: str) -> bool:
+    def emit_prompt(
+        text: str,
+        *,
+        timestamp=None,
+        metadata: dict | None = None,
+    ) -> bool:
         norm = _norm(text)
         if not norm:
             return False
         h = content_hash(sid, "p", norm)
         if store.contains(platform, sid, h):
             return False
-        init_res = _post("/api/sessions/init", with_identity({
-            "contentSessionId": sid, "project": proj, "platformSource": platform,
-            "prompt": text, "customTitle": f"[{platform}] {text[:60]}",
-        }))
+        payload = {
+            "contentSessionId": sid,
+            "project": proj,
+            "platformSource": platform,
+            "prompt": text,
+            "customTitle": f"[{platform}] {text[:60]}",
+        }
+        if timestamp is not None:
+            payload["timestamp"] = timestamp
+        if metadata:
+            payload["metadata"] = metadata
+        init_res = _post("/api/sessions/init", with_identity(payload))
         if init_res.get("error") or init_res.get("stored") is False:
             return False
         store.add(platform, sid, h)
         return True
 
+    messages = sess.get("messages") or []
+    if messages:
+        sent = 0
+        last_user = None
+        last_assistant = None
+        last_assistant_timestamp = None
+
+        for message in messages:
+            if not isinstance(message, dict):
+                continue
+            role = str(message.get("role") or "").strip().lower()
+            content = str(message.get("content") or "").strip()
+            timestamp = message.get("timestamp")
+            if not role or not content:
+                continue
+
+            message_type = "prompt" if role == "user" else role
+            event_metadata = {
+                "message_role": role,
+                "message_type": message_type,
+            }
+            if timestamp is not None:
+                event_metadata["timestamp"] = timestamp
+
+            if role == "user":
+                if not store.is_inited(platform, sid):
+                    norm = _norm(content)
+                    h = content_hash(sid, "p", norm)
+                    payload = {
+                        "contentSessionId": sid,
+                        "project": proj,
+                        "platformSource": platform,
+                        "prompt": content,
+                        "customTitle": f"[{platform}] {content[:60]}",
+                        "metadata": event_metadata,
+                    }
+                    if timestamp is not None:
+                        payload["timestamp"] = timestamp
+                    init_res = _post("/api/sessions/init", with_identity(payload))
+                    if not init_res.get("error") and init_res.get("stored") is not False:
+                        store.mark_inited(platform, sid)
+                        store.add(platform, sid, h)
+                else:
+                    emit_prompt(
+                        content,
+                        timestamp=timestamp,
+                        metadata=event_metadata,
+                    )
+                last_user = content
+                continue
+
+            if role not in {"assistant", "tool"}:
+                continue
+            if OBS_CAP and sent >= OBS_CAP:
+                print(f"  ⏳ {platform}:{sid[:12]}: cap {OBS_CAP} atingido; resto depois")
+                break
+
+            tool_name = "Message" if role == "assistant" else str(
+                message.get("tool_name") or message.get("name") or "Tool"
+            ).strip() or "Tool"
+            tool_input = (
+                dict(message["tool_input"])
+                if isinstance(message.get("tool_input"), dict)
+                else {}
+            )
+            tool_input["message_role"] = role
+            tool_input["message_type"] = message_type
+            if timestamp is not None:
+                tool_input["timestamp"] = timestamp
+            if role == "assistant" and last_user and not tool_input.get("prompt"):
+                tool_input["prompt"] = last_user
+            if role == "tool":
+                event_metadata["tool_name"] = tool_name
+
+            observation_hash = content_hash(
+                sid,
+                "o",
+                tool_name,
+                _norm(content),
+            )
+            if store.contains(platform, sid, observation_hash):
+                if role == "assistant":
+                    last_assistant = content
+                    last_assistant_timestamp = timestamp
+                continue
+
+            payload = {
+                "contentSessionId": sid,
+                "tool_name": tool_name,
+                "tool_input": tool_input,
+                "tool_response": {"result": content},
+                "platformSource": platform,
+                "cwd": cwd,
+                "tool_use_id": f"{platform}:{sid}:{observation_hash[:20]}",
+                "metadata": event_metadata,
+            }
+            if timestamp is not None:
+                payload["timestamp"] = timestamp
+            observation_res = _post(
+                "/api/sessions/observations",
+                with_identity(payload),
+            )
+            if observation_res.get("error") or observation_res.get("stored") is False:
+                continue
+            store.add(platform, sid, observation_hash)
+            sent += 1
+            if role == "assistant":
+                last_assistant = content
+                last_assistant_timestamp = timestamp
+
+        if sent:
+            summary_metadata = {"message_type": "summary"}
+            if last_assistant_timestamp is not None:
+                summary_metadata["timestamp"] = last_assistant_timestamp
+            summary_payload = {
+                "contentSessionId": sid,
+                "platformSource": platform,
+                "last_assistant_message": (
+                    last_assistant or last_text or prompt or "sessão concluída"
+                ),
+                "metadata": summary_metadata,
+            }
+            if last_assistant_timestamp is not None:
+                summary_payload["timestamp"] = last_assistant_timestamp
+            _post(
+                "/api/sessions/summarize",
+                with_identity(summary_payload),
+            )
+            print(f"  [ok] {platform}:{sid[:12]} -> {sent} nova(s)")
+        return sent
     if not store.is_inited(platform, sid):
         init_res = _post("/api/sessions/init", with_identity({
             "contentSessionId": sid, "project": proj, "platformSource": platform,

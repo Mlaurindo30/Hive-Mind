@@ -74,7 +74,10 @@ def _message(
     )
 
 
-def test_desktop_session_preserves_all_active_conversation_evidence(tmp_path):
+def test_desktop_session_preserves_all_active_conversation_evidence(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(hermes.core, "SESSION_CUTOFF_MS", 0)
     database = tmp_path / "state.db"
     with sqlite3.connect(database) as connection:
         _schema(connection)
@@ -115,7 +118,10 @@ def test_desktop_session_preserves_all_active_conversation_evidence(tmp_path):
     assert session["last"] == "Second answer"
 
 
-def test_only_top_level_cli_and_desktop_sources_are_returned(tmp_path):
+def test_only_top_level_cli_and_desktop_sources_are_returned(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(hermes.core, "SESSION_CUTOFF_MS", 0)
     database = tmp_path / "state.db"
     with sqlite3.connect(database) as connection:
         _schema(connection)
