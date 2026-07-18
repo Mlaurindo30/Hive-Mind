@@ -208,3 +208,121 @@ def test_bridge_marks_legacy_identity_unclassified_without_inference(hm_path, cm
     assert metadata["legacy_identity"] is True
     assert metadata["project_id"] not in {"thoth", "provider", "surface"}
     assert stats["by_identity"] == {"legacy": 1}
+
+
+def test_bridge_rejects_explicit_default_project_before_opening_databases(
+    cm_path, monkeypatch
+):
+    def unexpected_call(*args, **kwargs):
+        raise AssertionError("bridge opened a database before rejecting default_project")
+
+    monkeypatch.setattr(br, "get_connection", unexpected_call)
+    monkeypatch.setattr(br, "open_claude_mem", unexpected_call)
+
+    with pytest.raises(ValueError, match="project_identity"):
+        br.bridge(cm_db=cm_path, default_project="Customer-A")
+
+
+def test_wrapper_serializes_hook_sync_call_and_restore(monkeypatch):
+    import threading
+
+    with br._HOOK_LOCK:
+        assert br._call_with_synced_hooks(lambda: "reentrant") == "reentrant"
+
+    original = (
+        br._core_bridge.get_connection,
+        br._core_bridge.ensure_migrations,
+        br._core_bridge.open_claude_mem,
+    )
+    a_entered = threading.Event()
+    release_a = threading.Event()
+    b_called = threading.Event()
+    errors = []
+    results = {}
+
+    def get_a():
+        return "get-a"
+
+    def migrate_a(conn):
+        return "migrate-a"
+
+    def open_a(path=None):
+        return "open-a"
+
+    def get_b():
+        return "get-b"
+
+    def migrate_b(conn):
+        return "migrate-b"
+
+    def open_b(path=None):
+        return "open-b"
+
+    hooks_a = (get_a, migrate_a, open_a)
+    hooks_b = (get_b, migrate_b, open_b)
+
+    def fake_bridge(*, label):
+        expected = hooks_a if label == "A" else hooks_b
+        actual = (
+            br._core_bridge.get_connection,
+            br._core_bridge.ensure_migrations,
+            br._core_bridge.open_claude_mem,
+        )
+        if actual != expected:
+            raise AssertionError(f"{label} observed crossed hooks")
+        if label == "A":
+            a_entered.set()
+            if not release_a.wait(3):
+                raise AssertionError("A was not released")
+            actual_after_wait = (
+                br._core_bridge.get_connection,
+                br._core_bridge.ensure_migrations,
+                br._core_bridge.open_claude_mem,
+            )
+            if actual_after_wait != hooks_a:
+                raise AssertionError("A hooks changed while its call was active")
+        else:
+            b_called.set()
+        return label
+
+    monkeypatch.setattr(br._core_bridge, "bridge", fake_bridge)
+    monkeypatch.setattr(br, "get_connection", get_a)
+    monkeypatch.setattr(br, "ensure_migrations", migrate_a)
+    monkeypatch.setattr(br, "open_claude_mem", open_a)
+
+    def invoke(label):
+        try:
+            results[label] = br.bridge(label=label)
+        except BaseException as error:  # retain worker failures for the main thread
+            errors.append(error)
+
+    thread_a = threading.Thread(target=invoke, args=("A",))
+    thread_b = threading.Thread(target=invoke, args=("B",))
+    thread_a.start()
+    assert a_entered.wait(2)
+
+    monkeypatch.setattr(br, "get_connection", get_b)
+    monkeypatch.setattr(br, "ensure_migrations", migrate_b)
+    monkeypatch.setattr(br, "open_claude_mem", open_b)
+    thread_b.start()
+    try:
+        assert not b_called.wait(0.2)
+        assert (
+            br._core_bridge.get_connection,
+            br._core_bridge.ensure_migrations,
+            br._core_bridge.open_claude_mem,
+        ) == hooks_a
+    finally:
+        release_a.set()
+        thread_a.join(3)
+        thread_b.join(3)
+
+    assert not thread_a.is_alive()
+    assert not thread_b.is_alive()
+    assert errors == []
+    assert results == {"A": "A", "B": "B"}
+    assert (
+        br._core_bridge.get_connection,
+        br._core_bridge.ensure_migrations,
+        br._core_bridge.open_claude_mem,
+    ) == original

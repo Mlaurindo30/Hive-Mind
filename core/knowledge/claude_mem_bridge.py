@@ -448,7 +448,7 @@ def bridge(
     cm_db: Path = CLAUDE_MEM_DB,
     limit: int = DEFAULT_LIMIT,
     dry_run: bool = False,
-    default_project: str = "Hive-Mind",
+    default_project: str | None = None,
     source_ids: Iterable[str] | None = None,
     since_epoch: int | None = None,
     until_epoch: int | None = None,
@@ -459,6 +459,10 @@ def bridge(
     Direct SQL is kept deliberately: it avoids false negatives from long
     free-text temporal searches and supports deterministic backfill windows.
     """
+    if default_project is not None:
+        raise ValueError(
+            "default_project is no longer supported; provide project_identity metadata"
+        )
     if not cm_db.exists():
         logger.warning("claude-mem.db not found at %s", cm_db)
         return {"scanned": 0, "inserted": 0, "skipped": 0, "by_source": {}, "by_identity": {}}

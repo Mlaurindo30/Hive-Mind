@@ -7,6 +7,7 @@ MCP can share one contract.
 from __future__ import annotations
 
 import sys
+import threading
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -25,6 +26,7 @@ from core.knowledge.claude_mem_bridge import (  # noqa: E402,F401
 get_connection = _core_bridge.get_connection
 ensure_migrations = _core_bridge.ensure_migrations
 open_claude_mem = _core_bridge.open_claude_mem
+_HOOK_LOCK = threading.RLock()
 
 
 def _sync_core_hooks() -> None:
@@ -34,20 +36,21 @@ def _sync_core_hooks() -> None:
 
 
 def _call_with_synced_hooks(func, *args, **kwargs):
-    original = (
-        _core_bridge.get_connection,
-        _core_bridge.ensure_migrations,
-        _core_bridge.open_claude_mem,
-    )
-    _sync_core_hooks()
-    try:
-        return func(*args, **kwargs)
-    finally:
-        (
+    with _HOOK_LOCK:
+        original = (
             _core_bridge.get_connection,
             _core_bridge.ensure_migrations,
             _core_bridge.open_claude_mem,
-        ) = original
+        )
+        _sync_core_hooks()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            (
+                _core_bridge.get_connection,
+                _core_bridge.ensure_migrations,
+                _core_bridge.open_claude_mem,
+            ) = original
 
 
 def bridge(*args, **kwargs):
