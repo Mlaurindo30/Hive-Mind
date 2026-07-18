@@ -164,6 +164,26 @@ def test_legacy_provider_application_and_profile_labels_do_not_become_project_id
     assert normalized["project_identity"]["project_id"] != "hive-mind"
 
 
+def test_hermes_git_repo_root_is_forwarded_as_official_workspace():
+    resolver = RecordingResolver(_identity(provider="hermes", surface="desktop"))
+    repository_root = r"D:/Hive-Mind"
+
+    attach_project_identity(
+        "hermes",
+        {
+            "sid": "desktop-session",
+            "source": "desktop",
+            "cwd": r"C:/Users/miche/AppData/Local/hermes/workspace",
+            "git_repo_root": repository_root,
+            "git_branch": "main",
+            "prompt": "prompt",
+        },
+        resolver=resolver,
+        default_surface="desktop",
+    )
+
+    assert resolver.calls[0]["official_workspace"] == repository_root
+
 def test_session_event_normalization_preserves_identity_without_changing_event_hash():
     resolver = RecordingResolver(_identity(provider="codex", surface="hook"))
     legacy = {

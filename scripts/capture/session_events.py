@@ -164,6 +164,7 @@ def attach_project_identity(
         _clean_string(normalized.get("official_workspace"))
         or _clean_string(normalized.get("workspace_root"))
         or _clean_string(normalized.get("workspace"))
+        or _clean_string(normalized.get("git_repo_root"))
     )
     legacy_project = _clean_string(normalized.get("project"))
     kwargs = {
