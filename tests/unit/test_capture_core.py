@@ -328,3 +328,32 @@ def test_ordered_messages_retry_after_worker_returns_and_replay_is_idempotent(
     delivered_call_count = len(calls)
     assert core.ingest("hermes", session, store) == 0
     assert len(calls) == delivered_call_count
+
+
+def test_post_failure_is_safe_on_strict_cp1252_console(monkeypatch):
+    """Falha de rede nunca pode derrubar o daemon por caractere de log no Windows."""
+
+    class StrictCp1252Stream:
+        def __init__(self):
+            self.parts = []
+
+        def write(self, text):
+            text.encode("cp1252", errors="strict")
+            self.parts.append(text)
+            return len(text)
+
+        def flush(self):
+            return None
+
+    stream = StrictCp1252Stream()
+    monkeypatch.setattr(core.sys, "stdout", stream)
+
+    def offline(*args, **kwargs):
+        raise OSError("worker offline")
+
+    monkeypatch.setattr(core.urllib.request, "urlopen", offline)
+
+    result = core._post("/api/sessions/init", {"prompt": "canario"})
+
+    assert result == {"error": "worker offline"}
+    assert "worker offline" in "".join(stream.parts)

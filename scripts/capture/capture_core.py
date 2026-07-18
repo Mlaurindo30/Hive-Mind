@@ -72,6 +72,15 @@ def project_from_cwd(directory: str | None) -> str | None:
     name = os.path.basename(str(directory).rstrip("/"))
     return name or None
 
+def _safe_print(message: str, *, stream=None) -> None:
+    """Write diagnostics without crashing on legacy Windows console encodings."""
+    target = stream or sys.stdout
+    try:
+        print(message, file=target, flush=True)
+    except UnicodeEncodeError:
+        encoding = getattr(target, "encoding", None) or "ascii"
+        safe = message.encode(encoding, errors="backslashreplace").decode(encoding)
+        print(safe, file=target, flush=True)
 
 # ── mtime WAL-aware ────────────────────────────────────────────────────────────
 def _src_mtime(p: Path) -> float:
@@ -100,7 +109,7 @@ def _post(path: str, payload: dict) -> dict:
                 msg = e.read().decode()[:200]
             except Exception:
                 pass
-        print(f"  ⚠ {path}: {e} {msg}")
+        _safe_print(f"  ⚠ {path}: {e} {msg}")
         return {"error": str(e)}
 
 
@@ -201,7 +210,7 @@ class SeenStore:
         self._con.commit()
         sentinel.write_text(time.strftime("%Y-%m-%dT%H:%M:%S"))
         if migrated:
-            print(f"  ✓ migração JSON→SQLite: {migrated} hashes importados")
+            _safe_print(f"  ✓ migração JSON→SQLite: {migrated} hashes importados")
 
     def contains(self, platform: str, sid: str, h: str) -> bool:
         return self._con.execute(
@@ -386,7 +395,7 @@ def _ingest_body(platform, sess, store, sid, prompt, prompts, turns, last_text) 
             if role not in {"assistant", "tool"}:
                 continue
             if OBS_CAP and sent >= OBS_CAP:
-                print(f"  ⏳ {platform}:{sid[:12]}: cap {OBS_CAP} atingido; resto depois")
+                _safe_print(f"  ⏳ {platform}:{sid[:12]}: cap {OBS_CAP} atingido; resto depois")
                 break
 
             tool_name = "Message" if role == "assistant" else str(
@@ -460,7 +469,7 @@ def _ingest_body(platform, sess, store, sid, prompt, prompts, turns, last_text) 
                 "/api/sessions/summarize",
                 with_identity(summary_payload),
             )
-            print(f"  [ok] {platform}:{sid[:12]} -> {sent} nova(s)")
+            _safe_print(f"  [ok] {platform}:{sid[:12]} -> {sent} nova(s)")
         return sent
     if not store.is_inited(platform, sid):
         init_res = _post("/api/sessions/init", with_identity({
@@ -478,7 +487,7 @@ def _ingest_body(platform, sess, store, sid, prompt, prompts, turns, last_text) 
     sent = 0
     for t in turns:
         if OBS_CAP and sent >= OBS_CAP:
-            print(f"  ⏳ {platform}:{sid[:12]}: cap {OBS_CAP} atingido; resto depois")
+            _safe_print(f"  ⏳ {platform}:{sid[:12]}: cap {OBS_CAP} atingido; resto depois")
             break
         if isinstance(t.get("tool_input"), dict):
             tp = str(t["tool_input"].get("prompt") or "").strip()
@@ -505,7 +514,7 @@ def _ingest_body(platform, sess, store, sid, prompt, prompts, turns, last_text) 
             "contentSessionId": sid, "platformSource": platform,
             "last_assistant_message": last_text or prompt or "sessão concluída",
         }))
-        print(f"  [ok] {platform}:{sid[:12]} -> {sent} nova(s)")
+        _safe_print(f"  [ok] {platform}:{sid[:12]} -> {sent} nova(s)")
     return sent
 
 # ── stubs de compatibilidade (não usar em código novo) ─────────────────────────

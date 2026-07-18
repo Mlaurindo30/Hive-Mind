@@ -137,3 +137,26 @@ def test_sqlite_wal_change_reparses_canonical_database(tmp_path: Path, monkeypat
 
     assert daemon.handle_change(SourceChange("copilot", wal, time.time())) == 1
     assert parsed_paths == [database]
+
+def test_structured_log_is_safe_on_strict_cp1252_console(monkeypatch):
+    module = load_capture_realtime()
+
+    class StrictCp1252Stream:
+        def __init__(self):
+            self.parts = []
+
+        def write(self, text):
+            text.encode("cp1252", errors="strict")
+            self.parts.append(text)
+            return len(text)
+
+        def flush(self):
+            return None
+
+    stream = StrictCp1252Stream()
+    monkeypatch.setattr(module.sys, "stderr", stream)
+
+    module.log_event("warning", "unicode_diagnostic", detail="⚠ caminho ç")
+
+    record = __import__("json").loads("".join(stream.parts))
+    assert record["detail"] == "⚠ caminho ç"
