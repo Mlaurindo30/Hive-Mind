@@ -1,0 +1,19 @@
+schema_version: 1
+projects:
+  - project_id: hive-mind
+    project_name: Hive-Mind
+    remotes:
+      - https://github.com/Mlaurindo30/Hive-Mind.git
+    roots:
+      - 'D:\Hive-Mind'
+      - 'D:\Hive-Mind\backups\worktrees\hive-mind-windows-zero-install'
+    git_common_dirs:
+      - 'D:\Hive-Mind\.git'
+    aliases:
+      - Hive-Mind
+      - hive-mind-windows-zero-install
+      - Hive-Mind/hive-mind-windows-zero-install
+    markers:
+      - all:
+          - config/sinapse.yaml
+          - scripts/services/sinapse-mcp.py

@@ -1,0 +1,12 @@
+schema_version: 1
+projects:
+  - project_id: alpha
+    project_name: Alpha
+    remotes:
+      - https://github.com/example/alpha.git
+    aliases:
+      - Alpha Legacy
+  - project_id: beta
+    project_name: Beta
+    aliases:
+      - Beta
