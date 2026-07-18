@@ -169,6 +169,56 @@ class SessionContextStore:
         self._connection.close()
 
 
+_CONTEXT_CACHE_DIAGNOSTIC = {
+    "component": "identity_context_cache",
+    "status": "degraded",
+    "reason": "unavailable",
+}
+
+
+def _resolve_session_context(
+    provider: str,
+    session_id: str,
+    session: dict,
+) -> tuple[dict, dict[str, str] | None]:
+    """Use the auxiliary cache when available without risking event loss."""
+    context_store = None
+    normalized_session = None
+    degraded = False
+    try:
+        context_store = SessionContextStore(default_context_db_path())
+    except (OSError, sqlite3.Error):
+        degraded = True
+
+    if context_store is not None:
+        try:
+            normalized_session = context_store.get_or_resolve(
+                provider,
+                session_id,
+                session,
+                resolver=IDENTITY_RESOLVER,
+                default_surface="hook",
+            )
+        except sqlite3.Error:
+            degraded = True
+        finally:
+            try:
+                context_store.close()
+            except sqlite3.Error:
+                degraded = True
+
+    if normalized_session is None:
+        normalized_session = attach_project_identity(
+            provider,
+            session,
+            resolver=IDENTITY_RESOLVER,
+            default_surface="hook",
+        )
+
+    diagnostic = dict(_CONTEXT_CACHE_DIAGNOSTIC) if degraded else None
+    return normalized_session, diagnostic
+
+
 def read_stdin_capped(stream=None) -> bytes:
     """Read at most MAX_STDIN_BYTES; raise before any JSON parsing if larger."""
     stream = stream if stream is not None else sys.stdin.buffer
@@ -300,17 +350,11 @@ def process(provider: str, event_type: str, raw: bytes) -> dict:
         }
 
     db_path = default_db_path()
-    context_store = SessionContextStore(default_context_db_path())
-    try:
-        normalized_session = context_store.get_or_resolve(
-            provider,
-            session_id,
-            {**payload, "sid": session_id},
-            resolver=IDENTITY_RESOLVER,
-            default_surface="hook",
-        )
-    finally:
-        context_store.close()
+    normalized_session, context_diagnostic = _resolve_session_context(
+        provider,
+        session_id,
+        {**payload, "sid": session_id},
+    )
     cwd = normalized_session.get("cwd")
     project = normalized_session["project"]
     event_metadata = _event_metadata(payload) or {}
@@ -340,13 +384,16 @@ def process(provider: str, event_type: str, raw: bytes) -> dict:
         enqueued = queue.enqueue(event)
     finally:
         queue.close()
-    return {
+    result = {
         "ok": True,
         "enqueued": bool(enqueued),
         "provider": provider,
         "event_type": event_type,
         "session_id": session_id,
     }
+    if context_diagnostic is not None:
+        result["diagnostics"] = [context_diagnostic]
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -219,3 +219,61 @@ Additional gates:
 compileall scripts/capture/capture-hook.py scripts/capture/project_identity.py scripts/capture/session_events.py: PASS
 git diff --check: PASS
 ```
+
+## P1 Review Correction — Unavailable Identity Context DB
+
+The final Task 4 review found that an unavailable auxiliary identity cache aborted the callback before the durable event outbox opened. The hook now treats only context-cache construction and SQLite transaction/close failures as a degraded auxiliary component. It resolves the current callback through `attach_project_identity`, preserves the canonical envelope, and continues into the unchanged `CaptureQueue.enqueue` path. The once-per-session guarantee may degrade while the cache is unavailable, but the current event is not lost.
+
+The returned hook result exposes a stable non-sensitive diagnostic:
+
+```json
+{"component":"identity_context_cache","status":"degraded","reason":"unavailable"}
+```
+
+No exception message, database path, payload, or secret is exposed. The cache boundary does not catch failures from the actual outbox: an explicit regression proves `CaptureQueue.enqueue` errors still propagate instead of reporting capture success.
+
+### TDD RED
+
+Command:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q tests\unit\test_capture_project_identity.py `
+  -k "context_db_constructor_is_unavailable or context_db_transaction_fails"
+```
+
+Result before the production correction:
+
+```text
+2 failed, 9 deselected in 0.86s
+```
+
+Both expected failures were `sqlite3.OperationalError`: one from `HIVE_CAPTURE_CONTEXT_DB` pointing at a directory and one injected during `get_or_resolve`. In both cases production aborted before enqueue.
+
+### GREEN
+
+New unavailable-cache regressions:
+
+```text
+2 passed, 9 deselected in 0.60s
+```
+
+Complete project-identity regression including the outbox failure boundary:
+
+```text
+12 passed in 0.74s
+```
+
+Complete Task 4 suite:
+
+```text
+121 passed in 17.71s
+```
+
+Additional gates:
+
+```text
+python -m compileall scripts\capture: PASS
+git diff --check: PASS
+```
+
+All database paths used by these tests were under pytest `tmp_path`. No real/protected database, provider, Hermes implementation, service, backlog, active root, or historical data was opened or modified.

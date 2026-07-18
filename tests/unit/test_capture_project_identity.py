@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from scripts.capture.capture_events import ProviderEvent
+from scripts.capture.capture_queue import CaptureQueue
 from scripts.capture.project_identity import ProjectIdentity, ProjectIdentityResolver
 from scripts.capture.session_events import attach_project_identity, session_to_events
 
@@ -375,6 +376,140 @@ def test_hook_repairs_invalid_persisted_identity_and_enqueues_callback(
             ).fetchone()[0]
         )
     assert ProjectIdentity.from_dict(repaired_payload) == repaired_identity
+
+
+def test_hook_enqueues_when_identity_context_db_constructor_is_unavailable(
+    tmp_path, monkeypatch
+):
+    module = _load(HOOK_SCRIPT, "capture_hook_context_constructor_unavailable")
+    outbox_path = tmp_path / "capture-outbox.db"
+    unavailable_context_path = tmp_path / "context-is-a-directory"
+    unavailable_context_path.mkdir()
+    monkeypatch.setenv("HIVE_CAPTURE_DB", str(outbox_path))
+    monkeypatch.setenv("HIVE_CAPTURE_CONTEXT_DB", str(unavailable_context_path))
+    resolver = RecordingResolver(_identity(provider="codex", surface="hook"))
+    monkeypatch.setattr(module, "IDENTITY_RESOLVER", resolver)
+
+    result = module.process(
+        "codex",
+        "prompt",
+        json.dumps(
+            {
+                "session_id": "constructor-unavailable",
+                "event_id": "constructor-event",
+                "cwd": r"D:\\Hive-Mind",
+                "project": "Hive-Mind",
+                "prompt": "capture survives unavailable identity cache",
+            }
+        ).encode("utf-8"),
+    )
+
+    assert result["enqueued"] is True
+    assert result["diagnostics"] == [
+        {
+            "component": "identity_context_cache",
+            "status": "degraded",
+            "reason": "unavailable",
+        }
+    ]
+    assert str(unavailable_context_path) not in json.dumps(result)
+    assert len(resolver.calls) == 1
+    queue = CaptureQueue(outbox_path)
+    try:
+        event = queue.pending(1)[0].event
+    finally:
+        queue.close()
+    assert event.event_id == "constructor-event"
+    assert event.metadata["project_identity"] == resolver.identity.to_dict()
+
+
+def test_hook_enqueues_when_identity_context_db_transaction_fails(
+    tmp_path, monkeypatch
+):
+    module = _load(HOOK_SCRIPT, "capture_hook_context_transaction_unavailable")
+    outbox_path = tmp_path / "capture-outbox.db"
+    context_path = tmp_path / "capture-context.db"
+    monkeypatch.setenv("HIVE_CAPTURE_DB", str(outbox_path))
+    monkeypatch.setenv("HIVE_CAPTURE_CONTEXT_DB", str(context_path))
+    resolver = RecordingResolver(_identity(provider="codex", surface="hook"))
+    monkeypatch.setattr(module, "IDENTITY_RESOLVER", resolver)
+
+    def unavailable_transaction(*args, **kwargs):
+        raise sqlite3.OperationalError(f"database unavailable at {context_path}")
+
+    monkeypatch.setattr(
+        module.SessionContextStore, "get_or_resolve", unavailable_transaction
+    )
+    result = module.process(
+        "codex",
+        "prompt",
+        json.dumps(
+            {
+                "session_id": "transaction-unavailable",
+                "event_id": "transaction-event",
+                "cwd": r"D:\\Hive-Mind",
+                "project": "Hive-Mind",
+                "prompt": "capture survives failed identity cache transaction",
+            }
+        ).encode("utf-8"),
+    )
+
+    assert result["enqueued"] is True
+    assert result["diagnostics"] == [
+        {
+            "component": "identity_context_cache",
+            "status": "degraded",
+            "reason": "unavailable",
+        }
+    ]
+    assert str(context_path) not in json.dumps(result)
+    assert len(resolver.calls) == 1
+    queue = CaptureQueue(outbox_path)
+    try:
+        event = queue.pending(1)[0].event
+    finally:
+        queue.close()
+    assert event.event_id == "transaction-event"
+    assert event.metadata["project_identity"] == resolver.identity.to_dict()
+
+
+def test_hook_does_not_hide_real_outbox_failure_when_context_cache_is_unavailable(
+    tmp_path, monkeypatch
+):
+    module = _load(HOOK_SCRIPT, "capture_hook_outbox_failure_not_hidden")
+    unavailable_context_path = tmp_path / "context-is-a-directory"
+    unavailable_context_path.mkdir()
+    monkeypatch.setenv("HIVE_CAPTURE_DB", str(tmp_path / "capture-outbox.db"))
+    monkeypatch.setenv("HIVE_CAPTURE_CONTEXT_DB", str(unavailable_context_path))
+    monkeypatch.setattr(
+        module,
+        "IDENTITY_RESOLVER",
+        RecordingResolver(_identity(provider="codex", surface="hook")),
+    )
+
+    class FailingQueue:
+        def __init__(self, path):
+            pass
+
+        def enqueue(self, event):
+            raise sqlite3.OperationalError("outbox write failed")
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(module, "CaptureQueue", FailingQueue)
+    with pytest.raises(sqlite3.OperationalError, match="outbox write failed"):
+        module.process(
+            "codex",
+            "prompt",
+            json.dumps(
+                {
+                    "session_id": "outbox-failure",
+                    "event_id": "outbox-failure-event",
+                    "prompt": "must not report capture success",
+                }
+            ).encode("utf-8"),
+        )
 
 
 def test_hook_resolves_once_and_preserves_identity_in_event_metadata(tmp_path, monkeypatch):
