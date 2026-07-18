@@ -137,3 +137,12 @@ def test_dream_definido_mas_nao_auto_habilitado():
     for safe in ("sinapse-bridge.timer", "sinapse-daily.timer", "sinapse-weekly.timer",
                  "sinapse-topics.timer", "sinapse-health.timer"):
         assert f'"{safe}"' in enabled_block, f"{safe} deveria estar em enabled"
+
+
+def test_capture_realtime_disables_experimental_delivery():
+    unit = DEFS["sinapse-capture-realtime.service"]
+    assert "Environment=HIVE_CAPTURE_DELIVERY_ENABLED=0" in unit
+
+    spec = next(item for item in MOD.service_specs() if item["name"] == "sinapse-capture-realtime")
+    assert spec["env"]["HIVE_CAPTURE_DELIVERY_ENABLED"] == "0"
+    assert "HIVE_CAPTURE_DB" not in spec["env"]

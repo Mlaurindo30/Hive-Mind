@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import time
 from pathlib import Path
 
-from scripts.capture.capture_queue import CaptureQueue
 from scripts.capture.capture_sources import SourceChange
 
 
@@ -44,66 +44,96 @@ def test_pid_file_is_project_local():
     assert ROOT in pid_file.parents
 
 
-def test_source_change_enqueues_normalized_events_once(tmp_path: Path):
+def test_source_change_uses_linux_compatible_direct_ingest_once(tmp_path: Path, monkeypatch):
     module = load_capture_realtime()
     transcript = tmp_path / "transcript_full.jsonl"
     transcript.write_text('{"type":"USER_INPUT"}\n', encoding="utf-8")
 
     parsed_paths: list[Path] = []
+    delivered: list[tuple[str, str]] = []
 
     def parser(path):
         parsed_paths.append(Path(path))
-        return [
-            {
-                "sid": "sess-1",
-                "prompt": "hello world",
-                "prompts": ["hello world"],
-                "turns": [
-                    {
-                        "tool_name": "Shell",
-                        "tool_input": {"command": "ls"},
-                        "tool_response": "ok",
-                    }
-                ],
-                "last": "done",
-            }
-        ]
+        return [{
+            "sid": "sess-1",
+            "prompt": "hello world",
+            "prompts": ["hello world"],
+            "turns": [{
+                "tool_name": "Shell",
+                "tool_input": {"command": "ls"},
+                "tool_response": "ok",
+            }],
+            "last": "done",
+        }]
 
+    class Store:
+        def close(self):
+            pass
+
+    def ingest(provider, session, store):
+        delivered.append((provider, session["sid"]))
+        return 1
+
+    monkeypatch.setattr(module.core, "ingest", ingest)
     registry = {
         "antigravity": {
             "owner": "realtime",
             "mode": "reparse",
             "parser": parser,
             "watch": [str(tmp_path)],
-            "sources": [str(tmp_path / "transcript_full.jsonl")],
+            "sources": [str(transcript)],
         }
     }
-    queue = CaptureQueue(tmp_path / "outbox.db")
-    try:
-        daemon = module.RealtimeCapture(registry, queue)
-        change = SourceChange("antigravity", transcript, time.time())
+    daemon = module.RealtimeCapture(registry, Store())
+    change = SourceChange("antigravity", transcript, time.time())
 
-        first = daemon.handle_change(change)
-        assert first >= 2  # at least prompt + tool result
-        assert parsed_paths and parsed_paths[0] == transcript
-
-        # Re-parsing the same source must not enqueue duplicates.
-        assert daemon.handle_change(change) == 0
-
-        health = queue.health()
-        assert health["dead_letter"] == 0
-        assert health["delivered"] == 0
-        assert health["pending"] + health["blocked"] == first
-    finally:
-        queue.close()
+    assert daemon.handle_change(change) == 1
+    assert parsed_paths == [transcript]
+    assert delivered == [("antigravity", "sess-1")]
 
 
 def test_unknown_provider_change_is_ignored(tmp_path: Path):
     module = load_capture_realtime()
-    queue = CaptureQueue(tmp_path / "outbox.db")
-    try:
-        daemon = module.RealtimeCapture({}, queue)
-        change = SourceChange("ghost", tmp_path / "nope.jsonl", time.time())
-        assert daemon.handle_change(change) == 0
-    finally:
-        queue.close()
+
+    class Store:
+        def close(self):
+            pass
+
+    daemon = module.RealtimeCapture({}, Store())
+    change = SourceChange("ghost", tmp_path / "nope.jsonl", time.time())
+    assert daemon.handle_change(change) == 0
+
+
+def test_sqlite_wal_change_reparses_canonical_database(tmp_path: Path, monkeypatch):
+    module = load_capture_realtime()
+    database = tmp_path / "session-store.db"
+    wal = tmp_path / "session-store.db-wal"
+    database.write_bytes(b"sqlite")
+    wal.write_bytes(b"wal")
+    old = time.time() - 3600
+    os.utime(database, (old, old))
+
+    parsed_paths: list[Path] = []
+
+    def parser(path):
+        parsed_paths.append(Path(path))
+        return [{"sid": "copilot-1", "prompt": "real prompt", "turns": []}]
+
+    class Store:
+        def close(self):
+            pass
+
+    monkeypatch.setattr(module.core, "ingest", lambda provider, session, store: 1)
+    registry = {
+        "copilot": {
+            "owner": "realtime",
+            "mode": "reparse",
+            "parser": parser,
+            "watch": [str(tmp_path)],
+            "sources": [str(database)],
+        }
+    }
+    daemon = module.RealtimeCapture(registry, Store(), clock=time.time)
+
+    assert daemon.handle_change(SourceChange("copilot", wal, time.time())) == 1
+    assert parsed_paths == [database]

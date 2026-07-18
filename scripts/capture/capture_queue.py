@@ -106,11 +106,11 @@ class CaptureQueue:
             )
         return [self._queue_item(row) for row in rows]
 
-    def mark_delivered(self, item_id: int) -> None:
+    def mark_delivered(self, item_id: int) -> bool:
         """Mark this queue instance's unexpired claim as delivered."""
         now = self._now()
         with self._transaction() as connection:
-            connection.execute(
+            result = connection.execute(
                 """
                 UPDATE capture_outbox
                 SET delivered_at = ?, last_error = NULL,
@@ -123,12 +123,13 @@ class CaptureQueue:
                 """,
                 (now, item_id, self._claim_owner, now),
             )
+            return result.rowcount == 1
 
-    def mark_retry(self, item_id: int, error: str, retry_at: float) -> None:
+    def mark_retry(self, item_id: int, error: str, retry_at: float) -> bool:
         """Record a failed delivery and release this queue instance's claim."""
         now = self._now()
         with self._transaction() as connection:
-            connection.execute(
+            result = connection.execute(
                 """
                 UPDATE capture_outbox
                 SET attempts = attempts + 1, last_error = ?, next_retry_at = ?,
@@ -141,12 +142,13 @@ class CaptureQueue:
                 """,
                 (error, float(retry_at), item_id, self._claim_owner, now),
             )
+            return result.rowcount == 1
 
-    def move_dead_letter(self, item_id: int, error: str) -> None:
+    def move_dead_letter(self, item_id: int, error: str) -> bool:
         """Stop retrying this queue instance's claimed event after a permanent failure."""
         now = self._now()
         with self._transaction() as connection:
-            connection.execute(
+            result = connection.execute(
                 """
                 UPDATE capture_outbox
                 SET dead_letter_at = ?, last_error = ?,
@@ -159,6 +161,7 @@ class CaptureQueue:
                 """,
                 (now, error, item_id, self._claim_owner, now),
             )
+            return result.rowcount == 1
 
     def health(self) -> dict[str, int]:
         """Return mutually exclusive delivery-state counts for monitoring."""

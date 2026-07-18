@@ -43,6 +43,9 @@ def test_create_normalizes_timestamp_and_serializes_payload() -> None:
         "event_id": "native-1",
         "occurred_at": "2026-07-09T12:00:00+00:00",
         "source_position": "rollout.jsonl:12",
+        "project": None,
+        "cwd": None,
+        "metadata": None,
     }
 
 
@@ -98,3 +101,36 @@ def test_empty_source_position_normalizes_before_fallback_id() -> None:
 
     assert empty.source_position is None
     assert empty.event_id == absent.event_id
+
+
+def test_event_preserves_project_cwd_and_metadata() -> None:
+    event = ProviderEvent.create(
+        "hermes",
+        "session-1",
+        "tool_result",
+        "ok",
+        event_id="native-7",
+        occurred_at="2026-07-17T12:00:00+00:00",
+        project="my-project",
+        cwd=r"C:\\work\\my-project",
+        metadata={"tool_name": "Shell", "tool_input": {"command": "dir"}},
+    )
+
+    payload = event.as_payload()
+    assert payload["project"] == "my-project"
+    assert payload["cwd"] == r"C:\\work\\my-project"
+    assert payload["metadata"] == {"tool_name": "Shell", "tool_input": {"command": "dir"}}
+
+
+def test_old_queue_payload_without_context_remains_constructible() -> None:
+    event = ProviderEvent(
+        provider="codex",
+        session_id="s",
+        event_type="prompt",
+        content="hello",
+        event_id="1",
+        occurred_at="2026-07-17T12:00:00+00:00",
+    )
+    assert event.project is None
+    assert event.cwd is None
+    assert event.metadata is None

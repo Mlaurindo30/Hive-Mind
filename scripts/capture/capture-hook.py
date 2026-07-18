@@ -12,11 +12,12 @@ Usage (wired by scripts/setup/install-capture-hooks.py):
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
+import hashlib
 import json
 import os
 import sys
 from pathlib import Path
-from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -40,7 +41,7 @@ _LIFECYCLE_FALLBACK = {
 
 
 def default_db_path() -> Path:
-    """Resolve the outbox path: HIVE_CAPTURE_DB wins, then SINAPSE_HOME."""
+    """Resolve the isolated legacy hook outbox path."""
     override = os.environ.get("HIVE_CAPTURE_DB")
     if override:
         return Path(override)
@@ -106,6 +107,56 @@ def build_content(event_type: str, payload: dict) -> str:
     return text
 
 
+def _first_native_id(payload: dict) -> str | None:
+    for key in ("event_id", "eventId", "hook_event_id", "hookEventId", "tool_use_id", "toolUseId", "message_id", "messageId"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _occurred_at(payload: dict) -> str | None:
+    for key in ("occurred_at", "timestamp", "created_at", "createdAt"):
+        value = payload.get(key)
+        if isinstance(value, str) and value.strip():
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc).isoformat()
+    return None
+
+
+def _stable_event_id(provider: str, session_id: str, event_type: str, content: str, payload: dict) -> str:
+    native = _first_native_id(payload)
+    if native:
+        return native
+    identity = {
+        "provider": provider,
+        "session_id": session_id,
+        "event_type": event_type,
+        "content": content,
+        "cwd": payload.get("cwd"),
+        "project": payload.get("project") or payload.get("project_name"),
+        "timestamp": _occurred_at(payload),
+    }
+    canonical = json.dumps(identity, ensure_ascii=False, separators=(",", ":"), sort_keys=True, default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _event_metadata(payload: dict) -> dict[str, object] | None:
+    metadata: dict[str, object] = {}
+    for key in ("tool_name", "tool_input", "tool_response", "tool_use_id"):
+        if key in payload and payload[key] is not None:
+            metadata[key] = payload[key]
+    native = _first_native_id(payload)
+    if native:
+        metadata["native_event_id"] = native
+    return metadata or None
+
+
 def process(provider: str, event_type: str, raw: bytes) -> dict:
     """Parse, sanitize and enqueue one hook payload. Never raises upward."""
     try:
@@ -129,15 +180,25 @@ def process(provider: str, event_type: str, raw: bytes) -> dict:
         }
 
     cwd = payload.get("cwd")
-    source_position = f"hook:{cwd}" if isinstance(cwd, str) and cwd else None
+    project = payload.get("project") or payload.get("project_name")
+    timestamp = _occurred_at(payload)
+    source_parts = ["hook"]
+    if timestamp:
+        source_parts.append(timestamp)
+    if isinstance(cwd, str) and cwd:
+        source_parts.append(cwd)
 
     event = ProviderEvent.create(
         provider,
         session_id,
         event_type,
         content,
-        event_id=uuid4().hex,
-        source_position=source_position,
+        event_id=_stable_event_id(provider, session_id, event_type, content, payload),
+        occurred_at=timestamp,
+        source_position=":".join(source_parts),
+        project=project if isinstance(project, str) else None,
+        cwd=cwd if isinstance(cwd, str) else None,
+        metadata=_event_metadata(payload),
     )
 
     queue = CaptureQueue(default_db_path())

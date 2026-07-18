@@ -133,3 +133,27 @@ def test_hook_maps_tool_result_fields(tmp_path, monkeypatch):
     content = _first_pending_content(db_path)
     assert "Bash" in content
     assert "files" in content
+
+
+def test_hook_replay_is_idempotent_and_preserves_context(tmp_path, monkeypatch):
+    db_path = tmp_path / "capture.db"
+    monkeypatch.setenv("HIVE_CAPTURE_DB", str(db_path))
+    payload = {
+        "session_id": "s",
+        "event_id": "native-event-1",
+        "timestamp": "2026-07-17T12:00:00Z",
+        "cwd": r"C:\\work\\project",
+        "project": "project",
+        "prompt": "same event",
+    }
+    assert json.loads(run_hook("codex", "prompt", payload).stdout)["enqueued"] is True
+    assert json.loads(run_hook("codex", "prompt", payload).stdout)["enqueued"] is False
+
+    queue = CaptureQueue(db_path)
+    try:
+        item = queue.pending(1)[0]
+        assert item.event.event_id == "native-event-1"
+        assert item.event.project == "project"
+        assert item.event.cwd == r"C:\\work\\project"
+    finally:
+        queue.close()

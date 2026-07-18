@@ -177,6 +177,7 @@ UMask=0077
 WorkingDirectory={path}
 EnvironmentFile={path}/.env
 Environment=CLAUDE_MEM_DATA_DIR={claude_mem_data}
+Environment=HIVE_CAPTURE_DELIVERY_ENABLED=0
 Environment=VEC_WORKER_URL=http://127.0.0.1:37701
 Environment=PATH={path}/.venv/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart={path}/.venv/bin/python {path}/scripts/capture/capture-realtime.py
@@ -1111,6 +1112,7 @@ def service_specs() -> list[dict]:
             "env_file": f"{path}/.env",
             "env": {
                 "CLAUDE_MEM_DATA_DIR": claude_mem_data,
+                "HIVE_CAPTURE_DELIVERY_ENABLED": "0",
                 "VEC_WORKER_URL": "http://127.0.0.1:37701",
                 "PATH": system_path,
             },

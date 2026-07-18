@@ -30,6 +30,9 @@ class ProviderEvent:
     event_id: str
     occurred_at: str
     source_position: str | None = None
+    project: str | None = None
+    cwd: str | None = None
+    metadata: dict[str, object] | None = None
 
     def __post_init__(self) -> None:
         """Enforce the contract for direct dataclass construction too."""
@@ -46,6 +49,9 @@ class ProviderEvent:
         object.__setattr__(self, "event_type", event_type)
         object.__setattr__(self, "occurred_at", self._normalize_utc_timestamp(self.occurred_at))
         object.__setattr__(self, "source_position", self._normalize_source_position(self.source_position))
+        object.__setattr__(self, "project", self._normalize_optional_string("project", self.project))
+        object.__setattr__(self, "cwd", self._normalize_optional_string("cwd", self.cwd))
+        object.__setattr__(self, "metadata", self._normalize_metadata(self.metadata))
 
     @classmethod
     def create(
@@ -58,6 +64,9 @@ class ProviderEvent:
         event_id: str | None = None,
         occurred_at: datetime | str | None = None,
         source_position: str | None = None,
+        project: str | None = None,
+        cwd: str | None = None,
+        metadata: dict[str, object] | None = None,
     ) -> ProviderEvent:
         """Create a validated event with stable fallback identity."""
         cls._require_value("provider", provider)
@@ -90,6 +99,9 @@ class ProviderEvent:
             event_id=resolved_id,
             occurred_at=cls._normalize_timestamp(occurred_at),
             source_position=normalized_position,
+            project=project,
+            cwd=cwd,
+            metadata=metadata,
         )
 
     def dedupe_key(self) -> str:
@@ -103,7 +115,7 @@ class ProviderEvent:
             }
         )
 
-    def as_payload(self) -> dict[str, str | None]:
+    def as_payload(self) -> dict[str, object | None]:
         """Return the JSON-ready representation used by queue and sink layers."""
         return {
             "provider": self.provider,
@@ -113,6 +125,9 @@ class ProviderEvent:
             "event_id": self.event_id,
             "occurred_at": self.occurred_at,
             "source_position": self.source_position,
+            "project": self.project,
+            "cwd": self.cwd,
+            "metadata": self.metadata,
         }
 
     @staticmethod
@@ -150,6 +165,30 @@ class ProviderEvent:
             raise ValueError("occurred_at must be an ISO-8601 UTC timestamp")
         return timestamp.astimezone(timezone.utc).isoformat()
 
+
+    @staticmethod
+    def _normalize_optional_string(field: str, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError(f"{field} must be a string or None")
+        return value.strip() or None
+
+    @staticmethod
+    def _normalize_metadata(value: dict[str, object] | None) -> dict[str, object] | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            raise ValueError("metadata must be an object or None")
+        copied = dict(value)
+        try:
+            normalized = json.loads(
+                json.dumps(copied, ensure_ascii=False, sort_keys=True, default=str)
+            )
+        except (TypeError, ValueError, json.JSONDecodeError) as error:
+            raise ValueError("metadata must be JSON-serializable") from error
+        return normalized or None
+
     @staticmethod
     def _normalize_source_position(value: str | None) -> str | None:
         if value is None:
@@ -159,7 +198,7 @@ class ProviderEvent:
         return value or None
 
     @staticmethod
-    def _hash(value: dict[str, str | None]) -> str:
+    def _hash(value: dict[str, object | None]) -> str:
         canonical_json = json.dumps(
             value,
             ensure_ascii=False,

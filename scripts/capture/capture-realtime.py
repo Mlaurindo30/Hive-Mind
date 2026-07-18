@@ -4,14 +4,14 @@ capture-realtime.py — Cross-platform realtime capture daemon.
 
 Orquestrador fino sobre fontes multiplataforma (watchdog + reconciliador de
 polling). Dono das fontes owner=="realtime". A QUALQUER mudança numa fonte de
-um provider, re-parseia com o parser DEDICADO (capture_adapters), normaliza as
-sessões em ProviderEvent e ENFILEIRA no outbox durável (CaptureQueue). O
-dedupe_key do evento garante idempotência: re-parse N vezes → cada evento
-persiste 1x só.
+um provider, re-parseia com o parser DEDICADO (capture_adapters) e entrega ao
+Claude-Mem pelo mesmo motor ``capture_core.ingest`` usado pelo runtime Linux
+funcional. A idempotência por content-hash no SeenStore impede duplicação mesmo
+com reparse, reinício ou dois processos concorrentes.
 
-Entrega ao Claude-Mem é responsabilidade do drainer do outbox (Task 6 — ver o
-seam ``_drain_outbox``). Este daemon NUNCA espera pelo Claude-Mem/Ollama e não
-faz chamadas de rede. O MCP server nunca deve iniciá-lo.
+A outbox experimental não participa do caminho principal de captura. Hooks
+legados podem continuar escrevendo nela, mas parser → Claude-Mem não depende
+mais de um drainer ausente. O MCP server nunca deve iniciar este daemon.
 """
 from __future__ import annotations
 
@@ -32,8 +32,6 @@ for _entry in (str(_HERE), str(ROOT)):
 
 import capture_core as core                                # noqa: E402
 from capture_adapters import adapters_by_owner             # noqa: E402
-from scripts.capture.capture_events import ProviderEvent   # noqa: E402
-from scripts.capture.capture_queue import CaptureQueue     # noqa: E402
 from scripts.capture.capture_sources import (              # noqa: E402
     PollingReconciler,
     SourceChange,
@@ -60,98 +58,28 @@ def log_event(level: str, event: str, **fields) -> None:
     print(json.dumps(record, ensure_ascii=False, default=str), file=stream, flush=True)
 
 
-# ── normalização sessão → ProviderEvent ────────────────────────────────────────
-def session_to_provider_events(provider: str, session: dict) -> list[ProviderEvent]:
-    """Normalize one parser session dict into ordered ProviderEvents.
-
-    Prefers ``scripts.capture.session_events.session_to_events`` (Task 4)
-    when available; otherwise applies a compatible local mapping over the
-    legacy parser dict shape {sid, prompt, prompts, turns, last, ...}.
-    """
-    try:
-        from scripts.capture.session_events import session_to_events  # type: ignore
-    except ImportError:
-        return _fallback_session_events(provider, session)
-    return list(session_to_events(provider, session))
-
-
-def _fallback_session_events(provider: str, session: dict) -> list[ProviderEvent]:
-    sid = str(session.get("sid") or "").strip()
-    if not sid:
-        return []
-    events: list[ProviderEvent] = []
-
-    prompts = [str(p) for p in (session.get("prompts") or []) if str(p).strip()]
-    if not prompts and str(session.get("prompt") or "").strip():
-        prompts = [str(session["prompt"])]
-    prompt_meta = session.get("prompt_events") or []
-    for index, text in enumerate(prompts):
-        meta = prompt_meta[index] if index < len(prompt_meta) and isinstance(prompt_meta[index], dict) else {}
-        event_id = str(meta["event_id"]) if meta.get("event_id") else None
-        events.append(
-            ProviderEvent.create(
-                provider, sid, "prompt", text,
-                event_id=event_id,
-                source_position=f"prompt:{index}",
-            )
-        )
-
-    for index, turn in enumerate(session.get("turns") or []):
-        if not isinstance(turn, dict):
-            continue
-        tool_name = str(turn.get("tool_name") or "Tool").strip() or "Tool"
-        tool_input = turn.get("tool_input")
-        if isinstance(tool_input, dict):
-            embedded = str(tool_input.get("prompt") or "").strip()
-            if embedded:
-                events.append(
-                    ProviderEvent.create(
-                        provider, sid, "prompt", embedded,
-                        source_position=f"turn:{index}:prompt",
-                    )
-                )
-        response = str(turn.get("tool_response") or "").strip()
-        if response:
-            events.append(
-                ProviderEvent.create(
-                    provider, sid, "tool_result", f"[{tool_name}] {response}",
-                    source_position=f"turn:{index}:{tool_name}",
-                )
-            )
-
-    last = str(session.get("last") or "").strip()
-    if last:
-        events.append(
-            ProviderEvent.create(
-                provider, sid, "assistant", last,
-                source_position="last",
-            )
-        )
-    return events
-
-
 # ── motor do daemon ────────────────────────────────────────────────────────────
 class RealtimeCapture:
-    """Parse changed provider sources and enqueue normalized events durably."""
+    """Parse changed provider sources and deliver with Linux-compatible ingest."""
 
     def __init__(
         self,
         registry: dict,
-        queue: CaptureQueue,
+        store: "core.SeenStore",
         *,
         window_s: float = WINDOW_S,
         live_max_age_s: float = LIVE_MAX_AGE_S,
         clock=time.time,
     ) -> None:
         self._registry = registry
-        self._queue = queue
+        self._store = store
         self._window_s = float(window_s)
         self._live_max_age_s = float(live_max_age_s)
         self._clock = clock
         self._lock = threading.Lock()
 
     def handle_change(self, change: SourceChange) -> int:
-        """Re-parse the changed provider source(s) and enqueue new events."""
+        """Re-parse changed sources and deliver new content to Claude-Mem."""
         adapter = self._registry.get(change.provider)
         if not adapter:
             return 0
@@ -180,26 +108,24 @@ class RealtimeCapture:
                     p for p in self._expand_sources(provider)
                     if core._src_mtime(p) >= cutoff
                 ]
-                enqueued = self._ingest_paths(provider, adapter, targets)
-                if enqueued:
-                    log_event("info", "catch_up_provider", provider=provider, enqueued=enqueued)
-                total += enqueued
+                delivered = self._ingest_paths(provider, adapter, targets)
+                if delivered:
+                    log_event("info", "catch_up_provider", provider=provider, delivered=delivered)
+                total += delivered
         return total
 
     def _ingest_paths(self, provider: str, adapter: dict, targets: list[Path]) -> int:
         parser = adapter["parser"]
-        enqueued = 0
+        delivered = 0
         for path in targets:
             try:
                 for session in parser(path) or []:
-                    for event in session_to_provider_events(provider, session):
-                        if self._queue.enqueue(event):
-                            enqueued += 1
+                    delivered += core.ingest(provider, session, self._store)
             except Exception as exc:
-                log_event("warning", "parse_failed", provider=provider, path=str(path), error=str(exc))
-        if enqueued:
-            log_event("info", "events_enqueued", provider=provider, count=enqueued)
-        return enqueued
+                log_event("warning", "parse_or_delivery_failed", provider=provider, path=str(path), error=str(exc))
+        if delivered:
+            log_event("info", "sessions_delivered", provider=provider, count=delivered)
+        return delivered
 
     def _expand_sources(self, provider: str) -> list[Path]:
         paths: list[Path] = []
@@ -219,17 +145,6 @@ class RealtimeCapture:
         return False
 
 
-# ── seam de entrega (Task 6) ───────────────────────────────────────────────────
-def _drain_outbox(queue: CaptureQueue) -> None:
-    """Delivery seam — intentionally a no-op in this daemon.
-
-    Task 6 plugs ``OutboxDrainer(queue, ClaudeMemSink())`` here. Until then
-    events stay durably persisted in the CaptureQueue outbox; the daemon never
-    talks to (or waits for) Claude-Mem.
-    """
-    return None
-
-
 # ── ciclo de vida ──────────────────────────────────────────────────────────────
 def _write_pid_file() -> None:
     PID_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -243,28 +158,21 @@ def _remove_pid_file() -> None:
         pass
 
 
-def _queue_path() -> Path:
-    override = os.environ.get("HIVE_CAPTURE_DB")
-    if override:
-        return Path(override)
-    return core.DATA_DIR / "capture.db"
-
-
 def main() -> int:
     registry = ADAPTERS
-    queue = CaptureQueue(_queue_path())
-    daemon = RealtimeCapture(registry, queue)
+    store = core.SeenStore()
+    daemon = RealtimeCapture(registry, store)
     _write_pid_file()
     log_event(
         "info", "daemon_started",
         pid=os.getpid(),
-        queue=str(_queue_path()),
+        transport="capture_core.ingest",
         providers=sorted(registry),
         pid_file=str(PID_FILE),
     )
 
-    enqueued = daemon.catch_up()
-    log_event("info", "catch_up_complete", enqueued=enqueued)
+    delivered = daemon.catch_up()
+    log_event("info", "catch_up_complete", delivered=delivered)
 
     watch_registry = {
         provider: list(adapter.get("watch") or []) + list(adapter.get("sources") or [])
@@ -290,14 +198,12 @@ def main() -> int:
     try:
         while True:
             time.sleep(30)
-            _drain_outbox(queue)
-            log_event("debug", "queue_health", **queue.health())
     except KeyboardInterrupt:
         log_event("info", "daemon_stopping", reason="keyboard_interrupt")
     finally:
         reconciler.stop()
         watcher.stop()
-        queue.close()
+        store.close()
         _remove_pid_file()
     return 0
 

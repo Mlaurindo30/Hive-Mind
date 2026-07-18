@@ -180,3 +180,17 @@ def test_seen_store_prune(tmp_path):
     assert not store.contains("p", "s", "oldhash")
     assert store.contains("p", "s", "newhash")
     store.close()
+
+
+def test_delivery_log_is_cp1252_safe_on_windows(capture_posts, store, monkeypatch):
+    """A entrega não pode falhar ao escrever o status no console CP1252 do Windows."""
+    class Cp1252Stream:
+        def write(self, value):
+            value.encode("cp1252", errors="strict")
+            return len(value)
+
+        def flush(self):
+            return None
+
+    monkeypatch.setattr(sys, "stdout", Cp1252Stream())
+    assert core.ingest("copilot", _session(), store) == 2

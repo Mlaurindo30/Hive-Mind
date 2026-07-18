@@ -1,18 +1,9 @@
 """Normalize parser session dictionaries into ordered ProviderEvent lists.
 
-Parsers keep emitting the legacy session dict `{sid, prompt, prompts, turns,
-last, project?, cwd?, prompt_events?}` so the tailer stays compatible during
-migration. This module maps that shape to the normalized `ProviderEvent`
-contract consumed by the durable capture outbox:
-
-  prompts               -> EventType.PROMPT (one event per user input, in order)
-  turns                 -> EventType.TOOL_USE + EventType.TOOL_RESULT pairs
-  last (assistant text) -> EventType.ASSISTANT
-
-Parsers that expose `prompt_events` (native event IDs and stable source
-positions, e.g. antigravity's step_index) get those preserved verbatim;
-otherwise deterministic fallback IDs are derived from session-relative
-positions so re-parsing the same session yields identical dedupe keys.
+Parsers keep emitting the legacy session dict ``{sid, prompt, prompts, turns,
+last, project?, cwd?, prompt_events?}``. This module preserves that context in
+the durable event contract so delivery to Claude-Mem does not lose project,
+working directory or tool correlation metadata.
 """
 from __future__ import annotations
 
@@ -40,10 +31,18 @@ def _prompt_entries(session: dict) -> list[dict]:
         content = _text(event.get("content")).strip()
         if not content:
             continue
+        raw_metadata = event.get("metadata")
+        metadata = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
+        metadata.update({
+            key: value
+            for key, value in event.items()
+            if key not in {"content", "event_id", "source_position", "metadata"}
+        })
         entries.append({
             "content": content,
             "event_id": event.get("event_id") or None,
             "source_position": event.get("source_position") or f"prompt:{position_index}",
+            "metadata": metadata or None,
         })
     if entries:
         return entries
@@ -59,6 +58,7 @@ def _prompt_entries(session: dict) -> list[dict]:
             "content": content,
             "event_id": None,
             "source_position": f"prompt:{position_index}",
+            "metadata": None,
         })
     return entries
 
@@ -70,6 +70,9 @@ def session_to_events(provider: str, session: dict) -> list[ProviderEvent]:
     if not provider or not isinstance(sid, str) or not sid.strip():
         return []
 
+    project = _text(session.get("project")).strip() or None
+    cwd = _text(session.get("cwd")).strip() or None
+    common = {"project": project, "cwd": cwd}
     events: list[ProviderEvent] = []
 
     for entry in _prompt_entries(session):
@@ -80,6 +83,8 @@ def session_to_events(provider: str, session: dict) -> list[ProviderEvent]:
             entry["content"],
             event_id=entry["event_id"],
             source_position=entry["source_position"],
+            metadata=entry["metadata"],
+            **common,
         ))
 
     for turn_index, turn in enumerate(session.get("turns") or []):
@@ -89,6 +94,14 @@ def session_to_events(provider: str, session: dict) -> list[ProviderEvent]:
         tool_input = turn.get("tool_input")
         if not isinstance(tool_input, dict):
             tool_input = {"value": _text(tool_input)} if tool_input else {}
+        tool_use_id = _text(turn.get("tool_use_id")).strip() or (
+            f"{provider}:{sid}:turn:{turn_index}"
+        )
+        metadata = {
+            "tool_name": tool_name,
+            "tool_input": tool_input,
+            "tool_use_id": tool_use_id,
+        }
         try:
             use_content = json.dumps(
                 {"tool_name": tool_name, "tool_input": tool_input},
@@ -104,15 +117,21 @@ def session_to_events(provider: str, session: dict) -> list[ProviderEvent]:
             EventType.TOOL_USE,
             use_content,
             source_position=f"turn:{turn_index}:tool_use",
+            metadata=metadata,
+            **common,
         ))
         result_content = _text(turn.get("tool_response")).strip()
         if result_content:
+            result_metadata = dict(metadata)
+            result_metadata["tool_response"] = result_content
             events.append(ProviderEvent.create(
                 provider,
                 sid,
                 EventType.TOOL_RESULT,
                 result_content,
                 source_position=f"turn:{turn_index}:tool_result",
+                metadata=result_metadata,
+                **common,
             ))
 
     last_text = _text(session.get("last")).strip()
@@ -123,6 +142,7 @@ def session_to_events(provider: str, session: dict) -> list[ProviderEvent]:
             EventType.ASSISTANT,
             last_text,
             source_position="assistant:last",
+            **common,
         ))
 
     return events

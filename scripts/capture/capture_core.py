@@ -335,7 +335,7 @@ def _ingest_body(platform, sess, store, sid, prompt, prompts, turns, last_text) 
             "contentSessionId": sid, "platformSource": platform,
             "last_assistant_message": last_text or prompt or "sessão concluída",
         })
-        print(f"  ✓ {platform}:{sid[:12]} → {sent} nova(s)")
+        print(f"  [ok] {platform}:{sid[:12]} -> {sent} nova(s)")
     return sent
 
 
