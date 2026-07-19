@@ -3,8 +3,9 @@
 ## Baseline
 
 - branch: `codex/control-plane-redesign`
-- HEAD: `b329e84` (fix(capture): isolate deprecated outbox delivery path)
-- base: `d246f0c` (40 commits à frente; ~61 vs `main`)
+- HEAD: `ae32195` (docs(implementation): establish living execution plan)
+- HEAD anterior a D001: `b329e84`
+- base: `d246f0c` (41 commits à frente; ~62 vs `main`)
 - versão: 3.10.1 (worktree) / runtime ativo 3.10.0
 - data: 2026-07-19
 - runtime ativo: `D:\Hive-Mind` (NÃO alterar até P9)
@@ -12,6 +13,7 @@
 - spec: `specs/control-plane-redesign-v2.md`
 - estado global: F1 (empacotamento) concluída; F2+ não iniciadas;
   cadeia funcional quebrada no Dream Cycle (agrupa por label livre)
+- aprovações (2026-07-19): MASTER-PLAN APROVADO; ADR-013 APROVADO
 
 ## Princípios obrigatórios
 
@@ -53,7 +55,7 @@ spec (seção 16) continuam sendo a referência de cutover. Mapa:
 
 Objetivo: consolidar documentos, estado atual, commits e critérios.
 
-Status: IN_PROGRESS
+Status: DONE (plano aprovado em 2026-07-19; D001 commitada)
 
 Saída obrigatória:
 - documentos deste diretório criados;
@@ -65,7 +67,7 @@ Saída obrigatória:
 
 | ID | Entrega | Dependências | Estado | Evidência | Commit inicial | Commit final |
 |---|---|---|---|---|---|---|
-| D001 | Documentação viva e baseline | — | IN_PROGRESS | este conjunto de arquivos | b329e84 | — |
+| D001 | Documentação viva e baseline | — | DONE | 8 documentos, +1120 linhas; aprovações de 2026-07-19 | b329e84 | ae32195 + fechamento |
 
 ### P1 — Fechar cadeia funcional atual
 
@@ -95,7 +97,7 @@ Esta fase TERMINA antes de iniciar o novo control plane (P2+).
 
 | ID | Entrega | Dependências | Estado | Evidência | Commit inicial | Commit final |
 |---|---|---|---|---|---|---|
-| D002 | Dream Cycle + project_id + Markdown | D001 | NOT_STARTED | — | — | — |
+| D002 | Dream Cycle + project_id + Markdown | D001 ✅ | NOT_STARTED (**próxima, autorizada**) | — | — | — |
 | D003 | Validação real da identidade de projeto | D002 | NOT_STARTED | — | — | — |
 | D004 | Canários multiagente completos | D003 | NOT_STARTED | — | — | — |
 | D005 | E2E Claude Mem → cérebro → índices → consulta | D004 | NOT_STARTED | — | — | — |

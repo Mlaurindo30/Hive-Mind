@@ -3,18 +3,21 @@
 Descreve SOMENTE o estado existente no HEAD. Futuro planejado fica no
 [MASTER-PLAN.md](MASTER-PLAN.md).
 
-Atualizado em: 2026-07-19 (D001).
+Atualizado em: 2026-07-19 (D001, fechamento).
 
 ## Git
 
 - branch: `codex/control-plane-redesign`
-- HEAD: `b329e84`
+- HEAD: `ae32195` (docs(implementation): establish living execution plan)
+- HEAD anterior a D001: `b329e84`
 - base: `d246f0c`
-- commits à frente da base: 40 (≈61 vs `main`)
+- commits à frente da base: 41 (≈62 vs `main`) — 40 auditados no D000
+  + D001
 - staged: nenhum
 - unstaged: nenhum
-- untracked: 16 arquivos em `.tmp/` (artefatos do canário Hermes de
-  2026-07-18; fora do runtime)
+- untracked: 16 arquivos em `.tmp/` — LOCAL TEST ARTIFACT (canário
+  Hermes 2026-07-18 + screenshots); não rastreados, não requeridos pelo
+  produto, cleanup pendente de aprovação separada
 - versão: 3.10.1 (worktree); runtime ativo em `D:\Hive-Mind` = 3.10.0
 
 ## Pacote nativo

@@ -14,7 +14,7 @@
 | ADR-010 | Disposable Windows before root update | ACCEPTED | 2026-07-19 | D012 |
 | ADR-011 | Legacy outbox preserved but inactive | ACCEPTED | 2026-07-19 | D000 |
 | ADR-012 | No historical migration without dry-run and rollback | ACCEPTED | 2026-07-19 | D000 |
-| ADR-013 | Agents namespace: `hive_mind.agents` (não `integrations`) | PROPOSED | 2026-07-19 | D009 |
+| ADR-013 | Agents namespace: `hive_mind.agents` (não `integrations`) | ACCEPTED | 2026-07-19 | D009 |
 
 Estados: PROPOSED / ACCEPTED / SUPERSEDED / DEPRECATED.
 
@@ -243,6 +243,11 @@ Estados: PROPOSED / ACCEPTED / SUPERSEDED / DEPRECATED.
 
 ## ADR-013 — Agents namespace: `hive_mind.agents`
 
+Aprovado em 2026-07-19: `hive_mind.agents` é o namespace canônico para
+detecção, registro MCP, instruções e captura dos agentes.
+`integrations/` permanece reservado para infraestrutura (Milvus,
+RAGFlow e demais serviços). Não criar os dois registries.
+
 - **Contexto:** divergência real entre instruções de execução
   (`src/hive_mind/integrations/` com comando
   `hive-mind integrations register`) e a spec aprovada
@@ -266,4 +271,4 @@ Estados: PROPOSED / ACCEPTED / SUPERSEDED / DEPRECATED.
   `src/hive_mind/capture/**`.
 - **Testes:** D009.
 - **Rollback:** rename mecânico antes do primeiro release público.
-- **Status:** PROPOSED (aguardando aprovação humana do MASTER-PLAN).
+- **Status:** ACCEPTED (aprovação humana registrada em 2026-07-19, D001).

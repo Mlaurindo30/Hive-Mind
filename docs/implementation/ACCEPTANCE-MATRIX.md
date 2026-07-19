@@ -8,6 +8,15 @@ Tipos de prova: `unit` (mock permitido), `integration` (recursos reais
 locais), `operational` (evento real, sem mock — obrigatório para aceite
 final).
 
+## Processo
+
+| Gate | Requisito | Tipo de prova | Estado | Comando | Resultado | Evidência |
+|---|---|---|---|---|---|---|
+| X1 | documentação viva estabelecida | processo | DONE | `git show --stat ae32195` | 8 documentos, +1120 linhas | `docs/implementation/**`; D001 no ledger |
+| X2 | MASTER-PLAN aprovado | processo | DONE | — | aprovado em 2026-07-19 | MASTER-PLAN §Baseline |
+| X3 | namespace de agentes decidido | processo | DONE | — | `hive_mind.agents` | ADR-013 ACCEPTED |
+| X4 | toda entrega atualiza ledger + current-state + matriz | processo | IN_PROGRESS | revisão por entrega | regra ativa a partir de D002 | README §Regras |
+
 ## Build
 
 | Gate | Requisito | Tipo de prova | Estado | Comando | Resultado | Evidência |

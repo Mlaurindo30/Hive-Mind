@@ -89,7 +89,9 @@ arquitetura descarta.
 ## D001 — Establish living implementation documentation
 
 - fase: P0
-- estado: IN_PROGRESS
+- estado: DONE
+- aprovação humana: 2026-07-19 — MASTER-PLAN APROVADO; ADR-013
+  (`hive_mind.agents`) APROVADO; conteúdo D001 APROVADO.
 - escopo: criar `docs/implementation/` (README, MASTER-PLAN,
   CURRENT-STATE, ACCEPTANCE-MATRIX, DELIVERY-LEDGER,
   ARCHITECTURE-DECISIONS, DOCUMENTATION-MAP, templates/) e preencher
@@ -110,25 +112,44 @@ arquitetura descarta.
 - testes executados: nenhum (n/a).
 - evidência real: arquivos presentes no commit; baseline cruzado com
   auditoria de 2026-07-19 (git log, grep de código, sinapse_health).
-- commits: commit único `docs(implementation): establish living
-  execution plan` (trailer `Delivery: D001`; hash no git log).
+- commits:
+  - `ae32195` — `docs(implementation): establish living execution plan`
+    (8 arquivos, +1120 linhas; trailer `Delivery: D001`)
+  - `docs(implementation): close delivery D001` (este fechamento;
+    trailer `Delivery: D001`)
+- HEAD do commit 1: `ae32195a09db942fb1ccb88dbab5cc30edd045db`
 - riscos: documentação divergir do código se as regras do README não
   forem seguidas nas próximas entregas.
-- rollback: `git revert` do commit único desta entrega.
+- rollback: `git revert` dos dois commits desta entrega.
 - documentação atualizada: este conjunto É a documentação.
-- pendências: aprovação humana do MASTER-PLAN (P0 exige "plano
-  aprovado"); ADR-013 está PROPOSED.
-- decisão final: PARTIAL — todos os 8 documentos criados e baseline
-  preenchido com evidência auditada; permanece PARTIAL (não DONE) até a
-  aprovação humana do plano e do ADR-013. Nenhum código funcional,
-  runtime, banco ou serviço alterado.
+- pendências: nenhuma (aprovações registradas em 2026-07-19).
+- decisão final: **DONE** — 8 documentos criados, baseline preenchido
+  com evidência auditada, MASTER-PLAN e ADR-013 aprovados. Nenhum
+  código funcional, runtime, banco ou serviço alterado.
+
+### Artefatos locais conhecidos (não fazem parte da entrega)
+
+```
+.tmp/
+classificação: LOCAL TEST ARTIFACT
+origin: Hermes canary 2026-07-18 / screenshots
+tracked: no
+required for product: no
+cleanup: pending separate approval
+```
+
+16 arquivos. Não apagados, não movidos, não commitados. Se `.tmp/` não
+estiver no `.gitignore`, isso vira uma entrega curta de higiene própria
+— não é incluído silenciosamente aqui.
 
 ---
 
 ## D002 — Correct project-aware Dream Cycle (PLANEJADA)
 
 - fase: P1
-- estado: NOT_STARTED (não iniciar antes de concluir e commitar D001)
+- estado: NOT_STARTED — **autorizada**; D001 concluída e commitada
+  (`ae32195` + fechamento). Escopo estrito: NÃO iniciar porte de MCP,
+  scheduler, supervisor ou F2 durante esta entrega.
 - escopo planejado:
   - Dream Cycle agrupando por `project_id`;
   - daily writer por `project_id`;
