@@ -498,6 +498,50 @@ def test_duplicate_root_evidence_across_projects_is_rejected(tmp_path):
         ProjectAliasRegistry.load(path)
 
 
+def test_registry_lookup_accepts_an_already_normalized_remote():
+    """The resolver hands `by_remote` a remote that `_inspect_git` normalized.
+
+    Regression: `by_remote` normalized a second time. A normalized remote
+    ("github.com/owner/repo") has no scheme and no colon, so the SCP pattern
+    rejected it and the lookup returned None — making the registry's `remotes:`
+    field dead in production and sending every checkout to a `git/<hash>` id
+    instead of its canonical project.
+    """
+    registry = ProjectAliasRegistry.load(FIXTURE)
+    raw = "https://github.com/example/alpha.git"
+    normalized = normalize_git_remote(raw)
+    assert normalized == "github.com/example/alpha"
+
+    from_raw = registry.by_remote(raw)
+    from_normalized = registry.by_remote(normalized)
+
+    assert from_raw is not None and from_raw.project_id == "alpha"
+    assert from_normalized is not None, "already-normalized remote must still match"
+    assert from_normalized.project_id == from_raw.project_id
+
+
+def test_registry_lookup_of_unknown_normalized_remote_stays_none():
+    registry = ProjectAliasRegistry.load(FIXTURE)
+    assert registry.by_remote("github.com/nobody/not-registered") is None
+    assert registry.by_remote("") is None
+    assert registry.by_remote(None) is None
+
+
+def test_shipped_registry_resolves_a_real_hive_mind_checkout(tmp_path):
+    """End of the chain: a real repo with the Hive-Mind remote must be canonical."""
+    repo = _repo(
+        tmp_path / "any-name", remote="https://github.com/Mlaurindo30/Hive-Mind.git"
+    )
+
+    identity = ProjectIdentityResolver(
+        registry=ProjectAliasRegistry.load(DEFAULT_REGISTRY_PATH)
+    ).resolve(provider="codex", surface="cli", cwd=repo, env={})
+
+    assert identity.project_id == "hive-mind"
+    assert identity.project_name == "Hive-Mind"
+    assert identity.resolution_method == "git_remote"
+
+
 def test_unsafe_marker_traversal_is_rejected(tmp_path):
     path = _registry(
         tmp_path,

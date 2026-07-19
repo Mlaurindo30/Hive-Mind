@@ -224,6 +224,99 @@ seguem NOT_STARTED. É o motivo de esta entrega ser PARTIAL e não DONE.
 
 ---
 
+## D003 — Real project identity validation
+
+- fase: P1
+- estado: PARTIAL
+- HEAD inicial: `2ae8558`
+- objetivo: provar, com repositórios Git reais e o registry de aliases
+  **entregue** (`config/project-aliases.yaml`), que a identidade canônica
+  atravessa resolver → sessão → campo enviado ao Claude Mem → bridge →
+  `workspace_id`, e que superfícies não viram projeto.
+
+### Auditoria prévia (FASE 7 — não reimplementar)
+
+Cobertura já existente, NÃO duplicada por esta entrega:
+
+| Já coberto | Onde |
+|---|---|
+| raiz + worktree ligada, metadados preservados | `tests/integration/test_project_identity_git.py:43` |
+| HEAD destacado | idem `:73` |
+| dois repos com mesmo basename não colidem | idem `:91` |
+| remotes https/ssh/scp normalizados sem credenciais | idem `:110-153` |
+| repo sem remote, cwd aninhado | idem `:156` |
+| aliases explícitos, registry entregue | `tests/unit/test_project_identity.py:355,435,469` |
+| case-folding Windows, UNC, junction | idem `:372,378,385` |
+| Unicode e espaços | idem `:333` |
+| diretório não-git não usa basename | idem `:320` |
+| conversa genérica / referenced_projects | idem `:399,415` |
+
+**Lacuna real identificada:** os testes de integração usam
+`ProjectAliasRegistry.empty()`, então nunca provam que um repositório com
+o remote do Hive-Mind resolve para `project_id == "hive-mind"` pelo
+registry real. E nada cobre a cadeia identidade → sessão → Claude Mem →
+bridge de ponta a ponta.
+
+- arquivos planejados: `tests/integration/test_project_identity_pipeline.py`
+- testes planejados: registry entregue com repo Git real; raiz+worktree →
+  um único `hive-mind`; superfícies não viram projeto; cadeia até o campo
+  `project` do Claude Mem; bridge grava `workspace_id`; isolamento A/B.
+- documentação afetada: `docs/project-identity.md`, CURRENT-STATE,
+  ACCEPTANCE-MATRIX, este ledger.
+
+### 🔴 Defeito de produto encontrado e corrigido
+
+A validação com o registry **entregue** (e não `ProjectAliasRegistry.empty()`)
+expôs um bug que nenhum teste anterior pegava:
+
+| Item | Detalhe |
+|---|---|
+| Sintoma | um checkout real do Hive-Mind resolvia para `git/hive-mind-cbdd3a33582e`, não para `hive-mind` |
+| Causa | normalização dupla. `_inspect_git` (`project_identity.py:668`) já normaliza o remote; o resolver (`:520`) passa esse valor normalizado para `by_remote`, que normalizava **de novo**. Um remote normalizado (`github.com/owner/repo`) não tem esquema nem `:`, então o padrão SCP o rejeita e o lookup devolvia `None` |
+| Impacto | o campo `remotes:` do `config/project-aliases.yaml` era **código morto em produção**: nenhum projeto resolvia pelo alias canônico via remote |
+| Por que passou despercebido | `test_registry_lookup_*` exercitava `by_remote` isoladamente com URLs cruas (que funcionam); os testes de integração usavam registry vazio, então nunca chegavam nesse caminho |
+| Correção | `by_remote` aceita remote cru **ou** já normalizado (`project_identity.py:338`) |
+| Testes de regressão | `test_registry_lookup_accepts_an_already_normalized_remote`, `test_registry_lookup_of_unknown_normalized_remote_stays_none`, `test_shipped_registry_resolves_a_real_hive_mind_checkout` |
+
+Isto valida a exigência de prova real: 82 testes unitários passavam com o
+resolver "correto" enquanto a resolução canônica estava quebrada.
+
+### Alterações reais
+
+| Arquivo | Mudança |
+|---|---|
+| `scripts/capture/project_identity.py` | `by_remote` aceita remote já normalizado |
+| `tests/unit/test_project_identity.py` | +3 testes (regressão do bug + registry entregue com repo real) |
+| `tests/integration/test_project_identity_pipeline.py` | novo — 17 testes |
+| `docs/project-identity.md` | seção de normalização de remote |
+
+### Testes executados
+
+| Comando | Resultado |
+|---|---|
+| `pytest tests/unit/test_project_identity.py tests/integration/test_project_identity_git.py tests/integration/test_project_identity_pipeline.py` | 69 passed |
+| `pytest tests/unit` | **996 passed, 20 skipped, 2 failed** (128s) |
+| `pytest tests/integration -rs` | **113 passed, 33 skipped, 1 failed** (65s) |
+
+### Falhas — todas pré-existentes, nenhuma regressão
+
+| Teste | Causa | Verificação |
+|---|---|---|
+| `test_windows_install_contract.py` (2) | UnicodeDecodeError lendo stdout do PowerShell | reproduzido antes da D002 |
+| `test_register_mcp_check.py::test_register_mcp_check_exits_zero` | o `gemini` CLI instalado rejeita `mcp get` (`Unknown arguments: get, sinapse-memory`); o PowerShell propaga o NativeCommandError e sai 1 | **rodado o `register-mcp.ps1` de `8a4a41f` (pré-`b329e84`): também retorna 1.** Não é regressão do isolamento da outbox. É ambiental/compat de CLI; some quando o registro migrar para `hive_mind.agents` (D009) |
+
+### Evidência operacional
+
+PARCIAL. Repositórios Git reais, worktree real, SQLite real e o registry
+entregue — sem mocks. Mas nenhum **agente real** foi executado: os gates
+por provider (C1–C13) seguem NOT_STARTED e são a entrega D004.
+
+- riscos: nenhum identificado; a correção só amplia o que `by_remote` aceita.
+- rollback: `git revert` do commit desta entrega.
+- pendências: canários por provider (D004).
+
+---
+
 ## DH-001 — Hygiene: `.tmp/` não está no `.gitignore` (REGISTRADA)
 
 - fase: higiene (independente das fases P)

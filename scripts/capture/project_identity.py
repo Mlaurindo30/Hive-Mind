@@ -336,8 +336,20 @@ class ProjectAliasRegistry:
         return None if alias is None else self._aliases.get(alias.strip().casefold())
 
     def by_remote(self, remote: str | None) -> ProjectAlias | None:
-        key = normalize_git_remote(remote)
-        return self._remotes.get(key) if key else None
+        """Look up by Git remote, raw or already normalized.
+
+        Callers are not consistent: the resolver passes `_inspect_git`'s output,
+        which is already normalized ("github.com/owner/repo"), while config and
+        tests pass raw URLs. A normalized remote has no scheme and no colon, so
+        `normalize_git_remote` rejects it as neither URL nor SCP syntax and
+        returns None — which silently made the registry's `remotes:` field dead
+        for every real checkout. Index keys are always normalized at build time,
+        so falling back to the trimmed input covers the already-normalized case.
+        """
+        if not remote:
+            return None
+        key = normalize_git_remote(remote) or remote.strip().casefold()
+        return self._remotes.get(key)
 
     @staticmethod
     def _path_match(candidate: str | os.PathLike[str], index: Mapping[str, ProjectAlias]) -> ProjectAlias | None:

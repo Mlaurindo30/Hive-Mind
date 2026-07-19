@@ -66,14 +66,14 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 
 | Gate | Requisito | Tipo de prova | Estado | Comando | Resultado | Evidência |
 |---|---|---|---|---|---|---|
-| P1 | raiz e worktree → mesmo project_id | integration | PARTIAL | `pytest tests/integration/test_project_identity_git.py` | unit/integration verdes (82 testes, 2026-07-19) | falta prova operacional |
-| P2 | aliases declarativos | unit | PARTIAL | `pytest tests/unit/test_project_identity.py` | verde | `config/project-aliases.yaml` |
-| P3 | remote normalizado sem credenciais | unit | PARTIAL | idem | verde | `project_identity.py:86` |
-| P4 | branch/worktree só metadados | unit | PARTIAL | idem | verde | falta prova real |
-| P5 | Qwen/VS Code/miche/app/hermes não viram project_id | unit | PARTIAL | `pytest tests/unit/test_provider_parser_identity_contract.py` | verde | falta prova real |
-| P6 | projeto A/B isolados | operational | NOT_STARTED | AUDIT-PROJECT-A/B | — | — |
-| P7 | cross-project só quando solicitado | operational | NOT_STARTED | — | — | — |
-| P8 | dropdown Claude Mem mostra um único Hive-Mind | operational | NOT_STARTED | inspeção pós-canário | — | labels legados exigem migração (D-futuro; sem autorização ainda) |
+| P1 | raiz e worktree → mesmo project_id | integration | DONE | `pytest tests/integration/test_project_identity_pipeline.py` | 17 passed; repo Git real + worktree real + registry entregue → `hive-mind` | D003 |
+| P2 | aliases declarativos | integration | DONE | idem | passed; **corrigido bug que tornava `remotes:` código morto** | D003; `config/project-aliases.yaml` |
+| P3 | remote normalizado sem credenciais | integration | DONE | `pytest tests/integration/test_project_identity_git.py` | passed (https/ssh/scp) | `project_identity.py:86` |
+| P4 | branch/worktree só metadados | integration | DONE | `test_worktree_name_and_branch_stay_metadata` | passed | D003 |
+| P5 | Qwen/VS Code/miche/app/hermes não viram project_id | integration | DONE | `TestSurfacesAreNotProjects` | 6 passed; superfícies → `unclassified/*` | D003 |
+| P6 | projeto A/B isolados | integration | PARTIAL | `test_two_projects_stay_isolated_and_filter_cleanly` | passed em SQLite real | falta canário com agentes reais (D004) |
+| P7 | cross-project só quando solicitado | integration | PARTIAL | idem | passed | falta prova via consulta real (D005) |
+| P8 | dropdown Claude Mem mostra um único Hive-Mind | integration | PARTIAL | `test_root_and_worktree_sessions_show_one_dropdown_entry` | passed no campo `project` da sessão | falta observar a UI com eventos reais (D004); labels legados exigem migração autorizada |
 
 ## Memória
 

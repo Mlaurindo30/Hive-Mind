@@ -52,7 +52,7 @@ teste unitário/integração; "REAL" = comprovado com evento real pós-HEAD.
 |---|---|---|---|
 | provider source | UNIT | 12 adapters em `scripts/capture/capture_adapters.py:104` (antigravity, codex, copilot, hermes, kilo, kimi, mimo, openclaw, qwen, roo, screenpipe, swarmclaw) | canários reais pós-correção não executados |
 | parser | UNIT | `tests/unit/test_provider_parser_identity_contract.py` (264 L); parsers por provider | idem |
-| project identity | UNIT | `scripts/capture/project_identity.py`; 82 testes passando (2026-07-19); `config/project-aliases.yaml` com roots raiz+worktree | sem prova real; fora do pacote nativo |
+| project identity | INTEGRATION (D003) | repo Git real + worktree real + registry entregue → `hive-mind`; 69 testes de identidade passando; **bug de normalização dupla corrigido** (o campo `remotes:` era código morto) | falta canário com agentes reais (D004); fora do pacote nativo |
 | capture_core.ingest | UNIT | `capture-realtime.py:144`, `capture-tailer.py:130`; dono único após `b329e84` | — |
 | Claude Mem | UNIT | `capture_core.py:297,329` usa `project_name` canônico | dropdown com labels legados não migrados |
 | bridge | UNIT | `core/knowledge/claude_mem_bridge.py:401-435` grava `workspace_id = project_id` | sem prova real ponta a ponta |

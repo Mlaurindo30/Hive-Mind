@@ -84,6 +84,22 @@ Remotes são normalizados sem credenciais. Paths comparam-se de forma
 case-insensitive no Windows; junctions e symlinks são resolvidos; paths
 Unicode e com espaços funcionam.
 
+### Normalização de remote
+
+`normalize_git_remote()` reduz qualquer forma de URL a `host/caminho`,
+sem credenciais, sem `.git`, tudo em minúsculas:
+
+```
+https://user:secret@GitHub.com/Owner/Repo.git  ┐
+ssh://git@github.com/Owner/Repo.git            ├─→ github.com/owner/repo
+git@github.com:Owner/Repo.git                  ┘
+```
+
+As chaves do índice do registry são sempre normalizadas na carga.
+`by_remote()` aceita tanto a URL crua quanto um remote **já normalizado**
+— o resolver passa o valor que `_inspect_git` normalizou, e uma segunda
+normalização rejeitaria essa forma (não tem esquema nem `:`).
+
 ## Projeto ativo vs. projeto mencionado
 
 Mencionar um projeto na conversa **não** o torna o projeto ativo:
