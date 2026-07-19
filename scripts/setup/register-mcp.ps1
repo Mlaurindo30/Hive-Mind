@@ -377,18 +377,22 @@ function Inject-Instructions {
 }
 
 
-# --- capture hooks (unchanged behavior) -------------------------------------------
-
-$installCaptureHooks = {
-    $installer = Join-Path $Root "scripts\setup\install-capture-hooks.py"
-    if ((Test-Path -LiteralPath $installer) -and (Test-Path -LiteralPath $python)) {
-        $mode = if ($Check) { "--check" } else { "--install" }
-        try {
-            & $python $installer $mode
-            if ($LASTEXITCODE -ne 0) { Write-Warning "install-capture-hooks.py $mode exited with $LASTEXITCODE" }
-        } catch { Write-Warning "capture hook installation failed: $_" }
-    }
-}
+# --- capture delivery ownership ----------------------------------------------------
+#
+# The canonical capture pipeline is:
+#
+#     provider/parser -> normalized session -> capture_core.ingest() -> Claude Mem
+#
+# driven by capture-realtime.py / capture-tailer.py. That is the single owner of
+# delivery.
+#
+# The deprecated ProviderEvent -> CaptureQueue -> outbox path is NOT part of the
+# runtime. install-capture-hooks.py is deliberately NOT invoked here: registering it
+# would create a second delivery owner writing into an outbox that nothing drains.
+# capture-hook.py and capture_queue.py are retained on disk for historical auditing
+# only. Do not re-add a call to install-capture-hooks.py from this script.
+#
+# Claude Code's own native capture plugin is untouched by this script.
 
 # --- main dispatch ----------------------------------------------------------------
 
@@ -410,7 +414,6 @@ Write-Host ""
 if ($Only) {
     Write-Host "Modo single-agent: $Only"
     & $RunAgent $Only
-    & $installCaptureHooks
     Write-Host ""
     if ($Check) { Write-Host "Verification completed for: $Only" }
     else {
@@ -441,7 +444,6 @@ if (-not $CodexOnly) {
     if (Get-Command claude -ErrorAction SilentlyContinue) { & $RunAgent "claude" }
 }
 
-& $installCaptureHooks
 Write-Host ""
 if ($AGENTS_FOUND -eq 0) {
     Write-Host "0 agent(s) detected."
