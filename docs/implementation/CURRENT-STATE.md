@@ -40,7 +40,7 @@ Atualizado em: 2026-07-19 (D001, fechamento).
 | supervisor | `npm/lib/supervisor.js` + Task Scheduler | Node/OS | `hive-mindd` (F4–F5) | NOT_STARTED |
 | scheduler | `register-windows-jobs.ps1` + systemd timers | scripts/OS | `hive-mindd` + APScheduler (F6–F7) | NOT_STARTED |
 | services status | `scripts/setup/install_services.py::unit_definitions` | script | `hive_mind.daemon.manifest` (F2/F11) | NOT_STARTED |
-| Dream Cycle | `scripts/dream/dream_cycle.py` | script | job nativo (F7) | NOT_STARTED (e com defeito de agrupamento — ver abaixo) |
+| Dream Cycle | `scripts/dream/dream_cycle.py` | script | job nativo (F7) | NOT_STARTED (porte); defeito de agrupamento **corrigido** em D002 |
 | project identity | `scripts/capture/project_identity.py` (765 L) | script | módulo nativo (ADR-013 define destino) | PARTIAL — funciona, mas fora do pacote |
 
 ## Pipeline funcional
@@ -57,8 +57,8 @@ teste unitário/integração; "REAL" = comprovado com evento real pós-HEAD.
 | Claude Mem | UNIT | `capture_core.py:297,329` usa `project_name` canônico | dropdown com labels legados não migrados |
 | bridge | UNIT | `core/knowledge/claude_mem_bridge.py:401-435` grava `workspace_id = project_id` | sem prova real ponta a ponta |
 | UMC | PARTIAL | tabelas aceitam `workspace_id`; dados legados sem project_id não migrados | relatório de migração pendente (comando audit existe) |
-| Dream Cycle | **QUEBRADO** | `dream_cycle.py:71` `PARTITION BY COALESCE(project,'_sem_projeto')`; `:812` lê `o["project"]` texto livre; 0 ocorrências de `project_id` | ignora o `project_id` que o bridge grava |
-| Markdown | **AUSENTE** | 0 ocorrências de `project_id` em `daily_writer.py`; frontmatter atual usa `project:` label livre | diretórios fragmentados por label |
+| Dream Cycle | UNIT (D002) | agrupa por `project_id` via `resolve_observation_project()`; `fetch_balanced_observations` particiona por project_id; 18 unit + 6 integração SQLite real | falta prova operacional (ciclo real com modelos) — D005 |
+| Markdown | UNIT (D002) | frontmatter com `project_id`, `project_name`, `identity_source`; path `cortex/temporal/<project_id>/<topic>/` | falta prova operacional — D005 |
 | sqlite-vec | NÃO AUDITADO | — | filtros por project_id não verificados |
 | Milvus | NÃO AUDITADO | `milvus_sync_lag=568` em 2026-07-19 | idem |
 | Graphify | NÃO AUDITADO | — | idem |

@@ -31,7 +31,7 @@ final).
 
 | Gate | Requisito | Tipo de prova | Estado | Comando | Resultado | Evidência |
 |---|---|---|---|---|---|---|
-| T1 | unit completo | unit | PARTIAL | `uv run pytest tests/unit -q -rs --timeout=300` | subconjuntos verdes; full não executado no HEAD; 2 falhas pré-existentes em `test_windows_install_contract.py` | sessão 2026-07-19 |
+| T1 | unit completo | unit | PARTIAL | `uv run pytest tests/unit -q -rs --timeout=300` | **993 passed, 20 skipped, 2 failed** (137s) | D002, 2026-07-19; as 2 falhas são pré-existentes em `test_windows_install_contract.py` (UnicodeDecodeError de stdout PowerShell) |
 | T2 | integration completo | integration | NOT_STARTED | `uv run pytest tests/integration -q -rs --timeout=600` | — | — |
 | T3 | e2e completo | operational | NOT_STARTED | `uv run pytest tests/e2e -q -rs --timeout=1200` | — | — |
 | T4 | real completo | operational | NOT_STARTED | `uv run pytest tests/real -q -rs --timeout=1800` | — | — |
@@ -93,12 +93,12 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 
 | Gate | Requisito | Tipo de prova | Estado | Comando | Resultado | Evidência |
 |---|---|---|---|---|---|---|
-| DC1 | agrupamento por project_id | unit | **FAILED (defeito confirmado)** | inspeção | `dream_cycle.py:71,812` usa `observations.project` texto livre; 0 refs a project_id | D002 corrige |
+| DC1 | agrupamento por project_id | unit | DONE | `pytest tests/unit/test_dream_project_identity.py tests/integration/test_dream_project_isolation.py` | 24 passed | D002; `resolve_observation_project()` + partição SQL por project_id |
 | DC2 | distiller real | operational | NOT_STARTED | — | — | — |
 | DC3 | validator real | operational | NOT_STARTED | — | — | — |
 | DC4 | router real | operational | NOT_STARTED | — | — | — |
-| DC5 | Markdown em `cerebro/cortex/temporal/<project_id>/` | unit | NOT_STARTED | — | hoje usa label livre | D002 |
-| DC6 | frontmatter canônico | unit | NOT_STARTED | — | ausente | D002 |
+| DC5 | Markdown em `cerebro/cortex/temporal/<project_id>/` | unit | DONE | `pytest tests/unit/test_dream_project_identity.py::TestCanonicalFrontmatter` | passed | D002; `note_file = cp.TEMPORAL / proj / safe_topic` com proj = project_id |
+| DC6 | frontmatter canônico | unit | DONE | idem | passed | D002; `project_id`, `project_name`, `identity_source` |
 | DC7 | integrity_hash | unit | PARTIAL | — | hash existe no frontmatter atual | formato canônico pendente |
 | DC8 | reindex pós-escrita | operational | NOT_STARTED | — | — | — |
 | DC9 | consulta com citação | operational | NOT_STARTED | — | — | — |

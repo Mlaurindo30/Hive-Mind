@@ -144,13 +144,69 @@ estiver no `.gitignore`, isso vira uma entrega curta de higiene própria
 
 ---
 
-## D002 — Correct project-aware Dream Cycle (PLANEJADA)
+## D002 — Correct project-aware Dream Cycle
 
 - fase: P1
-- estado: NOT_STARTED — **autorizada**; D001 concluída e commitada
-  (`ae32195` + fechamento). Escopo estrito: NÃO iniciar porte de MCP,
-  scheduler, supervisor ou F2 durante esta entrega.
-- escopo planejado:
+- estado: PARTIAL
+- HEAD inicial: `834e405`
+- escopo executado: agrupamento do Dream Cycle por `project_id`
+  canônico, frontmatter canônico nos neurônios, compatibilidade legacy,
+  isolamento A/B, documentação de subsistema. NÃO tocou MCP, scheduler,
+  supervisor nem F2.
+
+### Alterações reais
+
+| Arquivo | Mudança |
+|---|---|
+| `scripts/dream/dream_cycle.py` | `ObservationProject` + `resolve_observation_project()` + `_balanced_partition_sql()`; `fetch_balanced_observations` particiona por project_id; agrupamento do ciclo por project_id com log de projetos legados; `_route_and_persist_project(identity=...)`; frontmatter canônico |
+| `tests/unit/test_dream_project_identity.py` | novo — 18 testes |
+| `tests/integration/test_dream_project_isolation.py` | novo — 6 testes, SQLite real |
+| `docs/dream-cycle.md` | novo |
+| `docs/project-identity.md` | novo |
+
+### Testes executados
+
+| Comando | Resultado |
+|---|---|
+| `pytest tests/unit/test_dream_project_identity.py` | 18 passed |
+| `pytest tests/integration/test_dream_project_isolation.py` | 6 passed |
+| `pytest tests/unit/test_dream_*.py` (suítes existentes) | 47 passed (sem regressão) |
+| `pytest tests/unit` (completo) | **993 passed, 20 skipped, 2 failed** |
+
+As 2 falhas são pré-existentes e não relacionadas:
+`test_windows_install_contract.py::test_install_powershell_accepts_a_non_mutating_dry_run`
+e `::test_install_dry_run_reports_the_selected_versioned_profile`
+(UnicodeDecodeError lendo stdout do PowerShell). Reproduzidas antes
+desta entrega, com o diff em stash.
+
+### Skips inventariados (20)
+
+Todos por indisponibilidade de recurso externo ou por serem POSIX-only
+no Windows — nenhum componente obrigatório habilitado foi skipped:
+Ollama/nomic-embed-text (2), `register-mcp.sh` POSIX (3), Screenpipe
+não rodando (3), systemd/procfs post-reboot (6), chmod POSIX (2),
+comparação de unit systemd (1), demais (3).
+
+### Decisão de design registrada
+
+`daily_writer.py` **não foi alterado**: ele agrega por **dia**
+(`cerebelo/diario/YYYY/MM/`), não por projeto — não há path por projeto
+para corrigir nele. A identidade de projeto nos diários entra junto com
+a validação operacional do ciclo (D005), se necessária.
+
+### Evidência operacional
+
+PENDENTE — nenhum canário real executado. Gates DC2–DC4 e DC8–DC9
+seguem NOT_STARTED. É o motivo de esta entrega ser PARTIAL e não DONE.
+
+- riscos: bancos legados sem coluna `workspace_id` — coberto por teste
+  (`test_database_without_workspace_column_still_works`).
+- rollback: `git revert` do commit desta entrega.
+- documentação atualizada: `docs/dream-cycle.md`,
+  `docs/project-identity.md`, CURRENT-STATE, ACCEPTANCE-MATRIX, este
+  ledger.
+- pendências: validação operacional do ciclo completo (D005).
+- escopo planejado original:
   - Dream Cycle agrupando por `project_id`;
   - daily writer por `project_id`;
   - frontmatter canônico (project_id, project_name, workspace_root,
@@ -165,3 +221,18 @@ estiver no `.gitignore`, isso vira uma entrega curta de higiene própria
   - atualização de: docs/dream-cycle.md (criar), docs/project-identity.md
     (criar), CURRENT-STATE.md, ACCEPTANCE-MATRIX.md (DC1–DC9),
     DELIVERY-LEDGER.md.
+
+---
+
+## DH-001 — Hygiene: `.tmp/` não está no `.gitignore` (REGISTRADA)
+
+- fase: higiene (independente das fases P)
+- estado: NOT_STARTED
+- constatação: `.gitignore` não contém `.tmp/`; os 16 artefatos do
+  canário Hermes aparecem como untracked em todo `git status`.
+- classificação dos artefatos: LOCAL TEST ARTIFACT — não rastreados, não
+  requeridos pelo produto, cleanup pendente de aprovação separada.
+- escopo: adicionar `.tmp/` ao `.gitignore`. NÃO apagar, NÃO mover, NÃO
+  commitar os arquivos existentes.
+- motivo de ser entrega própria: não pode ser incluída silenciosamente em
+  outra entrega.

@@ -54,21 +54,113 @@ MAX_OBS_PER_CYCLE = int(os.environ.get("HIVE_MAX_OBS_PER_CYCLE", "30"))
 DISTILL_WORKERS = int(os.environ.get("HIVE_DREAM_DISTILL_WORKERS", "4"))
 
 
+# ---------------------------------------------------------------------------
+# Identidade canônica de projeto (ADR-006, ADR-007)
+# ---------------------------------------------------------------------------
+# A verdade da identidade é `observations.workspace_id`, gravado pelo bridge a
+# partir do ProjectIdentityResolver (core/knowledge/claude_mem_bridge.py). A
+# coluna `observations.project` é apenas o rótulo humano: raiz e worktree do
+# mesmo repositório chegam com rótulos diferentes ("Hive-Mind" vs
+# "hive-mind-windows-zero-install") e MESMO project_id ("hive-mind").
+#
+# Agrupar pelo rótulo fragmentava o córtex em um diretório por rótulo. Agrupamos
+# por project_id.
+#
+# Retrocompatibilidade (ADR-012): linhas anteriores a esse trabalho carregam o
+# default da migração (`workspace_id='default'`), ou nem têm a coluna. Elas NÃO
+# são reescritas nem realocadas — seguem agrupadas pelo rótulo, marcadas como
+# não-canônicas para que a auditoria as encontre.
+LEGACY_WORKSPACE_IDS = {"", "default"}
+DEFAULT_PROJECT = os.environ.get("HIVE_DEFAULT_PROJECT", "Hive-Mind")
+
+
+class ObservationProject:
+    """Identidade de projeto resolvida para UMA observação."""
+
+    __slots__ = ("project_id", "project_name", "canonical")
+
+    def __init__(self, project_id: str, project_name: str, canonical: bool):
+        self.project_id = project_id
+        self.project_name = project_name
+        self.canonical = canonical
+
+    def __repr__(self) -> str:  # pragma: no cover - diagnóstico
+        kind = "canonical" if self.canonical else "legacy"
+        return f"<ObservationProject {self.project_id!r} ({kind})>"
+
+
+def _column_value(row, column: str) -> str:
+    try:
+        if column not in row.keys():
+            return ""
+    except AttributeError:
+        pass
+    value = row[column] if column in row.keys() else None
+    return (value or "").strip()
+
+
+def resolve_observation_project(row) -> ObservationProject:
+    """Resolve o project_id canônico de uma observação.
+
+    Precedência:
+      1. `workspace_id` canônico (gravado pelo bridge) → identidade canônica;
+      2. rótulo `project` → identidade legada, preservada como está;
+      3. `HIVE_DEFAULT_PROJECT` → legada sem rótulo.
+    """
+    workspace_id = _column_value(row, "workspace_id")
+    if workspace_id and workspace_id not in LEGACY_WORKSPACE_IDS:
+        label = _column_value(row, "project")
+        return ObservationProject(workspace_id, label or workspace_id, True)
+
+    label = _column_value(row, "project")
+    default_project = os.environ.get("HIVE_DEFAULT_PROJECT", DEFAULT_PROJECT)
+    project_id = label or default_project
+    return ObservationProject(project_id, project_id, False)
+
+
+def _balanced_partition_sql(conn) -> str:
+    """Expressão SQL do project_id, espelhando resolve_observation_project().
+
+    Bancos anteriores a `migrate_workspace_and_federation` não têm a coluna
+    `workspace_id`; nesse caso o particionamento cai no rótulo.
+    """
+    columns = {r[1] for r in conn.execute("PRAGMA table_info(observations)").fetchall()}
+    label_expr = "COALESCE(NULLIF(TRIM(COALESCE(project, '')), ''), ?)"
+    if "workspace_id" not in columns:
+        return label_expr
+    return f"""
+        CASE
+            WHEN TRIM(COALESCE(workspace_id, '')) NOT IN ('', 'default')
+                THEN TRIM(workspace_id)
+            ELSE {label_expr}
+        END
+    """
+
+
 def fetch_balanced_observations(conn, limit: int = MAX_OBS_PER_CYCLE) -> list:
     """Janela BALANCEADA por projeto (round-robin), em vez de só 'mais antigas'.
 
     Antes: `ORDER BY created_at LIMIT 30` → com backlog de milhares, o ciclo
     consumia UM projeto por vez (cronológico) e projetos recentes demoravam dias.
 
-    Agora: rankeia cada observação dentro do seu projeto (ROW_NUMBER por created_at)
-    e ordena por rank — assim pega a mais antiga de CADA projeto primeiro, depois a
-    2ª de cada, etc. Resultado: todos os projetos pendentes avançam a cada ciclo,
-    mantendo o teto de boundedness (LIMIT). Empata por created_at (determinístico)."""
+    Agora: rankeia cada observação dentro do seu project_id canônico (ROW_NUMBER
+    por created_at) e ordena por rank — assim pega a mais antiga de CADA projeto
+    primeiro, depois a 2ª de cada, etc. Resultado: todos os projetos pendentes
+    avançam a cada ciclo, mantendo o teto de boundedness (LIMIT). Empata por
+    created_at (determinístico).
+
+    Particionar por project_id (e não pelo rótulo) impede que raiz e worktree do
+    mesmo repositório disputem dois slots do round-robin como se fossem projetos
+    distintos.
+    """
+    default_project = os.environ.get("HIVE_DEFAULT_PROJECT", DEFAULT_PROJECT)
+    partition = _balanced_partition_sql(conn)
+    params = [default_project] * partition.count("?")
     return conn.execute(
-        """
+        f"""
         SELECT * FROM (
             SELECT *, ROW_NUMBER() OVER (
-                PARTITION BY COALESCE(project, '_sem_projeto')
+                PARTITION BY {partition}
                 ORDER BY created_at ASC, id ASC
             ) AS _rk
             FROM observations WHERE archived = 0
@@ -76,7 +168,7 @@ def fetch_balanced_observations(conn, limit: int = MAX_OBS_PER_CYCLE) -> list:
         ORDER BY _rk ASC, created_at ASC, id ASC
         LIMIT ?
         """,
-        (limit,),
+        (*params, limit),
     ).fetchall()
 
 
@@ -625,13 +717,22 @@ def _push_neurons_to_graphs(neurons: "list[tuple[str, str]]") -> Dict[str, int]:
     return report
 
 
-def _route_and_persist_project(conn, now, proj, distilled, proj_obs_ids, mark_obs) -> int:
+def _route_and_persist_project(
+    conn, now, proj, distilled, proj_obs_ids, mark_obs, identity=None
+) -> int:
     """Roteia + persiste os fatos de UM projeto (neurônios .md + tabela neurons).
 
     Extraído do loop principal p/ a resiliência F4.0: o chamador envolve em try/except,
     isolando a falha de um projeto sem abortar o ciclo. Erros (LLM/DB) sobem; quem
-    isola decide preservar as obs p/ reprocessar. Retorna nº de neurônios persistidos."""
+    isola decide preservar as obs p/ reprocessar. Retorna nº de neurônios persistidos.
+
+    `proj` é o project_id canônico (ADR-007) e define o diretório do córtex.
+    `identity` carrega o nome de exibição e se a identidade é canônica; quando
+    ausente (chamadas legadas), deriva-se do próprio project_id."""
     from core import paths as cp
+
+    if identity is None:
+        identity = ObservationProject(proj, proj, False)
     routed = agent_route(distilled.facts)
     if not routed or not routed.routed_facts:
         mark_obs(2, proj_obs_ids)
@@ -657,9 +758,16 @@ def _route_and_persist_project(conn, now, proj, distilled, proj_obs_ids, mark_ob
         note_file.parent.mkdir(parents=True, exist_ok=True)
         aliases_val = json.dumps([fact.alias] if fact.alias else [])
 
+        # Frontmatter canônico (ADR-007). `project` permanece para
+        # retrocompatibilidade dos leitores existentes do vault; `project_id` é a
+        # chave de filtro. `identity_source` torna auditável se a identidade veio
+        # do ProjectIdentityResolver ou é um rótulo legado.
         content = f"""---
 type: {fact.type}
-project: {proj}
+project: {identity.project_name}
+project_id: {identity.project_id}
+project_name: {identity.project_name}
+identity_source: {'canonical' if identity.canonical else 'legacy_label'}
 topic: {safe_topic}
 integrity_hash: {fact.integrity_hash}
 aliases: {aliases_val}
@@ -801,22 +909,30 @@ def _run_dream_cycle_inner() -> Dict[str, int]:
             conn.execute("UPDATE observations SET archived = ? WHERE id = ?", (status, oid))
         conn.commit()
 
-    # --- SEGREGAÇÃO POR PROJETO (Phase HM: project plumbing) ---
-    # A coluna `observations.project` é a fonte da verdade: cada neurônio novo
-    # deve aterrissar em cortex/temporal/{projeto_origem}/{topico}/.
-    # Quando a janela de 30 obs mistura projetos, rodamos um pipeline
-    # Distiller→Validator→Router POR PROJETO para não contaminar o córtex de um
-    # projeto com fatos de outro. Obs sem project caem no default.
-    DEFAULT_PROJECT = os.environ.get("HIVE_DEFAULT_PROJECT", "Hive-Mind")
-
-    def _resolve_project(o) -> str:
-        p = (o["project"] or "").strip() if "project" in o.keys() else ""
-        return p or DEFAULT_PROJECT
-
+    # --- SEGREGAÇÃO POR PROJETO (ADR-007) ---
+    # O project_id canônico (`observations.workspace_id`, gravado pelo bridge) é
+    # a fonte da verdade: cada neurônio novo aterrissa em
+    # cortex/temporal/{project_id}/{topico}/. Quando a janela mistura projetos,
+    # rodamos um pipeline Distiller→Validator→Router POR PROJETO para não
+    # contaminar o córtex de um projeto com fatos de outro.
+    #
+    # Linhas legadas (sem project_id canônico) continuam agrupadas pelo rótulo,
+    # exatamente como antes — nada é reescrito ou movido (ADR-012).
+    project_identities: Dict[str, ObservationProject] = {}
     project_buckets: Dict[str, List[Any]] = {}
     for o in obs:
-        proj = _resolve_project(o)
-        project_buckets.setdefault(proj, []).append(o)
+        identity = resolve_observation_project(o)
+        project_identities.setdefault(identity.project_id, identity)
+        project_buckets.setdefault(identity.project_id, []).append(o)
+
+    legacy_projects = sorted(
+        pid for pid, ident in project_identities.items() if not ident.canonical
+    )
+    if legacy_projects:
+        print(
+            f"  [Plumbing] {len(legacy_projects)} projeto(s) sem project_id canônico "
+            f"(agrupados pelo rótulo, preservados): {', '.join(legacy_projects)}"
+        )
 
     if len(project_buckets) > 1:
         projects_summary = ", ".join(
@@ -911,7 +1027,8 @@ def _run_dream_cycle_inner() -> Dict[str, int]:
             proj_obs_ids = [o["id"] for o in project_buckets[proj]]
             try:
                 total_persisted += _route_and_persist_project(
-                    conn, now, proj, distilled, proj_obs_ids, _mark_observations)
+                    conn, now, proj, distilled, proj_obs_ids, _mark_observations,
+                    identity=project_identities.get(proj))
             except Exception as e:
                 # F4.0: erro num projeto (LLM/`database is locked`/IO) não aborta o ciclo.
                 # Obs ficam archived=0 p/ reprocessar (não quarentena — erro transitório).
