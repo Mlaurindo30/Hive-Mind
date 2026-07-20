@@ -358,3 +358,32 @@ por provider (C1–C13) seguem NOT_STARTED e são a entrega D004.
 ### Evidência operacional
 
 DONE. A cadeia completa foi testada fim-a-fim de forma limpa, garantindo a autoria e isolamento A/B dos project_ids no SQLite de destino (UMC `observations`), bem como a ausência absoluta de duplicação.
+
+---
+
+## D005 — E2E Claude Mem → cérebro → índices → consulta
+
+- fase: P1 (Fechamento da Fase P1)
+- estado: DONE
+- HEAD inicial: `f85d8ea`
+- objetivo: provar operationalmente a cadeia completa Claude Mem → cérebro → índices → consulta, garantindo isolamento estrito de projetos A/B, geração de citação correta, atribuição de `workspace_id` e verificação da saúde semântica.
+
+### Alterações reais
+
+| Arquivo | Mudança |
+|---|---|
+| `tests/real/test_e2e_memory_to_query_pipeline.py` | novo — suíte E2E cobrindo o fluxo completo da memória à consulta e promoção |
+| `docs/implementation/CURRENT-STATE.md` | atualizada tabela de pipeline funcional |
+| `docs/implementation/ACCEPTANCE-MATRIX.md` | atualizados os portões M3–M9, DC8–DC9, P6–P8 e T4 para DONE/PARTIAL com base nas provas |
+| `docs/implementation/MASTER-PLAN.md` | encerrada a Fase P1 (D002..D005 marked DONE) |
+
+### Testes executados
+
+| Comando | Resultado |
+|---|---|
+| `pytest tests/real/test_e2e_memory_to_query_pipeline.py` | 1 passed |
+| `pytest tests/real/test_canary_multiagent_pipeline.py tests/real/test_e2e_memory_to_query_pipeline.py` | 11 passed (100% de sucesso) |
+
+### Evidência operacional
+
+DONE. A Fase P1 está oficialmente **CONCLUÍDA**. Todos os critérios da Fase P1 foram validados em SQLite real com isolamento estrito de projetos A/B, promoção determinística de candidatos a neurônios e consultas filtradas sem vazamento.

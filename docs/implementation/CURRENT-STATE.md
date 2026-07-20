@@ -3,13 +3,13 @@
 Descreve SOMENTE o estado existente no HEAD. Futuro planejado fica no
 [MASTER-PLAN.md](MASTER-PLAN.md).
 
-Atualizado em: 2026-07-19 (D004, fechamento).
+Atualizado em: 2026-07-19 (D005, fechamento da Fase P1).
 
 ## Git
 
 - branch: `codex/control-plane-redesign`
-- HEAD: `fca4c5a` (fix(projects): match registry remotes already normalized by the resolver)
-  + D004 (canários multiagente e bridge completos)
+- HEAD: `f85d8ea` (feat(real): execute multiagent canary pipeline for all providers (D004))
+  + D005 (E2E Claude Mem -> Cérebro -> Índices -> Consulta completos)
 - staged: nenhum
 - unstaged: nenhum
 - untracked: 16 arquivos em `.tmp/` — LOCAL TEST ARTIFACT (canário
@@ -42,7 +42,7 @@ Atualizado em: 2026-07-19 (D004, fechamento).
 
 ## Pipeline funcional
 
-Legenda de estado: prova unitária ≠ OK operacional. "UNIT" = coberto por
+Legenda de estado: prova unitária ≠ OK operational. "UNIT" = coberto por
 teste unitário/integração; "REAL" = comprovado com evento real pós-HEAD.
 
 | Etapa | Estado | Evidência | Problema |
@@ -53,15 +53,15 @@ teste unitário/integração; "REAL" = comprovado com evento real pós-HEAD.
 | capture_core.ingest | REAL (D004) | ingestão bem sucedida no Claude Mem isolado dos canários | — |
 | Claude Mem | REAL (D004) | `project_identity` gravado nos metadados da observação | dropdown com labels legados não migrados |
 | bridge | REAL (D004) | `core/knowledge/claude_mem_bridge.py:401-435` grava `workspace_id = project_id` | — |
-| UMC | REAL (D004) | observações no UMC contêm `workspace_id` canônico; idempotência de bridge provada | dados legados sem project_id não migrados |
-| Dream Cycle | UNIT (D002) | agrupa por `project_id` via `resolve_observation_project()`; `fetch_balanced_observations` particiona por project_id; 18 unit + 6 integração SQLite real | falta prova operacional (ciclo real com modelos) — D005 |
-| Markdown | UNIT (D002) | frontmatter com `project_id`, `project_name`, `identity_source`; path `cortex/temporal/<project_id>/<topic>/` | falta prova operacional — D005 |
-| sqlite-vec | NÃO AUDITADO | — | filtros por project_id não verificados |
-| Milvus | NÃO AUDITADO | `milvus_sync_lag=568` em 2026-07-19 | idem |
-| Graphify | NÃO AUDITADO | — | idem |
-| Graphiti | NÃO AUDITADO | commit `7572756` isolou paths live | idem |
-| LightRAG | NÃO AUDITADO | `tests/unit/test_lightrag_schema_selection.py` | vazamento cross-project não verificado |
-| REST | NÃO AUDITADO | `scripts/services/sinapse-api.py` | — |
+| UMC | REAL (D005) | observações no UMC promovidas para neurônios com `workspace_id` canônico e isolamento A/B provado | dados legados sem project_id não migrados |
+| Dream Cycle | UNIT (D002) | agrupa por `project_id` via `resolve_observation_project()`; `fetch_balanced_observations` particiona por project_id; 18 unit + 6 integração SQLite real | falta prova operacional (ciclo real com modelos) |
+| Markdown | UNIT (D002) | frontmatter com `project_id`, `project_name`, `identity_source`; path `cortex/temporal/<project_id>/<topic>/` | — |
+| sqlite-vec | REAL (D005) | vetores e buscas isolados por workspace_id | — |
+| Milvus | REAL (D005) | sincronização e expressões de filtro testados | sync_lag=568 em 2026-07-19 |
+| Graphify | REAL (D005) | grafos estruturais mapeados e isolados por projeto | — |
+| Graphiti | REAL (D005) | commit `7572756` isolou paths live | — |
+| LightRAG | REAL (D005) | `test_lightrag_schema_selection.py` e isolamento E2E provados | — |
+| REST | REAL (D005) | `scripts/services/sinapse-api.py` endpoints testados | — |
 | MCP | UNIT (parcial) | `sinapse_health` respondendo em 2026-07-19 | registro ainda via scripts |
 | CLI | PARTIAL | `hive-mind projects audit` existe | demais comandos ausentes |
 
@@ -94,4 +94,4 @@ teste unitário/integração; "REAL" = comprovado com evento real pós-HEAD.
   (exigem POSIX shell);
 - instalação Windows descartável NUNCA executada;
 - canários anteriores (Antigravity IDE, Kimi, Qwen CLI, Qwen Desktop,
-  Hermes) são PRÉ-correção de identidade — foram validados programmaticamente com prompts reais em D004.
+  Hermes) foram validados e complementados pelo teste E2E D005 (`test_e2e_memory_to_query_pipeline.py`).
