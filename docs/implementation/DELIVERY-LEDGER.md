@@ -419,3 +419,91 @@ DONE. A Fase P1 está officially **CONCLUÍDA**. Todos os critérios da Fase P1 
 ### Evidência operacional
 
 DONE. O manifesto declarativo e a infraestrutura de validação da Fase P2 foram entregues e cobertos por testes unitários sem impactar o runtime ativo.
+
+---
+
+## D007 — Daemon shadow (F3)
+
+- fase: P3
+- estado: PARTIAL
+- HEAD inicial: `1db2523`
+- objetivo: dar ao daemon o núcleo passivo da Fase F3 — lock de instância
+  única real, `ShadowSupervisor` que **observa** o manifesto sem mutar nada,
+  e `hive-mindd run --shadow` que amarra os dois. Passividade absoluta
+  (spec Anexo D.4): sem `subprocess.Popen`, sem escrever em `runtime.yaml`,
+  sem criar arquivos de state além de `services.shadow.json`, sem disparar
+  jobs, sem cutover.
+- referências: spec §15 (control channel, leitura), Anexo D.2 (lock),
+  D.4 (pureza shadow), D.5 (project root — já entregue na F1).
+
+### Escopo desta fatia
+
+| Incluído | Adiado (fatia seguinte) |
+|---|---|
+| `daemon/lock.py` — lock real cross-platform (named mutex Windows / flock POSIX) | servidor HTTP loopback `/health` `/ready` `/metrics` |
+| `daemon/supervisor.py` — `ShadowSupervisor` passivo, readiness + ordem topológica | named pipe / Unix socket de controle |
+| `hive-mindd run --shadow` — adquire lock, uma passada shadow, grava state | scheduler store, cutover journal (F4+) |
+| `test_shadow_purity.py` — guarda de pureza que a spec nomeia (D.4) | — |
+
+- arquivos planejados: `src/hive_mind/daemon/lock.py`,
+  `src/hive_mind/daemon/supervisor.py`, `src/hive_mind/daemon/state.py`,
+  `src/hive_mind/daemon/main.py` (estender), `tests/unit/test_daemon_lock.py`,
+  `tests/unit/test_shadow_supervisor.py`, `tests/unit/test_shadow_purity.py`.
+- testes planejados: lock exclusivo (segunda instância falha claramente);
+  supervisor passivo grava só `services.shadow.json`; readiness derivada do
+  manifesto; pureza (sem Popen, sem escrita em runtime.yaml).
+- documentação afetada: `docs/runtime.md` (criar), CURRENT-STATE,
+  ACCEPTANCE-MATRIX, este ledger.
+
+### Alterações reais
+
+| Arquivo | Mudança |
+|---|---|
+| `src/hive_mind/daemon/lock.py` | novo — `SingleInstanceLock` (named mutex Windows / flock POSIX) |
+| `src/hive_mind/daemon/supervisor.py` | novo — `ShadowSupervisor` passivo, readiness + ordem topológica, grava só `services.shadow.json` |
+| `src/hive_mind/daemon/main.py` | `hive-mindd run --shadow` amarra lock + supervisor; managed segue EX_UNAVAILABLE |
+| `.gitignore` | ignora `.hive-mind/` (state dir do daemon) |
+| `tests/unit/test_daemon_lock.py` | novo — 7 testes |
+| `tests/unit/test_shadow_supervisor.py` | novo — 8 testes |
+| `tests/unit/test_shadow_purity.py` | novo — 5 testes |
+| `tests/unit/test_daemon_run_shadow.py` | novo — 4 testes |
+| `tests/unit/test_f1_package.py`, `test_f1_project_root.py` | asserção de wording do stub F1 (`not implemented in F1`) relaxada para `not implemented` — o path managed segue 69, mas D007 supera o stub |
+| `docs/runtime.md` | novo |
+
+### Testes executados
+
+| Comando | Resultado |
+|---|---|
+| `pytest` (lock+supervisor+purity+run_shadow) | 23 passed, 1 skipped |
+| `hive-mindd run --shadow --project-root .` (manifesto entregue) | **exit 0; 7 serviços observados; só `services.shadow.json` criado; nada iniciado** |
+| `pytest tests/unit` (completo) | **1034 passed, 21 skipped, 2 failed** (128s) |
+
+As 2 falhas são as pré-existentes de `test_windows_install_contract.py`
+(UnicodeDecodeError de stdout PowerShell). Sem novas regressões — as 2
+falhas F1 que meu `run` causou foram resolvidas relaxando a asserção de
+wording obsoleta, não gamificando o teste (o invariante — managed
+retorna 69 e não inicia serviço — permanece asserido).
+
+### Desvio da spec registrado
+
+Anexo D.2 escreve o mutex como `Local\Hive-Mind\hive-mindd` (dois
+backslashes). Objetos de kernel Win32 aceitam apenas um após `Local\`;
+o literal da spec falha com ERROR_PATH_NOT_FOUND (3). Usado
+`Local\Hive-Mind-hive-mindd`. Documentado em `docs/runtime.md` e no
+código.
+
+### Evidência operacional
+
+DONE para o núcleo shadow: `hive-mindd run --shadow` rodou de verdade
+contra `config/runtime.yaml` — não é mock. Pureza confirmada na execução
+real (único arquivo em state dir).
+
+- riscos: nenhum ao runtime ativo — shadow não muta nada; managed segue
+  desligado.
+- rollback: `git revert` do commit desta entrega.
+- pendências (fatia seguinte, D007 cont. ou D008): HTTP loopback
+  `/health` `/ready` `/metrics`; named pipe / Unix socket de controle;
+  scheduler store; cutover journal.
+- estado final: **PARTIAL** — núcleo passivo da F3 entregue e provado
+  operacionalmente; canais HTTP/socket e persistência de scheduler
+  adiados para a próxima fatia.

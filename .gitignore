@@ -206,3 +206,5 @@ Optional*
 /dict*
 /`assistant`)`
 /dict[tuple*
+# Daemon runtime state (D007+) — never committed
+.hive-mind/

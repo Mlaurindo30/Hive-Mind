@@ -53,9 +53,12 @@ def test_daemon_help_returns_zero_and_lists_run():
 
 
 def test_daemon_run_returns_ex_unavailable_and_does_not_exit_zero():
+    # Bare `run` targets the managed daemon, which is not implemented until F4.
+    # D007 (F3) implements the passive `run --shadow` path; the enduring
+    # invariant here is that managed run still refuses with EX_UNAVAILABLE.
     r = _run_module('hive_mind.daemon.main', 'run')
     assert r.returncode == EX_UNAVAILABLE, ('daemon run must return EX_UNAVAILABLE (got %s); stdout=%r stderr=%r' % (r.returncode, r.stdout, r.stderr))
-    assert 'not implemented in F1' in r.stderr
+    assert 'not implemented' in r.stderr
 
 
 def test_daemon_run_via_in_process_call():

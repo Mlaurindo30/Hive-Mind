@@ -112,8 +112,10 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | R3 | supervisor único | design | NOT_STARTED | — | hoje Node + Task Scheduler | P4 |
 | R4 | scheduler único | design | NOT_STARTED | — | múltiplos owners hoje | P4 |
 | R5 | health | PARTIAL | operational | `sinapse_health` | respondeu 2026-07-19, status degraded | runtime antigo |
-| R6 | readiness | NOT_STARTED | — | — | — | — |
+| R6 | readiness | PARTIAL | operational | `hive-mindd run --shadow --project-root .` | D007: readiness/ordem calculadas passivamente; `ready=false` reportado honestamente | falta HTTP `/ready` (fatia seguinte) |
 | R7 | degraded/fail-closed sem mascarar | processo | PARTIAL | — | health reporta degraded honestamente | manter |
+| R8 | instância única do daemon | unit | DONE | `pytest tests/unit/test_daemon_lock.py` | 6 passed, 1 skipped (POSIX) | D007; named mutex Windows / flock POSIX |
+| R9 | shadow passivo (sem mutação) | unit+operational | DONE | `pytest tests/unit/test_shadow_purity.py` + `hive-mindd run --shadow` real | 5 passed; run real gravou só `services.shadow.json`, iniciou nada | D007; spec Anexo D.4 |
 
 ## Windows lifecycle
 

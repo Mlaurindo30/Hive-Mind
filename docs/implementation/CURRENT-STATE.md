@@ -22,7 +22,7 @@ Atualizado em: 2026-07-19 (D005, fechamento da Fase P1).
 | Componente | Local | Estado | Evidência |
 |---|---|---|---|
 | `hive-mind` (CLI) | `src/hive_mind/cli.py` + entry point em `pyproject.toml` | PARTIAL — só `--version` e `projects audit` | `tests/unit/test_f1_package.py`; commit `e215fd6`, `a44540b` |
-| `hive-mindd` (daemon) | `src/hive_mind/daemon/main.py` | PARTIAL — stub de F1, sem run loop | `tests/unit/test_f1_package.py`; commit `a44540b` |
+| `hive-mindd` (daemon) | `src/hive_mind/daemon/{main,lock,supervisor}.py` | PARTIAL — `run --shadow` passivo (D007); managed ainda EX_UNAVAILABLE | `tests/unit/test_daemon_lock.py`, `test_shadow_supervisor.py`, `test_shadow_purity.py`, `test_daemon_run_shadow.py`; D007 |
 | project root | `src/hive_mind/project.py` | DONE (escopo F1) | `tests/unit/test_f1_project_root.py` (151 L); commit `60aa2af` |
 | projects audit | `core/projects/audit.py` + `src/hive_mind/cli.py:59-116` | DONE (unit + integração read-only) | `tests/unit/test_projects_audit.py` (127 L); `tests/integration/test_projects_audit_readonly.py`; commit `8a4a41f` |
 | build (wheel+sdist) | `pyproject.toml` (hatchling) | DONE (escopo F1) | commits `6ac42f4`, `6f6dc64`; `uv build` < 5s |

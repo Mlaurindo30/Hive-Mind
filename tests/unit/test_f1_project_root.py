@@ -148,4 +148,5 @@ def test_no_service_started_in_daemon_run():
         check=False,
     )
     assert r.returncode == 69
-    assert 'not implemented in F1' in r.stderr
+    # Managed run stays unavailable until F4; D007 only adds passive --shadow.
+    assert 'not implemented' in r.stderr

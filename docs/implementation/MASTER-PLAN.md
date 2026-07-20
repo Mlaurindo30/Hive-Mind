@@ -123,7 +123,7 @@ spec Anexo D.4), project-root, logs, control socket. Nenhum cutover.
 
 | ID | Entrega | Dependências | Estado | Evidência | Commit inicial | Commit final |
 |---|---|---|---|---|---|---|
-| D007 | Daemon shadow | D006 | NOT_STARTED | — | — | — |
+| D007 | Daemon shadow | D006 | PARTIAL | lock + ShadowSupervisor + `run --shadow` reais; 24 testes; run operacional contra manifesto entregue | 1db2523 | (fatia 1) |
 
 ### P4 — Scheduler e supervisor nativos (spec F4–F8)
 
