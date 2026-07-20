@@ -504,6 +504,30 @@ real (único arquivo em state dir).
 - pendências (fatia seguinte, D007 cont. ou D008): HTTP loopback
   `/health` `/ready` `/metrics`; named pipe / Unix socket de controle;
   scheduler store; cutover journal.
-- estado final: **PARTIAL** — núcleo passivo da F3 entregue e provado
-  operacionalmente; canais HTTP/socket e persistência de scheduler
-  adiados para a próxima fatia.
+- estado final da fatia 1: núcleo passivo entregue e provado.
+
+### Fatia 2 — HTTP loopback de leitura (spec §15.1/§15.4)
+
+- HEAD inicial: `26ab2ff`
+- alterações reais:
+
+| Arquivo | Mudança |
+|---|---|
+| `src/hive_mind/daemon/http_api.py` | novo — `create_app` com `/health` `/ready` `/metrics`; `READ_ONLY_HTTP_ROUTES` |
+| `src/hive_mind/daemon/main.py` | `run --shadow --serve` sobe o loopback via uvicorn |
+| `tests/unit/test_daemon_http_routes.py` | novo — 9 testes (allow-list de rotas, fail-closed, sem mutação) |
+| `docs/runtime.md` | seção do HTTP loopback |
+
+- testes executados:
+
+| Comando | Resultado |
+|---|---|
+| `pytest tests/unit/test_daemon_http_routes.py` | 9 passed |
+| `hive-mindd run --shadow --serve` + `curl` reais | `/health` 200 (7 svc), `/ready` 503 fail-closed, `/metrics` Prometheus, `POST /stop` 404 |
+| `pytest tests/unit` (completo) | **1043 passed, 21 skipped, 2 failed** (pré-existentes PowerShell) |
+
+- evidência operacional: socket loopback real, requests HTTP reais via
+  curl — não mock. §15.4 confirmada (mutação = 0 rotas).
+- estado final: **PARTIAL** — leitura (HTTP) DONE; falta o socket de
+  controle de mutação (§15.2) e a persistência de scheduler, que vão para
+  o D008.

@@ -59,6 +59,14 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("--manifest", default=None, help="path to config/runtime.yaml")
     run.add_argument("--state-dir", default=None, help="daemon state directory")
     run.add_argument("--project-root", default=None, help="project root override")
+    run.add_argument(
+        "--serve",
+        action="store_true",
+        help="after the shadow pass, serve the read-only HTTP loopback "
+        "(/health /ready /metrics) until interrupted",
+    )
+    run.add_argument("--host", default=None, help="HTTP bind host (default 127.0.0.1)")
+    run.add_argument("--port", type=int, default=None, help="HTTP bind port (default 37780)")
     return p
 
 
@@ -101,6 +109,27 @@ def _run_shadow(args) -> int:
         f"services={summary['service_count']} required={ready} "
         f"-> {state_dir / 'services.shadow.json'}"
     )
+
+    if getattr(args, "serve", False):
+        return _serve_http(args, state_dir)
+    return 0
+
+
+def _serve_http(args, state_dir: Path) -> int:
+    """Serve the read-only loopback until interrupted. Starts no service."""
+    import uvicorn
+
+    from hive_mind.daemon.http_api import (
+        DEFAULT_HTTP_HOST,
+        DEFAULT_HTTP_PORT,
+        create_app,
+    )
+
+    host = args.host or DEFAULT_HTTP_HOST
+    port = args.port or DEFAULT_HTTP_PORT
+    app = create_app(state_dir=state_dir)
+    print(f"hive-mindd http (read-only): http://{host}:{port}/health")
+    uvicorn.run(app, host=host, port=port, log_level="warning")
     return 0
 
 

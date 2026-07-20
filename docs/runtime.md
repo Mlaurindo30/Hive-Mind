@@ -110,15 +110,35 @@ git) guarda:
 | `cutover.journal` | F4 | journal transacional de cutover (ainda não) |
 | `jobs.db` | F7 | persistência do scheduler (ainda não) |
 
-## Controle e leitura (spec §15 — planejado)
+## HTTP loopback de leitura (spec §15.1 / §15.4 — D007 fatia 2)
+
+```powershell
+hive-mindd run --shadow --serve [--host 127.0.0.1] [--port 37780]
+```
+
+Após a passada shadow, o daemon serve exatamente três rotas de leitura em
+[http_api.py](../src/hive_mind/daemon/http_api.py), bind loopback, sem TLS,
+sem auth, sem body de escrita:
+
+| Rota | Resposta |
+|---|---|
+| `GET /health` | `{"state": "healthy"\|"degraded"\|"unknown", "services": {...}, "jobs": {}}` |
+| `GET /ready` | 200 se todos os `required` estão ready; 503 caso contrário (fail-closed) |
+| `GET /metrics` | Prometheus (`hive_service_count`, `hive_service_ready`, `hive_daemon_ready`) |
+
+Sem observação shadow ainda, `/ready` é **503** (fail-closed, nunca
+fail-open). Nenhuma rota de mutação existe: `POST /start`, `/stop`,
+`/reload`, `/run-job` retornam 404. O invariante é testado
+(`READ_ONLY_HTTP_ROUTES` em `test_daemon_http_routes.py`).
+
+## Controle (spec §15.2 — planejado)
 
 | Operação | Canal |
 |---|---|
-| `GET /health` `/ready` `/metrics` | HTTP loopback `127.0.0.1:37780` (só leitura) |
-| `service start/stop/restart`, `reload`, `run-job` | named pipe / Unix socket com ACL |
+| `service start/stop/restart`, `reload`, `run-job` | named pipe (Windows) / Unix socket com ACL |
 
-O HTTP loopback nunca expõe mutação; toda mutação passa pelo socket de
-controle autenticado. Ambos são fatias seguintes do D007/D008.
+Toda mutação passa pelo socket de controle autenticado, nunca por HTTP.
+É a fatia seguinte (D008).
 
 ## Estado de implementação
 
