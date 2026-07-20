@@ -131,14 +131,27 @@ fail-open). Nenhuma rota de mutação existe: `POST /start`, `/stop`,
 `/reload`, `/run-job` retornam 404. O invariante é testado
 (`READ_ONLY_HTTP_ROUTES` em `test_daemon_http_routes.py`).
 
-## Controle (spec §15.2 — planejado)
+## CLI de leitura
+
+```powershell
+hive-mind service status [--project-root <dir>] [--state-dir <dir>] [--json]
+```
+
+Lê `state_dir/services.shadow.json` e imprime a observação shadow (mode,
+profile, required, e por serviço: ownership, required, readiness, ordem).
+Sem observação ainda, sai 1 com mensagem clara — nunca inventa "healthy".
+É leitura pura; não muta nada.
+
+## Controle de mutação (spec §15.2 — D008)
 
 | Operação | Canal |
 |---|---|
 | `service start/stop/restart`, `reload`, `run-job` | named pipe (Windows) / Unix socket com ACL |
 
 Toda mutação passa pelo socket de controle autenticado, nunca por HTTP.
-É a fatia seguinte (D008).
+Adiado para o D008 porque é inseparável das operações managed (que só
+existem a partir da F4) e depende de uma decisão de dependência
+(`pywin32`, ver ledger DH-002).
 
 ## Estado de implementação
 

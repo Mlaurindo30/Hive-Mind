@@ -333,6 +333,25 @@ por provider (C1–C13) seguem NOT_STARTED e são a entrega D004.
 
 ---
 
+## DH-002 — Decisão de dependência: `pywin32` para o control socket (REGISTRADA)
+
+- fase: bloqueio de decisão para D008
+- estado: NOT_STARTED (aguarda decisão humana)
+- constatação (D007): `import win32pipe` falha — `pywin32` não está nas
+  dependências. A spec §15.3 usa `win32security` para o ACL do named pipe
+  `\\.\pipe\hive-mindd` no Windows (só o usuário que instalou pode abrir).
+- decisão necessária antes do D008: (a) adicionar `pywin32` como
+  dependência Windows e implementar o named pipe com ACL como a spec pede;
+  ou (b) usar um transporte alternativo (TCP loopback + token de sessão
+  com ACL de arquivo no state_dir, que já é do usuário) documentando o
+  desvio da spec.
+- impacto: o socket de controle de mutação (§15.2) depende disso; por isso
+  foi adiado do D007 para o D008.
+- não resolver silenciosamente: é adição de dependência + desvio potencial
+  da spec aprovada.
+
+---
+
 ## D004 — Canários multiagente completos
 
 - fase: P1
@@ -528,6 +547,39 @@ real (único arquivo em state dir).
 
 - evidência operacional: socket loopback real, requests HTTP reais via
   curl — não mock. §15.4 confirmada (mutação = 0 rotas).
-- estado final: **PARTIAL** — leitura (HTTP) DONE; falta o socket de
-  controle de mutação (§15.2) e a persistência de scheduler, que vão para
-  o D008.
+- estado final da fatia 2: leitura HTTP DONE.
+
+### Fatia 3 — `hive-mind service status` nativo (leitura)
+
+- HEAD inicial: `bcaa961`
+- alterações reais: `src/hive_mind/cli.py` (subcomando `service status`
+  lendo `services.shadow.json`); `tests/unit/test_cli_service_status.py`
+  (4 testes).
+- testes: 4 passed; **fluxo real**: `hive-mindd run --shadow` →
+  `hive-mind service status --project-root .` listou os 7 serviços do
+  manifesto entregue com ownership/required/readiness/ordem. Sem mutação.
+- fecha a responsabilidade "services status → hive-mind" do MASTER-PLAN.
+
+### Decisão de escopo: socket de controle adiado para D008 (com evidência)
+
+O socket de controle da spec §15.2 existe para **mutação**
+(start/stop/restart/reload/run-job). Em shadow o daemon não muta nada —
+as operações managed só chegam na F4 (D008). Construir o canal de
+mutação agora seria infraestrutura sem consumidor (anti-YAGNI, e o padrão
+"segundo dono" que o projeto proíbe).
+
+Além disso, `pywin32` **não está instalado** (`import win32pipe` falha),
+e a spec §15.3 exige `win32security` para o ACL do named pipe no Windows.
+Isso levanta uma decisão de dependência (ver DH-002) que deve ser
+resolvida junto com o consumidor real (managed ops), não antes.
+
+Portanto o socket de controle é entregue no **D008**, emparelhado às
+operações managed que ele carrega.
+
+### Estado final do D007
+
+**PARTIAL → o núcleo passivo da F3 está completo e provado
+operacionalmente**: lock de instância única, ShadowSupervisor puro, HTTP
+loopback de leitura e CLI `service status`. O que resta de F3/§15
+(socket de controle de mutação, scheduler store, cutover journal) é
+inseparável das operações managed e vai para o D008.

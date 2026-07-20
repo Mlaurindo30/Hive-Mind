@@ -88,6 +88,15 @@ def _build_parser() -> argparse.ArgumentParser:
     cfg_show = config_sub.add_parser("show", help="show parsed config/runtime.yaml manifest")
     cfg_show.add_argument("--manifest", default=None, help="path to runtime.yaml manifest")
     cfg_show.add_argument("--json", action="store_true", help="emit as JSON")
+
+    service_cmd = sub.add_parser("service", help="inspect daemon-observed services")
+    service_sub = service_cmd.add_subparsers(dest="service_command")
+    svc_status = service_sub.add_parser(
+        "status", help="show the daemon's shadow observation of services"
+    )
+    svc_status.add_argument("--state-dir", default=None, help="daemon state directory")
+    svc_status.add_argument("--project-root", default=None, help="project root override")
+    svc_status.add_argument("--json", action="store_true", help="emit as JSON")
     return p
 
 
@@ -150,7 +159,56 @@ def main(argv: "list[str] | None" = None) -> int:
                 import yaml
                 print(yaml.safe_dump(manifest_obj.model_dump(), allow_unicode=True, default_flow_style=False))
             return 0
+    if args.command == "service" and args.service_command == "status":
+        return _service_status(args)
     parser.print_help()
+    return 0
+
+
+def _service_status(args) -> int:
+    """Read-only view of the daemon's shadow observation. Mutates nothing."""
+    from pathlib import Path
+
+    if args.state_dir:
+        state_dir = Path(args.state_dir)
+    else:
+        try:
+            root = resolve_project_root(cli_root=args.project_root)
+        except ProjectRootNotFound as exc:
+            print(str(exc), file=sys.stderr)
+            return EX_CONFIG
+        state_dir = root / ".hive-mind" / "state"
+
+    state_file = state_dir / "services.shadow.json"
+    if not state_file.exists():
+        print(
+            f"no shadow observation found at {state_file}; "
+            "run `hive-mindd run --shadow` first",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        state = json.loads(state_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"cannot read shadow state: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(state, ensure_ascii=False, indent=2))
+        return 0
+
+    ready = "ready" if state.get("ready") else "NOT-ready"
+    print(
+        f"mode={state.get('mode')} profile={state.get('profile')} "
+        f"required={ready}"
+    )
+    print(f"{'SERVICE':<28} {'OWNERSHIP':<9} {'REQ':<4} {'READINESS':<10} ORDER")
+    for svc in state.get("services", []):
+        print(
+            f"{svc.get('name', ''):<28} {svc.get('ownership', ''):<9} "
+            f"{'yes' if svc.get('required') else 'no':<4} "
+            f"{svc.get('readiness', ''):<10} {svc.get('startup_order', '')}"
+        )
     return 0
 
 
