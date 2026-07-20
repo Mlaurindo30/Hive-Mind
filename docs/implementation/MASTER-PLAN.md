@@ -97,9 +97,9 @@ Esta fase TERMINA antes de iniciar o novo control plane (P2+).
 
 | ID | Entrega | Dependências | Estado | Evidência | Commit inicial | Commit final |
 |---|---|---|---|---|---|---|
-| D002 | Dream Cycle + project_id + Markdown | D001 ✅ | NOT_STARTED (**próxima, autorizada**) | — | — | — |
-| D003 | Validação real da identidade de projeto | D002 | NOT_STARTED | — | — | — |
-| D004 | Canários multiagente completos | D003 | NOT_STARTED | — | — | — |
+| D002 | Dream Cycle + project_id + Markdown | D001 ✅ | DONE | `pytest tests/unit/test_dream_project_identity.py` | 834e405 | 2ae8558 |
+| D003 | Validação real da identidade de projeto | D002 | DONE | `pytest tests/integration/test_project_identity_pipeline.py` | 2ae8558 | fca4c5a |
+| D004 | Canários multiagente completos | D003 | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py` | fca4c5a | — |
 | D005 | E2E Claude Mem → cérebro → índices → consulta | D004 | NOT_STARTED | — | — | — |
 
 ### P2 — Manifesto declarativo e ownership (spec F2)

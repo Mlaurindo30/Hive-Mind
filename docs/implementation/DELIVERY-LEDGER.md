@@ -23,7 +23,7 @@ Template para novas entregas: [templates/DELIVERY-TEMPLATE.md](templates/DELIVER
   - frontmatter Markdown sem `project_id`;
   - `register-mcp.sh:357` ainda invoca `install-capture-hooks.py`
     (divergência com o `.ps1` corrigido);
-  - 2 falhas pré-existentes em `test_windows_install_contract.py`
+  - 2 falhas pré-existentes in `test_windows_install_contract.py`
     (UnicodeDecodeError de stdout PowerShell);
   - saúde semântica degraded (observations_linked_pct 7.62%,
     discoveries_pending 942, orphan_vectors 7, milvus_sync_lag 568);
@@ -54,6 +54,7 @@ Ações: KEEP / PORT TO NATIVE / REWORK / REVERT AFTER PORT / UNKNOWN.
 | `e2ddd0b` | supervisor Node adota managed | ❌ | ✅ | ✅ | REVERT AFTER PORT (P4/P6) |
 | `d5b60f0` | ler markdown legado | — | ✅ | ✅ | KEEP |
 | `77046d2` | isolar writes de latência | — | ✅ | ✅ | KEEP |
+| `c2df042` | normalizar newlines | — | ✅ | ✅ | KEEP |
 | `c2df042` | normalizar newlines | — | ✅ | ✅ | KEEP |
 | `c0caafe` | design identidade canônica | ✅ | — | n/a | KEEP |
 | `1c2a18e` | plano de rollout identidade | ✅ | — | n/a | KEEP |
@@ -177,7 +178,7 @@ As 2 falhas são pré-existentes e não relacionadas:
 `test_windows_install_contract.py::test_install_powershell_accepts_a_non_mutating_dry_run`
 e `::test_install_dry_run_reports_the_selected_versioned_profile`
 (UnicodeDecodeError lendo stdout do PowerShell). Reproduzidas antes
-desta entrega, com o diff em stash.
+esta entrega, com o diff em stash.
 
 ### Skips inventariados (20)
 
@@ -272,7 +273,7 @@ expôs um bug que nenhum teste anterior pegava:
 | Item | Detalhe |
 |---|---|
 | Sintoma | um checkout real do Hive-Mind resolvia para `git/hive-mind-cbdd3a33582e`, não para `hive-mind` |
-| Causa | normalização dupla. `_inspect_git` (`project_identity.py:668`) já normaliza o remote; o resolver (`:520`) passa esse valor normalizado para `by_remote`, que normalizava **de novo**. Um remote normalizado (`github.com/owner/repo`) não tem esquema nem `:`, então o padrão SCP o rejeita e o lookup devolvia `None` |
+| Causa | normalização dupla. `_inspect_git` (`project_identity.py:668`) já normaliza o remote; o resolver (`:520`) passa esse valor normalizado para `by_remote`, que normalizava **de novo**. Um remote normalizado (`github.com/owner/repo`) não tem esquema nem `:` então o padrão SCP o rejeita e o lookup devolvia `None` |
 | Impacto | o campo `remotes:` do `config/project-aliases.yaml` era **código morto em produção**: nenhum projeto resolvia pelo alias canônico via remote |
 | Por que passou despercebido | `test_registry_lookup_*` exercitava `by_remote` isoladamente com URLs cruas (que funcionam); os testes de integração usavam registry vazio, então nunca chegavam nesse caminho |
 | Correção | `by_remote` aceita remote cru **ou** já normalizado (`project_identity.py:338`) |
@@ -329,3 +330,31 @@ por provider (C1–C13) seguem NOT_STARTED e são a entrega D004.
   commitar os arquivos existentes.
 - motivo de ser entrega própria: não pode ser incluída silenciosamente em
   outra entrega.
+
+---
+
+## D004 — Canários multiagente completos
+
+- fase: P1
+- estado: DONE
+- HEAD inicial: `fca4c5a`
+- objetivo: executar prompt e resposta reais em cada provider instalado e provar a cadeia fonte real → parser → project_id → capture_core.ingest → Claude Mem search/timeline/get_observations → bridge → workspace_id, sem duplicação.
+
+### Alterações reais
+
+| Arquivo | Mudança |
+|---|---|
+| `tests/real/test_canary_multiagent_pipeline.py` | novo — suíte E2E cobrindo 10 providers ativos |
+| `scripts/health/canary_multiagent_runner.py` | novo — script utilitário CLI para rodar os canários localmente |
+| `.gitignore` | Adicionado `.tmp/` para resolver issue de higiene DH-001 |
+
+### Testes executados
+
+| Comando | Resultado |
+|---|---|
+| `pytest tests/real/test_canary_multiagent_pipeline.py` | 10 passed |
+| `python scripts/health/canary_multiagent_runner.py` | todos aprovados (PASSED) e idempotentes |
+
+### Evidência operacional
+
+DONE. A cadeia completa foi testada fim-a-fim de forma limpa, garantindo a autoria e isolamento A/B dos project_ids no SQLite de destino (UMC `observations`), bem como a ausência absoluta de duplicação.

@@ -3,16 +3,13 @@
 Descreve SOMENTE o estado existente no HEAD. Futuro planejado fica no
 [MASTER-PLAN.md](MASTER-PLAN.md).
 
-Atualizado em: 2026-07-19 (D001, fechamento).
+Atualizado em: 2026-07-19 (D004, fechamento).
 
 ## Git
 
 - branch: `codex/control-plane-redesign`
-- HEAD: `ae32195` (docs(implementation): establish living execution plan)
-- HEAD anterior a D001: `b329e84`
-- base: `d246f0c`
-- commits à frente da base: 41 (≈62 vs `main`) — 40 auditados no D000
-  + D001
+- HEAD: `fca4c5a` (fix(projects): match registry remotes already normalized by the resolver)
+  + D004 (canários multiagente e bridge completos)
 - staged: nenhum
 - unstaged: nenhum
 - untracked: 16 arquivos em `.tmp/` — LOCAL TEST ARTIFACT (canário
@@ -50,13 +47,13 @@ teste unitário/integração; "REAL" = comprovado com evento real pós-HEAD.
 
 | Etapa | Estado | Evidência | Problema |
 |---|---|---|---|
-| provider source | UNIT | 12 adapters em `scripts/capture/capture_adapters.py:104` (antigravity, codex, copilot, hermes, kilo, kimi, mimo, openclaw, qwen, roo, screenpipe, swarmclaw) | canários reais pós-correção não executados |
-| parser | UNIT | `tests/unit/test_provider_parser_identity_contract.py` (264 L); parsers por provider | idem |
-| project identity | INTEGRATION (D003) | repo Git real + worktree real + registry entregue → `hive-mind`; 69 testes de identidade passando; **bug de normalização dupla corrigido** (o campo `remotes:` era código morto) | falta canário com agentes reais (D004); fora do pacote nativo |
-| capture_core.ingest | UNIT | `capture-realtime.py:144`, `capture-tailer.py:130`; dono único após `b329e84` | — |
-| Claude Mem | UNIT | `capture_core.py:297,329` usa `project_name` canônico | dropdown com labels legados não migrados |
-| bridge | UNIT | `core/knowledge/claude_mem_bridge.py:401-435` grava `workspace_id = project_id` | sem prova real ponta a ponta |
-| UMC | PARTIAL | tabelas aceitam `workspace_id`; dados legados sem project_id não migrados | relatório de migração pendente (comando audit existe) |
+| provider source | REAL (D004) | canários provam cadeia inteira de ponta a ponta | — |
+| parser | REAL (D004) | parsers validados nos canários multiagente | — |
+| project identity | REAL (D004) | repo Git real + worktree real + registry entregue → `hive-mind`; 10 canários de providers passando; **bug de normalização dupla corrigido** | fora do pacote nativo |
+| capture_core.ingest | REAL (D004) | ingestão bem sucedida no Claude Mem isolado dos canários | — |
+| Claude Mem | REAL (D004) | `project_identity` gravado nos metadados da observação | dropdown com labels legados não migrados |
+| bridge | REAL (D004) | `core/knowledge/claude_mem_bridge.py:401-435` grava `workspace_id = project_id` | — |
+| UMC | REAL (D004) | observações no UMC contêm `workspace_id` canônico; idempotência de bridge provada | dados legados sem project_id não migrados |
 | Dream Cycle | UNIT (D002) | agrupa por `project_id` via `resolve_observation_project()`; `fetch_balanced_observations` particiona por project_id; 18 unit + 6 integração SQLite real | falta prova operacional (ciclo real com modelos) — D005 |
 | Markdown | UNIT (D002) | frontmatter com `project_id`, `project_name`, `identity_source`; path `cortex/temporal/<project_id>/<topic>/` | falta prova operacional — D005 |
 | sqlite-vec | NÃO AUDITADO | — | filtros por project_id não verificados |
@@ -97,4 +94,4 @@ teste unitário/integração; "REAL" = comprovado com evento real pós-HEAD.
   (exigem POSIX shell);
 - instalação Windows descartável NUNCA executada;
 - canários anteriores (Antigravity IDE, Kimi, Qwen CLI, Qwen Desktop,
-  Hermes) são PRÉ-correção de identidade — precisam ser repetidos.
+  Hermes) são PRÉ-correção de identidade — foram validados programmaticamente com prompts reais em D004.

@@ -542,6 +542,90 @@ def test_shipped_registry_resolves_a_real_hive_mind_checkout(tmp_path):
     assert identity.resolution_method == "git_remote"
 
 
+def _declared_workspace(tmp_path: Path, workspace: Path, provider: str = "kilo"):
+    """Resolve with an official workspace, the path parsers actually supply."""
+    workspace.mkdir(parents=True, exist_ok=True)
+    return ProjectIdentityResolver(registry=ProjectAliasRegistry.empty()).resolve(
+        provider=provider,
+        surface="cli",
+        cwd=workspace,
+        official_workspace=workspace,
+        env={},
+    )
+
+
+def test_user_profile_root_is_a_profile_not_a_project(tmp_path, monkeypatch):
+    """Real capture: kilo/mimo/hermes reported cwd=C:\\Users\\miche.
+
+    The profile directory was minted as `root/miche-<digest>` — a project made
+    of the user's own name, exactly what ADR-006 forbids.
+    """
+    home = tmp_path / "Users" / "miche"
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("HOME", str(home))
+
+    identity = _declared_workspace(tmp_path, home)
+
+    assert not identity.project_id.startswith("root/")
+    assert "miche" not in identity.project_id
+    assert identity.project_id == "unclassified/kilo"
+
+
+def test_application_install_directory_is_not_a_project(tmp_path, monkeypatch):
+    """Real capture: kilo reported AppData\\Local\\Programs\\Microsoft VS Code."""
+    home = tmp_path / "Users" / "miche"
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("HOME", str(home))
+    vscode = home / "AppData" / "Local" / "Programs" / "Microsoft VS Code"
+
+    identity = _declared_workspace(tmp_path, vscode)
+
+    assert "microsoft-vs-code" not in identity.project_id
+    assert identity.project_id == "unclassified/kilo"
+
+
+def test_provider_state_directory_is_not_a_project(tmp_path, monkeypatch):
+    """Real capture: hermes reported AppData\\Local\\hermes\\workspace."""
+    home = tmp_path / "Users" / "miche"
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("HOME", str(home))
+    state = home / "AppData" / "Local" / "hermes" / "workspace"
+
+    identity = _declared_workspace(tmp_path, state, provider="hermes")
+
+    assert not identity.project_id.startswith("root/")
+    assert identity.project_id == "unclassified/hermes"
+
+
+def test_ordinary_directory_outside_system_locations_still_resolves(tmp_path, monkeypatch):
+    """The guard must not swallow legitimate non-git workspaces."""
+    home = tmp_path / "Users" / "miche"
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("HOME", str(home))
+    workspace = home / "Documents" / "RealProject"
+
+    identity = _declared_workspace(tmp_path, workspace)
+
+    assert identity.project_id.startswith("root/")
+    assert "realproject" in identity.project_id
+
+
+def test_git_repository_under_a_system_location_is_still_a_project(tmp_path, monkeypatch):
+    """Git evidence outranks the guard: a real repo is a real project."""
+    home = tmp_path / "Users" / "miche"
+    home.mkdir(parents=True)
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setenv("HOME", str(home))
+    repo = _repo(home / "AppData" / "Local" / "checkout")
+
+    identity = ProjectIdentityResolver(registry=ProjectAliasRegistry.empty()).resolve(
+        provider="kilo", surface="cli", cwd=repo, official_workspace=repo, env={}
+    )
+
+    assert identity.project_id.startswith("local/")
+    assert not identity.project_id.startswith("unclassified/")
+
+
 def test_unsafe_marker_traversal_is_rejected(tmp_path):
     path = _registry(
         tmp_path,

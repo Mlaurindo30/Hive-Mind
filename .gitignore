@@ -191,6 +191,7 @@ docs/12-knowledge-implementation-plan.md
 # Coverage artifacts (pytest-cov)
 .coverage
 .coverage.*
+.tmp/
 
 
 # ── Type-hint escape artifacts (M0: prevent reappearance of leaked Python

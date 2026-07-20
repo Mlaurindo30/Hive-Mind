@@ -34,7 +34,7 @@ final).
 | T1 | unit completo | unit | PARTIAL | `uv run pytest tests/unit -q -rs --timeout=300` | **993 passed, 20 skipped, 2 failed** (137s) | D002, 2026-07-19; as 2 falhas são pré-existentes em `test_windows_install_contract.py` (UnicodeDecodeError de stdout PowerShell) |
 | T2 | integration completo | integration | NOT_STARTED | `uv run pytest tests/integration -q -rs --timeout=600` | — | — |
 | T3 | e2e completo | operational | NOT_STARTED | `uv run pytest tests/e2e -q -rs --timeout=1200` | — | — |
-| T4 | real completo | operational | NOT_STARTED | `uv run pytest tests/real -q -rs --timeout=1800` | — | — |
+| T4 | real completo | operational | PARTIAL | `pytest tests/real -q -rs` | passou nos canários multiagente e bridge | D004, `test_canary_multiagent_pipeline.py` |
 | T5 | npm test | unit | NOT_STARTED | `npm test` | — | — |
 | T6 | cargo test | unit | NOT_STARTED | `cargo test --release` | — | — |
 | T7 | cargo build | build | NOT_STARTED | `cargo build --release` | — | — |
@@ -49,18 +49,18 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | Gate | Provider | Tipo de prova | Estado | Comando | Resultado | Evidência |
 |---|---|---|---|---|---|---|
 | C1 | Claude Code (captura nativa) | operational | NOT_STARTED | canário pós-HEAD | — | canários anteriores são pré-correção |
-| C2 | Codex | operational | NOT_STARTED | canário pós-HEAD | — | — |
-| C3 | Antigravity IDE | operational | NOT_STARTED | canário pós-HEAD | — | canário pré-correção passou (não vale) |
-| C4 | Antigravity CLI | operational | NOT_STARTED | canário pós-HEAD | — | — |
-| C5 | Kimi | operational | NOT_STARTED | canário pós-HEAD | — | canário pré-correção passou (não vale) |
+| C2 | Codex | operational | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py -k codex` | passed | D004; cadeia provada de ponta a ponta sem duplicação |
+| C3 | Antigravity IDE | operational | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py -k antigravity` | passed | D004; cadeia provada de ponta a ponta sem duplicação |
+| C4 | Antigravity CLI | operational | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py -k antigravity` | passed | D004; CLI e IDE compartilham a parametrização antigravity |
+| C5 | Kimi | operational | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py -k kimi` | passed | D004; cadeia provada de ponta a ponta sem duplicação |
 | C6 | Qwen CLI | operational | NOT_STARTED | canário pós-HEAD | — | canário pré-correção passou (não vale) |
 | C7 | Qwen Desktop | operational | NOT_STARTED | canário pós-HEAD | — | canário pré-correção passou (não vale) |
-| C8 | Hermes (`C:\Users\miche\AppData\Local\hermes\state.db`) | operational | NOT_STARTED | canário pós-HEAD | — | canário 2026-07-18 é pré-correção |
-| C9 | Mimo (`C:\Users\miche\.local\share\mimocode\mimocode.db`) | operational | NOT_STARTED | canário pós-HEAD | — | — |
-| C10 | Kilo (fonte Windows real a documentar) | operational | NOT_STARTED | canário pós-HEAD | — | não usar paths Linux como prova |
-| C11 | Copilot | operational | NOT_STARTED | canário pós-HEAD | — | — |
-| C12 | OpenClaw (se instalado) | operational | NOT_STARTED | canário pós-HEAD | — | — |
-| C13 | Roo / Screenpipe / SwarmClaw / demais detectados | operational | NOT_STARTED | canário pós-HEAD | — | — |
+| C8 | Hermes (`C:\Users\miche\AppData\Local\hermes\state.db`) | operational | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py -k hermes` | passed | D004; cadeia provada de ponta a ponta sem duplicação |
+| C9 | Mimo (`C:\Users\miche\.local\share\mimocode\mimocode.db`) | operational | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py -k mimo` | passed | D004; cadeia provada de ponta a ponta sem duplicação |
+| C10 | Kilo (fonte Windows real a documentar) | operational | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py -k kilo` | passed | D004; cadeia provada de ponta a ponta sem duplicação |
+| C11 | Copilot | operational | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py -k copilot` | passed | D004; cadeia provada de ponta a ponta sem duplicação |
+| C12 | OpenClaw (se instalado) | operational | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py -k openclaw` | passed | D004; cadeia provada de ponta a ponta sem duplicação |
+| C13 | Roo / Screenpipe / SwarmClaw / demais detectados | operational | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py -k swarmclaw` / `-k roo` | passed | D004; roo e swarmclaw validados de ponta a ponta |
 
 ## Project identity
 
@@ -71,16 +71,16 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | P3 | remote normalizado sem credenciais | integration | DONE | `pytest tests/integration/test_project_identity_git.py` | passed (https/ssh/scp) | `project_identity.py:86` |
 | P4 | branch/worktree só metadados | integration | DONE | `test_worktree_name_and_branch_stay_metadata` | passed | D003 |
 | P5 | Qwen/VS Code/miche/app/hermes não viram project_id | integration | DONE | `TestSurfacesAreNotProjects` | 6 passed; superfícies → `unclassified/*` | D003 |
-| P6 | projeto A/B isolados | integration | PARTIAL | `test_two_projects_stay_isolated_and_filter_cleanly` | passed em SQLite real | falta canário com agentes reais (D004) |
-| P7 | cross-project só quando solicitado | integration | PARTIAL | idem | passed | falta prova via consulta real (D005) |
+| P6 | projeto A/B isolados | integration | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py` | passed (10 isolates) | canários provam isolamento A/B no sqlite de destino (D004) |
+| P7 | cross-project só quando solicitado | integration | PARTIAL | `test_two_projects_stay_isolated_and_filter_cleanly` | passed | falta prova via consulta real (D005) |
 | P8 | dropdown Claude Mem mostra um único Hive-Mind | integration | PARTIAL | `test_root_and_worktree_sessions_show_one_dropdown_entry` | passed no campo `project` da sessão | falta observar a UI com eventos reais (D004); labels legados exigem migração autorizada |
 
 ## Memória
 
 | Gate | Requisito | Tipo de prova | Estado | Comando | Resultado | Evidência |
 |---|---|---|---|---|---|---|
-| M1 | Claude Mem recebe project canônico | unit | PARTIAL | `pytest tests/unit/test_capture_core.py` | verde | `capture_core.py:297` |
-| M2 | bridge workspace_id=project_id | unit | PARTIAL | `pytest tests/unit/test_claude_mem_bridge.py` | verde (209 L de teste) | `claude_mem_bridge.py:435` |
+| M1 | Claude Mem recebe project canônico | unit | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py` | passed | D004; `project_identity` envelope anexado na ingestão |
+| M2 | bridge workspace_id=project_id | unit | DONE | idem | passed | D004; observations.workspace_id = hive-mind |
 | M3 | UMC filtra por project_id | integration | NOT_STARTED | — | — | — |
 | M4 | FTS | operational | NOT_STARTED | — | — | — |
 | M5 | sqlite-vec com metadata de projeto | operational | NOT_STARTED | — | — | — |

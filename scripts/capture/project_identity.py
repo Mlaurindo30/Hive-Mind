@@ -622,6 +622,16 @@ class ProjectIdentityResolver:
             else:
                 project_id = _local_project_id(git.git_common_dir, git.repository_root)
                 project_name = Path(git.repository_root).name
+        elif is_non_project_root(root):
+            # A profile, application or provider-state directory is a surface,
+            # not a project (ADR-006). Git evidence above already outranks this.
+            return self._identity(
+                project_id=f"unclassified/{provider}",
+                project_name=f"Unclassified ({provider})",
+                workspace=root, git=None, provider=provider, surface=surface,
+                method="unclassified_provider", confidence=0.0,
+                references=references,
+            )
         else:
             project_id = _declared_root_project_id(root)
             project_name = Path(root).name
@@ -772,6 +782,90 @@ def _local_project_id(common_dir: str, repository_root: str) -> str:
 def _declared_root_project_id(root: str) -> str:
     label = _slug(Path(root).name) or "workspace"
     return f"root/{label}-{_stable_digest(canonical_path_key(root))}"
+
+
+# Directories that are a profile, an application install or provider state —
+# never a project (ADR-006). Real capture on Windows attributed sessions to
+# `root/miche-<digest>` (the user's own profile directory),
+# `root/microsoft-vs-code-<digest>` (the editor's install directory) and
+# `root/workspace-<digest>` (a provider's private state directory). Without git
+# evidence or a registry entry, a workspace inside one of these is not a
+# project: it resolves to `unclassified/<provider>` instead.
+_NON_PROJECT_SUBTREES = (
+    ("AppData",),
+    ("Library",),
+    (".cache",),
+    (".config",),
+    (".local", "share"),
+)
+
+# Temporary directories keep the previous behaviour: they live under AppData on
+# Windows, they are where ephemeral workspaces (and the test suite) legitimately
+# run, and the "official workspace" contract already gives them a full-path
+# identity. The guard targets profile, application and provider-state roots.
+_NON_PROJECT_EXEMPT_SUBTREES = (
+    ("AppData", "Local", "Temp"),
+)
+
+_NON_PROJECT_ABSOLUTE = (
+    "c:/program files",
+    "c:/program files (x86)",
+    "c:/programdata",
+    "c:/windows",
+    "/usr",
+    "/etc",
+    "/opt",
+    "/var",
+    "/library",
+    "/applications",
+)
+
+
+def _home_directory() -> Path | None:
+    for variable in ("USERPROFILE", "HOME"):
+        value = os.environ.get(variable)
+        if value and value.strip():
+            try:
+                return Path(value).expanduser()
+            except (OSError, ValueError):
+                continue
+    return None
+
+
+def is_non_project_root(root: str | os.PathLike[str] | None) -> bool:
+    """True when `root` is a profile, application or provider-state location."""
+    if root is None:
+        return False
+    key = canonical_path_key(root)
+    if not key:
+        return False
+
+    for prefix in _NON_PROJECT_ABSOLUTE:
+        if key == prefix or key.startswith(prefix.rstrip("/") + "/"):
+            return True
+
+    home = _home_directory()
+    if home is None:
+        return False
+    home_key = canonical_path_key(home)
+    if not home_key:
+        return False
+    # The profile root itself is a profile, not a project.
+    if key == home_key:
+        return True
+    if not key.startswith(home_key.rstrip("/") + "/"):
+        return False
+
+    relative = key[len(home_key.rstrip("/")) + 1:].split("/")
+
+    def _matches(subtree: tuple[str, ...]) -> bool:
+        return [part.casefold() for part in relative[: len(subtree)]] == [
+            part.casefold() for part in subtree
+        ]
+
+    if any(_matches(subtree) for subtree in _NON_PROJECT_EXEMPT_SUBTREES):
+        return False
+    return any(_matches(subtree) for subtree in _NON_PROJECT_SUBTREES)
 
 
 def _default_project_name(project_id: str) -> str:
