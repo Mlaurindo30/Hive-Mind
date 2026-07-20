@@ -80,7 +80,7 @@ teste unitário/integração; "REAL" = comprovado com evento real pós-HEAD.
 ## Fatos adicionais comprovados
 
 - F1 de empacotamento implementada (commits `e215fd6`…`6f6dc64`);
-- manifesto `config/runtime.yaml` AUSENTE (F2 não iniciada);
+- manifesto `config/runtime.yaml` implementado (Fase P2 instalada com D006);
 - caminho experimental outbox (`capture-hook.py` → `CaptureQueue`)
   desabilitado no runtime novo (`cb7e3bd` + `b329e84`); arquivos e
   bancos históricos preservados (ADR-011);

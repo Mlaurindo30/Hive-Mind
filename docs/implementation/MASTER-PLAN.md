@@ -113,7 +113,7 @@ Não iniciar supervisor real ainda.
 
 | ID | Entrega | Dependências | Estado | Evidência | Commit inicial | Commit final |
 |---|---|---|---|---|---|---|
-| D006 | Manifesto declarativo F2 | D005 | NOT_STARTED | — | — | — |
+| D006 | Manifesto declarativo F2 | D005 | DONE | `pytest tests/unit/test_runtime_yaml_*.py` | d793353 | — |
 
 ### P3 — Daemon shadow (spec F3)
 

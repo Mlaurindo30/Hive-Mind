@@ -1,0 +1,331 @@
+# runtime.yaml — Hive-Mind declarative control plane
+schema_version: 3
+profile: local-min               # local-min | local-full
+vault: cerebro
+pyproject_root: .                # resolvido em relação a este arquivo
+
+# ─── Paths (override dos defaults) ───────────────────
+paths:
+  data_dir: null                 # null = default do sistema
+  state_dir: null
+  log_dir: null
+  user_config_dir: null
+  config_file: null
+
+# ─── Serviços locais ───────────────────────────────────────────
+services:
+  - name: sinapse-claude-mem
+    description: claude-mem Worker (multi-project data)
+    enabled: true
+    required: true                 # gate de doctor
+    profiles: [local-min, local-full]
+    ownership: legacy              # legacy | shadow | managed
+    command: ["python", "-m", "claude_mem.worker"]
+    working_directory: .
+    env_file: .env
+    env:
+      CLAUDE_MEM_WORKER_HOST: "127.0.0.1"
+      CLAUDE_MEM_WORKER_PORT: "37700"
+      CLAUDE_MEM_CHROMA_ENABLED: "false"
+      CLAUDE_MEM_MANAGED: "true"
+    dependencies: []
+    startup_order: 10
+    restart_policy: on-failure
+    restart_delay_seconds: 15
+    restart_max_delay_seconds: 120
+    restart_limit: 10
+    readiness:
+      type: tcp
+      host: "127.0.0.1"
+      port: 37700
+      timeout_seconds: 60
+    healthcheck: null
+    requires_claude_mem_plugin: true
+    category: background-service
+
+  - name: hive-otel-collector
+    description: Hive-Mind local OTLP collector
+    enabled: true
+    required: false
+    profiles: [local-min, local-full]
+    ownership: legacy
+    command: ["python", "-m", "hive_mind.services.otel", "--host", "127.0.0.1"]
+    working_directory: .
+    env:
+      HIVE_OTEL_PORT: "3100"
+    dependencies: []
+    startup_order: 15
+    restart_policy: on-failure
+    restart_delay_seconds: 15
+    restart_max_delay_seconds: 120
+    restart_limit: 10
+    readiness: null
+    healthcheck: null
+    category: background-service
+
+  - name: sinapse-sqlite-vec
+    description: SQLite-Vec semantic search worker for Hive-Mind
+    enabled: true
+    required: true
+    profiles: [local-min, local-full]
+    ownership: legacy
+    command: ["python", "plugins/sqlite-vec-worker/worker.py"]
+    working_directory: .
+    env:
+      VEC_WORKER_PORT: "37701"
+    dependencies: [sinapse-claude-mem]
+    startup_order: 20
+    restart_policy: on-failure
+    restart_delay_seconds: 15
+    restart_max_delay_seconds: 120
+    restart_limit: 10
+    readiness:
+      type: tcp
+      host: "127.0.0.1"
+      port: 37701
+      timeout_seconds: 60
+    healthcheck: null
+    requires_claude_mem_plugin: true
+    category: background-service
+
+  - name: sinapse-graphify-watch
+    description: Hive-Mind Graphify vault watcher
+    enabled: true
+    required: false
+    profiles: [local-min, local-full]
+    ownership: legacy
+    command: ["python", "-m", "graphify", "watch", "cerebro", "--debounce", "10.0"]
+    working_directory: .
+    env:
+      GRAPHIFY_WATCH_DEBOUNCE: "10.0"
+      PYTHONUNBUFFERED: "1"
+    dependencies: []
+    startup_order: 30
+    restart_policy: always
+    restart_delay_seconds: 15
+    restart_max_delay_seconds: 120
+    restart_limit: 10
+    readiness: null
+    healthcheck: null
+    category: background-service
+
+  - name: sinapse-api
+    description: Hive-Mind authenticated REST API
+    enabled: true
+    required: false
+    profiles: [local-min, local-full]
+    ownership: legacy
+    command: ["python", "-m", "hive_mind.services.api"]
+    working_directory: .
+    env_file: .env
+    env:
+      HIVE_MIND_API_HOST: "127.0.0.1"
+      HIVE_MIND_API_PORT: "37702"
+    dependencies: [sinapse-sqlite-vec]
+    startup_order: 40
+    restart_policy: on-failure
+    restart_delay_seconds: 15
+    restart_max_delay_seconds: 120
+    restart_limit: 10
+    readiness:
+      type: http
+      url: "http://127.0.0.1:37702/api/v1/health"
+      expected_status: [200, 401]
+      timeout_seconds: 60
+    healthcheck: null
+    category: background-service
+
+  - name: sinapse-mcp-http
+    description: Hive-Mind MCP Streamable HTTP Server
+    enabled: true
+    required: false
+    profiles: [local-min, local-full]
+    ownership: legacy
+    command: ["python", "-m", "hive_mind.services.mcp_http"]
+    working_directory: .
+    env_file: .env
+    env:
+      SINAPSE_MCP_HTTP_HOST: "127.0.0.1"
+      SINAPSE_MCP_HTTP_PORT: "37703"
+    dependencies: [sinapse-api]
+    startup_order: 50
+    restart_policy: on-failure
+    restart_delay_seconds: 15
+    restart_max_delay_seconds: 120
+    restart_limit: 10
+    readiness:
+      type: http
+      url: "http://127.0.0.1:37703/health"
+      expected_status: [200]
+      timeout_seconds: 60
+    healthcheck: null
+    category: background-service
+
+  - name: sinapse-capture-realtime
+    description: Hive-Mind capture realtime
+    enabled: true
+    required: true
+    profiles: [local-min, local-full]
+    ownership: legacy
+    command: ["python", "-m", "hive_mind.services.capture_realtime"]
+    working_directory: .
+    env_file: .env
+    env:
+      HIVE_CAPTURE_DELIVERY_ENABLED: "0"
+      VEC_WORKER_URL: "http://127.0.0.1:37701"
+    dependencies: [sinapse-claude-mem, sinapse-sqlite-vec]
+    startup_order: 60
+    restart_policy: always
+    restart_delay_seconds: 15
+    restart_max_delay_seconds: 120
+    restart_limit: 10
+    readiness: null
+    healthcheck: null
+    category: user-session
+
+# ─── Serviços externos ───────────────────
+external_services:
+  - name: ollama
+    description: Local LLM / embedding provider
+    required: true
+    profiles: [local-min, local-full]
+    readiness:
+      type: http
+      url: "http://127.0.0.1:11434/api/tags"
+      expected_status: [200]
+      timeout_seconds: 60
+  - name: docker-desktop
+    description: Docker Desktop runtime
+    required: true
+    profiles: [local-full]
+    readiness:
+      type: command
+      command: ["docker", "info", "--format", "{{.ServerVersion}}"]
+      timeout_seconds: 60
+  - name: falkordb
+    description: FalkorDB Graph engine
+    required: true
+    profiles: [local-full]
+    dependencies: [docker-desktop]
+    readiness:
+      type: tcp
+      host: "127.0.0.1"
+      port: 6379
+      timeout_seconds: 120
+  - name: milvus
+    description: Milvus Vector Database
+    required: true
+    profiles: [local-full]
+    dependencies: [docker-desktop]
+    readiness:
+      type: tcp
+      host: "127.0.0.1"
+      port: 19530
+      timeout_seconds: 120
+  - name: ragflow
+    description: RAGFlow Deep RAG system
+    required: true
+    profiles: [local-full]
+    dependencies: [docker-desktop]
+    readiness:
+      type: http
+      url: "http://127.0.0.1:9380/api/v1/system/healthz"
+      expected_status: [200]
+      timeout_seconds: 180
+  - name: syncthing-watcher
+    description: Syncthing synchronization engine
+    required: true
+    profiles: [local-full]
+    readiness:
+      type: http
+      url: "http://127.0.0.1:8384/rest/noauth/health"
+      expected_status: [200, 401, 403]
+      timeout_seconds: 60
+  - name: lightrag
+    description: LightRAG Graph+Vector indexer
+    required: false
+    profiles: [local-full]
+    readiness:
+      type: http
+      url: "http://127.0.0.1:9621/health"
+      expected_status: [200]
+      timeout_seconds: 60
+
+# ─── Jobs periódicos ───
+jobs:
+  - name: dream-cycle
+    description: Consolidates observations into durable neurons
+    command: ["python", "scripts/dream/dream_cycle.py"]
+    schedule:
+      type: cron
+      expression: "0 3 * * *"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 1800
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: capture-tailer
+    description: Periodically tails and ingests agent session logs
+    command: ["python", "scripts/capture/capture-tailer.py", "--all", "--scan", "--since-hours", "1"]
+    schedule:
+      type: interval
+      seconds: 30
+      run_on_startup: false
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 300
+    retry:
+      max_attempts: 1
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+# ─── Docker compose projects ───────
+compose_projects:
+  - name: falkordb
+    file: docker-compose.falkordb.yml
+    profiles: [local-full]
+    health_check:
+      type: tcp
+      host: "127.0.0.1"
+      port: 6379
+      timeout_seconds: 60
+  - name: milvus
+    file: integrations/milvus/docker-compose.yml
+    profiles: [local-full]
+    health_check:
+      type: tcp
+      host: "127.0.0.1"
+      port: 19530
+      timeout_seconds: 120
+  - name: ragflow
+    file: integrations/ragflow/docker-compose.yml
+    profiles: [local-full]
+    health_check:
+      type: http
+      url: "http://127.0.0.1:9380/api/v1/system/healthz"
+      expected_status: [200]
+      timeout_seconds: 180
+  - name: langfuse
+    file: integrations/langfuse/docker-compose.yml
+    profiles: [local-full]
+    required: false
+    health_check:
+      type: http
+      url: "http://127.0.0.1:3000/api/public/health"
+      expected_status: [200]
+      timeout_seconds: 60
+
+# ─── Restart policy global ─────────────────────────────────────
+restart:
+  default_policy: on-failure
+  default_delay_seconds: 15
+  default_max_delay_seconds: 120
+  default_limit: 10
+  on_circuit_open: log_and_mark_degraded

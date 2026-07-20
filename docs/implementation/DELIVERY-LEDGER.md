@@ -386,4 +386,36 @@ DONE. A cadeia completa foi testada fim-a-fim de forma limpa, garantindo a autor
 
 ### Evidência operacional
 
-DONE. A Fase P1 está oficialmente **CONCLUÍDA**. Todos os critérios da Fase P1 foram validados em SQLite real com isolamento estrito de projetos A/B, promoção determinística de candidatos a neurônios e consultas filtradas sem vazamento.
+DONE. A Fase P1 está officially **CONCLUÍDA**. Todos os critérios da Fase P1 foram validados em SQLite real com isolamento estrito de projetos A/B, promoção determinística de candidatos a neurônios e consultas filtradas sem vazamento.
+
+---
+
+## D006 — Manifesto declarativo F2 & Ownership
+
+- fase: P2
+- estado: DONE
+- HEAD inicial: `d793353`
+- objetivo: implementar o manifesto declarativo `config/runtime.yaml` (schema v3), validação Pydantic v2 e comandos CLI nativos (`hive-mind config validate` / `hive-mind config show`).
+
+### Alterações reais
+
+| Arquivo | Mudança |
+|---|---|
+| `config/runtime.yaml` | novo — manifesto declarativo canônico v3 (serviços, serviços externos, jobs e compose) |
+| `src/hive_mind/daemon/manifest.py` | novo — modelos Pydantic v2 para schema, validação e invariantes |
+| `src/hive_mind/cli.py` | adicionados subcomandos `hive-mind config validate` e `hive-mind config show` |
+| `tests/unit/test_runtime_yaml_schema.py` | novo — suíte unitária de validação Pydantic |
+| `tests/unit/test_runtime_yaml_invariants.py` | novo — suíte unitária de invariantes e categorias |
+| `tests/unit/test_runtime_yaml_translation.py` | novo — suíte unitária de tradução das specs legadas |
+
+### Testes executados
+
+| Comando | Resultado |
+|---|---|
+| `pytest tests/unit/test_runtime_yaml_*.py` | 10 passed |
+| `hive-mind config validate` | passou (Manifesto válido) |
+| `hive-mind config show --json` | passou (emissão de JSON válida) |
+
+### Evidência operacional
+
+DONE. O manifesto declarativo e a infraestrutura de validação da Fase P2 foram entregues e cobertos por testes unitários sem impactar o runtime ativo.

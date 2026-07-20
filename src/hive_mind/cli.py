@@ -80,6 +80,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help="canonical project alias registry",
     )
     audit.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+
+    config_cmd = sub.add_parser("config", help="manage runtime declarative manifest")
+    config_sub = config_cmd.add_subparsers(dest="config_command")
+    cfg_val = config_sub.add_parser("validate", help="validate config/runtime.yaml manifest")
+    cfg_val.add_argument("--manifest", default=None, help="path to runtime.yaml manifest")
+    cfg_show = config_sub.add_parser("show", help="show parsed config/runtime.yaml manifest")
+    cfg_show.add_argument("--manifest", default=None, help="path to runtime.yaml manifest")
+    cfg_show.add_argument("--json", action="store_true", help="emit as JSON")
     return p
 
 
@@ -115,6 +123,33 @@ def main(argv: "list[str] | None" = None) -> int:
         else:
             print(render_audit_table(rows))
         return 0
+    if args.command == "config":
+        from pathlib import Path
+        from hive_mind.daemon.manifest import load_manifest, validate_manifest
+        manifest_p = Path(args.manifest) if args.manifest else Path("config/runtime.yaml")
+
+        if args.config_command == "validate":
+            errors = validate_manifest(manifest_p)
+            if errors:
+                for err in errors:
+                    print(err, file=sys.stderr)
+                return 1
+            print("Manifesto válido.")
+            return 0
+
+        if args.config_command == "show":
+            try:
+                manifest_obj = load_manifest(manifest_p)
+            except Exception as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+
+            if args.json:
+                print(manifest_obj.model_dump_json(indent=2))
+            else:
+                import yaml
+                print(yaml.safe_dump(manifest_obj.model_dump(), allow_unicode=True, default_flow_style=False))
+            return 0
     parser.print_help()
     return 0
 
