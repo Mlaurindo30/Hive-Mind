@@ -913,3 +913,66 @@ D004, D005, D006: DONE → **PARTIAL**. MASTER-PLAN alinhado ao ledger
 - rollback: `git revert` deste commit.
 - pendências restantes da auditoria: A-02 (canary runner), A-03
   (resolver), A-05 (scheduler paralelo), A-06 (4 listas de serviços).
+
+---
+
+## D008-R1 — Complete the job manifest (single source of truth)
+
+- fase: remediação (P4) — corrige **A-05** e a parte de jobs do **A-06**
+- estado: DONE
+- HEAD inicial: `fef5383`
+
+### Defeito real (pior que o registrado na auditoria)
+
+A auditoria registrou "scheduler paralelo com horário divergente". A
+investigação mostrou algo maior: `config/runtime.yaml` declarava **2**
+jobs enquanto o Linux (systemd, a implementação de referência que
+funcionava) agenda **16**, e o Task Scheduler Windows agenda 4 — dois
+deles inexistentes no manifesto.
+
+**O manifesto que se declarava fonte única cobria 12,5% dos jobs.** Um
+cutover pararia silenciosamente 14 jobs, incluindo backup e health.
+
+Além disso, o Windows rodava os 4 jobs simultaneamente às 02:00,
+destruindo a ordenação que o Linux garante e documenta:
+
+```
+sinapse-bridge  02:45   "roda ANTES do dream p/ alimentar o eixo"
+sinapse-dream   03:00
+```
+
+O manifesto (03:00) estava **correto**; o Task Scheduler é que divergia.
+
+### Correção
+
+17 jobs adicionados ao `config/runtime.yaml`, com os horários canônicos
+extraídos do systemd (`OnCalendar` → cron), mais os dois exclusivos do
+Windows (`audit_memory.py`, `maintenance/backup.py`). Total: **19 jobs**.
+Mudança **somente declarativa** — nenhum job foi executado, nenhum
+scheduler ativo tocado.
+
+### Testes
+
+`tests/unit/test_manifest_job_parity.py` (6 testes):
+
+- o manifesto cobre **todo** job do Task Scheduler Windows;
+- o manifesto cobre **todo** timer systemd;
+- `dream-cycle` mantém o cron canônico `0 3 * * *`;
+- **a bridge roda antes do dream** (ordenação é comportamento, não
+  cosmética);
+- guard do próprio parser (se a leitura do legado esvaziar, a paridade
+  não vira vácuo).
+
+### Evidência
+
+- `hive-mind config validate` → `Manifesto válido.`
+- shadow scheduler real: **19 jobs** com next-run calculado, ordenação
+  preservada.
+- `pytest tests/unit`: **1140 passed, 21 skipped, 2 failed**
+  (pré-existentes PowerShell).
+
+- rollback: `git revert` deste commit.
+- **não resolve sozinho o A-05**: o Task Scheduler e os systemd timers
+  seguem sendo os donos reais até o cutover (D010). O que muda é que o
+  manifesto agora descreve a realidade — pré-requisito para o cutover
+  ser seguro.

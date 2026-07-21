@@ -286,6 +286,295 @@ jobs:
     category: scheduled-job
     blocking_service: null
 
+  - name: claude-mem-bridge
+    description: Feeds claude-mem observations into UMC before the dream cycle
+    command: ["python", "scripts/services/claude_mem_bridge.py"]
+    schedule:
+      type: cron
+      expression: "45 2 * * *"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 900
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: daily-writer
+    description: Aggregates the day's sessions into the daily log
+    command: ["python", "scripts/dream/daily_writer.py"]
+    schedule:
+      type: cron
+      expression: "55 23 * * *"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 900
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: weekly-synthesizer
+    description: Weekly synthesis over the consolidated week
+    command: ["python", "scripts/dream/weekly_synthesizer.py"]
+    schedule:
+      type: cron
+      expression: "0 4 * * 0"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 1800
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: capture-maintenance
+    description: Weekly capture housekeeping
+    command: ["python", "scripts/capture/capture_maintenance.py"]
+    schedule:
+      type: cron
+      expression: "0 4 * * 0"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 1800
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: health-dashboard
+    description: Refreshes the health dashboard
+    command: ["python", "scripts/health/health_dashboard.py"]
+    schedule:
+      type: cron
+      expression: "50 23 * * *"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 600
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: alert-dispatcher
+    description: Dispatches health alerts
+    command: ["python", "scripts/health/alert_dispatcher.py"]
+    schedule:
+      type: cron
+      expression: "52 23 * * *"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 600
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: backup-databases
+    description: Daily database backup
+    command: ["python", "scripts/health/backup_databases.py"]
+    schedule:
+      type: cron
+      expression: "0 2 * * *"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 1800
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: knowledge-health
+    description: Audits memory/knowledge integrity
+    command: ["python", "scripts/health/audit_memory.py"]
+    schedule:
+      type: cron
+      expression: "0 2 * * *"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 1800
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: backup
+    description: Daily filesystem/state backup
+    command: ["python", "scripts/maintenance/backup.py"]
+    schedule:
+      type: cron
+      expression: "0 2 * * *"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 1800
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: decision-promoter
+    description: Promotes pending decisions into typed knowledge
+    command: ["python", "scripts/knowledge/decision_promoter.py"]
+    schedule:
+      type: cron
+      expression: "40 23 * * *"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 900
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: project-synthesizer
+    description: Synthesises per-project knowledge
+    command: ["python", "scripts/knowledge/project_synthesizer.py"]
+    schedule:
+      type: cron
+      expression: "42 23 * * *"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 900
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: work-tracker
+    description: Tracks work items across sessions
+    command: ["python", "scripts/knowledge/work_tracker.py"]
+    schedule:
+      type: cron
+      expression: "44 23 * * *"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 900
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: pattern-distiller
+    description: Weekly pattern distillation
+    command: ["python", "scripts/knowledge/pattern_distiller.py"]
+    schedule:
+      type: cron
+      expression: "0 5 * * 0"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 1800
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: conflict-detector
+    description: Weekly knowledge conflict detection
+    command: ["python", "scripts/knowledge/conflict_detector.py"]
+    schedule:
+      type: cron
+      expression: "30 5 * * 0"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 1800
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: topic-consolidator
+    description: Weekly topic consolidation
+    command: ["python", "scripts/knowledge/topic_consolidator.py"]
+    schedule:
+      type: cron
+      expression: "0 6 * * 0"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 1800
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: review-writer
+    description: Writes the review queue digest
+    command: ["python", "scripts/knowledge/review_writer.py"]
+    schedule:
+      type: cron
+      expression: "7 8 * * *"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 900
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
+  - name: drift-detector
+    description: Monthly knowledge drift detection
+    command: ["python", "scripts/knowledge/drift_detector.py"]
+    schedule:
+      type: cron
+      expression: "0 2 1 * *"
+      timezone: "America/Sao_Paulo"
+      misfire_policy: run_once
+      max_instances: 1
+    enabled: true
+    timeout_seconds: 1800
+    retry:
+      max_attempts: 0
+    on_failure: log
+    category: scheduled-job
+    blocking_service: null
+
 # ─── Docker compose projects ───────
 compose_projects:
   - name: falkordb
