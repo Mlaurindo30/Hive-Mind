@@ -123,6 +123,15 @@ def _build_parser() -> argparse.ArgumentParser:
     ag_reg.add_argument("--only", default=None, help="register a single provider by id")
     ag_reg.add_argument("--project-root", default=None, help="project root override")
     ag_reg.add_argument("--json", action="store_true", help="emit as JSON")
+
+    validate_cmd = sub.add_parser("validate", help="validate the pipeline against real data")
+    validate_sub = validate_cmd.add_subparsers(dest="validate_command")
+    val_agents = validate_sub.add_parser(
+        "agents",
+        help="multiagent capture canary over real sources and real delivery state",
+    )
+    val_agents.add_argument("--only", default=None, help="validate a single provider")
+    val_agents.add_argument("--json", action="store_true", help="emit as JSON")
     return p
 
 
@@ -200,8 +209,54 @@ def main(argv: "list[str] | None" = None) -> int:
         return _service_ping(args)
     if args.command == "agents":
         return _agents(args)
+    if args.command == "validate" and args.validate_command == "agents":
+        return _validate_agents(args)
     parser.print_help()
     return 0
+
+
+def _validate_agents(args) -> int:
+    """Real-data capture canary. Reads only; writes nothing."""
+    from hive_mind.validation import canary
+
+    report, outbox, umc = canary.run([args.only] if args.only else None)
+
+    if args.json:
+        print(json.dumps(
+            {"report": report.to_dict(),
+             "outbox": outbox.__dict__, "umc": umc.__dict__},
+            ensure_ascii=False, indent=2, default=str,
+        ))
+        return 0 if report.ok else 1
+
+    print("hive-mind validate agents — real sources, real parsers, read-only\n")
+    for r in report.results:
+        mark = {"PASSED": "OK  ", "FAILED": "FAIL", "SKIPPED": "--  ", "ERROR": "ERR "}[
+            r.status.value
+        ]
+        detail = r.reason or f"project_id={r.project_id} sessions={r.inserted}"
+        print(f"  {mark} {r.provider:<12} {detail}")
+
+    print(f"\n  delivery state ({outbox.path}):")
+    if not outbox.exists:
+        print("    outbox absent")
+    else:
+        print(f"    {outbox.total} events, {outbox.delivered} delivered, "
+              f"{outbox.undelivered} undelivered")
+        if outbox.stalled:
+            print("    *** NOTHING was ever delivered — the chain is broken ***")
+
+    print(f"\n  UMC ({umc.path}):")
+    if not umc.exists:
+        print("    UMC absent")
+    else:
+        print(f"    {umc.observations} observations, "
+              f"{umc.canonical} canonical workspace ({umc.canonical_pct:.1f}%), "
+              f"{umc.legacy} legacy/default")
+
+    print(f"\n  {len(report.passed)} passed, {len(report.failed)} failed "
+          f"of {len(report.results)}")
+    return 0 if report.ok else 1
 
 
 def _agents(args) -> int:

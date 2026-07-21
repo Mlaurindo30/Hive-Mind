@@ -1051,3 +1051,107 @@ restaurável, ausência de dupla execução pós-cutover.
 **D008 não é promovida a DONE com base em paridade de manifesto.**
 
 - rollback: `git revert` dos commits desta entrega.
+
+---
+
+## D004-R1 — Port multiagent canary to native package (and make it real)
+
+- fase: remediação (P1)
+- estado: DONE
+- HEAD inicial: `33191e3`
+- objetivo: portar `scripts/health/canary_multiagent_runner.py` (A-02) para
+  o pacote nativo, **separando** biblioteca/CLI/providers/relatório.
+
+### O que a análise encontrou antes de portar
+
+O runner (225 L) não validava captura. Ele:
+
+1. construía uma **sessão sintética** em código (não lia fonte de provider);
+2. criava **schemas SQLite mock** (`CREATE TABLE observations…`);
+3. **monkeypatchava** `bridge_mod.get_connection` e `ensure_migrations`;
+4. inseria o próprio dado e verificava que ele saía do outro lado.
+
+`tests/real/test_canary_multiagent_pipeline.py` faz o mesmo
+(`raw_session` sintético + `monkeypatch.setattr` do bridge). Ou seja: os
+gates C2–C13 estavam `DONE / operational / "cadeia provada de ponta a
+ponta"` com **evidência mockada** — violando a regra 5 do README
+("teste mockado não é evidência operacional").
+
+**Portar isso mecanicamente teria carregado a mentira para o pacote
+nativo.** Foi reescrito.
+
+### O que o canário real revelou
+
+Executando `hive-mind validate agents` contra os bancos reais (leitura):
+
+| Fato real | Valor |
+|---|---|
+| `capture_outbox` (`~/.claude-mem/capture.db`, 38 MB) | **18.579 eventos, 0 entregues** |
+| Por provider (não entregues) | codex 17.710, antigravity 865, mimo 4 |
+| Evento não-entregue mais recente | **2026-07-20T22:22** (fila crescendo agora) |
+| UMC real (`D:/Hive-Mind/hive_mind.db`) | 1.094 observations, **0 com workspace canônico (0,0%)** |
+
+A correção de identidade das D002/D003 **não alcançou nenhum dado real**,
+porque o elo que alimentaria o UMC é o outbox — que nunca entregou nada.
+
+### Arquitetura do módulo nativo
+
+`src/hive_mind/validation/` — decomposto, não copiado:
+
+| Módulo | Responsabilidade |
+|---|---|
+| `models.py` | `CanaryStatus`/`CanaryResult`/`CanaryReport` — puro, sem I/O |
+| `sources.py` | descoberta das **fontes reais** e execução do **parser real** |
+| `delivery.py` | inspeção **read-only** (`mode=ro`) do outbox e do UMC |
+| `canary.py` | orquestração e julgamento |
+| `cli.py` | `hive-mind validate agents [--only] [--json]` |
+
+Contrato: sem escrita, sem mock, sem monkeypatch, sem `CREATE TABLE`,
+sem dependência do caminho da worktree, providers vindos do registry
+(não hardcoded).
+
+### Correção do próprio critério de aprovação
+
+A primeira versão aprovava `copilot` com `sessions=0` e
+`unclassified/copilot`. Um canário que aprova identidade não-classificada
+concorda com o pipeline quebrado. Endurecido: só passa com ≥1 sessão
+resolvida para projeto **classificado** e sem backlog não-entregue. O
+relatório passou a exibir a identidade que **justificou** o PASS, não a
+da primeira sessão (antes mostrava `unclassified/hermes` num PASS).
+
+### Resultado real (2026-07-20)
+
+```
+FAIL antigravity  1 sessão real, nenhuma classificada (unclassified/antigravity)
+FAIL codex        17710 eventos presos no outbox
+FAIL copilot      2 sessões reais, nenhuma classificada
+OK   hermes       root/referenced-chatgpt-... (19 sessões)
+OK   kilo         hive-mind (1 sessão)
+FAIL kimi         parser não produziu sessão de wire.jsonl
+FAIL mimo         4 eventos presos
+OK   qwen         root/shadow-run-clean-...
+--   openclaw/roo/screenpipe/swarmclaw: sem fonte real
+4 passed, 4 failed, 4 skipped
+```
+
+### Testes
+
+`tests/unit/test_validation_canary.py` (16): agregação de relatório (run
+vazio **não** é sucesso), detecção de outbox travado, contagem por
+provider, `default`/vazio não contam como workspace canônico, e guardas
+anti-regressão — sem `scenario.py`, sem `CREATE TABLE`, sem monkeypatch
+no código executável, bancos abertos `mode=ro`.
+
+### Script legado
+
+`scripts/health/canary_multiagent_runner.py`: 225 → **28 linhas**, shim
+que delega a `hive-mind validate agents`. Remoção em D009-R6.
+
+### Correção de status
+
+C2–C13: `DONE` → **FAILED**. A evidência anterior era mockada. O estado
+real da captura está quebrado no elo de entrega.
+
+- `pytest tests/unit`: **1161 passed, 26 skipped, 2 failed** (pré-existentes).
+- **nenhuma escrita** em banco histórico, config ou runtime.
+- rollback: `git revert` do commit desta entrega.
