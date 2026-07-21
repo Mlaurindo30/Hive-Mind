@@ -256,6 +256,11 @@ jobs:
   - name: dream-cycle
     description: Consolidates observations into durable neurons
     command: ["python", "scripts/dream/dream_cycle.py"]
+    # The bridge feeds the dream: ordering is a contract, not a clock gap.
+    depends_on:
+      - claude-mem-bridge
+    dependency_policy:
+      require_success_since_last_run: true
     schedule:
       type: cron
       expression: "0 3 * * *"
@@ -422,22 +427,6 @@ jobs:
     category: scheduled-job
     blocking_service: null
 
-  - name: backup
-    description: Daily filesystem/state backup
-    command: ["python", "scripts/maintenance/backup.py"]
-    schedule:
-      type: cron
-      expression: "0 2 * * *"
-      timezone: "America/Sao_Paulo"
-      misfire_policy: run_once
-      max_instances: 1
-    enabled: true
-    timeout_seconds: 1800
-    retry:
-      max_attempts: 0
-    on_failure: log
-    category: scheduled-job
-    blocking_service: null
 
   - name: decision-promoter
     description: Promotes pending decisions into typed knowledge

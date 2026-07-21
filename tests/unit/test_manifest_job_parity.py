@@ -72,11 +72,35 @@ def test_legacy_definitions_are_still_readable():
     assert _windows_task_scripts(), "could not parse Windows scheduled tasks"
 
 
-def test_manifest_covers_every_windows_scheduled_task():
-    missing = _windows_task_scripts() - _manifest_scripts()
+def _live(scripts: set[str]) -> set[str]:
+    """Only legacy entries whose script actually exists count for parity.
+
+    register-windows-jobs.ps1 guards every task with `Test-Path ... continue`,
+    so a task pointing at a missing script is never registered. Requiring the
+    manifest to carry it would mean porting a dead job by inertia.
+    """
+    return {s for s in scripts if (ROOT / s).is_file()}
+
+
+def test_manifest_covers_every_live_windows_scheduled_task():
+    missing = _live(_windows_task_scripts()) - _manifest_scripts()
     assert missing == set(), (
         "config/runtime.yaml does not schedule jobs the Windows Task Scheduler "
         f"still runs; a cutover would stop them silently: {sorted(missing)}"
+    )
+
+
+def test_dead_windows_tasks_are_deliberately_excluded():
+    """Documents the jobs intentionally NOT carried over, with the reason.
+
+    D008-R1V found `scripts/maintenance/backup.py` present only as an untracked
+    file on the maintainer's machine and duplicated by `backup-databases`. It is
+    excluded on purpose; this test fails if it ever becomes real code, forcing a
+    fresh decision instead of a silent gap.
+    """
+    dead = _windows_task_scripts() - _live(_windows_task_scripts())
+    assert dead == {"scripts/maintenance/backup.py"}, (
+        f"the set of dead legacy tasks changed; re-validate the inventory: {dead}"
     )
 
 

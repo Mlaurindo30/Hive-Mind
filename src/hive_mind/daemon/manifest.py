@@ -77,6 +77,18 @@ class JobRetryPolicy(BaseModel):
     max_attempts: int = 0
 
 
+class JobDependencyPolicy(BaseModel):
+    """How a declared job dependency is enforced.
+
+    `require_success_since_last_run`: the dependency must have completed
+    successfully since this job last ran, otherwise this job is held.
+    Ordering encoded only as a clock gap is not a contract — a slow
+    dependency, a reboot in between, or a misfire silently breaks it.
+    """
+
+    require_success_since_last_run: bool = False
+
+
 class JobSpec(BaseModel):
     name: str
     description: Optional[str] = None
@@ -88,6 +100,8 @@ class JobSpec(BaseModel):
     on_failure: Literal["log", "notify"] = "log"
     category: Literal["scheduled-job"] = "scheduled-job"
     blocking_service: Optional[str] = None
+    depends_on: List[str] = Field(default_factory=list)
+    dependency_policy: JobDependencyPolicy = Field(default_factory=JobDependencyPolicy)
 
 
 class ComposeProjectSpec(BaseModel):
@@ -146,7 +160,40 @@ class RuntimeManifest(BaseModel):
                 if dep not in all_known:
                     raise ValueError(f"Serviço '{s.name}' depende de '{dep}' que não existe no manifesto")
 
+        self._validate_job_dependencies()
         return self
+
+    def _validate_job_dependencies(self) -> None:
+        """Job dependencies must exist, be acyclic, and never self-reference."""
+        job_names = {j.name for j in self.jobs}
+        graph: Dict[str, List[str]] = {}
+        for job in self.jobs:
+            for dep in job.depends_on:
+                if dep == job.name:
+                    raise ValueError(f"Job '{job.name}' depende de si mesmo")
+                if dep not in job_names:
+                    raise ValueError(
+                        f"Job '{job.name}' depende de '{dep}' que não existe no manifesto"
+                    )
+            graph[job.name] = list(job.depends_on)
+
+        visiting: Set[str] = set()
+        done: Set[str] = set()
+
+        def visit(name: str, trail: List[str]) -> None:
+            if name in done:
+                return
+            if name in visiting:
+                cycle = " -> ".join([*trail, name])
+                raise ValueError(f"Ciclo de dependência entre jobs: {cycle}")
+            visiting.add(name)
+            for dep in graph.get(name, []):
+                visit(dep, [*trail, name])
+            visiting.discard(name)
+            done.add(name)
+
+        for name in graph:
+            visit(name, [])
 
 
 def load_manifest(manifest_path: Path) -> RuntimeManifest:
