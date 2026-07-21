@@ -136,13 +136,37 @@ class TestRegisterIsSafeByDefault:
 
 
 class TestDeprecatedOutboxStaysUnwired:
-    def test_register_mcp_ps1_does_not_install_capture_hooks(self):
-        """ADR-004: the outbox path must not be re-wired by the installer."""
-        script = ROOT / "scripts" / "setup" / "register-mcp.ps1"
+    """ADR-004: neither installer may re-wire the outbox delivery path.
+
+    Both are asserted, because they diverged once: the .ps1 was fixed in
+    b329e84 while the .sh kept invoking install-capture-hooks.py, leaving a
+    second delivery owner alive on POSIX.
+    """
+
+    @pytest.mark.parametrize("script_name", ["register-mcp.ps1", "register-mcp.sh"])
+    def test_installer_does_not_install_capture_hooks(self, script_name):
+        script = ROOT / "scripts" / "setup" / script_name
         executable = [
             line
             for line in script.read_text(encoding="utf-8-sig").splitlines()
             if not line.strip().startswith("#")
         ]
-        offenders = [line for line in executable if "install-capture-hooks" in line]
-        assert offenders == [], f"register-mcp.ps1 re-wires the outbox: {offenders}"
+        offenders = [
+            line
+            for line in executable
+            if "install-capture-hooks" in line or "install_capture_hooks" in line
+        ]
+        assert offenders == [], f"{script_name} re-wires the outbox: {offenders}"
+
+    def test_both_installers_agree(self):
+        """The two installers must not diverge on delivery ownership."""
+        setup = ROOT / "scripts" / "setup"
+        wired = {}
+        for name in ("register-mcp.ps1", "register-mcp.sh"):
+            lines = [
+                line
+                for line in (setup / name).read_text(encoding="utf-8-sig").splitlines()
+                if not line.strip().startswith("#")
+            ]
+            wired[name] = any("capture-hook" in line or "capture_hook" in line for line in lines)
+        assert len(set(wired.values())) == 1, f"installers diverge: {wired}"

@@ -887,3 +887,29 @@ D004, D005, D006: DONE → **PARTIAL**. MASTER-PLAN alinhado ao ledger
   religa o capture hook.
 - correção adicional: docstring não-raw em `daemon/control.py` (emitia
   `SyntaxWarning` ao ser parseada) → prefixo `r"""`.
+
+---
+
+## D009-R3 — POSIX parity: stop re-wiring the outbox in register-mcp.sh
+
+- fase: remediação (P5) — corrige o achado **A-04** da auditoria D009-R1
+- estado: DONE
+- defeito: `register-mcp.sh` definia `install_capture_hooks()` e a invocava
+  em dois pontos, religando o caminho `ProviderEvent → CaptureQueue →
+  outbox` no POSIX. O `register-mcp.ps1` teve isso removido em `b329e84`;
+  o `.sh` ficou para trás, deixando **dois donos de entrega** fora do
+  Windows (viola ADR-004).
+- correção: removida a função e as duas invocações, substituídas pelo
+  mesmo comentário explicativo do `.ps1`, incluindo a nota de que os dois
+  instaladores não podem divergir. **Nenhuma lógica foi adicionada** ao
+  script — só removida.
+- o registro MCP em si permanece intacto (11 referências às funções de
+  registro preservadas); `bash -n` passa.
+- testes: `test_architecture_boundaries.py` estendido — o guard do
+  capture hook agora é parametrizado nos **dois** instaladores, mais
+  `test_both_installers_agree` que falha se voltarem a divergir. 11 testes.
+- `pytest tests/unit`: **1135 passed, 21 skipped, 2 failed**
+  (pré-existentes PowerShell).
+- rollback: `git revert` deste commit.
+- pendências restantes da auditoria: A-02 (canary runner), A-03
+  (resolver), A-05 (scheduler paralelo), A-06 (4 listas de serviços).

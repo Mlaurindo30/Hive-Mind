@@ -351,18 +351,26 @@ PYEOF
     echo -e "    ${GREEN}↳${NC} prompt injetado em ${target#$PROJECT_ROOT/}"
 }
 
-# Hive-Mind capture hooks (additive; a failure here must never block MCP
-# registration — the hooks themselves are non-blocking by contract).
-install_capture_hooks() {
-    local INSTALLER="$PROJECT_ROOT/scripts/setup/install-capture-hooks.py"
-    [ -f "$INSTALLER" ] || return 0
-    [ -n "$PYTHON" ] || return 0
-    if $CHECK_ONLY; then
-        "$PYTHON" "$INSTALLER" --check || true
-    else
-        "$PYTHON" "$INSTALLER" --install || true
-    fi
-}
+# --- capture delivery ownership ----------------------------------------------
+#
+# The canonical capture pipeline is:
+#
+#     provider/parser -> normalized session -> capture_core.ingest() -> Claude Mem
+#
+# driven by capture-realtime.py / capture-tailer.py. That is the single owner of
+# delivery.
+#
+# The deprecated ProviderEvent -> CaptureQueue -> outbox path is NOT part of the
+# runtime. install-capture-hooks.py is deliberately NOT invoked here: registering
+# it would create a second delivery owner writing into an outbox that nothing
+# drains. capture-hook.py and capture_queue.py are retained on disk for
+# historical auditing only. Do not re-add a call to install-capture-hooks.py
+# from this script.
+#
+# This mirrors the same removal made for register-mcp.ps1 in b329e84; the two
+# installers must not diverge (ADR-004).
+#
+# Claude Code's own native capture plugin is untouched by this script.
 
 # Registers the agent's MCP and injects the policy into its prompt (unless
 # --check ou --no-instructions). Fonte única: $PROMPT_SRC.
@@ -384,7 +392,6 @@ echo ""
 if [ -n "$ONLY" ]; then
     echo "Modo single-agent: $ONLY"
     run_agent "$ONLY"
-    install_capture_hooks
     echo ""
     if $CHECK_ONLY; then
         echo "Verification completed for: $ONLY"
@@ -413,8 +420,6 @@ fi
 command -v opencode &>/dev/null && run_agent opencode
 command -v openclaw &>/dev/null && run_agent openclaw
 { command -v swarmclaw &>/dev/null || [ -d "$HOME/.swarmclaw" ]; } && run_agent swarmclaw
-
-install_capture_hooks
 
 echo ""
 if [ "$AGENTS_FOUND" -eq 0 ]; then
