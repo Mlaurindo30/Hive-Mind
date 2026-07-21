@@ -98,6 +98,40 @@ serviços `required: true` estão `ready`.
 daemon gerenciado — que de fato inicia e supervisiona serviços — chega
 na F4 (D008+). Shadow nunca vira managed sozinho.
 
+## Infraestrutura Docker e autostart
+
+**CURRENT.** Docker Desktop inicia com o Windows pela chave
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`. O autostart do
+Hive-Mind vem de tarefas do Task Scheduler registradas em `AtLogon`
+(`HiveMind-Supervisor`, `HiveMind-PostRebootValidation`).
+
+Os três compose projects obrigatórios são:
+
+| Projeto | Compose | Containers |
+|---|---|---|
+| falkordb | `docker-compose.falkordb.yml` | `sinapse-falkordb` |
+| milvus | `integrations/milvus/docker-compose.yml` | `hive-mind-milvus` |
+| ragflow | `integrations/ragflow/docker-compose.yml` | `hive-mind-ragflow`, `-mysql`, `es01`, `redis`, `minio` |
+
+`langfuse` é `required: false` — opcional.
+
+### Restart policy é o que faz a stack voltar
+
+Docker iniciar **não** basta: um container só retorna se o serviço
+declarar `restart`. Um incidente real mostrou a diferença — `falkordb`
+tinha `unless-stopped` e voltava, enquanto milvus e os cinco containers
+do ragflow tinham `restart: no` e ficavam fora. A stack parecia
+habilitada com dois dos três projetos obrigatórios ausentes.
+
+Todo serviço de compose obrigatório declara `restart: unless-stopped`.
+`tests/unit/test_compose_restart_policy.py` lê os projetos obrigatórios
+do manifesto e falha se algum serviço não voltar após um restart do
+Docker — inclusive em projeto novo.
+
+Instalação limpa herda isso automaticamente: `install.ps1` e `install.sh`
+executam `docker compose up -d` sobre os arquivos do próprio repositório,
+não geram compose.
+
 ## State directory
 
 `state_dir` (default `<project-root>/.hive-mind/state/`, ignorado pelo
