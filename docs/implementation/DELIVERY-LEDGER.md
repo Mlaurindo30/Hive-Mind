@@ -1217,3 +1217,87 @@ nenhum script legado é executado e nenhum shell é spawnado.
 - `hive-mind validate agents --only kilo` segue resolvendo `hive-mind`.
 
 - rollback: `git revert` do commit desta entrega.
+
+---
+
+## D006-R1 — Make the runtime manifest the only service catalog
+
+- fase: remediação (P2)
+- estado: **PARTIAL** — bloqueada por dois achados que exigem decisão de
+  schema, não trabalho mecânico.
+- HEAD inicial: `bf60028`
+- objetivo (A-06): eliminar catálogos concorrentes
+  (`unit_definitions()`, `npm/lib/services.js`), fazendo os geradores
+  consumirem `config/runtime.yaml`.
+
+### Método
+
+Comparação por **script executado**, não por nome — os catálogos usam
+convenções diferentes (`sinapse-dream` vs `dream-cycle`), então comparar
+nomes produziria falsos positivos em massa.
+
+### Achado 1 — o manifesto declara serviços que não existem
+
+Quatro dos sete serviços apontam para módulos nativos **inexistentes**:
+
+| Serviço | Comando declarado | Existe? |
+|---|---|---|
+| `sinapse-api` | `python -m hive_mind.services.api` | ❌ |
+| `hive-otel-collector` | `python -m hive_mind.services.otel` | ❌ |
+| `sinapse-mcp-http` | `python -m hive_mind.services.mcp_http` | ❌ |
+| `sinapse-capture-realtime` | `python -m hive_mind.services.capture_realtime` | ❌ |
+
+`hive_mind.services` **não existe** (`ModuleNotFoundError`). O systemd
+roda os scripts legados reais (`scripts/services/sinapse-api.py` etc.).
+
+Ou seja: o manifesto descreve o **TARGET** como se fosse o **CURRENT**.
+Se o daemon tentasse iniciar qualquer um deles, falharia na hora. É
+exatamente a falha que a seção 17 da instrução proíbe ("não descrever o
+estado desejado como se já estivesse implementado").
+
+**Consequência:** apontar o gerador para o manifesto hoje geraria units
+quebradas. A de-duplicação depende de portar `hive_mind.services.*`
+primeiro.
+
+### Achado 2 — responsabilidade real ausente do manifesto
+
+`post-reboot validation` roda em **ambas** as plataformas —
+`sinapse-post-reboot-validation.service` → `validate_after_reboot.py`
+(systemd) e `HiveMind-PostRebootValidation` →
+`validate_after_reboot_windows.py` (Task Scheduler) — e tem **zero**
+referências no manifesto. Um cutover a pararia em silêncio nos dois SOs.
+
+Como a mesma responsabilidade usa **scripts diferentes por plataforma**,
+um único `command:` não a expressa: exige entrada platform-aware no
+schema — decisão de design, não adição mecânica.
+
+### Testes (travam os dois achados)
+
+`tests/unit/test_service_catalog_parity.py` (7):
+- `test_manifest_service_modules_are_honest_about_existing` — um módulo
+  declarado ou importa, ou está registrado como aspiracional;
+- `test_aspirational_modules_are_still_missing` — **falha quando o módulo
+  nascer**, forçando a remoção da exceção;
+- `test_manifest_covers_every_systemd_unit_script` — nada que o systemd
+  roda fica fora do manifesto sem ser lacuna declarada;
+- `test_known_gaps_are_still_real` / `test_gap_scripts_exist_on_disk` —
+  uma lacuna que virou código coberto, ou que aponta para script morto,
+  falha;
+- `test_post_reboot_validation_runs_on_both_platforms` — documenta por
+  que a lacuna precisa de entrada platform-aware;
+- `test_only_one_catalog_is_authoritative_eventually` — registra a
+  duplicação atual e **falha quando só o manifesto sobrar**, obrigando a
+  virar a asserção para single-source.
+
+### Por que PARTIAL e não DONE
+
+A de-duplicação real (gerador consumindo o manifesto) está bloqueada por:
+
+1. portar `hive_mind.services.{api,otel,mcp_http,capture_realtime}`;
+2. decidir a representação platform-aware para post-reboot validation.
+
+Fazer a delegação antes disso trocaria três catálogos honestos por um
+catálogo único **quebrado**.
+
+- nenhuma alteração em runtime, configs reais ou bancos.
+- rollback: `git revert` do commit desta entrega.
