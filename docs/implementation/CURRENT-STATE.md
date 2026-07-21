@@ -1,5 +1,13 @@
 # Current Implementation State
 
+> **Auditoria D009-R1 (2026-07-20):** este documento foi revisado contra o
+> código. Ver [AUDIT-D001-D009.md](AUDIT-D001-D009.md). Compliance da
+> arquitetura nativa: **PARTIAL** — nada de lógica nova entrou em scripts
+> de shell desde a D001, mas dívida herdada (4 listas de serviços,
+> scheduler paralelo, `register-mcp.sh` religando o outbox) e dois
+> desvios do período (canary runner e resolver fora do pacote) seguem
+> abertos. D004/D005/D006 foram rebaixadas para PARTIAL.
+
 Descreve SOMENTE o estado existente no HEAD. Futuro planejado fica no
 [MASTER-PLAN.md](MASTER-PLAN.md).
 

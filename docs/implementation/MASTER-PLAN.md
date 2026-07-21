@@ -97,10 +97,10 @@ Esta fase TERMINA antes de iniciar o novo control plane (P2+).
 
 | ID | Entrega | Dependências | Estado | Evidência | Commit inicial | Commit final |
 |---|---|---|---|---|---|---|
-| D002 | Dream Cycle + project_id + Markdown | D001 ✅ | DONE | `pytest tests/unit/test_dream_project_identity.py` | 834e405 | 2ae8558 |
-| D003 | Validação real da identidade de projeto | D002 | DONE | `pytest tests/integration/test_project_identity_pipeline.py` | 2ae8558 | fca4c5a |
-| D004 | Canários multiagente completos | D003 | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py` | fca4c5a | — |
-| D005 | E2E Claude Mem → cérebro → índices → consulta | D004 | DONE | `pytest tests/real/test_e2e_memory_to_query_pipeline.py` | f85d8ea | — |
+| D002 | Dream Cycle + project_id + Markdown | D001 ✅ | PARTIAL | `pytest tests/unit/test_dream_project_identity.py` | 834e405 | 2ae8558 |
+| D003 | Validação real da identidade de projeto | D002 | PARTIAL | `pytest tests/integration/test_project_identity_pipeline.py` | 2ae8558 | fca4c5a |
+| D004 | Canários multiagente completos | D003 | PARTIAL | `pytest tests/real/test_canary_multiagent_pipeline.py` | fca4c5a | — |
+| D005 | E2E Claude Mem → cérebro → índices → consulta | D004 | PARTIAL | `pytest tests/real/test_e2e_memory_to_query_pipeline.py` | f85d8ea | — |
 
 ### P2 — Manifesto declarativo e ownership (spec F2)
 
@@ -113,7 +113,7 @@ Não iniciar supervisor real ainda.
 
 | ID | Entrega | Dependências | Estado | Evidência | Commit inicial | Commit final |
 |---|---|---|---|---|---|---|
-| D006 | Manifesto declarativo F2 | D005 | DONE | `pytest tests/unit/test_runtime_yaml_*.py` | d793353 | — |
+| D006 | Manifesto declarativo F2 | D005 | PARTIAL | `pytest tests/unit/test_runtime_yaml_*.py` | d793353 | — |
 
 ### P3 — Daemon shadow (spec F3)
 
@@ -148,7 +148,7 @@ Objetivo:
 
 | ID | Entrega | Dependências | Estado | Evidência | Commit inicial | Commit final |
 |---|---|---|---|---|---|---|
-| D009 | Registro MCP/captura nativo | D008 | IN_PROGRESS | fatia 1: detecção nativa 13 providers; 9 testes; detect real 9/13 | 1857869 | (fatia 1) |
+| D009 | Registro MCP/captura nativo | D008 | PARTIAL | fatias 1-3: detecção, merge MCP transacional, register dry-run; 28 testes | 1857869 | (fatias 1-3) |
 
 ### P6 — Cutover dos componentes (spec F4–F8, F11)
 

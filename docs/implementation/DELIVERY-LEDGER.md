@@ -600,7 +600,8 @@ cutover real seguem pendentes (D010, gate humano).
 ## D004 — Canários multiagente completos
 
 - fase: P1
-- estado: DONE
+- estado: PARTIAL (rebaixado pela auditoria D009-R1, ver [AUDIT-D001-D009.md](AUDIT-D001-D009.md))
+- motivo do rebaixamento: A-02: criou lógica de produto em scripts/health/canary_multiagent_runner.py
 - HEAD inicial: `fca4c5a`
 - objetivo: executar prompt e resposta reais em cada provider instalado e provar a cadeia fonte real → parser → project_id → capture_core.ingest → Claude Mem search/timeline/get_observations → bridge → workspace_id, sem duplicação.
 
@@ -628,7 +629,8 @@ DONE. A cadeia completa foi testada fim-a-fim de forma limpa, garantindo a autor
 ## D005 — E2E Claude Mem → cérebro → índices → consulta
 
 - fase: P1 (Fechamento da Fase P1)
-- estado: DONE
+- estado: PARTIAL (rebaixado pela auditoria D009-R1, ver [AUDIT-D001-D009.md](AUDIT-D001-D009.md))
+- motivo do rebaixamento: pipeline provado depende de scripts/ não portados
 - HEAD inicial: `f85d8ea`
 - objetivo: provar operationalmente a cadeia completa Claude Mem → cérebro → índices → consulta, garantindo isolamento estrito de projetos A/B, geração de citação correta, atribuição de `workspace_id` e verificação da saúde semântica.
 
@@ -657,7 +659,8 @@ DONE. A Fase P1 está officially **CONCLUÍDA**. Todos os critérios da Fase P1 
 ## D006 — Manifesto declarativo F2 & Ownership
 
 - fase: P2
-- estado: DONE
+- estado: PARTIAL (rebaixado pela auditoria D009-R1, ver [AUDIT-D001-D009.md](AUDIT-D001-D009.md))
+- motivo do rebaixamento: A-06: 4 listas de serviços concorrentes
 - HEAD inicial: `d793353`
 - objetivo: implementar o manifesto declarativo `config/runtime.yaml` (schema v3), validação Pydantic v2 e comandos CLI nativos (`hive-mind config validate` / `hive-mind config show`).
 
@@ -828,3 +831,59 @@ operacionalmente**: lock de instância única, ShadowSupervisor puro, HTTP
 loopback de leitura e CLI `service status`. O que resta de F3/§15
 (socket de controle de mutação, scheduler store, cutover journal) é
 inseparável das operações managed e vai para o D008.
+
+---
+
+## D009-R1 — Audit native ownership since D001
+
+- fase: remediação (P5)
+- estado: DONE
+- HEAD inicial: `c4ef7d5`
+- objetivo: revisar D001→HEAD contra o **código**, não contra o ledger, e
+  comprovar que a lógica de produto é nativa e que `.ps1`/`.sh` são
+  wrappers.
+- entregável: [AUDIT-D001-D009.md](AUDIT-D001-D009.md).
+
+### Achados
+
+| ID | Prioridade | Defeito |
+|---|---|---|
+| A-01 | P4 | D004/D005/D006 sem trailer `Delivery:` |
+| A-02 | **P0** | `scripts/health/canary_multiagent_runner.py` (225 L) **criado** em `scripts/` na D004 |
+| A-03 | P1 | `project_identity.py` recebeu lógica nova fora do pacote (D003/D004) |
+| A-04 | P1 | `register-mcp.sh:357` ainda religa o outbox (divergência com o `.ps1`) |
+| A-05 | P1 | `register-windows-jobs.ps1` é scheduler paralelo — dream-cycle às **02:00** vs **03:00** no manifesto |
+| A-06 | P1 | **4** listas de serviços concorrentes |
+
+### Resultados positivos comprovados
+
+- **zero** `.ps1`/`.sh`/`.bat`/`.cmd`/Node alterados desde a D001;
+- nenhum comando nativo chama script legado (só docstrings citam a
+  origem histórica);
+- `subprocess` no pacote só em `daemon/managed.py`;
+- `hive_mind.integrations` não existe (ADR-013 respeitado).
+
+### Rebaixamentos
+
+D004, D005, D006: DONE → **PARTIAL**. MASTER-PLAN alinhado ao ledger
+(D002/D003 estavam DONE no plano e PARTIAL no ledger — corrigido).
+
+- decisão: `NATIVE CONTROL PLANE COMPLIANCE: PARTIAL`; `D009: PARTIAL`;
+  `D010: BLOCKED`.
+
+---
+
+## D009-R2 — Architectural boundary tests
+
+- fase: remediação (P5)
+- estado: DONE
+- entregável: `tests/unit/test_architecture_boundaries.py` (9 testes,
+  todos passando).
+- travam: nenhum módulo nativo executa script legado (ignorando
+  docstrings, que podem citar a origem); nenhum invoca powershell/bash;
+  só `daemon/managed.py` usa `subprocess`; `hive_mind.integrations` não
+  existe; ids de provider únicos; bases de config válidas;
+  `register_providers` é dry-run por padrão; `register-mcp.ps1` não
+  religa o capture hook.
+- correção adicional: docstring não-raw em `daemon/control.py` (emitia
+  `SyntaxWarning` ao ser parseada) → prefixo `r"""`.
