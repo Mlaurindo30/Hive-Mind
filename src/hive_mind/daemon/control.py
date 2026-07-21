@@ -25,9 +25,24 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-PIPE_NAME = r"\\.\pipe\hive-mindd"
+PIPE_BASENAME = r"\\.\pipe\hive-mindd"
 SOCKET_FILENAME = "daemon.sock"
 _MAX_MESSAGE_BYTES = 1 << 20  # 1 MiB ceiling on a control message
+
+
+def _pipe_name(state_dir: Path) -> str:
+    """Per-state-dir named-pipe name.
+
+    The spec names the pipe ``\\.\pipe\hive-mindd``. A fixed global name makes
+    distinct daemon instances (and the test suite) collide, so a short stable
+    hash of the resolved state_dir is appended. The daemon and its CLI client
+    agree because they derive it from the same state_dir.
+    """
+    import hashlib
+
+    key = str(state_dir.resolve()).casefold().encode("utf-8")
+    digest = hashlib.sha1(key).hexdigest()[:8]
+    return f"{PIPE_BASENAME}-{digest}"
 
 
 @dataclass
@@ -142,6 +157,7 @@ class _WindowsControlServer:
     def __init__(self, state_dir: Path, dispatch: Dispatch) -> None:
         self.state_dir = state_dir
         self.dispatch = dispatch
+        self._pipe = _pipe_name(state_dir)
         self._ready = threading.Event()
         self._stop = threading.Event()
         self._sa = None
@@ -173,7 +189,7 @@ class _WindowsControlServer:
         import win32pipe
 
         return win32pipe.CreateNamedPipe(
-            PIPE_NAME,
+            self._pipe,
             win32pipe.PIPE_ACCESS_DUPLEX,
             win32pipe.PIPE_TYPE_MESSAGE
             | win32pipe.PIPE_READMODE_MESSAGE
@@ -243,7 +259,7 @@ class _WindowsControlServer:
             import win32file
 
             h = win32file.CreateFile(
-                PIPE_NAME,
+                self._pipe,
                 win32file.GENERIC_READ | win32file.GENERIC_WRITE,
                 0, None, win32file.OPEN_EXISTING, 0, None,
             )
@@ -255,6 +271,7 @@ class _WindowsControlServer:
 class _WindowsControlClient:
     def __init__(self, state_dir: Path) -> None:
         self.state_dir = state_dir
+        self._pipe = _pipe_name(state_dir)
 
     def request(self, req: ControlRequest, timeout: float = 5.0) -> ControlResponse:
         import time
@@ -268,9 +285,9 @@ class _WindowsControlClient:
         last_exc: Optional[Exception] = None
         while time.monotonic() < deadline:
             try:
-                win32pipe.WaitNamedPipe(PIPE_NAME, 200)
+                win32pipe.WaitNamedPipe(self._pipe, 200)
                 handle = win32file.CreateFile(
-                    PIPE_NAME,
+                    self._pipe,
                     win32file.GENERIC_READ | win32file.GENERIC_WRITE,
                     0, None, win32file.OPEN_EXISTING, 0, None,
                 )

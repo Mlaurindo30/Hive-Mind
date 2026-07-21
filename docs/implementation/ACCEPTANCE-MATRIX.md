@@ -120,7 +120,8 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | R11 | `service status` CLI (leitura) | unit+operational | DONE | `pytest tests/unit/test_cli_service_status.py` + fluxo real | 4 passed; `run --shadow` → `service status` listou 7 serviços | D007 fatia 3 |
 | R12 | socket de controle autenticado (§15.2/§15.3) | unit+operational | DONE | `pytest tests/unit/test_control_*.py` + `hive-mind service ping` real | 16 passed; named pipe real com DACL per-user; `pong` ponta a ponta | D008 fatia 1 |
 | R13 | shadow recusa mutação pelo socket | unit+operational | DONE | `test_shadow_refusal_travels_over_the_real_socket` | passed; `stop` recusado sobre o fio real | D008 fatia 1; Anexo D.4 |
-| R14 | supervisor managed (inicia/para serviços) | — | NOT_STARTED | — | fatia 2 do D008; provado com serviços sintéticos, sem cutover no runtime | — |
+| R14 | supervisor managed (inicia/para serviços) | unit+operational | DONE | `pytest tests/unit/test_managed_supervisor.py` + demo real | 8 passed; 2 serviços sintéticos iniciados em ordem de dependência, PIDs reais, parados e confirmados mortos | D008 fatia 2; sem cutover no runtime ativo |
+| R15 | restart-monitor / scheduler / cutover journal | — | NOT_STARTED | — | supervisor inicia/para mas sem loop de supervisão contínua; scheduler e cutover pendentes | próxima fatia / D010 |
 
 ## Windows lifecycle
 

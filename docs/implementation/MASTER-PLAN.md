@@ -133,7 +133,7 @@ timezone, shutdown, observabilidade.
 
 | ID | Entrega | Dependências | Estado | Evidência | Commit inicial | Commit final |
 |---|---|---|---|---|---|---|
-| D008 | Supervisor e scheduler nativos | D007 | IN_PROGRESS | fatia 1: control socket named pipe + dispatcher shadow; 16 testes; ping real | cb4c66d | (fatia 1) |
+| D008 | Supervisor e scheduler nativos | D007 | PARTIAL | control socket seguro + ManagedSupervisor lifecycle real; 24 testes; demo processos sintéticos | cb4c66d | (fatias 1-2) |
 
 ### P5 — Registro nativo de agentes e MCP (spec F11 parcial)
 

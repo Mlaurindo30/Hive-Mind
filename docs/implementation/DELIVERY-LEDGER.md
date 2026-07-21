@@ -397,11 +397,47 @@ por provider (C1–C13) seguem NOT_STARTED e são a entrega D004.
 - riscos: nenhum ao runtime ativo — dispatcher shadow recusa toda mutação.
 - rollback: `git revert` do commit desta fatia (+ remover pywin32 do
   pyproject/lock).
-- pendências (fatia 2): `ManagedSupervisor` que de fato inicia/para
-  processos, provado com serviços sintéticos; scheduler store; cutover
-  journal. **Sem cutover no runtime ativo.**
-- estado da fatia 1: **PARTIAL** — canal de controle real e seguro
-  entregue; operações managed na fatia seguinte.
+- estado da fatia 1: canal de controle real e seguro entregue.
+
+### Fatia 2 — ManagedSupervisor (lifecycle real de processos)
+
+- alterações reais:
+
+| Arquivo | Mudança |
+|---|---|
+| `src/hive_mind/daemon/managed.py` | novo — `ManagedSupervisor`: inicia/para processos reais em ordem topológica (dependências + startup_order), rastreia PIDs, persiste `services.managed.json` (separado do shadow) |
+| `src/hive_mind/daemon/control.py` | nome do named pipe derivado do `state_dir` (`_pipe_name`) — isola instâncias; corrige colisão que causava flake sob a suíte completa |
+| `tests/unit/test_managed_supervisor.py` | novo — 8 testes com serviços sintéticos |
+
+- testes executados:
+
+| Comando | Resultado |
+|---|---|
+| `pytest tests/unit/test_managed_supervisor.py` | 8 passed |
+| demonstração real (2 serviços Python sintéticos) | start em ordem `db`→`api`, PIDs reais 83268/11808, `stop_all` matou-os, PID confirmado morto, `services.managed.json` gravado (não shadow) |
+| `pytest tests/unit` (completo) | **1071 passed, 21 skipped, 2 failed** (pré-existentes PowerShell) |
+
+- bug corrigido no caminho: `PIPE_NAME` era global fixo → dois servidores
+  de teste colidiam sob a suíte completa (flake em `test_control_socket`).
+  Nome do pipe agora deriva do `state_dir` (hash sha1[:8]); daemon e CLI
+  concordam por compartilharem o `state_dir`. Desvio da spec (que fixa
+  `\\.\pipe\hive-mindd`) documentado no código.
+- **NÃO houve cutover no runtime ativo**: o managed foi provado só com
+  serviços sintéticos, conforme a decisão do usuário.
+
+### Pendências reais do D008 (próxima fatia / D010)
+
+- monitor de restart policy (thread que reinicia on-failure) — hoje o
+  supervisor inicia/para, mas não roda loop de supervisão contínua;
+- scheduler store (APScheduler + persistência SQLite, spec D.6);
+- cutover journal transacional (spec D.3);
+- o cutover legacy→managed real em si (D010, gate humano §16.2).
+
+### Estado do D008
+
+**PARTIAL** — control socket seguro (fatia 1) e lifecycle managed de
+processos (fatia 2) entregues e provados operacionalmente com serviços
+sintéticos. Restart-monitor, scheduler e cutover real seguem pendentes.
 
 ---
 
