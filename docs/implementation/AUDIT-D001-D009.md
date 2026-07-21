@@ -46,6 +46,20 @@ git diff --name-status ae32195~1..HEAD -- "*.ps1" "*.psm1" "*.sh" "*.bat" "*.cmd
 Nenhuma lógica nova entrou em script de shell. A regra "não continuar
 adicionando comportamento a scripts" foi respeitada.
 
+> **Correção pós-remediação (2026-07-20).** A frase acima descreve o
+> estado **no momento da auditoria** (`c4ef7d5`). Depois dela,
+> `register-mcp.sh` foi alterado em `fef5383` (D009-R3). Precisão:
+>
+> | Categoria | Estado |
+> |---|---|
+> | lógica **nova** adicionada a scripts | **zero** (invariante mantido) |
+> | scripts alterados para **remover/isolar** legado | `register-mcp.sh` (D009-R3) |
+> | estado final desejado | wrapper mínimo |
+> | remoção definitiva | D009-R5 / D009-R6 |
+>
+> A alteração é aceitável **somente** porque removeu lógica e desligou um
+> caminho legado — não porque scripts voltaram a ser destino de código.
+
 Python sob `scripts/` alterado:
 
 | Arquivo | Mudança | Entrega | Classificação |

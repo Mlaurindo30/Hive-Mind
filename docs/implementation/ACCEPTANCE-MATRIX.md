@@ -134,6 +134,11 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | R13 | shadow recusa mutação pelo socket | unit+operational | DONE | `test_shadow_refusal_travels_over_the_real_socket` | passed; `stop` recusado sobre o fio real | D008 fatia 1; Anexo D.4 |
 | R14 | supervisor managed (inicia/para serviços) | unit+operational | DONE | `pytest tests/unit/test_managed_supervisor.py` + demo real | 8 passed; 2 serviços sintéticos iniciados em ordem de dependência, PIDs reais, parados e confirmados mortos | D008 fatia 2; sem cutover no runtime ativo |
 | R15 | restart policy monitor | unit | DONE | `pytest tests/unit/test_managed_restart.py` | 6 passed; on-failure/always reiniciam, never não, restart_limit cobre crashloop, stop intencional não dispara | D008 fatia 3 |
+| R16b | inventário de jobs validado semanticamente | processo | DONE | D008-R1V | 18 jobs vivos classificados; 1 job morto (`backup`) removido | `docs/scheduler.md` |
+| R16c | ordenação bridge→dream como dependência declarada | unit | DONE | `pytest tests/unit/test_job_dependencies.py` | 9 passed; schema `depends_on` + policy, ciclo/fantasma rejeitados | D008-R1V |
+| R16d | execução real dos 18 jobs | operational | NOT_STARTED | — | daemon só calcula em shadow; não dispara | F7/D010 |
+| R16e | enforcement da dependência em runtime (falha/atraso/reboot/misfire) | operational | NOT_STARTED | — | exige scheduler disparando | F7/D010 |
+| R16f | backup restaurável | operational | NOT_STARTED | — | restauração nunca testada | D011 |
 | R16 | shadow scheduler (calcula next-run) | unit+operational | DONE | `pytest tests/unit/test_shadow_scheduler.py` + real | 10 passed; jobs do manifesto: dream-cycle→03:00, tailer→+30s; dispara nada | D008 fatia 4; spec F6/D.6 |
 | R17 | persistência do scheduler (SQLite, sobrevive restart) | unit+operational | DONE | `pytest tests/unit/test_sqlite_scheduler_store.py` + demo restart | 9 passed; next-run sobreviveu a nova instância do store com timezone | D008 fatia 5; spec D.6 |
 | R18 | disparo de jobs managed / cutover journal / cutover real | — | NOT_STARTED | — | F7 firing (store pronto) + journal (D.3) + cutover (D010, gate humano) | D010 |

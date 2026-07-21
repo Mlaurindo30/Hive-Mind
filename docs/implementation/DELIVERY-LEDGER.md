@@ -976,3 +976,78 @@ scheduler ativo tocado.
   seguem sendo os donos reais até o cutover (D010). O que muda é que o
   manifesto agora descreve a realidade — pré-requisito para o cutover
   ser seguro.
+
+---
+
+## D008-R1V — Validate canonical job inventory
+
+- fase: remediação (P4)
+- estado: DONE
+- HEAD inicial: `762a6e8`
+- motivo: a D008-R1 completou o manifesto tomando os timers systemd como
+  referência canônica. **Paridade textual não prova necessidade.** O
+  Linux legado é fonte de comportamento histórico, não autoridade
+  automática. Esta entrega valida cada job contra o código real.
+
+### Método
+
+Para os 19 jobs declarados: existência de código executável, entry point
+(`__main__`), destino de escrita (consumidor), duplicação, e se seria
+melhor como subetapa do Dream Cycle ou função interna do daemon.
+
+Verificação explícita: os scripts de `knowledge/` **não** são subetapas
+do Dream Cycle — são jobs independentes (o `dream_cycle.py` importa
+apenas `core.knowledge.intake/promotion` para seu próprio estágio K3).
+
+### Achado: 1 job morto portado por inércia
+
+| Job | Achado |
+|---|---|
+| `backup` (`scripts/maintenance/backup.py`) | **O script não existe no repositório.** Existe apenas como arquivo *untracked* na máquina do mantenedor. O `register-windows-jobs.ps1` o pula via `Test-Path … continue`, então em instalação limpa nunca foi registrado. Duplicado por `backup-databases` (esse rastreado, 175 L). |
+
+Classificação: **LEGACY_TO_REMOVE / DUPLICATE**. Removido do manifesto.
+
+Os outros **18 jobs** têm entry point, código executável e destino de
+escrita identificável → mantidos, classificados em `REQUIRED` (10) e
+`OPTIONAL_BY_PROFILE` (8). Zero `UNKNOWN`.
+
+### Correção estrutural: ordenação vira dependência
+
+O `JobSpec` **não tinha** `depends_on`. A ordem bridge→dream existia só
+como 15 minutos de relógio — uma bridge lenta, um reboot no intervalo ou
+um misfire quebrariam a ordem em silêncio.
+
+Adicionados ao schema: `depends_on` e `dependency_policy`
+(`require_success_since_last_run`). O validador rejeita dependência
+inexistente, auto-referência e ciclo. O manifesto declara
+`dream-cycle depends_on claude-mem-bridge`.
+
+### Testes
+
+- `tests/unit/test_job_dependencies.py` (9): schema aceita `depends_on` e
+  a policy; default vazio; dependência fantasma, auto-referência e ciclo
+  rejeitados; o manifesto entregue declara a dependência; a declaração
+  não contradiz o relógio; **nenhum job aponta para script inexistente**.
+- `tests/unit/test_manifest_job_parity.py` refinado: paridade só com
+  jobs legados **vivos** (o `.ps1` já pula os mortos), mais
+  `test_dead_windows_tasks_are_deliberately_excluded`, que falha se o
+  `backup.py` virar código real — forçando decisão nova em vez de buraco
+  silencioso.
+
+### Documentação
+
+`docs/scheduler.md` — tabela canônica dos 18 jobs, o job removido com
+motivo, e separação explícita CURRENT (systemd/Task Scheduler são os
+donos reais) / TRANSITION (manifesto candidato, daemon só calcula) /
+TARGET (`hive-mindd` após cutover).
+
+### Gates deliberadamente NÃO promovidos
+
+Os 1140+ testes provam **declaração e regressão**, não execução. Seguem
+`NOT_STARTED`: execução real dos 18 jobs, enforcement da dependência em
+runtime, falha/atraso da bridge, reboot no intervalo, misfire, backup
+restaurável, ausência de dupla execução pós-cutover.
+
+**D008 não é promovida a DONE com base em paridade de manifesto.**
+
+- rollback: `git revert` dos commits desta entrega.
