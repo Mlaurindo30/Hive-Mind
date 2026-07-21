@@ -413,6 +413,30 @@ Contrato de detecção extraído de `register-mcp.ps1:423-441` (cada provider
   provider, transacional, backup, dry-run, rollback); instalação de
   instruções; `doctor`; wrappers PS1/SH mínimos.
 
+### Fatia 2 — registro MCP transacional (entregue)
+
+- alterações reais: `src/hive_mind/agents/mcp_config.py`
+  (`build_stdio_entry` espelhando `Get-StdioEntry`; `merge_mcp_config`
+  transacional: recusa JSON inválido antes de qualquer escrita → backup
+  `.hive-bak` → escrita atômica via `os.replace` → restaura o backup em
+  falha; `dry_run`; remoção dos legados `claude-mem-local` /
+  `neural-memory-local`; `root_key` configurável para o VS Code
+  (`servers`); `is_registered`); `tests/unit/test_agents_mcp_config.py`
+  (10 testes).
+- testes: 10 passed. Cobre config vazio, preservação de servers de
+  terceiros, root_key alternativo, remoção de legados, dry-run sem
+  escrita, idempotência, backup, **JSON inválido recusado sem clobber**,
+  criação de diretórios.
+- **prova operacional real (config temporário, nunca o do usuário)**:
+  server de terceiro preservado, legado removido, chave de topo alheia
+  intacta, backup criado, 2ª execução reporta `changed=False`.
+- `pytest tests/unit` completo: **1115 passed, 21 skipped, 2 failed**
+  (pré-existentes PowerShell).
+- decisão de segurança: nenhuma escrita em config real de provider nesta
+  entrega. O comando que de fato registra nos configs do usuário
+  (`hive-mind agents register`) é a fatia seguinte e deve ter `--dry-run`
+  como padrão de inspeção.
+
 - fase: P4
 - estado: IN_PROGRESS
 - HEAD inicial: `cb4c66d`

@@ -67,7 +67,8 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | Gate | Requisito | Tipo de prova | Estado | Comando | Resultado | Evidência |
 |---|---|---|---|---|---|---|
 | AG1 | detecção nativa de providers | unit+operational | DONE | `pytest tests/unit/test_agents_detect.py` + `hive-mind agents detect` | 9 passed; detect real 9/13 bate com canário D004 | D009 fatia 1; ADR-013 |
-| AG2 | registro MCP nativo (config por provider) | — | NOT_STARTED | — | escrever config transacional + backup + dry-run + rollback | D009 fatia 2 |
+| AG2 | merge MCP transacional (backup/atomic/dry-run) | unit+operational | DONE | `pytest tests/unit/test_agents_mcp_config.py` + demo em config temp | 10 passed; terceiros preservados, legados removidos, JSON inválido recusado sem clobber, idempotente | D009 fatia 2 |
+| AG2b | `agents register` escrevendo nos configs reais | — | NOT_STARTED | — | mecanismo pronto; comando com dry-run padrão é a fatia seguinte | D009 |
 | AG3 | instalação de instruções | — | NOT_STARTED | — | — | D009 |
 | AG4 | `agents doctor` | — | NOT_STARTED | — | — | D009 |
 | AG5 | wrappers PS1/SH mínimos | — | NOT_STARTED | — | register-mcp.{ps1,sh} → `hive-mind agents register` | D009 |
