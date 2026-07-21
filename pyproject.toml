@@ -59,6 +59,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "python-multipart>=0.0.6",
     "pyyaml>=6.0",
+    "pywin32>=306; sys_platform == 'win32'",
     "ragflow-sdk>=0.13",
     "requests>=2.31",
     "slowapi>=0.1.9",

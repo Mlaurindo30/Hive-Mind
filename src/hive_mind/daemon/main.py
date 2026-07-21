@@ -96,40 +96,58 @@ def _run_shadow(args) -> int:
         print(f"hive-mindd: {exc}", file=sys.stderr)
         return EX_UNAVAILABLE
 
+    # The single-instance lock is held for the whole run: the shadow pass and,
+    # when --serve is set, the serving loop too. A second daemon must fail while
+    # the first is alive, not only during the brief observation.
     try:
         with SingleInstanceLock(state_dir):
             summary = ShadowSupervisor(manifest, state_dir=state_dir).observe()
+            ready = "ready" if summary["ready"] else "not-ready"
+            print(
+                f"hive-mindd shadow: profile={summary['profile']} "
+                f"services={summary['service_count']} required={ready} "
+                f"-> {state_dir / 'services.shadow.json'}"
+            )
+            if getattr(args, "serve", False):
+                return _serve(args, state_dir)
     except SingleInstanceLockError as exc:
         print(f"hive-mindd: {exc}", file=sys.stderr)
         return EX_UNAVAILABLE
-
-    ready = "ready" if summary["ready"] else "not-ready"
-    print(
-        f"hive-mindd shadow: profile={summary['profile']} "
-        f"services={summary['service_count']} required={ready} "
-        f"-> {state_dir / 'services.shadow.json'}"
-    )
-
-    if getattr(args, "serve", False):
-        return _serve_http(args, state_dir)
     return 0
 
 
-def _serve_http(args, state_dir: Path) -> int:
-    """Serve the read-only loopback until interrupted. Starts no service."""
+def _serve(args, state_dir: Path) -> int:
+    """Serve the read-only HTTP loopback and the control socket until
+    interrupted. In shadow ownership the control socket refuses every mutation;
+    no service is ever started."""
+    import threading
+
     import uvicorn
 
+    from hive_mind.daemon.control import ControlServer
+    from hive_mind.daemon.control_dispatch import ShadowControlDispatcher
     from hive_mind.daemon.http_api import (
         DEFAULT_HTTP_HOST,
         DEFAULT_HTTP_PORT,
         create_app,
     )
 
+    control = ControlServer(
+        state_dir=state_dir, dispatch=ShadowControlDispatcher(state_dir=state_dir)
+    )
+    control.start()
+    control_thread = threading.Thread(target=control.serve_forever, daemon=True)
+    control_thread.start()
+    print("hive-mindd control socket ready (shadow: mutations refused)")
+
     host = args.host or DEFAULT_HTTP_HOST
     port = args.port or DEFAULT_HTTP_PORT
     app = create_app(state_dir=state_dir)
     print(f"hive-mindd http (read-only): http://{host}:{port}/health")
-    uvicorn.run(app, host=host, port=port, log_level="warning")
+    try:
+        uvicorn.run(app, host=host, port=port, log_level="warning")
+    finally:
+        control.shutdown()
     return 0
 
 

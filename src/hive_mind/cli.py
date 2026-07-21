@@ -97,7 +97,21 @@ def _build_parser() -> argparse.ArgumentParser:
     svc_status.add_argument("--state-dir", default=None, help="daemon state directory")
     svc_status.add_argument("--project-root", default=None, help="project root override")
     svc_status.add_argument("--json", action="store_true", help="emit as JSON")
+    svc_ping = service_sub.add_parser(
+        "ping", help="check the daemon control socket is alive"
+    )
+    svc_ping.add_argument("--state-dir", default=None, help="daemon state directory")
+    svc_ping.add_argument("--project-root", default=None, help="project root override")
     return p
+
+
+def _state_dir_from(args):
+    from pathlib import Path
+
+    if args.state_dir:
+        return Path(args.state_dir)
+    root = resolve_project_root(cli_root=args.project_root)
+    return root / ".hive-mind" / "state"
 
 
 def main(argv: "list[str] | None" = None) -> int:
@@ -161,8 +175,33 @@ def main(argv: "list[str] | None" = None) -> int:
             return 0
     if args.command == "service" and args.service_command == "status":
         return _service_status(args)
+    if args.command == "service" and args.service_command == "ping":
+        return _service_ping(args)
     parser.print_help()
     return 0
+
+
+def _service_ping(args) -> int:
+    """Ping the daemon control socket. Non-zero if it is not reachable."""
+    from hive_mind.daemon.control import ControlClient, ControlRequest
+
+    try:
+        state_dir = _state_dir_from(args)
+    except ProjectRootNotFound as exc:
+        print(str(exc), file=sys.stderr)
+        return EX_CONFIG
+    try:
+        resp = ControlClient(state_dir=state_dir).request(
+            ControlRequest(command="ping"), timeout=3.0
+        )
+    except ConnectionError as exc:
+        print(f"control socket unreachable: {exc}", file=sys.stderr)
+        return 1
+    if resp.ok:
+        print("pong")
+        return 0
+    print(f"control socket error: {resp.error}", file=sys.stderr)
+    return 1
 
 
 def _service_status(args) -> int:

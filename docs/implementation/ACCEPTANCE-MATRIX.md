@@ -118,7 +118,9 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | R9 | shadow passivo (sem mutação) | unit+operational | DONE | `pytest tests/unit/test_shadow_purity.py` + `hive-mindd run --shadow` real | 5 passed; run real gravou só `services.shadow.json`, iniciou nada | D007; spec Anexo D.4 |
 | R10 | HTTP loopback só leitura | unit+operational | DONE | `pytest tests/unit/test_daemon_http_routes.py` + `curl -X POST /stop` real | 9 passed; `POST /stop` → 404; só `/health` `/ready` `/metrics` | D007 fatia 2; spec §15.1/§15.4 |
 | R11 | `service status` CLI (leitura) | unit+operational | DONE | `pytest tests/unit/test_cli_service_status.py` + fluxo real | 4 passed; `run --shadow` → `service status` listou 7 serviços | D007 fatia 3 |
-| R12 | socket de controle de mutação (§15.2) | — | NOT_STARTED | — | adiado ao D008 (inseparável de managed; decisão pywin32 DH-002) | — |
+| R12 | socket de controle autenticado (§15.2/§15.3) | unit+operational | DONE | `pytest tests/unit/test_control_*.py` + `hive-mind service ping` real | 16 passed; named pipe real com DACL per-user; `pong` ponta a ponta | D008 fatia 1 |
+| R13 | shadow recusa mutação pelo socket | unit+operational | DONE | `test_shadow_refusal_travels_over_the_real_socket` | passed; `stop` recusado sobre o fio real | D008 fatia 1; Anexo D.4 |
+| R14 | supervisor managed (inicia/para serviços) | — | NOT_STARTED | — | fatia 2 do D008; provado com serviços sintéticos, sem cutover no runtime | — |
 
 ## Windows lifecycle
 

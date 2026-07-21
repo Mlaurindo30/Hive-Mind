@@ -142,16 +142,32 @@ profile, required, e por serviço: ownership, required, readiness, ordem).
 Sem observação ainda, sai 1 com mensagem clara — nunca inventa "healthy".
 É leitura pura; não muta nada.
 
-## Controle de mutação (spec §15.2 — D008)
+## Socket de controle (spec §15.2/§15.3 — D008 fatia 1)
 
-| Operação | Canal |
-|---|---|
-| `service start/stop/restart`, `reload`, `run-job` | named pipe (Windows) / Unix socket com ACL |
+Toda mutação passa por um canal de controle local autenticado, nunca por
+HTTP ([control.py](../src/hive_mind/daemon/control.py)):
 
-Toda mutação passa pelo socket de controle autenticado, nunca por HTTP.
-Adiado para o D008 porque é inseparável das operações managed (que só
-existem a partir da F4) e depende de uma decisão de dependência
-(`pywin32`, ver ledger DH-002).
+- **Windows**: named pipe `\\.\pipe\hive-mindd` com DACL que concede
+  acesso só ao usuário que o criou (owner + `GENERIC_ALL` via pywin32);
+  outros usuários recebem `ACCESS_DENIED`.
+- **POSIX**: Unix socket `state_dir/daemon.sock` com `0o600` dentro de um
+  `state_dir` `0o700`.
+
+Protocolo: um objeto JSON por mensagem —
+`{"command", "args"}` → `{"ok", "data", "error"}`.
+
+`run --shadow --serve` sobe o socket junto do HTTP, sob o lock de
+instância única. O dispatcher em shadow
+([control_dispatch.py](../src/hive_mind/daemon/control_dispatch.py))
+honra `ping`/`status` e **recusa** toda mutação
+(`start`/`stop`/`restart`/`reload`/`run-job`) — shadow nunca age
+(Anexo D.4). As operações managed chegam na fatia 2 do D008.
+
+```powershell
+hive-mind service ping   # pong se o socket está vivo
+```
+
+Dependência: `pywin32` (Windows), decidido no ledger DH-002.
 
 ## Estado de implementação
 

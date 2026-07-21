@@ -333,10 +333,14 @@ por provider (C1–C13) seguem NOT_STARTED e são a entrega D004.
 
 ---
 
-## DH-002 — Decisão de dependência: `pywin32` para o control socket (REGISTRADA)
+## DH-002 — Decisão de dependência: `pywin32` para o control socket (RESOLVIDA)
 
-- fase: bloqueio de decisão para D008
-- estado: NOT_STARTED (aguarda decisão humana)
+- fase: decisão para D008
+- estado: DONE — decisão humana 2026-07-20: **(a) pywin32 + named pipe fiel
+  à spec**. `pywin32>=306; sys_platform=='win32'` adicionado ao
+  `pyproject.toml`; named pipe `\\.\pipe\hive-mindd` com DACL per-user
+  (owner + GENERIC_ALL) implementado em `daemon/control.py`. `uv.lock`
+  atualizado (diff só pywin32).
 - constatação (D007): `import win32pipe` falha — `pywin32` não está nas
   dependências. A spec §15.3 usa `win32security` para o ACL do named pipe
   `\\.\pipe\hive-mindd` no Windows (só o usuário que instalou pode abrir).
@@ -349,6 +353,55 @@ por provider (C1–C13) seguem NOT_STARTED e são a entrega D004.
   foi adiado do D007 para o D008.
 - não resolver silenciosamente: é adição de dependência + desvio potencial
   da spec aprovada.
+
+---
+
+## D008 — Supervisor e scheduler nativos
+
+- fase: P4
+- estado: IN_PROGRESS
+- HEAD inicial: `cb4c66d`
+- decisões humanas (2026-07-20): control socket = **pywin32 + named pipe
+  fiel à spec**; alvo D008 = **código + testes reais, sem cutover no
+  runtime ativo nem ambiente descartável** (managed provado por teste com
+  serviços sintéticos, nunca tocando `D:\Hive-Mind`).
+
+### Fatia 1 — control socket autenticado (spec §15.2/§15.3)
+
+- alterações reais:
+
+| Arquivo | Mudança |
+|---|---|
+| `pyproject.toml` / `uv.lock` | `pywin32>=306; sys_platform=='win32'` (DH-002) |
+| `src/hive_mind/daemon/control.py` | novo — `ControlServer`/`ControlClient` (named pipe Windows com DACL per-user / Unix socket POSIX 0o600), protocolo JSON `ControlRequest`/`ControlResponse` |
+| `src/hive_mind/daemon/control_dispatch.py` | novo — `ShadowControlDispatcher`: honra `ping`/`status`, **recusa** toda mutação em shadow (Anexo D.4) |
+| `src/hive_mind/daemon/main.py` | `run --shadow --serve` sobe HTTP + control socket sob o lock; lock agora envolve todo o serve (corrige janela sem lock) |
+| `src/hive_mind/cli.py` | `hive-mind service ping` (liveness do socket) |
+| `tests/unit/test_control_socket.py` | novo — 6 testes (transporte real) |
+| `tests/unit/test_control_dispatch.py` | novo — 10 testes (recusa shadow, ida-e-volta real) |
+
+- testes executados:
+
+| Comando | Resultado |
+|---|---|
+| `pytest` (control_socket + control_dispatch + cli + daemon) | 33 passed |
+| `hive-mindd run --shadow --serve` + `hive-mind service ping` reais | **`pong` via named pipe real** — daemon → CLI → pipe → dispatcher → resposta |
+| `pytest tests/unit` (completo) | **1063 passed, 21 skipped, 2 failed** (pré-existentes PowerShell) |
+
+- bug corrigido no caminho: o lock de instância única era liberado antes de
+  `--serve`; agora envolve observe + serve, então um segundo daemon falha
+  enquanto o primeiro está vivo (não só durante a observação).
+- evidência operacional: named pipe real com ACL per-user; `ping` de ponta
+  a ponta via CLI. Mutação recusada sobre o fio real (teste
+  `test_shadow_refusal_travels_over_the_real_socket`).
+- riscos: nenhum ao runtime ativo — dispatcher shadow recusa toda mutação.
+- rollback: `git revert` do commit desta fatia (+ remover pywin32 do
+  pyproject/lock).
+- pendências (fatia 2): `ManagedSupervisor` que de fato inicia/para
+  processos, provado com serviços sintéticos; scheduler store; cutover
+  journal. **Sem cutover no runtime ativo.**
+- estado da fatia 1: **PARTIAL** — canal de controle real e seguro
+  entregue; operações managed na fatia seguinte.
 
 ---
 
