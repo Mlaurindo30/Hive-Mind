@@ -107,8 +107,10 @@ git) guarda:
 |---|---|---|
 | `daemon.lock` | D007 | lock de instância única (POSIX) |
 | `services.shadow.json` | D007 | observação shadow, read-only sobre o legado |
+| `services.managed.json` | D008 | estado dos processos managed (PIDs, restarts) |
+| `schedule.shadow.json` | D008 | next-run calculado dos jobs (shadow, não dispara) |
 | `cutover.journal` | F4 | journal transacional de cutover (ainda não) |
-| `jobs.db` | F7 | persistência do scheduler (ainda não) |
+| `jobs.db` | F7 | persistência SQLite do scheduler (ainda não) |
 
 ## HTTP loopback de leitura (spec §15.1 / §15.4 — D007 fatia 2)
 

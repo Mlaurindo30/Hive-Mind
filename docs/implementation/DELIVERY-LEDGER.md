@@ -439,17 +439,39 @@ por provider (C1–C13) seguem NOT_STARTED e são a entrega D004.
 - `pytest tests/unit` completo: **1077 passed, 21 skipped, 2 failed**
   (pré-existentes PowerShell).
 
+### Fatia 4 — shadow scheduler (calcula next-run, não dispara)
+
+- dependência: `apscheduler>=3.10,<4.0` — **pré-sancionada pela spec D.6**
+  ("será adicionado em F1"); não é nova decisão. `uv.lock` atualizado.
+- alterações reais: `src/hive_mind/daemon/scheduler.py` (`next_fire_time`
+  usando `CronTrigger` do APScheduler para cron e cálculo direto para
+  interval; `SchedulerStore` interface D.6 + `MemorySchedulerStore` com
+  leases/max_instances; `ShadowScheduler` que calcula e grava
+  `schedule.shadow.json`, dispara nada); `tests/unit/test_shadow_scheduler.py`
+  (10 testes).
+- testes: 10 passed. Cobre next-run cron/interval, pureza (não dispara),
+  job desabilitado pulado, store roundtrip, lease até max_instances.
+- **prova operacional real** contra os jobs do manifesto entregue:
+  `dream-cycle` → next 03:00 amanhã (cron `0 3 * * *`), `capture-tailer`
+  → next +30s (interval). Só `schedule.shadow.json` gravado.
+- `pytest tests/unit` completo: **1087 passed, 21 skipped, 2 failed**
+  (pré-existentes PowerShell).
+- correção no caminho: `IntervalTrigger` do APScheduler ancora no próprio
+  wall-clock start_time, não no `after` passado; interval calculado direto
+  (`after + n segundos`), inequívoco.
+
 ### Pendências reais do D008 (próxima fatia / D010)
 
-- scheduler store (APScheduler + persistência SQLite, spec D.6);
+- disparo real de jobs em managed (F7) + persistência SQLite
+  (`SqliteSchedulerStore`, spec D.6);
 - cutover journal transacional (spec D.3);
 - o cutover legacy→managed real em si (D010, gate humano §16.2).
 
 ### Estado do D008
 
-**PARTIAL** — control socket seguro (fatia 1), lifecycle managed de
-processos (fatia 2) e monitor de restart (fatia 3) entregues e provados
-operacionalmente com serviços sintéticos. Scheduler, cutover journal e o
+**PARTIAL** — control socket seguro (1), lifecycle managed (2), monitor de
+restart (3) e shadow scheduler (4) entregues e provados operacionalmente.
+Disparo de jobs em managed, persistência SQLite, cutover journal e o
 cutover real seguem pendentes (D010, gate humano).
 
 ---
