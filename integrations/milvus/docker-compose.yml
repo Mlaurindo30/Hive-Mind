@@ -2,6 +2,7 @@ services:
   milvus:
     image: milvusdb/milvus:v2.5.14@sha256:0501c325442e518e321f103a06ab554e25e27de47183d325d9e3ab4776b7eec9
     container_name: hive-mind-milvus
+    restart: unless-stopped
     command: ["milvus", "run", "standalone"]
     environment:
       ETCD_USE_EMBED: "true"
