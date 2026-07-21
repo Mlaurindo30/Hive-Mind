@@ -62,6 +62,16 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | C12 | OpenClaw (se instalado) | operational | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py -k openclaw` | passed | D004; cadeia provada de ponta a ponta sem duplicação |
 | C13 | Roo / Screenpipe / SwarmClaw / demais detectados | operational | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py -k swarmclaw` / `-k roo` | passed | D004; roo e swarmclaw validados de ponta a ponta |
 
+## Agent integrations (hive_mind.agents, D009)
+
+| Gate | Requisito | Tipo de prova | Estado | Comando | Resultado | Evidência |
+|---|---|---|---|---|---|---|
+| AG1 | detecção nativa de providers | unit+operational | DONE | `pytest tests/unit/test_agents_detect.py` + `hive-mind agents detect` | 9 passed; detect real 9/13 bate com canário D004 | D009 fatia 1; ADR-013 |
+| AG2 | registro MCP nativo (config por provider) | — | NOT_STARTED | — | escrever config transacional + backup + dry-run + rollback | D009 fatia 2 |
+| AG3 | instalação de instruções | — | NOT_STARTED | — | — | D009 |
+| AG4 | `agents doctor` | — | NOT_STARTED | — | — | D009 |
+| AG5 | wrappers PS1/SH mínimos | — | NOT_STARTED | — | register-mcp.{ps1,sh} → `hive-mind agents register` | D009 |
+
 ## Project identity
 
 | Gate | Requisito | Tipo de prova | Estado | Comando | Resultado | Evidência |

@@ -356,7 +356,62 @@ por provider (C1–C13) seguem NOT_STARTED e são a entrega D004.
 
 ---
 
-## D008 — Supervisor e scheduler nativos
+## D009 — Registro nativo de agentes e MCP (`hive_mind.agents`)
+
+- fase: P5 (spec F11 parcial)
+- estado: IN_PROGRESS
+- HEAD inicial: `1857869`
+- decisão: namespace `hive_mind.agents` (ADR-013 ACCEPTED). NÃO criar
+  `integrations/` concorrente. Portar detecção de providers, registro MCP,
+  instalação de instruções e instalação de captura do `register-mcp.{ps1,sh}`
+  para o pacote nativo; os scripts viram wrappers mínimos (ADR-003).
+
+### Auditoria prévia (FASE 7 — portar comportamento, não inventar)
+
+Contrato de detecção extraído de `register-mcp.ps1:423-441` (cada provider
+= comando no PATH **ou** diretório-marcador):
+
+| provider | comando | marcador |
+|---|---|---|
+| claude | `claude` | — |
+| codex | `codex` | — |
+| gemini | `gemini` | — |
+| qwen | `qwen` | `~/.qwen` |
+| kimi | `kimi` | `~/.kimi` |
+| kiro | `kiro` | `~/.kiro` |
+| kilo | — | `%APPDATA%/Code/.../kilocode.kilo-code`, `~/.kilocode` |
+| roo | — | `%APPDATA%/Code/.../rooveterinaryinc.roo-cline` |
+| vscode | `code` | `%APPDATA%/Code/.../github.copilot-chat` |
+| cursor | — | `~/.cursor` |
+| opencode | `opencode` | — |
+| openclaw | `openclaw` | — |
+| swarmclaw | `swarmclaw` | `~/.swarmclaw` |
+
+### Fatia 1 — detecção nativa
+
+- arquivos planejados: `src/hive_mind/agents/__init__.py`,
+  `registry.py` (tabela declarativa), `detect.py` (lógica),
+  `src/hive_mind/cli.py` (`hive-mind agents detect|list`).
+- testes planejados: detecção por comando; por marcador; ausência; lista
+  completa; HOME/APPDATA injetáveis (cross-platform).
+
+### Fatia 1 — detecção nativa (entregue)
+
+- alterações reais: `src/hive_mind/agents/__init__.py`, `registry.py`
+  (13 providers declarativos), `detect.py` (detecção injetável), `cli.py`
+  (`hive-mind agents detect|list`); `tests/unit/test_agents_detect.py`
+  (9 testes).
+- testes: 9 passed. HOME/APPDATA/which injetáveis → determinístico e
+  cross-platform.
+- **prova operacional real**: `hive-mind agents detect` nesta máquina
+  detectou 9 de 13 (claude, codex, gemini, qwen, kimi, kiro, kilo,
+  vscode, cursor); roo/opencode/openclaw/swarmclaw ausentes — **bate com
+  o canário D004** (roo/openclaw/swarmclaw sem fontes reais). Port fiel.
+- `pytest tests/unit` completo: **1105 passed, 21 skipped, 2 failed**
+  (pré-existentes PowerShell).
+- pendências (fatias seguintes): registro MCP nativo (escrever config por
+  provider, transacional, backup, dry-run, rollback); instalação de
+  instruções; `doctor`; wrappers PS1/SH mínimos.
 
 - fase: P4
 - estado: IN_PROGRESS

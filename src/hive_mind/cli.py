@@ -102,6 +102,13 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     svc_ping.add_argument("--state-dir", default=None, help="daemon state directory")
     svc_ping.add_argument("--project-root", default=None, help="project root override")
+
+    agents_cmd = sub.add_parser("agents", help="detect and manage agent integrations")
+    agents_sub = agents_cmd.add_subparsers(dest="agents_command")
+    ag_detect = agents_sub.add_parser("detect", help="detect installed agent providers")
+    ag_detect.add_argument("--json", action="store_true", help="emit as JSON")
+    ag_list = agents_sub.add_parser("list", help="list all supported providers")
+    ag_list.add_argument("--json", action="store_true", help="emit as JSON")
     return p
 
 
@@ -177,8 +184,44 @@ def main(argv: "list[str] | None" = None) -> int:
         return _service_status(args)
     if args.command == "service" and args.service_command == "ping":
         return _service_ping(args)
+    if args.command == "agents":
+        return _agents(args)
     parser.print_help()
     return 0
+
+
+def _agents(args) -> int:
+    from hive_mind.agents.detect import detect_providers
+    from hive_mind.agents.registry import PROVIDERS
+
+    if args.agents_command == "list":
+        rows = [{"id": p.id, "name": p.name} for p in PROVIDERS]
+        if args.json:
+            print(json.dumps(rows, ensure_ascii=False, indent=2))
+        else:
+            for p in PROVIDERS:
+                print(f"{p.id:<12} {p.name}")
+        return 0
+
+    if args.agents_command == "detect":
+        results = detect_providers()
+        if args.json:
+            print(json.dumps(
+                [{"id": r.id, "name": r.name, "detected": r.detected,
+                  "evidence": r.evidence} for r in results],
+                ensure_ascii=False, indent=2,
+            ))
+        else:
+            found = [r for r in results if r.detected]
+            for r in results:
+                mark = "OK " if r.detected else "-- "
+                extra = f"  ({r.evidence})" if r.evidence else ""
+                print(f"{mark}{r.id:<12} {r.name}{extra}")
+            print(f"\n{len(found)} of {len(results)} providers detected")
+        return 0
+
+    print("usage: hive-mind agents {detect|list}", file=sys.stderr)
+    return 1
 
 
 def _service_ping(args) -> int:

@@ -148,7 +148,7 @@ Objetivo:
 
 | ID | Entrega | Dependências | Estado | Evidência | Commit inicial | Commit final |
 |---|---|---|---|---|---|---|
-| D009 | Registro MCP/captura nativo | D008 | NOT_STARTED | — | — | — |
+| D009 | Registro MCP/captura nativo | D008 | IN_PROGRESS | fatia 1: detecção nativa 13 providers; 9 testes; detect real 9/13 | 1857869 | (fatia 1) |
 
 ### P6 — Cutover dos componentes (spec F4–F8, F11)
 
