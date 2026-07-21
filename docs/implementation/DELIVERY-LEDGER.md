@@ -425,19 +425,32 @@ por provider (C1–C13) seguem NOT_STARTED e são a entrega D004.
 - **NÃO houve cutover no runtime ativo**: o managed foi provado só com
   serviços sintéticos, conforme a decisão do usuário.
 
+### Fatia 3 — monitor de restart policy
+
+- alterações reais: `src/hive_mind/daemon/managed.py` (loop de monitor em
+  thread: `start_monitor`/`stop_monitor`, `restart_count`; distingue stop
+  intencional de crash; respeita `restart_policy`, `restart_delay_seconds`,
+  `restart_limit`; `RLock` protege o estado compartilhado);
+  `tests/unit/test_managed_restart.py` (6 testes).
+- testes: 6 passed. Cobre: `on-failure`/`always` reiniciam; `never` não;
+  `restart_limit` cobre crashloop (não foge); serviço saudável não
+  reinicia; `stop()` intencional não dispara restart; `stop_monitor`
+  idempotente.
+- `pytest tests/unit` completo: **1077 passed, 21 skipped, 2 failed**
+  (pré-existentes PowerShell).
+
 ### Pendências reais do D008 (próxima fatia / D010)
 
-- monitor de restart policy (thread que reinicia on-failure) — hoje o
-  supervisor inicia/para, mas não roda loop de supervisão contínua;
 - scheduler store (APScheduler + persistência SQLite, spec D.6);
 - cutover journal transacional (spec D.3);
 - o cutover legacy→managed real em si (D010, gate humano §16.2).
 
 ### Estado do D008
 
-**PARTIAL** — control socket seguro (fatia 1) e lifecycle managed de
-processos (fatia 2) entregues e provados operacionalmente com serviços
-sintéticos. Restart-monitor, scheduler e cutover real seguem pendentes.
+**PARTIAL** — control socket seguro (fatia 1), lifecycle managed de
+processos (fatia 2) e monitor de restart (fatia 3) entregues e provados
+operacionalmente com serviços sintéticos. Scheduler, cutover journal e o
+cutover real seguem pendentes (D010, gate humano).
 
 ---
 
