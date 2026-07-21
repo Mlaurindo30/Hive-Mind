@@ -1301,3 +1301,65 @@ catálogo único **quebrado**.
 
 - nenhuma alteração em runtime, configs reais ou bancos.
 - rollback: `git revert` do commit desta entrega.
+
+---
+
+## DR-001 — Required Docker services must restart with Docker
+
+- fase: correção operacional
+- estado: DONE
+- HEAD inicial: `7a2694e`
+- autorização: usuário autorizou explicitamente alterar o runtime ativo
+  `D:\Hive-Mind` para esta correção (2026-07-21).
+
+### Diagnóstico — corrige duas suposições minhas
+
+| Eu havia afirmado | Realidade verificada no host |
+|---|---|
+| serviços não sobem / falta autostart | Docker Desktop **já** autostarta (chave `Run`); `HiveMind-Supervisor` e `HiveMind-PostRebootValidation` **já** existem em `AtLogon` |
+| job `backup` é morto, "nunca registrado em instalação limpa" | `HiveMind-Backup` está **registrado e Ready** nesta máquina — o script existe no runtime, porém **untracked** |
+
+A causa real era a política de restart:
+
+| Container | Antes | Voltava com o Docker? |
+|---|---|---|
+| `sinapse-falkordb` | `unless-stopped` | sim |
+| `hive-mind-milvus` | `no` | **não** |
+| `hive-mind-ragflow` + mysql/es01/redis/minio | `no` | **não** |
+
+Dois dos três projetos obrigatórios ficavam fora enquanto a stack
+parecia habilitada.
+
+### Aplicação
+
+Worktree (`7a2694e`) e **runtime ativo**. Os compose do runtime
+**divergem** dos da worktree (47 e 236 linhas), então foi aplicada a
+mesma inserção cirúrgica (`restart: unless-stopped` após cada
+`container_name`), **não** cópia de arquivo.
+
+- backup antes: `D:\Hive-Mind\backups\compose-restart-20260721-204018\`
+- `docker compose config` validado nos dois arquivos;
+- containers recriados (`up -d`), breve indisponibilidade esperada;
+- verificação final: **7/7 containers `unless-stopped` e healthy**.
+
+### Instalação limpa
+
+`install.ps1` e `install.sh` executam `docker compose up -d` sobre os
+arquivos do próprio repositório — não geram compose. Logo a correção na
+worktree já protege instalação nova.
+`tests/unit/test_compose_restart_policy.py` lê os projetos obrigatórios
+do manifesto e falha se qualquer serviço — inclusive de um projeto
+futuro — não voltar após restart do Docker.
+
+### Rollback
+
+Restaurar os dois arquivos de `backups/compose-restart-20260721-204018/`
+em `D:\Hive-Mind` e rodar `docker compose up -d` nos dois projetos.
+
+### Pendência registrada
+
+O job `backup` foi removido do manifesto na D008-R1V com justificativa
+agora sabidamente incorreta. O defeito real é que
+`scripts/maintenance/backup.py` está **untracked**: existe no runtime e
+desaparece numa instalação limpa. Correção adequada — versionar o script
+e restaurar o job — exige inspecionar o conteúdo antes de commitá-lo.
