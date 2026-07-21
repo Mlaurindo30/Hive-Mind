@@ -18,7 +18,7 @@ from urllib.parse import quote
 
 import yaml
 
-from scripts.capture.project_identity import (
+from hive_mind.projects.identity import (
     DEFAULT_REGISTRY_PATH,
     ProjectAliasRegistry,
 )

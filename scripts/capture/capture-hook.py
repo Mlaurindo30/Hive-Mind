@@ -26,7 +26,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.capture.capture_events import ProviderEvent  # noqa: E402
 from scripts.capture.capture_queue import CaptureQueue  # noqa: E402
-from scripts.capture.project_identity import (  # noqa: E402
+from hive_mind.projects.identity import (  # noqa: E402
     ProjectIdentity,
     ProjectIdentityResolver,
 )

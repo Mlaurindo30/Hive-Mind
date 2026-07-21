@@ -48,7 +48,7 @@ def _resolver():
     for entry in (str(root), str(root / "scripts" / "capture")):
         if entry not in sys.path:
             sys.path.insert(0, entry)
-    from scripts.capture.project_identity import (  # noqa: PLC0415 - until D003-R1
+    from hive_mind.projects.identity import (  # noqa: PLC0415 - until D003-R1
         ProjectAliasRegistry,
         ProjectIdentityResolver,
     )

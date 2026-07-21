@@ -1155,3 +1155,65 @@ real da captura está quebrado no elo de entrega.
 - `pytest tests/unit`: **1161 passed, 26 skipped, 2 failed** (pré-existentes).
 - **nenhuma escrita** em banco histórico, config ou runtime.
 - rollback: `git revert` do commit desta entrega.
+
+---
+
+## D003-R1 — Port ProjectIdentityResolver to the native package
+
+- fase: remediação (P1)
+- estado: DONE
+- HEAD inicial: `e83d260`
+- achado de origem: A-03 — `scripts/capture/project_identity.py` (871 L) era
+  a única fonte de identidade do projeto e continuou **recebendo lógica
+  nova** (normalização de remote na D003, guard `is_non_project_root` na
+  D004) fora do pacote nativo.
+
+### Movimentação
+
+`scripts/capture/project_identity.py` → `src/hive_mind/projects/identity.py`
+via `git mv` (histórico preservado). O caminho legado virou **re-export
+puro**: nenhuma cópia da lógica, apenas `from hive_mind.projects.identity
+import ...`.
+
+### Defeito corrigido no caminho
+
+`DEFAULT_REGISTRY_PATH` era `Path(__file__).resolve().parents[2] / "config"
+/ "project-aliases.yaml"` — dependia silenciosamente de o arquivo morar em
+`scripts/capture/`. Ao mover, apontaria para `src/`. Substituído por
+resolução via `resolve_project_root()` com fallback que sobe procurando
+`config/project-aliases.yaml`; layout inesperado degrada para
+file-not-found claro em vez de caminho errado.
+
+### Consumidores migrados para o import nativo
+
+`core/knowledge/claude_mem_bridge.py`, `core/projects/audit.py`,
+`scripts/capture/{capture-hook,capture-realtime,session_events}.py`,
+`src/hive_mind/validation/canary.py`.
+
+### Testes arquiteturais adicionados
+
+`test_architecture_boundaries.py`:
+- `test_native_module_is_the_implementation` — a classe vive no pacote;
+- `test_legacy_path_holds_no_copy` — **falha se uma segunda implementação
+  reaparecer** em `scripts/capture/project_identity.py`;
+- `test_legacy_re_export_yields_the_same_objects` — o shim reexporta os
+  **mesmos objetos**, não cópias equivalentes.
+
+### Regra de subprocess refinada com motivo
+
+O move fez `test_only_the_supervisor_spawns_processes` falhar: o resolver
+invoca `git` para ler toplevel/common-dir/branch/remote. Isso é *ferramenta
+consultada como fonte de dado*, não serviço spawnado. A allowlist passou a
+`{daemon/managed.py, projects/identity.py}` com a justificativa no
+docstring. As proibições que importam seguem valendo para **todo** módulo:
+nenhum script legado é executado e nenhum shell é spawnado.
+
+### Verificação
+
+- `pytest tests/unit tests/integration`: **1273 passed, 63 skipped, 3 failed**
+  (todas pré-existentes: 2 de `test_windows_install_contract.py` e a do
+  `register-mcp.sh --check`, causada pelo `gemini` CLI instalado rejeitar
+  `mcp get` — diagnosticada na D003, não relacionada ao move);
+- `hive-mind validate agents --only kilo` segue resolvendo `hive-mind`.
+
+- rollback: `git revert` do commit desta entrega.

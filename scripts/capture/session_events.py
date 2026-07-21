@@ -11,7 +11,7 @@ import json
 from typing import Any
 
 from scripts.capture.capture_events import EventType, ProviderEvent
-from scripts.capture.project_identity import (
+from hive_mind.projects.identity import (
     ProjectIdentity,
     ProjectIdentityError,
     ProjectIdentityResolver,

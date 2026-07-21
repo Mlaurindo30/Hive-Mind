@@ -83,8 +83,20 @@ class TestNativeCodeDoesNotDelegateToLegacyScripts:
         assert offenders == []
 
     def test_only_the_supervisor_spawns_processes(self):
-        """subprocess is the managed supervisor's tool, not everyone's."""
-        allowed = {"daemon/managed.py"}
+        """subprocess is not a free-for-all.
+
+        Two modules may use it, for different and documented reasons:
+
+        - `daemon/managed.py` supervises services declared in the manifest;
+        - `projects/identity.py` invokes `git` to read repository facts
+          (toplevel, common-dir, branch, remote). That is a tool being queried
+          for data, not a service being spawned.
+
+        The prohibitions that matter are enforced separately and still hold
+        for every module: no legacy script is executed, and no shell
+        (powershell/pwsh/bash/cmd) is spawned.
+        """
+        allowed = {"daemon/managed.py", "projects/identity.py"}
         offenders = []
         for path in _python_sources():
             rel = path.relative_to(SRC).as_posix()
@@ -123,6 +135,43 @@ class TestSingleAgentsRegistry:
                 assert target.base in {"home", "appdata", "project"}, (
                     f"{spec.id}: unknown config base {target.base!r}"
                 )
+
+
+class TestSingleProjectIdentityImplementation:
+    """D003-R1: identity lives in the package; the legacy path only re-exports."""
+
+    def test_native_module_is_the_implementation(self):
+        from hive_mind.projects import identity
+
+        assert hasattr(identity, "ProjectIdentityResolver")
+        source = Path(identity.__file__).read_text(encoding="utf-8")
+        assert "class ProjectIdentityResolver" in source
+
+    def test_legacy_path_holds_no_copy(self):
+        legacy = ROOT / "scripts" / "capture" / "project_identity.py"
+        if not legacy.exists():
+            return  # already removed — even better
+        source = legacy.read_text(encoding="utf-8")
+        for definition in (
+            "class ProjectIdentityResolver",
+            "class ProjectAliasRegistry",
+            "class ProjectIdentity(",
+            "def normalize_git_remote",
+        ):
+            assert definition not in source, (
+                f"a second implementation reappeared in {legacy.name}: {definition}"
+            )
+
+    def test_legacy_re_export_yields_the_same_objects(self):
+        import importlib
+
+        native = importlib.import_module("hive_mind.projects.identity")
+        try:
+            shim = importlib.import_module("scripts.capture.project_identity")
+        except ModuleNotFoundError:
+            return  # legacy path gone
+        assert shim.ProjectIdentityResolver is native.ProjectIdentityResolver
+        assert shim.ProjectAliasRegistry is native.ProjectAliasRegistry
 
 
 class TestRegisterIsSafeByDefault:

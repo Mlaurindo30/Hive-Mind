@@ -32,7 +32,7 @@ for _entry in (str(_HERE), str(ROOT)):
 
 import capture_core as core                                # noqa: E402
 from capture_adapters import adapters_by_owner             # noqa: E402
-from scripts.capture.project_identity import ProjectIdentityResolver  # noqa: E402
+from hive_mind.projects.identity import ProjectIdentityResolver  # noqa: E402
 from scripts.capture.session_events import attach_project_identity  # noqa: E402
 from scripts.capture.capture_sources import (              # noqa: E402
     PollingReconciler,

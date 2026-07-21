@@ -19,7 +19,7 @@ import sqlite3
 from typing import Any, Iterable, Optional
 
 from core.database import ensure_migrations, get_connection
-from scripts.capture.project_identity import ProjectIdentity, ProjectIdentityError
+from hive_mind.projects.identity import ProjectIdentity, ProjectIdentityError
 
 
 logger = logging.getLogger("claude_mem_bridge")
