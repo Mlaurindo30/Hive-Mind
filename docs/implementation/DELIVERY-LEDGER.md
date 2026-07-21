@@ -460,10 +460,28 @@ por provider (C1–C13) seguem NOT_STARTED e são a entrega D004.
   wall-clock start_time, não no `after` passado; interval calculado direto
   (`after + n segundos`), inequívoco.
 
+### Fatia 5 — SqliteSchedulerStore (persistência do scheduler, spec D.6)
+
+- alterações reais: `src/hive_mind/daemon/scheduler.py`
+  (`SqliteSchedulerStore`: mesma interface `SchedulerStore`, backed por
+  `state_dir/jobs.db`, WAL; next_run/last_run em ISO-8601 com offset
+  preservando timezone; leases com `max_instances` transacional
+  `BEGIN IMMEDIATE`); `tests/unit/test_sqlite_scheduler_store.py` (9 testes).
+- endurecimento no caminho: o cliente do control socket Windows agora
+  tenta o **round-trip inteiro** (connect+write+read) dentro do timeout,
+  não só o connect — elimina um flake do named pipe que aparecia ~1x em
+  1095 testes sob carga. Stress 3× (30 testes com processos) verde.
+- testes: 9 passed (store) + control 16 passed sob stress.
+- **prova operacional real**: após "restart" (nova instância do store
+  lendo `jobs.db`), o next-run dos jobs do manifesto sobreviveu com
+  timezone preservado (dream-cycle 03:00, tailer +30s).
+- `pytest tests/unit` completo: **1096 passed, 21 skipped, 2 failed**
+  (só as pré-existentes PowerShell; flake do pipe eliminado).
+
 ### Pendências reais do D008 (próxima fatia / D010)
 
-- disparo real de jobs em managed (F7) + persistência SQLite
-  (`SqliteSchedulerStore`, spec D.6);
+- disparo real de jobs em managed (F7 — usa o SqliteSchedulerStore +
+  leases já prontos);
 - cutover journal transacional (spec D.3);
 - o cutover legacy→managed real em si (D010, gate humano §16.2).
 

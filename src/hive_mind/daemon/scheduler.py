@@ -107,6 +107,103 @@ class MemorySchedulerStore(SchedulerStore):
             self._leases[job] = active - 1
 
 
+class SqliteSchedulerStore(SchedulerStore):
+    """SQLite-backed store (spec D.6 production default): survives a restart.
+
+    Persists next_run/last_run (ISO-8601 with offset, so timezone is kept) and
+    the active lease count per job in ``state_dir/jobs.db``.
+    """
+
+    def __init__(self, state_dir: Path | str) -> None:
+        self.state_dir = Path(state_dir)
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        self.db_path = self.state_dir / "jobs.db"
+        self._ensure_schema()
+
+    def _connect(self):
+        import sqlite3
+
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("PRAGMA journal_mode=WAL")
+        return conn
+
+    def _ensure_schema(self) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS job_schedule (
+                    job TEXT PRIMARY KEY,
+                    next_run TEXT,
+                    last_run TEXT,
+                    active_leases INTEGER NOT NULL DEFAULT 0
+                )
+                """
+            )
+
+    @staticmethod
+    def _parse(value: Optional[str]) -> Optional[datetime]:
+        return datetime.fromisoformat(value) if value else None
+
+    def _get(self, job: str, column: str) -> Optional[datetime]:
+        with self._connect() as conn:
+            row = conn.execute(
+                f"SELECT {column} FROM job_schedule WHERE job = ?", (job,)
+            ).fetchone()
+        return self._parse(row[0]) if row else None
+
+    def _set(self, job: str, column: str, when: datetime) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                f"""
+                INSERT INTO job_schedule (job, {column}) VALUES (?, ?)
+                ON CONFLICT(job) DO UPDATE SET {column} = excluded.{column}
+                """,
+                (job, when.isoformat()),
+            )
+
+    def next_run(self, job: str) -> Optional[datetime]:
+        return self._get(job, "next_run")
+
+    def set_next_run(self, job: str, when: datetime) -> None:
+        self._set(job, "next_run", when)
+
+    def last_run(self, job: str) -> Optional[datetime]:
+        return self._get(job, "last_run")
+
+    def set_last_run(self, job: str, when: datetime) -> None:
+        self._set(job, "last_run", when)
+
+    def acquire_lease(self, job: str, max_instances: int) -> bool:
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT active_leases FROM job_schedule WHERE job = ?", (job,)
+            ).fetchone()
+            active = row[0] if row else 0
+            if active >= max_instances:
+                conn.rollback()
+                return False
+            conn.execute(
+                """
+                INSERT INTO job_schedule (job, active_leases) VALUES (?, 1)
+                ON CONFLICT(job) DO UPDATE SET active_leases = active_leases + 1
+                """,
+                (job,),
+            )
+            conn.commit()
+            return True
+
+    def release_lease(self, job: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE job_schedule SET active_leases = MAX(active_leases - 1, 0)
+                WHERE job = ?
+                """,
+                (job,),
+            )
+
+
 class ShadowScheduler:
     """Computes job schedules passively; fires nothing (spec F6)."""
 

@@ -123,7 +123,8 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | R14 | supervisor managed (inicia/para serviços) | unit+operational | DONE | `pytest tests/unit/test_managed_supervisor.py` + demo real | 8 passed; 2 serviços sintéticos iniciados em ordem de dependência, PIDs reais, parados e confirmados mortos | D008 fatia 2; sem cutover no runtime ativo |
 | R15 | restart policy monitor | unit | DONE | `pytest tests/unit/test_managed_restart.py` | 6 passed; on-failure/always reiniciam, never não, restart_limit cobre crashloop, stop intencional não dispara | D008 fatia 3 |
 | R16 | shadow scheduler (calcula next-run) | unit+operational | DONE | `pytest tests/unit/test_shadow_scheduler.py` + real | 10 passed; jobs do manifesto: dream-cycle→03:00, tailer→+30s; dispara nada | D008 fatia 4; spec F6/D.6 |
-| R17 | disparo de jobs managed / SQLite store / cutover journal / cutover real | — | NOT_STARTED | — | F7 firing + SqliteSchedulerStore + journal (D.3) + cutover (D010, gate humano) | D010 |
+| R17 | persistência do scheduler (SQLite, sobrevive restart) | unit+operational | DONE | `pytest tests/unit/test_sqlite_scheduler_store.py` + demo restart | 9 passed; next-run sobreviveu a nova instância do store com timezone | D008 fatia 5; spec D.6 |
+| R18 | disparo de jobs managed / cutover journal / cutover real | — | NOT_STARTED | — | F7 firing (store pronto) + journal (D.3) + cutover (D010, gate humano) | D010 |
 
 ## Windows lifecycle
 

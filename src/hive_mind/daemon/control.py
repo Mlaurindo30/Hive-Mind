@@ -277,26 +277,32 @@ class _WindowsControlClient:
         import time
 
         import pywintypes
-        import win32file
-        import win32pipe
 
+        # The whole exchange (connect + write + read) is retried within the
+        # deadline. A busy daemon can lose a race in the pipe-recreation window
+        # between handling one client and accepting the next, which surfaces as
+        # a transient pipe error on connect OR on read/write — retrying the full
+        # round-trip makes the client robust to load instead of flaky.
         deadline = time.monotonic() + timeout
-        handle = None
         last_exc: Optional[Exception] = None
         while time.monotonic() < deadline:
             try:
-                win32pipe.WaitNamedPipe(self._pipe, 200)
-                handle = win32file.CreateFile(
-                    self._pipe,
-                    win32file.GENERIC_READ | win32file.GENERIC_WRITE,
-                    0, None, win32file.OPEN_EXISTING, 0, None,
-                )
-                break
+                return self._exchange(req)
             except pywintypes.error as exc:
                 last_exc = exc
                 time.sleep(0.05)
-        if handle is None:
-            raise ConnectionError(f"cannot connect to control pipe: {last_exc}")
+        raise ConnectionError(f"cannot reach control pipe: {last_exc}")
+
+    def _exchange(self, req: ControlRequest) -> ControlResponse:
+        import win32file
+        import win32pipe
+
+        win32pipe.WaitNamedPipe(self._pipe, 200)
+        handle = win32file.CreateFile(
+            self._pipe,
+            win32file.GENERIC_READ | win32file.GENERIC_WRITE,
+            0, None, win32file.OPEN_EXISTING, 0, None,
+        )
         try:
             win32pipe.SetNamedPipeHandleState(
                 handle, win32pipe.PIPE_READMODE_MESSAGE, None, None
