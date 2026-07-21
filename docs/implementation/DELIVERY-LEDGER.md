@@ -437,6 +437,30 @@ Contrato de detecção extraído de `register-mcp.ps1:423-441` (cada provider
   (`hive-mind agents register`) é a fatia seguinte e deve ter `--dry-run`
   como padrão de inspeção.
 
+### Fatia 3 — `agents register` (mapa provider→config, dry-run padrão)
+
+- alterações reais: `registry.py` (`ConfigTarget` + alvos de config dos 12
+  providers com config declarativa, portados dos registrars do
+  `register-mcp.ps1`); `register.py` (`register_providers`, resolve
+  home/appdata/project, aplica o merge transacional, reporta alvo TOML
+  como **não suportado** em vez de pular em silêncio); `cli.py`
+  (`hive-mind agents register`, **dry-run por padrão**, escreve só com
+  `--apply`); `tests/unit/test_agents_register.py` (9 testes).
+- testes: 9 passed (28 no conjunto agents).
+- **prova operacional real (DRY-RUN contra os configs reais)**: resolveu
+  todos os paths corretos — `~/.claude.json`, `<root>/.mcp.json`,
+  `~/.codex/mcp.json`, `~/.gemini/settings.json`, `~/.qwen/settings.json`,
+  `~/.kimi/mcp.json`, `~/.kiro/settings/mcp.json`, kilo em `%APPDATA%`,
+  `<root>/.vscode/mcp.json`, `~/.cursor/mcp.json` — e **não escreveu
+  nada** (nenhum `.hive-bak` criado, verificado). Codex `config.toml`
+  reportado como SKIP com motivo.
+- `pytest tests/unit` completo: **1124 passed, 21 skipped, 2 failed**
+  (pré-existentes PowerShell).
+- **`--apply` NÃO foi executado**: escreveria nos configs reais dos
+  agentes do usuário. É decisão dele, não minha.
+- pendências: writer TOML (Codex `config.toml`); instalação de instruções;
+  `agents doctor`; `agents unregister`; wrappers PS1/SH mínimos.
+
 - fase: P4
 - estado: IN_PROGRESS
 - HEAD inicial: `cb4c66d`

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from hive_mind.project import EX_CONFIG, ProjectRootNotFound, add_cli_argument, resolve_project_root
@@ -109,6 +110,19 @@ def _build_parser() -> argparse.ArgumentParser:
     ag_detect.add_argument("--json", action="store_true", help="emit as JSON")
     ag_list = agents_sub.add_parser("list", help="list all supported providers")
     ag_list.add_argument("--json", action="store_true", help="emit as JSON")
+    ag_reg = agents_sub.add_parser(
+        "register",
+        help="register the Hive-Mind MCP server with detected providers "
+        "(inspection only unless --apply)",
+    )
+    ag_reg.add_argument(
+        "--apply",
+        action="store_true",
+        help="actually write the provider configs (default: dry-run)",
+    )
+    ag_reg.add_argument("--only", default=None, help="register a single provider by id")
+    ag_reg.add_argument("--project-root", default=None, help="project root override")
+    ag_reg.add_argument("--json", action="store_true", help="emit as JSON")
     return p
 
 
@@ -220,8 +234,70 @@ def _agents(args) -> int:
             print(f"\n{len(found)} of {len(results)} providers detected")
         return 0
 
-    print("usage: hive-mind agents {detect|list}", file=sys.stderr)
+    if args.agents_command == "register":
+        return _agents_register(args)
+
+    print("usage: hive-mind agents {detect|list|register}", file=sys.stderr)
     return 1
+
+
+def _agents_register(args) -> int:
+    """Register the MCP server with detected providers. Dry-run unless --apply."""
+    import sys as _sys
+    from pathlib import Path
+
+    from hive_mind.agents.detect import detect_providers
+    from hive_mind.agents.register import register_providers
+
+    try:
+        root = resolve_project_root(cli_root=args.project_root)
+    except ProjectRootNotFound as exc:
+        print(str(exc), file=sys.stderr)
+        return EX_CONFIG
+
+    if args.only:
+        targets = [args.only]
+    else:
+        targets = [r.id for r in detect_providers() if r.detected]
+    if not targets:
+        print("no providers detected", file=sys.stderr)
+        return 1
+
+    home = Path(os.environ.get("USERPROFILE") or os.path.expanduser("~"))
+    appdata = Path(os.environ.get("APPDATA") or (home / "AppData" / "Roaming"))
+    server = str(root / "scripts" / "services" / "sinapse_mcp.py")
+
+    try:
+        results = register_providers(
+            targets,
+            home=home,
+            appdata=appdata,
+            project_root=root,
+            python=_sys.executable,
+            server=server,
+            dry_run=not args.apply,
+        )
+    except KeyError as exc:
+        print(f"unknown provider: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps([r.__dict__ for r in results], ensure_ascii=False, indent=2))
+        return 0
+
+    mode = "APPLIED" if args.apply else "DRY-RUN (nothing written)"
+    print(f"hive-mind agents register — {mode}\n")
+    for r in results:
+        if not r.supported:
+            print(f"  SKIP  {r.provider:<10} {r.path}\n        {r.note}")
+            continue
+        state = "would change" if not args.apply and r.changed else (
+            "changed" if r.changed else "already current"
+        )
+        print(f"  {'OK ' if r.changed else '== '}  {r.provider:<10} {r.path}  [{state}]")
+    if not args.apply:
+        print("\nRe-run with --apply to write these configs.")
+    return 0
 
 
 def _service_ping(args) -> int:
