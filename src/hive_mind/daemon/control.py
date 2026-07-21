@@ -31,7 +31,7 @@ _MAX_MESSAGE_BYTES = 1 << 20  # 1 MiB ceiling on a control message
 
 
 def _pipe_name(state_dir: Path) -> str:
-    """Per-state-dir named-pipe name.
+    r"""Per-state-dir named-pipe name.
 
     The spec names the pipe ``\\.\pipe\hive-mindd``. A fixed global name makes
     distinct daemon instances (and the test suite) collide, so a short stable
