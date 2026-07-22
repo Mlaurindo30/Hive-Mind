@@ -6,7 +6,7 @@
   exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
   antes de existir. O validador aceita esse único passo **só** se o commit
   for somente-documentação, e falha para qualquer commit de código.
-- **active delivery:** D004-R2 (identidade canônica na captura) — D009-R6 pausada
+- **active delivery:** D004 matriz por provider — depois D002-R1
 - **last completed delivery:** **D009-R6** (registradores MCP reduzidos a
   wrappers) — `adcac3d`, `47912f2`. Antes dela, D001-R2 — 6 commits, nesta ordem:
   1. `7b40e59` `docs(implementation): reconcile project status with current HEAD`
@@ -28,17 +28,15 @@
 - **D010 status:** **BLOCKED** — exige D010-G0 DONE
 - **installation status:** instalação limpa NÃO executada
 - **reboot status:** reboot NÃO executado
-- **real data migration status:** NÃO executada. **Diagnóstico corrigido em
-  D004-R2** (errata no [ledger](DELIVERY-LEDGER.md)): a entrega canônica
-  **funciona** — 5.220 observações no Claude Mem, escrita hoje. Os 18.579 +
-  2.070 eventos estão em **dois outboxes deprecados sem dono**, que nunca
-  tentaram entregar (`attempts=0`). O defeito real é **identidade**: o campo
-  `project` recebe rótulo livre, então texto de prompt e nome de worktree
-  viraram projetos. A métrica anterior de "0% `workspace_id`" media uma
-  coluna que **não existe** nessa tabela.
-- **last full regression:** `pytest tests/unit` — **1317 passed, 18 skipped,
-  2 failed** (D009-R6). As 2 são pré-existentes e foi provado por stash de
-  `install.ps1`: falham idênticas sem a edição desta entrega.
+- **real data migration status:** NÃO executada, e **não será** nesta fase —
+  os registros históricos fragmentados permanecem onde estão. O defeito de
+  identidade que os criou está corrigido em D004-R2: `project` deixou de
+  aceitar rótulo livre, e `project_name` deixou de derivar do basename da
+  worktree. Eventos **novos** entram canônicos; o backlog é uma decisão
+  separada. Ver a errata e o fechamento no [ledger](DELIVERY-LEDGER.md).
+- **last full regression:** `pytest tests/unit` — **1359 passed, 18 skipped,
+  2 failed** (D004-R2). As 2 são as conhecidas de
+  `test_windows_install_contract.py`, provadas pré-existentes por stash.
 - **known test failures (17, todas pré-existentes a D001-R2):**
   - 2 em `test_windows_install_contract.py` — UnicodeDecodeError de stdout PowerShell;
   - 1 em `test_acceptance_split.py` — `test_canary_multiagent_pipeline.py` e
@@ -59,7 +57,7 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D001 | Documentação viva | **DONE** | `834e405` | 8 docs, aprovado | — |
 | D002 | Dream Cycle por project_id | **PARTIAL** | `2ae8558` | unit + SQLite real | ciclo real com modelos |
 | D003 | Identidade de projeto validada | **PARTIAL** | `fca4c5a` | repo Git real + registry | canário por provider |
-| D004 | Canários multiagente | **PARTIAL** | `e83d260` | canário real: 4 pass, 4 fail | cadeia de entrega quebrada |
+| D004 | Canários multiagente | **PARTIAL** | `989ebee` | canário real: 4 pass, 4 fail; identidade canônica corrigida (D004-R2) | matriz por provider |
 | D005 | E2E memória → consulta | **PARTIAL** | `d793353` | testes reais | depende de scripts não portados |
 | D006 | Manifesto declarativo | **PARTIAL** | `1db2523` | 10 testes | 4 catálogos concorrentes |
 | D007 | Daemon shadow | **IMPLEMENTED_NO_CUTOVER** | `cb4c66d` | run --shadow real, HTTP, socket | cutover |
@@ -82,7 +80,7 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D009-R5 | doctor, unregister, instruções nativas | **DONE_TEMP_CONFIG** | `25d348a` | doctor real: 1/9 healthy; captura = TO_REMOVE |
 | D009-R6 | Wrappers PS1/SH mínimos | **DONE_TEMP_CONFIG** | `47912f2` | 79 testes; PS1 456→55 L, SH 444→50 L; cadeia wrapper→CLI→config em temp |
 | D001-R2 | Reconciliar documentos com a verdade do Git | **DONE** | `776d504` | validador nativo: 11 checks, 18 testes |
-| D004-R2 | Identidade canônica na captura | **IN_PROGRESS** | — | errata registrada; writers dos 2 outboxes identificados |
+| D004-R2 | Identidade canônica na captura | **DONE_TEMP_STORE** | `989ebee` | 51 testes; evento novo `HM-D004-R2-*` provado ponta a ponta em destinos temporários; bridge grava `workspace_id` canônico |
 | D002-R1 | Dream Cycle operacional sobre project_id real | NOT_STARTED | — | — |
 | D005-R1 | E2E real: memória gravada → consultável | NOT_STARTED | — | — |
 | D006-R2 | Entrypoints nativos de serviço | NOT_STARTED | — | — |

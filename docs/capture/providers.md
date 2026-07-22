@@ -94,7 +94,27 @@ because the answer is computed in one place.
 | `scripts/capture/capture-realtime.py` | service `sinapse-capture-realtime` | watches provider sources continuously |
 | `scripts/capture/capture-tailer.py` | job `capture-tailer` | periodic scan of provider files |
 
-Both import `hive_mind.capture.ingest`. Neither resolves identity itself.
+Both import `hive_mind.capture.ingest`. Neither resolves identity itself —
+asserted in `tests/unit/test_capture_canonical_identity.py`, which fails if
+either one starts calling `attach_project_identity` again.
+
+## What is proven, and what is not
+
+| Leg | Status |
+|---|---|
+| parser → ingest → identity enforced | proven, new event with a unique marker |
+| both entrypoints agree | proven, same event through each |
+| worktree and root are one project | proven, real `git worktree add` |
+| project A isolated from project B | proven |
+| replay does not duplicate | proven |
+| payload the Claude Mem worker would receive | proven, byte for byte |
+| **row existing in a Claude Mem store** | **not proven** — the POST is recorded, not executed |
+| bridge → UMC `workspace_id` | proven, production bridge against temporary databases |
+| per-provider matrix | **not started** — one green event proves the path, not 13 providers |
+
+The worker leg is stubbed because the real worker listens on a fixed port and
+writes to the live store, which this work is not permitted to touch. Closing
+it needs a temporary worker process.
 
 ## Related
 

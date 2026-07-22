@@ -1556,9 +1556,9 @@ ser alvo de primeira classe, com dry-run padrão. O teste que asseverava
 | 21 | documentação atualizada | ✅ |
 | 22 | full regression verde | ⚠️ 2 falhas pré-existentes |
 | 23 | worktree limpa | ✅ |
-| 24 | **captura canônica entregando sem outbox** | ❌ 18.579 eventos capturados, **0 entregues**; 1.094 observações reais com **0%** `workspace_id` canônico — D004-R2 |
+| 24 | **captura canônica entregando sem outbox** | ⚠️ D004-R2: identidade canônica provada ponta a ponta em destinos temporários com evento novo; POST ao worker gravado, não executado; matriz por provider não iniciada |
 
-**9 de 24 critérios pendentes** (15 completos, 8 falhando, 1 parcial). Contagem verificada por `hive-mind implementation validate`.
+**9 de 24 critérios pendentes** (15 completos, 7 falhando, 2 parcial). Contagem verificada por `hive-mind implementation validate`.
 
 ### Sequência até D014
 
@@ -1979,3 +1979,117 @@ autorizada depois.
 **Regra que fica:** backlog de outbox **não é** sinônimo de falha de
 entrega. São coisas independentes, e confundi-las custou a este projeto um
 diagnóstico errado repetido em cinco documentos.
+
+---
+
+## D004-R2 (fechamento) — identidade canônica na captura
+
+### O que mudou de lugar
+
+| De | Para | Linhas |
+|---|---|---|
+| `scripts/capture/capture_core.py` | `hive_mind/capture/engine.py` | 556 → 587 (motor) |
+| — | `hive_mind/capture/identity.py` | 269 (enforcement) |
+| — | `hive_mind/capture/ingest.py` | 79 (entrypoint canônico) |
+| — | `hive_mind/capture/models.py` | 107 (política) |
+| `scripts/capture/capture_core.py` | shim de re-export | **556 → 48** |
+| `scripts/capture/session_events.py` | `hive_mind/capture/session_events.py` | shim de 18 L |
+
+O motor deixou de decidir identidade: `ingest()` virou `emit()`, o fallback
+permissivo saiu, e no lugar há um guard que recusa sessão sem envelope
+canônico. Um caminho que chegue ao transporte sem identidade falha alto em
+vez de inventar um projeto.
+
+### Política, três estados
+
+Aceitar o rótulo do parser foi o que causou o defeito. Recusar toda sessão
+sem Git perderia captura legítima para proteger um dropdown. Nenhuma das
+duas serve, então:
+
+| Estado | Significado | Entrega |
+|---|---|---|
+| `CLASSIFIED` | identidade resolvida da evidência | permitida |
+| `UNCLASSIFIED` | evidência insuficiente → `unclassified/<provider>` | permitida, marcada, health degradado |
+| `INVALID` | envelope malformado, inconsistente ou irresolúvel | **recusada antes de escrever** |
+
+`insufficient_evidence` e `invalid_evidence_fallback` continuam separados no
+`resolution_method`: um é "não havia o que usar", esperado; o outro é "havia
+evidência e o resolver a rejeitou", que aponta configuração quebrada.
+Colapsar os dois esconderia o segundo.
+
+### O defeito que a prova encontrou por baixo do defeito
+
+O teste do par raiz/worktree reprovou, e a razão não era a que eu esperava.
+O `project_id` **já estava correto** — deriva do git common dir, que raiz e
+worktree compartilham. O `project_name` não:
+
+```
+raiz      id=local/57883d1f7914  name=acme-service
+worktree  id=local/57883d1f7914  name=acme-service-feature
+```
+
+`identity.py:569` fazia `project_name=Path(git.repository_root).name`, e
+`repository_root` de uma worktree **é** o diretório da worktree. É
+exatamente a divergência de produção: este repositório aparece como
+`Hive-Mind` (3.550 observações) e como `hive-mind-windows-zero-install`
+(15) — o mesmo projeto sob o nome de uma worktree dele.
+
+A D003 corrigiu o id e deixou o nome. Como o nome é o campo indexado,
+corrigir só o id não corrigia nada de visível. `project_name` passa a
+derivar do git common dir. Verificado no repositório real: raiz e worktree
+devolvem `hive-mind` / `Hive-Mind`.
+
+### Prova com evento novo
+
+Marcador `HM-D004-R2-<timestamp>-<uuid>`, que não pode existir em registro
+histórico. Projeto A com worktree real, projeto B, ambos temporários.
+
+| Verificação | Resultado |
+|---|---|
+| realtime entrega o evento com identidade canônica | ✅ |
+| tailer entrega o mesmo evento com a mesma identidade | ✅ |
+| ambos concordam em `project_id` e `project_name` | ✅ |
+| worktree entrega sob o repositório dela | ✅ |
+| A não aparece em B | ✅ |
+| prompt não vira projeto | ✅ |
+| rótulo livre só em `metadata.capture.raw_project_label` | ✅ |
+| segunda ingestão não duplica | ✅ |
+| bridge grava `workspace_id = project_id` no UMC | ✅ bridge de produção, `CLAUDE_MEM_DB` e `SINAPSE_HOME` temporários |
+| nenhum evento novo em nenhum dos dois outboxes | ✅ contado read-only, antes e depois |
+| store real do Claude Mem intocada | ✅ tamanho e conteúdo verificados |
+
+**Limite declarado, e é o que impede `DONE` puro:** o POST ao worker do
+Claude Mem é **gravado, não executado**. O worker real escuta numa porta
+fixa e escreve na store viva, que esta entrega está proibida de tocar. O
+que fica provado é o payload que a store receberia, byte a byte — não uma
+linha existindo nela. Fechar essa perna exige um worker temporário, que é
+serviço Node e está fora do escopo autorizado aqui.
+
+### Registros históricos
+
+`hive-mind-windows-zero-install`, `preciso-que-verifique-o-por-que*`,
+`referenced-chatgpt-conversation-*`, `ins`, `pr`, `shadow-run-clean` e
+todos os demais rótulos **permanecem exatamente onde estão**. Nada foi
+migrado, reprocessado, marcado como entregue ou apagado. Uma asserção do
+teste existe só para registrar isso.
+
+### Writers dos outboxes
+
+Identificados na errata, sem `UNKNOWN`, e **nenhum foi desligado**. O
+cutover é outra entrega.
+
+### Regressão
+
+`pytest tests/unit`: **1359 passed, 18 skipped, 2 failed** — as duas
+conhecidas de `test_windows_install_contract.py`.
+`pytest tests/integration/test_capture_canonical_delivery_proof.py`: 12
+passed.
+
+### Estado
+
+**`DONE_TEMP_STORE`**, não `DONE`. A cadeia está provada de ponta a ponta
+contra destinos temporários, com o código de produção, num evento novo. A
+perna do worker Claude Mem continua coberta apenas pelo payload.
+
+A matriz por provider **não** está aprovada por esta prova: um evento verde
+prova o caminho, não os 13 providers. Essa é a próxima etapa da D004.

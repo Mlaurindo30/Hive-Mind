@@ -168,10 +168,12 @@ Estados: PROPOSED / ACCEPTED / SUPERSEDED / DEPRECATED.
     frontmatter emite `project_id`/`project_name`/`identity_source`.
   - **PROVA UNITÁRIA + SQLITE:** DONE. Partição e segregação A/B provadas
     em SQLite real.
-  - **PROVA OPERACIONAL:** NOT_STARTED. Nenhum ciclo real executou sobre
-    as 1.094 observações do UMC, onde **0%** têm `workspace_id` canônico.
-    Enquanto a captura não entregar (D004-R2), o Dream Cycle continuará
-    lendo apenas labels legados. Entrega de reparo: **D002-R1**.
+  - **PROVA OPERACIONAL:** NOT_STARTED, e a razão mudou em D004-R2. Não é
+    que a captura não entregue — ela entrega. Era que o `project` gravado
+    não era canônico, então o Dream Cycle agrupava por rótulo livre. Isso
+    está corrigido para eventos **novos**; o histórico permanece
+    fragmentado por decisão explícita. Falta um ciclo real rodando sobre
+    observações canônicas. Entrega de reparo: **D002-R1**.
 
   Um estado único aqui seria enganoso: dizer ACCEPTED sugere resolvido e
   dizer NOT_STARTED apaga o código que existe e passa em teste.
