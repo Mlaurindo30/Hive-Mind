@@ -1,0 +1,24 @@
+{
+  "delivery": "D004-R3",
+  "status": "IN_PROGRESS",
+  "phase": "root cause isolated; restoration not started",
+  "reported_by": "user",
+  "regression_window": "2026-07-17..2026-07-18",
+  "root_cause": "capture_adapters.py in the live runtime watches source directories the providers abandoned; not a Hive-Mind code defect",
+  "runtime": {"path": "D:/Hive-Mind", "branch": "codex/universal-provider-capture", "head": "3d362c6", "capture_realtime_pid": 27816, "adapters_loaded": 11},
+  "worktree": {"adapters_loaded": 12, "note": "qwen adapter present; antigravity path already fixed to antigravity-ide; never applied to runtime"},
+  "providers": {
+    "claude":      {"expected": true, "live": "WORKING", "last": "2026-07-22T22:14", "lane": "native"},
+    "codex":       {"expected": true, "live": "WORKING", "last": "2026-07-22T21:37"},
+    "antigravity": {"expected": true, "live": "BROKEN", "last": "2026-07-18T00:20", "cause": "provider renamed brain -> antigravity-ide/brain"},
+    "qwen":        {"expected": true, "live": "BROKEN", "last": "2026-07-18T01:25", "cause": "adapter not loaded by runtime"},
+    "kimi":        {"expected": true, "live": "BROKEN", "last": "2026-07-18T00:47", "cause": "watched sessions dir does not exist"},
+    "mimo":        {"expected": true, "live": "BROKEN", "last": "2026-07-17T23:55", "cause": "watch path ok but no live delivery, reverify"},
+    "kilo":        {"expected": true, "live": "BROKEN", "last": "2026-07-17T23:49", "cause": "watched WSL path; real source in .local/share/kilo"},
+    "hermes":      {"expected": true, "live": "SUSPECT", "last": "2026-07-22T15:23", "cause": "watch ~/.hermes; real source AppData/Local/hermes"},
+    "copilot":     {"expected": true, "live": "SUSPECT", "last": "2026-07-22T15:23", "cause": "globalStorage transcript path changed"}
+  },
+  "suspects_ruled_out": ["fef5383", "D004-R2", "M14", "hooks-to-old-code", "realtime-not-running"],
+  "hive_mind_code_defect": false,
+  "restoration": {"started": false, "requires_runtime_edit": true, "requires_user_ide_events": ["antigravity-ide", "copilot"]}
+}

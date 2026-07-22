@@ -6,7 +6,7 @@
   exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
   antes de existir. O validador aceita esse único passo **só** se o commit
   for somente-documentação, e falha para qualquer commit de código.
-- **active delivery:** **D002-R1** (Dream Cycle operacional) — D004 fechada.
+- **active delivery:** **D004-R3** (restaurar captura ao vivo). D002-R1 **BLOCKED**.
   SEC-001 segue BLOCKED, independente e sem bloquear testes locais.
 - **last completed delivery:** **D009-R6** (registradores → wrappers).
   D004-R2 e D004-R2W estão **PARTIAL**. Antes dela: D004-R2 (**PARTIAL**, não fechada), D009-R6
@@ -32,6 +32,12 @@
 - **D010 status:** **BLOCKED** — exige D010-G0 DONE
 - **installation status:** instalação limpa NÃO executada
 - **reboot status:** reboot NÃO executado
+- **live capture status:** **REGRESSÃO** — antigravity, qwen, kimi, mimo, kilo
+  pararam de entregar ao Claude Mem em 17-18/07. Causa raiz: o
+  `capture_adapters.py` do runtime ativo observa paths que os providers
+  abandonaram. codex e claude seguem entregando. Correção existe na
+  worktree e **não** foi aplicada ao runtime. Detalhe em
+  [reports/live-provider-capture-recovery.md](../../reports/live-provider-capture-recovery.md).
 - **real data migration status:** NÃO executada, e **não será** nesta fase —
   os registros históricos fragmentados permanecem onde estão. O defeito de
   identidade que os criou está corrigido em D004-R2: `project` deixou de
@@ -65,7 +71,7 @@ começa com DONE, e o leitor que só escaneia a coluna via a entrega fechada.
 | D001 | Documentação viva | **DONE** | `834e405` | 8 docs, aprovado | — |
 | D002 | Dream Cycle por project_id | **PARTIAL** | `2ae8558` | unit + SQLite real | ciclo real com modelos |
 | D003 | Identidade de projeto validada | **PARTIAL** | `fca4c5a` | repo Git real + registry | canário por provider |
-| D004 | Canários multiagente | **DONE** | — | matriz completa: 0 BLOCK, nenhum defeito do Hive-Mind aberto; codex e qwen com cadeia comprovada | — |
+| D004 | Canários multiagente | **FAILED** | — | matriz invalidada por regressão do runtime ativo, reportada e reproduzida pelo usuário | D004-R3 |
 | D005 | E2E memória → consulta | **PARTIAL** | `d793353` | testes reais | depende de scripts não portados |
 | D006 | Manifesto declarativo | **PARTIAL** | `1db2523` | 10 testes | 4 catálogos concorrentes |
 | D007 | Daemon shadow | **PARTIAL** | `cb4c66d` | run --shadow real, HTTP, socket | cutover; evidência: código pronto, sem cutover |
@@ -92,8 +98,9 @@ começa com DONE, e o leitor que só escaneia a coluna via a entrega fechada.
 | D004-R2W | Entrega via worker real isolado | **DONE** | `1ce684f` | worker real descartável, transporte real, observation real, FK, registry antes do POST, bridge real, `workspace_id` canônico, PENDING→BRIDGED, retry, restart, A/B | — |
 | **SEC-001** | Credencial de provider exposta na saída | **BLOCKED** | `1cdc7d5` | scanner sem impressão: 0 ocorrências em 14.973 objetos Git, 9.580 arquivos, staged e mensagens | **rotação humana da chave** |
 | M14 | Identidade canônica até a observation | **DONE** | `1ce684f` | 85 testes; cadeia única com worker real: `workspace_id` no UMC = `project_id` decidido antes do POST | — |
-| D004-M | Matriz por provider | **DONE** | — | 12 adapters classificados, zero UNKNOWN: 2 PASS (codex, qwen), 1 FAIL, 5 BLOCKED_BY_PROVIDER, 3 NOT_INSTALLED, 1 NO_SOURCE | — |
-| D004-P | Política de aceite de providers | **DONE** | — | verificação e aceite separados; 0 BLOCK, 3 OK, 4 OK_EXTERNAL, 6 OK_NOT_REQUIRED | — |
+| D004-M | Matriz por provider | **FAILED** | — | a matriz não representava o runtime ativo: classificou como OK_EXTERNAL providers que estão BROKEN no runtime | D004-R3 |
+| D004-P | Política de aceite de providers | **DONE** | — | verificação e aceite separados; a política é válida, o **dado** a que foi aplicada estava errado | D004-R3 revalida os dados |
+| D004-R3 | Restaurar captura ao vivo | **IN_PROGRESS** | — | causa raiz isolada: paths de fonte defasados no capture_adapters do runtime; providers migraram diretórios em 17-18/07 | restauração + prova por provider |
 | D010-C1 | Remover propriedade legada do capture hook | **NOT_STARTED** | — | writers e paths de config registrados | depende de D004-M |
 | D002-R1 | Dream Cycle operacional sobre project_id real | NOT_STARTED | — | — |
 | D005-R1 | E2E real: memória gravada → consultável | NOT_STARTED | — | — |
