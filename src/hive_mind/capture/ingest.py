@@ -24,6 +24,28 @@ SeenStore = engine.SeenStore
 _resolver_singleton = None
 
 
+_identity_store_singleton = None
+
+
+def default_identity_store():
+    """One store per process, opened lazily.
+
+    Returns None rather than raising if the store cannot be opened: capture
+    that cannot record its decision must not deliver (see `ingest`), but a
+    caller who passes `identity_store=` explicitly — every test does — should
+    not pay for a default it never uses.
+    """
+    global _identity_store_singleton
+    if _identity_store_singleton is None:
+        try:
+            from hive_mind.capture.identity_store import IdentityStore
+
+            _identity_store_singleton = IdentityStore()
+        except Exception:
+            return None
+    return _identity_store_singleton
+
+
 def default_resolver():
     """One resolver per process. Building it walks git; doing that per session
     would make the tailer's cost scale with the number of files it scans."""
@@ -42,14 +64,24 @@ def ingest(
     *,
     resolver=None,
     default_surface: Optional[str] = None,
+    identity_store=None,
     on_refused: Optional[Callable[[IdentityRefused], None]] = None,
     on_degraded: Optional[Callable[[CaptureIdentity], None]] = None,
+    on_conflict: Optional[Callable[[Exception], None]] = None,
 ) -> int:
     """Deliver one session. Returns how many records were emitted.
 
-    `on_refused` and `on_degraded` let an entrypoint log without deciding:
-    the decision has already been made here, and the callback only observes
-    it. An entrypoint that ignores them loses visibility, not correctness.
+    The order below is the contract, not an implementation detail: the
+    identity decision is **written before the post**. The worker generates
+    observations itself and drops our metadata (M14-A), so the only way the
+    bridge can recover a project id later is from a decision recorded against
+    the session id — and a decision recorded *after* delivery would be missing
+    for exactly the events that crashed in between.
+
+    `on_refused`, `on_degraded` and `on_conflict` let an entrypoint log
+    without deciding: the decision has already been made here, and the
+    callback only observes it. An entrypoint that ignores them loses
+    visibility, not correctness.
     """
     try:
         identity = resolve_identity(
@@ -65,7 +97,42 @@ def ingest(
     if identity.status is IdentityStatus.UNCLASSIFIED and on_degraded is not None:
         on_degraded(identity)
 
-    return engine.emit(provider, apply_identity(session, identity), store)
+    normalized = apply_identity(session, identity)
+    registry = identity_store if identity_store is not None else default_identity_store()
+    content_session_id = str(session.get("sid") or "").strip()
+
+    if registry is not None and content_session_id:
+        from hive_mind.capture.identity_store import IdentityStoreError
+
+        try:
+            registry.record_pending(
+                content_session_id=content_session_id,
+                provider=identity.provider,
+                surface=identity.surface,
+                project_id=identity.project_id,
+                project_name=identity.project_name,
+                identity=identity.envelope,
+                raw_project_label=identity.raw_label,
+            )
+        except IdentityStoreError as problem:
+            # Nothing is delivered without a recoverable decision. A conflict
+            # here means the same session already decided differently, which
+            # is a defect upstream — posting anyway would put an event in the
+            # store that the bridge could never attribute.
+            if on_conflict is not None:
+                on_conflict(problem)
+            return 0
+
+    try:
+        emitted = engine.emit(provider, normalized, store)
+    except Exception as failure:
+        if registry is not None and content_session_id:
+            registry.mark_failed(content_session_id, str(failure))
+        raise
+
+    if registry is not None and content_session_id and emitted:
+        registry.mark_posted(content_session_id)
+    return emitted
 
 
 def ingest_many(provider: str, sessions, store, **kwargs) -> int:
