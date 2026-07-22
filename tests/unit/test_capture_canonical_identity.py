@@ -327,3 +327,25 @@ class TestOneImplementation:
         assert "attach_project_identity" not in code, (
             f"{runner} resolves identity itself; ingest() already does"
         )
+
+
+class TestTheShimReExportsWhatCallersUse:
+    """A shim that drops a name is a rename with extra steps.
+
+    `SESSION_CUTOFF_MS` was left out when the engine moved into the package,
+    and nothing noticed until the kilo and mimo parsers ran against a real
+    source in D004-M — an AttributeError, months of test runs later, in the
+    one place no unit test covered.
+    """
+
+    def test_every_name_the_parsers_reference_is_exported(self):
+        import re
+
+        import scripts.capture.capture_core as shim
+
+        used: set[str] = set()
+        for path in (CAPTURE / "parsers").rglob("*.py"):
+            source = path.read_text(encoding="utf-8")
+            used.update(re.findall(r"\bcore\.([A-Za-z_][A-Za-z0-9_]*)", source))
+        missing = sorted(name for name in used if not hasattr(shim, name))
+        assert missing == [], f"the shim does not re-export {missing}"

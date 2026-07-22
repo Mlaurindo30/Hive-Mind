@@ -1,76 +1,78 @@
 # Provider capture matrix (D004-M)
 
-Estado: **IN_PROGRESS**. Este documento é o inventário medido antes da
-execução, não o resultado dela. Nenhum provider está classificado `PASS`
-ainda, porque `PASS` exige **evento novo** e a cadeia inteira até o UMC.
+Executada em 2026-07-22 21:44 UTC · HEAD `8426c50`
 
-## Ambiente de destino
+Ambiente descartável: worker Claude Mem em porta livre, `CLAUDE_MEM_DATA_DIR`,
+HOME/USERPROFILE/APPDATA, IdentityStore, Claude Mem e UMC todos temporários;
+Ollama local com `qwen2.5:3b` já instalado. Nada ativo alterado.
 
-Toda a matriz usa o mesmo ambiente descartável já provado em M14: worker
-Claude Mem em porta livre, `CLAUDE_MEM_DATA_DIR` temporário, HOME/USERPROFILE/
-APPDATA temporários, Ollama local com `qwen2.5:3b` já instalado, IdentityStore
-temporária, Claude Mem e UMC temporários, projetos Git A e B temporários.
+## Capture providers
 
-Nada ativo é tocado: `D:\Hive-Mind`, o worker na 37700, `settings.json`,
-setup-brain, config do Ollama, modelos, configs de provider, hooks, outboxes e
-bancos históricos ficam como estão.
+| Provider | Instalado | Evento novo | Observation | UMC | Status | Causa |
+|---|:-:|:-:|:-:|:-:|---|---|
+| codex | sim | sim | sim | sim | **PASS** | cadeia completa; workspace_id=local/25bc6535d00d, BRIDGED, dedupe 0 |
+| qwen | sim | sim | sim | sim | **PASS** | cadeia completa; workspace_id=local/f1ce69efa5a3, BRIDGED, dedupe 0 |
+| kimi | sim | não | — | — | **FAIL** | AUTHENTICATION: `No model configured. Run kimi and use /login`. Login proibido nesta entrega |
+| kilo | sim | não | — | — | **BLOCKED_BY_PROVIDER** | `kilo run` sai 0 sem executar o prompt com stdin fechado; marcador ausente em 3.057 linhas do kilo.db |
+| mimo | sim | não | — | — | **BLOCKED_BY_PROVIDER** | `mimo run` idem; marcador ausente em 7.588 linhas do mimocode.db |
+| copilot | sim | não | — | — | **BLOCKED_BY_PROVIDER** | `copilot -p` sai 0 sem produzir fonte nova no globalStorage |
+| antigravity | sim | não | — | — | **BLOCKED_BY_PROVIDER** | sem CLI; fonte só é produzida pela IDE, exige interação |
+| hermes | sim | não | — | — | **BLOCKED_BY_PROVIDER** | CLI existe mas expõe curator/mcp; sem modo de prompt não-interativo |
+| roo | não | — | — | — | **NOT_INSTALLED** | não detectado; globalStorage ausente |
+| openclaw | não | — | — | — | **NOT_INSTALLED** | não detectado; runs.sqlite ausente |
+| swarmclaw | não | — | — | — | **NOT_INSTALLED** | não detectado; swarmclaw.db ausente |
+| screenpipe | — | — | — | — | **NO_SOURCE** | adapter sem padrão de fonte declarado |
 
-## Inventário de fontes reais (medido, não presumido)
+**12 adapters de captura.** BLOCKED_BY_PROVIDER: 5 · FAIL: 1 · NOT_INSTALLED: 3 · NO_SOURCE: 1 · PASS: 2
 
-`hive-mind agents detect`: **9 de 13** providers detectados.
+## REGISTRATION_ONLY (fora do denominador)
 
-| Provider | Detectado | Fonte real | Arquivos | Fonte mais recente | Situação |
-|---|:-:|---|--:|--:|---|
-| antigravity | — | `~/.gemini/antigravity-ide/conversations` | 27 | **1,4 h** | fonte viva |
-| codex | ✅ | `~/.codex/sessions/**/rollout-*.jsonl` | 156 | 47 h | fonte histórica |
-| copilot | ✅ (vscode) | `AppData/Roaming/Code/User/globalStorage` | 2 | 141 h | fonte histórica |
-| hermes | — | `AppData/Local/hermes/state.db` | 1 | 5,7 h | fonte histórica |
-| kilo | ✅ | `~/.local/share/kilo/kilo.db` | 1 | 46,6 h | fonte histórica |
-| mimo | — | `~/.local/share/mimocode/mimocode.db` | 1 | 117 h | fonte histórica |
-| qwen | ✅ | `~/.qwen/projects/**` | 9 | 94 h | fonte histórica |
-| kimi | ✅ | `~/.kimi/sessions/*/*/context.js` | **0** | — | `NO_SOURCE` |
-| roo | ❌ | globalStorage do VS Code | 0 | — | `NOT_INSTALLED` |
-| openclaw | ❌ | `~/.openclaw/tasks/runs.sqlite` | 0 | — | `NOT_INSTALLED` |
-| swarmclaw | ❌ | `~/.swarmclaw/data/swarmclaw.db` | 0 | — | `NOT_INSTALLED` |
-| screenpipe | — | sem padrão de fonte no adapter | 0 | — | `NO_SOURCE` |
-| claude | ✅ | captura nativa própria | — | — | linha separada |
+Agentes do registry **sem adapter de captura**. São alvos de registro MCP,
+não fontes, e não recebem PASS/FAIL/NO_SOURCE/BLOCKED_BY_PROVIDER.
 
-**Kiro e Cursor** são detectados pelo registry mas **não têm adapter de
-captura** — são alvos de registro MCP, não fontes. Registrado como lacuna a
-classificar.
+| Agente |
+|---|
+| claude |
+| cursor |
+| gemini |
+| kiro |
+| opencode |
+| vscode |
 
-## O que isto já decide
+`claude` tem captura nativa própria e não passa pelo adapter universal —
+produzir evento novo por ela exige uma sessão de Claude Code, que não pode
+ser isolada com segurança nesta rodada.
 
-Sete providers têm fonte real utilizável, e **seis delas são históricas** —
-horas ou dias atrás. A regra da entrega é explícita: fonte histórica não vira
-`PASS` de evento novo. Então `PASS` para esses seis exige **executar uma
-sessão mínima** com o CLI do provider, usando a configuração que já existe.
+## Defeitos do Hive-Mind corrigidos durante a matriz
 
-Três providers estão `NOT_INSTALLED` e um está `NO_SOURCE` — nenhum deles
-reprova um perfil onde é opcional, o que depende da política do item seguinte.
+Ambos só apareceram com provider real; nenhum teste sintético os pegava.
 
-## Lacuna bloqueante: não existe política de providers obrigatórios
+1. **`mark_posted` condicionado à contagem do `emit`.** `emit` conta conteúdo
+   *novo*, não entrega. A primeira sessão real do Codex entregou a observation
+   e ficou `PENDING` para sempre, e o bridge não podia avançá-la.
+2. **O shim `capture_core` não re-exportava `SESSION_CUTOFF_MS`.** Ficou de
+   fora quando o motor mudou para o pacote (D004-R2); os parsers do kilo e do
+   mimo quebravam com `AttributeError` na primeira fonte real.
 
-O item 14 pede derivar do registry/manifesto quais providers são obrigatórios
-por perfil. **Essa política não existe declarativamente.** O registry
-(`hive_mind.agents.registry`) lista 13 providers sem marcar obrigatoriedade, e
-o `runtime.yaml` tem perfis (`local-min`, `local-full`) para *serviços*, não
-para providers de captura.
+## Comandos executados
 
-Consequência, conforme a instrução: não tratar os 13 como obrigatórios, não
-inventar a política durante o teste, e **manter D004 `PARTIAL`** até ela
-existir. Subentrega declarativa curta a criar: **D004-P — política de
-providers por perfil**.
+Uma sessão mínima por CLI, com a configuração existente, em projeto Git
+temporário, com uma leitura read-only de `canary.txt`:
 
-## Próximo passo exato
+```
+codex exec "<marcador> …"
+qwen  -p   "<marcador> …"
+kimi  -p   "<marcador> …"
+kilo  run  "<marcador> …"
+mimo  run  "<marcador> …"
+copilot -p "<marcador> …" --allow-all-tools
+```
 
-Para cada provider com CLI executável (codex, qwen, kimi, gemini), rodar uma
-sessão mínima com marcador `HM-D004-M-<provider>-<ts>-<uuid>`, `cwd` num
-projeto Git temporário, uma tool call read-only e uma resposta curta — usando
-a configuração existente, sem alterar nada. Depois, a cadeia completa até o
-UMC, provider a provider.
+Nenhum modelo trocado, nenhum login, nenhuma config editada, nenhum backlog tocado.
 
-Para os de IDE/desktop sem automação segura (antigravity, kilo, mimo,
-hermes, copilot): se não for possível produzir evento novo sem interação,
-classificar `BLOCKED_BY_PROVIDER` com evidência — não converter fonte
-histórica em `PASS`.
+## Próximo trabalho
+
+`kimi` é o único FAIL, e a causa é externa (sem modelo configurado). Os cinco
+`BLOCKED_BY_PROVIDER` precisam de um modo não-interativo que o provider não
+oferece hoje — não de código Hive-Mind. Nenhuma subentrega `D004-M-<PROVIDER>`
+é necessária: não há defeito nosso pendente.

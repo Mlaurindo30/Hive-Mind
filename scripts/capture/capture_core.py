@@ -22,6 +22,7 @@ from hive_mind.capture.engine import (  # noqa: F401
     OBS_CAP,
     PROJECT,
     ROOT,
+    SESSION_CUTOFF_MS,
     STATE,
     STATE_DIR,
     CanonicalIdentityRequired,
@@ -41,7 +42,8 @@ from hive_mind.capture.engine import (  # noqa: F401
 from hive_mind.capture.ingest import ingest, ingest_many  # noqa: F401
 
 __all__ = [
-    "BASE", "DATA_DIR", "OBS_CAP", "PROJECT", "ROOT", "STATE", "STATE_DIR",
+    "BASE", "DATA_DIR", "OBS_CAP", "PROJECT", "ROOT", "SESSION_CUTOFF_MS",
+    "STATE", "STATE_DIR",
     "CanonicalIdentityRequired", "SeenStore", "content_hash", "emit", "ingest",
     "ingest_many", "load_state", "project_from_cwd", "save_state",
     "text_content", "worker_alive",

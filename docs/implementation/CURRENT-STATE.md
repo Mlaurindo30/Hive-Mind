@@ -6,7 +6,7 @@
   exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
   antes de existir. O validador aceita esse único passo **só** se o commit
   for somente-documentação, e falha para qualquer commit de código.
-- **active delivery:** **D004-M** (matriz por provider) — M14 e D004-R2W fechadas.
+- **active delivery:** **D004-P** (política declarativa de providers) — D004-M fechada.
   SEC-001 segue BLOCKED, independente e sem bloquear testes locais.
 - **last completed delivery:** **D009-R6** (registradores → wrappers).
   D004-R2 e D004-R2W estão **PARTIAL**. Antes dela: D004-R2 (**PARTIAL**, não fechada), D009-R6
@@ -92,7 +92,8 @@ começa com DONE, e o leitor que só escaneia a coluna via a entrega fechada.
 | D004-R2W | Entrega via worker real isolado | **DONE** | `1ce684f` | worker real descartável, transporte real, observation real, FK, registry antes do POST, bridge real, `workspace_id` canônico, PENDING→BRIDGED, retry, restart, A/B | — |
 | **SEC-001** | Credencial de provider exposta na saída | **BLOCKED** | `1cdc7d5` | scanner sem impressão: 0 ocorrências em 14.973 objetos Git, 9.580 arquivos, staged e mensagens | **rotação humana da chave** |
 | M14 | Identidade canônica até a observation | **DONE** | `1ce684f` | 85 testes; cadeia única com worker real: `workspace_id` no UMC = `project_id` decidido antes do POST | — |
-| D004-M | Matriz por provider | **IN_PROGRESS** | — | M14 destravou: observation real e identidade canônica provadas | 9 providers com fonte conhecida |
+| D004-M | Matriz por provider | **DONE** | — | 12 adapters classificados, zero UNKNOWN: 2 PASS (codex, qwen), 1 FAIL, 5 BLOCKED_BY_PROVIDER, 3 NOT_INSTALLED, 1 NO_SOURCE | — |
+| D004-P | Política de providers por perfil | **NOT_STARTED** | — | lacuna registrada em D004-M | — |
 | D010-C1 | Remover propriedade legada do capture hook | **NOT_STARTED** | — | writers e paths de config registrados | depende de D004-M |
 | D002-R1 | Dream Cycle operacional sobre project_id real | NOT_STARTED | — | — |
 | D005-R1 | E2E real: memória gravada → consultável | NOT_STARTED | — | — |

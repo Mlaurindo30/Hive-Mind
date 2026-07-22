@@ -1,0 +1,136 @@
+{
+  "run_id": "d004m-1784756658",
+  "head": "8426c50",
+  "timestamp": "2026-07-22T21:44:18.223469+00:00",
+  "environment": "disposable worker, temp data dir, temp HOME, local ollama qwen2.5:3b",
+  "capture_adapters": 12,
+  "counts": {
+    "PASS": 2,
+    "FAIL": 1,
+    "BLOCKED_BY_PROVIDER": 5,
+    "NOT_INSTALLED": 3,
+    "NO_SOURCE": 1
+  },
+  "providers": [
+    {
+      "provider": "codex",
+      "installed": "sim",
+      "new_event": "sim",
+      "observation": "sim",
+      "umc": "sim",
+      "status": "PASS",
+      "cause": "cadeia completa; workspace_id=local/25bc6535d00d, BRIDGED, dedupe 0"
+    },
+    {
+      "provider": "qwen",
+      "installed": "sim",
+      "new_event": "sim",
+      "observation": "sim",
+      "umc": "sim",
+      "status": "PASS",
+      "cause": "cadeia completa; workspace_id=local/f1ce69efa5a3, BRIDGED, dedupe 0"
+    },
+    {
+      "provider": "kimi",
+      "installed": "sim",
+      "new_event": "não",
+      "observation": "—",
+      "umc": "—",
+      "status": "FAIL",
+      "cause": "AUTHENTICATION: `No model configured. Run kimi and use /login`. Login proibido nesta entrega"
+    },
+    {
+      "provider": "kilo",
+      "installed": "sim",
+      "new_event": "não",
+      "observation": "—",
+      "umc": "—",
+      "status": "BLOCKED_BY_PROVIDER",
+      "cause": "`kilo run` sai 0 sem executar o prompt com stdin fechado; marcador ausente em 3.057 linhas do kilo.db"
+    },
+    {
+      "provider": "mimo",
+      "installed": "sim",
+      "new_event": "não",
+      "observation": "—",
+      "umc": "—",
+      "status": "BLOCKED_BY_PROVIDER",
+      "cause": "`mimo run` idem; marcador ausente em 7.588 linhas do mimocode.db"
+    },
+    {
+      "provider": "copilot",
+      "installed": "sim",
+      "new_event": "não",
+      "observation": "—",
+      "umc": "—",
+      "status": "BLOCKED_BY_PROVIDER",
+      "cause": "`copilot -p` sai 0 sem produzir fonte nova no globalStorage"
+    },
+    {
+      "provider": "antigravity",
+      "installed": "sim",
+      "new_event": "não",
+      "observation": "—",
+      "umc": "—",
+      "status": "BLOCKED_BY_PROVIDER",
+      "cause": "sem CLI; fonte só é produzida pela IDE, exige interação"
+    },
+    {
+      "provider": "hermes",
+      "installed": "sim",
+      "new_event": "não",
+      "observation": "—",
+      "umc": "—",
+      "status": "BLOCKED_BY_PROVIDER",
+      "cause": "CLI existe mas expõe curator/mcp; sem modo de prompt não-interativo"
+    },
+    {
+      "provider": "roo",
+      "installed": "não",
+      "new_event": "—",
+      "observation": "—",
+      "umc": "—",
+      "status": "NOT_INSTALLED",
+      "cause": "não detectado; globalStorage ausente"
+    },
+    {
+      "provider": "openclaw",
+      "installed": "não",
+      "new_event": "—",
+      "observation": "—",
+      "umc": "—",
+      "status": "NOT_INSTALLED",
+      "cause": "não detectado; runs.sqlite ausente"
+    },
+    {
+      "provider": "swarmclaw",
+      "installed": "não",
+      "new_event": "—",
+      "observation": "—",
+      "umc": "—",
+      "status": "NOT_INSTALLED",
+      "cause": "não detectado; swarmclaw.db ausente"
+    },
+    {
+      "provider": "screenpipe",
+      "installed": "—",
+      "new_event": "—",
+      "observation": "—",
+      "umc": "—",
+      "status": "NO_SOURCE",
+      "cause": "adapter sem padrão de fonte declarado"
+    }
+  ],
+  "registration_only": [
+    "claude",
+    "cursor",
+    "gemini",
+    "kiro",
+    "opencode",
+    "vscode"
+  ],
+  "defects_fixed": [
+    "mark_posted gated on emit count",
+    "capture_core shim missing SESSION_CUTOFF_MS"
+  ]
+}
