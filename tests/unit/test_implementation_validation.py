@@ -344,3 +344,30 @@ class TestQualifiersAreNotStates:
 
         findings = check_no_qualifier_used_as_state(ROOT)
         assert findings == [], "\n".join(str(f) for f in findings)
+
+
+class TestTheGateCounterOnlyCountsTheGate:
+    """A numbered table elsewhere in the ledger is not gate criteria.
+
+    M14's progress log used `| 1 | commit | what | ✅ |` rows, and the counter
+    jumped from 24 to 29 without a single criterion changing.
+    """
+
+    def test_a_numbered_table_outside_the_gate_is_ignored(self, tmp_path):
+        root = _docs(tmp_path)
+        _write(root, "DELIVERY-LEDGER.md",
+               "## D010-G0\n\n### Critérios (2)\n\n"
+               "| # | c | Estado |\n| 1 | a | ✅ |\n| 2 | b | ❌ |\n\n"
+               "**1 de 2 critérios pendentes**\n\n"
+               "### Progresso de outra entrega\n\n"
+               "| # | commit | o quê | estado |\n"
+               "| 1 | abc | store | ✅ |\n| 2 | def | bridge | ✅ |\n")
+        assert check_gate_counter(root) == []
+
+    def test_the_gate_table_itself_is_still_counted(self, tmp_path):
+        root = _docs(tmp_path)
+        _write(root, "DELIVERY-LEDGER.md",
+               "## D010-G0\n\n### Critérios (2)\n\n"
+               "| # | c | Estado |\n| 1 | a | ✅ |\n| 2 | b | ❌ |\n\n"
+               "**2 de 2 critérios pendentes**\n")
+        assert check_gate_counter(root), "the counter stopped counting"

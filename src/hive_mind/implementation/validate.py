@@ -189,10 +189,25 @@ def check_referenced_commits_exist(root: Path) -> list[Finding]:
     return findings
 
 
+def _gate_section(text: str) -> str:
+    """Just the D010-G0 criteria section.
+
+    Counting numbered rows across the whole ledger was wrong the moment any
+    other delivery wrote a numbered table with tick marks — which M14's
+    progress log did, and the counter jumped from 24 to 29 without a single
+    gate criterion changing.
+    """
+    start = text.find("### Critérios")
+    if start == -1:
+        return text
+    end = text.find("\n### ", start + 1)
+    return text[start:end if end != -1 else len(text)]
+
+
 def _gate_table_counts(text: str) -> tuple[int, int, int]:
     """Count ✅ / ❌ / ⚠️ rows in the D010-G0 criteria table."""
     done = failing = partial = 0
-    for line in text.splitlines():
+    for line in _gate_section(text).splitlines():
         if not re.match(r"^\|\s*\d+\s*\|", line):
             continue
         if "✅" in line:
