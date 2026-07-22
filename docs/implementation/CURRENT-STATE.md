@@ -1,10 +1,10 @@
 # Project Status Dashboard
 
 - **branch:** `codex/control-plane-redesign`
-- **HEAD:** `e86b1fa`
-- **active delivery:** D009-R5 (agents doctor/unregister, instruções e captura nativas)
-- **last completed delivery:** D009-R4 (writer TOML nativo do Codex)
-- **next delivery:** D009-R6 (wrappers PS1/SH mínimos)
+- **HEAD:** `25d348a`
+- **active delivery:** D009-R6 (wrappers PS1/SH mínimos)
+- **last completed delivery:** D009-R5 (doctor, unregister, instruções nativas)
+- **next delivery:** D009-R6 → D006-R1 → D010-G0
 - **native control plane compliance:** PARTIAL
 - **runtime active root:** `D:\Hive-Mind` (não alterado, exceto DR-001 autorizado)
 - **runtime active owner:** Task Scheduler + `npm/lib/supervisor.js` (legado)
@@ -12,7 +12,7 @@
 - **installation status:** instalação limpa NÃO executada
 - **reboot status:** reboot NÃO executado
 - **real data migration status:** NÃO executada (outbox com 18.579 eventos não entregues; UMC 0% workspace canônico)
-- **last full regression:** 1214 passed, 26 skipped, 2 failed
+- **last full regression:** 1239 passed, 26 skipped, 2 failed
 - **known test failures:** 2 pré-existentes em `test_windows_install_contract.py` (UnicodeDecodeError de stdout PowerShell)
 - **worktree status:** limpa, exceto 16 untracked em `.tmp/` (LOCAL TEST ARTIFACT)
 
@@ -32,7 +32,7 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D006 | Manifesto declarativo | **PARTIAL** | `1db2523` | 10 testes | 4 catálogos concorrentes |
 | D007 | Daemon shadow | **IMPLEMENTED_NO_CUTOVER** | `cb4c66d` | run --shadow real, HTTP, socket | cutover |
 | D008 | Supervisor e scheduler | **PARTIAL** | `1857869` | processos sintéticos reais | disparo de jobs, cutover |
-| D009 | Registro MCP/captura nativo | **PARTIAL** | `e86b1fa` | detect real 9/13, dry-run 11 alvos | doctor, unregister, instruções, captura, wrappers |
+| D009 | Registro MCP/captura nativo | **PARTIAL** | `25d348a` | detect 9/13, doctor 1/9 healthy, TOML nativo | wrappers PS1/SH (D009-R6) |
 | D010 | Cutover de owners legados | **BLOCKED** | — | — | exige D010-G0 |
 | D011 | Installer e lifecycle Windows | NOT_STARTED | — | — | — |
 | D012 | Windows descartável + reboot | NOT_STARTED | — | — | — |
@@ -47,7 +47,7 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D009-R2 | Testes arquiteturais | **DONE** | `a8f0e59` | 14 testes verdes |
 | D009-R3 | Paridade POSIX do capture hook | **DONE** | `fef5383` | ADR-004 restaurado |
 | D009-R4 | Writer TOML do Codex | **DONE_TEMP_CONFIG** | `e86b1fa` | cópia do config real (181 L) |
-| D009-R5 | doctor, unregister, instruções, captura | **IN_PROGRESS** | — | — |
+| D009-R5 | doctor, unregister, instruções nativas | **DONE_TEMP_CONFIG** | `25d348a` | doctor real: 1/9 healthy; captura = TO_REMOVE |
 | D009-R6 | Wrappers PS1/SH mínimos | NOT_STARTED | — | — |
 | D003-R1 | Resolver no pacote nativo | **DONE** | `bf60028` | 115 testes; legado é shim |
 | D004-R1 | Canary runner nativo | **DONE** | `e83d260` | canário sobre dados reais |

@@ -1546,8 +1546,8 @@ ser alvo de primeira classe, com dry-run padrão. O teste que asseverava
 | 11 | canary runner no pacote | ✅ D004-R1 |
 | 12 | backup no pacote | ✅ D008-R1B |
 | 13 | agent registration no pacote | ✅ D009/D009-R4 |
-| 14 | captura no pacote | ❌ D009-R5 |
-| 15 | doctor/unregister no pacote | ❌ D009-R5 |
+| 14 | captura no pacote | ✅ caminho canônico não usa hook; script é TO_REMOVE |
+| 15 | doctor/unregister no pacote | ✅ D009-R5 |
 | 16 | `runtime.yaml` é fonte única | ❌ 4 catálogos |
 | 17 | um owner por serviço | ❌ |
 | 18 | um owner por job | ❌ scheduler paralelo |
@@ -1557,7 +1557,7 @@ ser alvo de primeira classe, com dry-run padrão. O teste que asseverava
 | 22 | full regression verde | ⚠️ 2 falhas pré-existentes |
 | 23 | worktree limpa | ✅ |
 
-**7 de 23 critérios pendentes.** D010 só sai de BLOCKED com este gate DONE.
+**5 de 23 critérios pendentes.** D010 só sai de BLOCKED com este gate DONE.
 
 ### Sequência até D014
 
