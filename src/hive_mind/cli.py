@@ -120,14 +120,32 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="actually write the provider configs (default: dry-run)",
     )
-    ag_reg.add_argument("--only", default=None, help="register a single provider by id")
+    ag_reg.add_argument("--only", "--self", "--agent", dest="only", default=None,
+                        help="register a single provider by id")
+    ag_reg.add_argument("provider", nargs="?", default=None,
+                        help="the same, given positionally (legacy spelling)")
     ag_reg.add_argument("--project-root", default=None, help="project root override")
     ag_reg.add_argument("--json", action="store_true", help="emit as JSON")
     ag_reg.add_argument(
         "--instructions", action="store_true",
         help="also install the managed instruction block for each provider",
     )
+    # Compatibility with the registrar scripts D009-R6 reduced to wrappers.
+    # See hive_mind/agents/compat.py for why these live here and not there.
+    ag_reg.add_argument("--no-instructions", dest="no_instructions",
+                        action="store_true",
+                        help="never touch prompt files (legacy flag)")
+    ag_reg.add_argument("--check", action="store_true",
+                        help="diagnose only; write nothing (legacy flag)")
+    ag_reg.add_argument("--list", action="store_true",
+                        help="print the valid agent keys and exit (legacy flag)")
+    ag_reg.add_argument("--codex-only", dest="codex_only", action="store_true",
+                        help="shorthand for --only codex (legacy flag)")
+    ag_reg.add_argument("--claude-only", dest="claude_only", action="store_true",
+                        help="shorthand for --only claude (legacy flag)")
     ag_doc = agents_sub.add_parser("doctor", help="diagnose agent integrations (read-only)")
+    ag_doc.add_argument("--only", "--self", "--agent", dest="only", default=None,
+                        help="diagnose a single provider by id")
     ag_doc.add_argument("--project-root", default=None, help="project root override")
     ag_doc.add_argument("--json", action="store_true", help="emit as JSON")
     ag_unreg = agents_sub.add_parser(
@@ -503,7 +521,9 @@ def _agents_doctor(args) -> int:
         print(str(exc), file=sys.stderr)
         return EX_CONFIG
     home, appdata = _agents_env()
-    report = diagnose(home=home, appdata=appdata, project_root=root)
+    only = getattr(args, "only", None)
+    report = diagnose([only] if only else None,
+                      home=home, appdata=appdata, project_root=root)
 
     if args.json:
         print(json.dumps(
@@ -573,8 +593,25 @@ def _agents_register(args) -> int:
     import sys as _sys
     from pathlib import Path
 
+    from hive_mind.agents import compat
     from hive_mind.agents.detect import detect_providers
     from hive_mind.agents.register import register_providers
+
+    if args.list:
+        print(" ".join(compat.LEGACY_AGENT_KEYS))
+        return 0
+
+    selected = compat.selected_provider(args)
+    problem = compat.validate_provider(selected)
+    if problem:
+        print(problem, file=sys.stderr)
+        return compat.EX_UNKNOWN_AGENT
+
+    # `--check` is a diagnosis, and diagnosis has exactly one implementation.
+    # Re-deriving it here would be the second registrar D009-R6 exists to avoid.
+    if args.check:
+        args.only = selected
+        return _agents_doctor(args)
 
     try:
         root = resolve_project_root(cli_root=args.project_root)
@@ -582,8 +619,8 @@ def _agents_register(args) -> int:
         print(str(exc), file=sys.stderr)
         return EX_CONFIG
 
-    if args.only:
-        targets = [args.only]
+    if selected:
+        targets = [selected]
     else:
         targets = [r.id for r in detect_providers() if r.detected]
     if not targets:
@@ -608,8 +645,16 @@ def _agents_register(args) -> int:
         print(f"unknown provider: {exc}", file=sys.stderr)
         return 1
 
+    instructions = _install_instructions_for(
+        targets, root, dry_run=not args.apply
+    ) if compat.instructions_requested(args) else []
+
     if args.json:
-        print(json.dumps([r.__dict__ for r in results], ensure_ascii=False, indent=2))
+        print(json.dumps(
+            {"configs": [r.__dict__ for r in results],
+             "instructions": [r.__dict__ for r in instructions]},
+            ensure_ascii=False, indent=2,
+        ))
         return 0
 
     mode = "APPLIED" if args.apply else "DRY-RUN (nothing written)"
@@ -622,9 +667,39 @@ def _agents_register(args) -> int:
             "changed" if r.changed else "already current"
         )
         print(f"  {'OK ' if r.changed else '== '}  {r.provider:<10} {r.path}  [{state}]")
+    for r in instructions:
+        state = "would write" if not args.apply and r.changed else (
+            "written" if r.changed else "already current")
+        print(f"  {'OK ' if r.changed else '== '}  {r.provider:<10} {r.path}  [{state}]")
     if not args.apply:
         print("\nRe-run with --apply to write these configs.")
     return 0
+
+
+def _install_instructions_for(targets, root, *, dry_run: bool):
+    """Install the managed instruction block for each provider that has one.
+
+    The legacy registrars did this by default; `--instructions` was declared
+    natively in D009-R5 but never wired, so the flag silently did nothing.
+    """
+    from hive_mind.agents.instructions import install_instructions
+    from hive_mind.agents.registry import get_provider
+
+    prompt_file = root / "config" / "sinapse-agent-prompt.md"
+    if not prompt_file.is_file():
+        print(f"instruction source not found: {prompt_file}", file=sys.stderr)
+        return []
+    prompt = prompt_file.read_text(encoding="utf-8-sig")
+
+    results = []
+    for provider_id in targets:
+        spec = get_provider(provider_id)
+        if not spec.prompt_target:
+            continue
+        results.append(install_instructions(
+            provider_id, root / spec.prompt_target, prompt, dry_run=dry_run
+        ))
+    return results
 
 
 def _service_ping(args) -> int:

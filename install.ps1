@@ -493,7 +493,10 @@ if (-not $SkipAgents) {
     Step "MCP registration"
     $register = Join-Path $Root "scripts\setup\register-mcp.ps1"
     if (Test-Path -LiteralPath $register) {
-        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $register
+        # --apply --instructions: o registrador legado escrevia e injetava
+        # por padrao; o CLI nativo e dry-run por padrao (D009-R6). O caller
+        # declara a intencao em vez de o wrapper adivinhar.
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $register --apply --instructions
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     } else {
         Write-Warning "register-mcp.ps1 not found yet; skipping MCP registration."

@@ -55,7 +55,9 @@ function mcpRegister(flags) {
     console.error('usage: hive-mind mcp register --agent <claude|codex|gemini|cursor|...>');
     return 1;
   }
-  return spawnSync('bash', ['./scripts/setup/register-mcp.sh', '--only', String(agent)], {
+  // --apply: the native CLI is dry-run by default (D009-R6); asking to
+  // register and getting nothing written would be a silent no-op.
+  return spawnSync('bash', ['./scripts/setup/register-mcp.sh', '--only', String(agent), '--apply'], {
     cwd: homeDir(),
     stdio: 'inherit',
   }).status ?? 1;

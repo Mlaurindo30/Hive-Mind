@@ -905,7 +905,9 @@ chmod +x "$PROJECT_ROOT/cerebro/tronco/infra/agentes/.claude/scripts/"*.py 2>/de
 
 # MCP registration delegated to the standalone script (idempotent, safe merge).
 # Can be re-run at any time: ./scripts/setup/register-mcp.sh
-if ! PROJECT_ROOT="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/setup/register-mcp.sh"; then
+# --apply --instructions: the legacy registrar wrote and injected by
+# default; the native CLI is dry-run by default (D009-R6).
+if ! PROJECT_ROOT="$PROJECT_ROOT" bash "$PROJECT_ROOT/scripts/setup/register-mcp.sh" --apply --instructions; then
     echo -e "  ${YELLOW}⊘${NC} No external agent detected. Use scripts/services/sinapse-write.py via CLI."
 fi
 
@@ -999,7 +1001,7 @@ print('  OK: schema/vector migrations applied (idempotent)')
 " 2>&1 | sed 's/^/  /' || echo -e "  ${YELLOW}WARN${NC} migrations could not be validated"
 
 # MCP per agent, idempotent and preserving external configs.
-"$PROJECT_ROOT/scripts/setup/register-mcp.sh" 2>&1 | sed 's/^/  /' || true
+"$PROJECT_ROOT/scripts/setup/register-mcp.sh" --apply --instructions 2>&1 | sed 's/^/  /' || true
 echo ""
 
 # Real smoke for the knowledge front (--with-real-tests). Cleanly skips
