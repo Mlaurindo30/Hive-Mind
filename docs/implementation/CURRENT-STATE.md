@@ -1,15 +1,23 @@
 # Project Status Dashboard
 
 - **branch:** `codex/control-plane-redesign`
-- **HEAD:** `18eab01` (D001-R2)
-- **active delivery:** D001-R2 (reconciliação dos documentos de controle)
-- **last completed delivery:** D009-R5 (doctor, unregister, instruções nativas)
+- **HEAD:** `d3e4c6d` — último commit de `git log` no momento em que este
+  painel foi escrito. Por construção ele fica atrás do HEAD atual por
+  exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
+  antes de existir. O validador aceita esse único passo **só** se o commit
+  for somente-documentação, e falha para qualquer commit de código.
+- **active delivery:** D009-R6 (wrappers PS1/SH mínimos) — registro aberto no
+  [ledger](DELIVERY-LEDGER.md)
+- **last completed delivery:** **D001-R2** (reconciliação dos documentos de
+  controle) — 5 commits, nesta ordem:
+  1. `7b40e59` `docs(implementation): reconcile project status with current HEAD`
+  2. `9bd34f4` `docs(implementation): point the dashboard at the reconciliation commit`
+  3. `7fc70dd` `docs(implementation): set dashboard HEAD to 9bd34f4`
+  4. `18eab01` `test(implementation): anchor the HEAD-rule tests to a synthetic repo`
+  5. `d3e4c6d` `docs(implementation): close D001-R2 at 18eab01`
 - **next delivery:** D009-R6 → D004-R2 → D002-R1 → D005-R1 → D006-R2/R3 →
   D008-R2/R3 → D011-A → D010-G0 (**não ir direto de D009-R6 a D010-G0**)
 - **documentos vs Git:** verificados por `hive-mind implementation validate`.
-  O painel pode ficar atrás do HEAD por commits **somente de documentação**
-  — nenhum SHA existe antes de ser escrito — mas nunca por um commit de
-  código: aí o validador falha.
 - **disciplina de fechamento:** atualizar este HEAD é o **último** passo de
   qualquer entrega, num commit que toque apenas `docs/implementation/`.
   Qualquer outra ordem deixa o painel obsoleto no próprio commit que o

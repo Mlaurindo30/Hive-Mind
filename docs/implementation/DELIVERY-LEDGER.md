@@ -1757,3 +1757,23 @@ pré-existentes; o painel antes reportava só `tests/unit`, escondendo 15.
 Somente documentação e validação. Nenhum runtime, config, banco, tarefa ou
 serviço alterado.
 
+---
+
+## D009-R6 — Reduce the MCP registrars to native wrappers (ABERTA)
+
+`scripts/setup/register-mcp.ps1` (456 L) e `scripts/setup/register-mcp.sh`
+(439 L) ainda são implementações de produto: detectam providers, resolvem
+paths, editam JSON e TOML, instalam instruções, fazem backup. São os
+critérios 4 e 5 do gate D010-G0.
+
+Alvo: os dois passam a apenas localizar `hive-mind`, repassar argumentos,
+preservar stdout/stderr e devolver o exit code. Toda a lógica fica em
+`src/hive_mind/agents/**`, que já a implementa.
+
+**Não fecha a captura real.** Desligar o hook legado prova que o pipeline
+errado está desligado, não que o certo funciona. Esse gate é D004-R2.
+
+### Estado
+
+Aberta. Auditoria de callers e contrato CLI legado em andamento.
+
