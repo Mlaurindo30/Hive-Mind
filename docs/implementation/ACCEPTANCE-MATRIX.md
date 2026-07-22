@@ -49,18 +49,18 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | Gate | Provider | Tipo de prova | Estado | Comando | Resultado | Evidência |
 |---|---|---|---|---|---|---|
 | C1 | Claude Code (captura nativa) | operational | NOT_STARTED | canário pós-HEAD | — | canários anteriores são pré-correção |
-| C2 | Codex | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | D004-R1 — a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
-| C3 | Antigravity IDE | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | D004-R1 — a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
-| C4 | Antigravity CLI | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | D004-R1 — a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
-| C5 | Kimi | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | D004-R1 — a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
+| C2 | Codex | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | **D004** — gate de provider. Corrigido em D004-R1: a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
+| C3 | Antigravity IDE | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | **D004** — gate de provider. Corrigido em D004-R1: a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
+| C4 | Antigravity CLI | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | **D004** — gate de provider. Corrigido em D004-R1: a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
+| C5 | Kimi | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | **D004** — gate de provider. Corrigido em D004-R1: a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
 | C6 | Qwen CLI | operational | NOT_STARTED | canário pós-HEAD | — | canário pré-correção passou (não vale) |
 | C7 | Qwen Desktop | operational | NOT_STARTED | canário pós-HEAD | — | canário pré-correção passou (não vale) |
-| C8 | Hermes (`C:\Users\miche\AppData\Local\hermes\state.db`) | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | D004-R1 — a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
-| C9 | Mimo (`C:\Users\miche\.local\share\mimocode\mimocode.db`) | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | D004-R1 — a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
-| C10 | Kilo (fonte Windows real a documentar) | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | D004-R1 — a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
-| C11 | Copilot | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | D004-R1 — a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
-| C12 | OpenClaw (se instalado) | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | D004-R1 — a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
-| C13 | Roo / Screenpipe / SwarmClaw / demais detectados | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | D004-R1 — a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
+| C8 | Hermes (`C:\Users\miche\AppData\Local\hermes\state.db`) | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | **D004** — gate de provider. Corrigido em D004-R1: a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
+| C9 | Mimo (`C:\Users\miche\.local\share\mimocode\mimocode.db`) | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | **D004** — gate de provider. Corrigido em D004-R1: a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
+| C10 | Kilo (fonte Windows real a documentar) | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | **D004** — gate de provider. Corrigido em D004-R1: a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
+| C11 | Copilot | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | **D004** — gate de provider. Corrigido em D004-R1: a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
+| C12 | OpenClaw (se instalado) | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | **D004** — gate de provider. Corrigido em D004-R1: a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
+| C13 | Roo / Screenpipe / SwarmClaw / demais detectados | operational | **FAILED** | `hive-mind validate agents` | canário real: ver AUDIT | **D004** — gate de provider. Corrigido em D004-R1: a evidência anterior era mockada (sessão sintética + monkeypatch), viola regra 5 do README |
 
 ## Agent integrations (hive_mind.agents, D009)
 

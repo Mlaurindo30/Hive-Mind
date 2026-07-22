@@ -103,27 +103,46 @@ class TestChecksDetectTheDriftTheyClaim:
         _write(root, "CURRENT-STATE.md", "see [gone](nowhere.md)\n")
         assert check_internal_links(root)
 
-    def test_done_beside_a_failed_gate_of_the_same_delivery(self, tmp_path):
+    def test_dashboard_done_over_a_failed_matrix_gate(self, tmp_path):
+        root = _docs(tmp_path)
+        _write(root, "ACCEPTANCE-MATRIX.md",
+               "| X1 | a | operational | FAILED | e | p | D004 |\n")
+        _write(root, "CURRENT-STATE.md",
+               "| D004 | canários | **DONE** | `abc1234` | prova | — |\n")
+        assert check_no_done_over_a_failed_gate(root)
+
+    def test_a_matrix_holding_both_states_is_not_a_finding(self, tmp_path):
+        """Some gates proven and some not is what a matrix is *for*.
+
+        The first version of this check compared rows within the matrix and
+        flagged every partial delivery — which is nearly all of them. The
+        comparison that means something is between documents: the dashboard
+        calling a delivery finished while the matrix still fails a gate.
+        """
         root = _docs(tmp_path)
         _write(root, "ACCEPTANCE-MATRIX.md",
                "| X1 | a | unit | DONE | e | p | D004 |\n"
                "| X2 | b | operational | FAILED | e | p | D004 |\n")
-        assert check_no_done_over_a_failed_gate(root)
+        _write(root, "CURRENT-STATE.md",
+               "| D004 | canários | **PARTIAL** | `abc1234` | prova | — |\n")
+        assert check_no_done_over_a_failed_gate(root) == []
 
-    def test_a_qualified_done_beside_a_failed_gate_is_allowed(self, tmp_path):
-        """DONE_SYNTHETIC says what was not proven; plain DONE does not."""
+    def test_a_qualified_dashboard_state_is_allowed(self, tmp_path):
+        """DONE_SYNTHETIC names what was not proven; plain DONE does not."""
         root = _docs(tmp_path)
         _write(root, "ACCEPTANCE-MATRIX.md",
-               "| X1 | a | unit | DONE_SYNTHETIC | e | p | D004 |\n"
-               "| X2 | b | operational | FAILED | e | p | D004 |\n")
+               "| X1 | a | operational | FAILED | e | p | D004 |\n")
+        _write(root, "CURRENT-STATE.md",
+               "| D004 | canários | **DONE_SYNTHETIC** | `abc1234` | prova | — |\n")
         assert check_no_done_over_a_failed_gate(root) == []
 
     def test_a_delivery_named_only_in_the_notes_is_not_the_owner(self, tmp_path):
         """"bate com canário D004" is a cross-reference, not an attribution."""
         root = _docs(tmp_path)
         _write(root, "ACCEPTANCE-MATRIX.md",
-               "| X1 | a | unit | DONE | e | bate com canário D004 | D009 |\n"
-               "| X2 | b | operational | FAILED | e | p | D004 |\n")
+               "| X1 | a | operational | FAILED | e | bate com D004 | D009 |\n")
+        _write(root, "CURRENT-STATE.md",
+               "| D004 | canários | **DONE** | `abc1234` | prova | — |\n")
         assert check_no_done_over_a_failed_gate(root) == []
 
 
@@ -223,3 +242,39 @@ class TestDashboardHeadIsSatisfiable:
         from hive_mind.implementation.validate import _changed_outside_docs_since
 
         assert len(_changed_outside_docs_since(root, first)) == 1
+
+
+class TestSubDeliveriesAreTheirOwnDeliveries:
+    """D004-R1 is not D004.
+
+    A gate failing under D004 must not make D004-R1 — a finished sub-delivery
+    that did something else entirely — look like a false claim. Matching on
+    the root id did exactly that.
+    """
+
+    def test_a_parents_failing_gate_does_not_block_the_sub_delivery(self, tmp_path):
+        root = _docs(tmp_path)
+        _write(root, "ACCEPTANCE-MATRIX.md",
+               "| C2 | codex | operational | FAILED | e | p | **D004** |\n")
+        _write(root, "CURRENT-STATE.md",
+               "| D004-R1 | canary runner nativo | **DONE** | `abc1234` | p |\n"
+               "| D004 | canários | **PARTIAL** | `abc1234` | p |\n")
+        assert check_no_done_over_a_failed_gate(root) == []
+
+    def test_the_delivery_that_owns_the_gate_is_still_caught(self, tmp_path):
+        root = _docs(tmp_path)
+        _write(root, "ACCEPTANCE-MATRIX.md",
+               "| C2 | codex | operational | FAILED | e | p | **D004** |\n")
+        _write(root, "CURRENT-STATE.md",
+               "| D004 | canários | **DONE** | `abc1234` | p |\n")
+        assert check_no_done_over_a_failed_gate(root)
+
+    def test_only_the_first_id_in_the_cell_is_the_owner(self, tmp_path):
+        """"**D004** — corrigido em D004-R1" names one owner and one reference."""
+        root = _docs(tmp_path)
+        _write(root, "ACCEPTANCE-MATRIX.md",
+               "| C2 | codex | operational | FAILED | e | p | "
+               "**D004** — gate de provider. Corrigido em D004-R1 |\n")
+        _write(root, "CURRENT-STATE.md",
+               "| D004-R1 | canary runner nativo | **DONE** | `abc1234` | p |\n")
+        assert check_no_done_over_a_failed_gate(root) == []

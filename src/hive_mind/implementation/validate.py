@@ -318,37 +318,59 @@ def check_matrix_deliveries_are_in_the_ledger(root: Path) -> list[Finding]:
 
 
 def check_no_done_over_a_failed_gate(root: Path) -> list[Finding]:
-    """A delivery must not be plain DONE while one of its gates is FAILED.
+    """A *delivery* must not be DONE while one of its gates is FAILED.
 
-    A qualified state (DONE_SYNTHETIC, DONE_TEMP_CONFIG, PARTIAL) is fine —
-    it says what was and was not proven. Unqualified DONE is not.
+    The comparison is between two documents, not within one. A matrix row
+    saying DONE beside another row saying FAILED is a matrix doing its job —
+    partial deliveries have some gates proven and some not. What must never
+    happen is the dashboard calling the delivery finished while the matrix
+    still records a failing gate for it.
+
+    A qualified state (DONE_SYNTHETIC, DONE_TEMP_CONFIG, DONE_UNIT, PARTIAL)
+    is fine: it names what was not proven. Unqualified DONE is not.
     """
-    text = _read(root, MATRIX)
     failed: set[str] = set()
-    done: dict[str, str] = {}
-    for line in text.splitlines():
+    for line in _read(root, MATRIX).splitlines():
         if not line.startswith("|"):
             continue
         cells = [c.strip().strip("*") for c in line.split("|")]
-        state = next((c for c in cells if c.split()[0:1] and
-                      c.split()[0] in {"DONE", "FAILED", "PARTIAL"}), "")
-        if not state:
+        if not any(c.split()[0:1] and c.split()[0] == "FAILED" for c in cells):
             continue
         # Attribution is the last cell. A delivery named in the notes column
         # ("bate com canário D004") is a cross-reference, not an owner.
         attribution = next((c for c in reversed(cells) if c), "")
-        for delivery in DELIVERY_ID.findall(attribution):
-            root_id = delivery.split("-")[0]
-            if state.startswith("FAILED"):
-                failed.add(root_id)
-            elif state == "DONE":
-                done[root_id] = line.strip()[:70]
-    clash = sorted(failed & set(done))
-    return [
-        Finding("done-over-failed",
-                f"{d} is marked DONE somewhere while another gate of {d} is FAILED")
-        for d in clash
-    ]
+        # The owner is the *first* id in the cell; anything after it is
+        # explanation ("**D004** - gate de provider. Corrigido em D004-R1:
+        # ..."). Reading every id made a delivery merely mentioned in the
+        # prose answer for a gate it does not own.
+        #
+        # Exact ids, not roots: D004-R1 ("port the canary runner") is a
+        # different delivery from D004 ("provider canaries"). The port is
+        # finished; the canaries it now runs honestly are not.
+        owner = DELIVERY_ID.search(attribution)
+        if owner:
+            failed.add(owner.group(0))
+    if not failed:
+        return []
+
+    findings = []
+    for line in _read(root, CURRENT_STATE).splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip().strip("*") for c in line.split("|")]
+        if len(cells) < 3:
+            continue
+        delivery = DELIVERY_ID.search(cells[1] or "")
+        if not delivery:
+            continue
+        state = next((c for c in cells if c.strip("*") == "DONE"), None)
+        if state and delivery.group(0) in failed:
+            findings.append(Finding(
+                "done-over-failed",
+                f"the dashboard calls {delivery.group(0)} DONE while the "
+                "acceptance matrix records a FAILED gate for it",
+            ))
+    return findings
 
 
 def check_no_not_started_for_a_closed_delivery(root: Path) -> list[Finding]:
