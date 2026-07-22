@@ -6,8 +6,8 @@
   exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
   antes de existir. O validador aceita esse único passo **só** se o commit
   for somente-documentação, e falha para qualquer commit de código.
-- **active delivery:** **SEC-001** — bloqueio humano único: rotação da chave.
-  D004-M bloqueada até isso e até uma observation real.
+- **active delivery:** **D004-M** (matriz por provider) — M14 fechada.
+  SEC-001 segue BLOCKED, independente e sem bloquear testes locais.
 - **last completed delivery:** **D009-R6** (registradores → wrappers).
   D004-R2 e D004-R2W estão **PARTIAL**. Antes dela: D004-R2 (**PARTIAL**, não fechada), D009-R6
   (`adcac3d` −442/−430 linhas, `47912f2`, `20adb39`; wrappers com 32 e 22
@@ -91,8 +91,8 @@ começa com DONE, e o leitor que só escaneia a coluna via a entrega fechada.
 | D004-R2 | Identidade canônica na captura | **PARTIAL** | `0664afc` | ingest nativo e identidade canônica implementados; payload de ingestão comprovado até a fronteira do worker; bridge comprovado separadamente contra stores temporárias | matriz por provider |
 | D004-R2W | Entrega via worker real isolado | **PARTIAL** | `eb535f5` | 31 testes; worker descartável, ambiente por allowlist, provider **local sem credencial**, **2 observations reais** com `project` canônico | envelope não sobrevive até a observation (M14) |
 | **SEC-001** | Credencial de provider exposta na saída | **BLOCKED** | `1cdc7d5` | scanner sem impressão: 0 ocorrências em 14.973 objetos Git, 9.580 arquivos, staged e mensagens | **rotação humana da chave** |
-| M14 | Identidade canônica até a observation | **IN_PROGRESS** | — | M14-A mediu a correlação: decisão **B**, registry indexado por `content_session_id` | implementação |
-| D004-M | Matriz por provider | **BLOCKED** | — | — | depende de SEC-001 e de uma observation real |
+| M14 | Identidade canônica até a observation | **DONE** | `1ce684f` | 85 testes; cadeia única com worker real: `workspace_id` no UMC = `project_id` decidido antes do POST | — |
+| D004-M | Matriz por provider | **NOT_STARTED** | — | M14 destravou: observation real e identidade canônica provadas | 9 providers |
 | D010-C1 | Remover propriedade legada do capture hook | **NOT_STARTED** | — | writers e paths de config registrados | depende de D004-M |
 | D002-R1 | Dream Cycle operacional sobre project_id real | NOT_STARTED | — | — |
 | D005-R1 | E2E real: memória gravada → consultável | NOT_STARTED | — | — |

@@ -2579,3 +2579,87 @@ Envelope e registry discordando no `project_id` → `QUARANTINED`, sem gravar
 
 E o teste arquitetural que falha se o bridge importar ou chamar o
 `ProjectIdentityResolver`.
+
+---
+
+## M14 (fechamento) — identidade canônica até a observation
+
+### O que estava quebrado
+
+O envelope canônico não sobrevivia até a observation. Medido em M14-A e a
+razão é estrutural, não um bug: **a observation não é o payload que
+enviamos**. O worker a gera com o modelo, a partir da sessão, e escreve uma
+linha nova com `metadata` NULL. O `project_name` chegava em
+`observations.project`; o `project_id` não chegava a lugar nenhum. E o bridge
+precisa dele para gravar `workspace_id`.
+
+### O que foi entregue
+
+| Commit | O quê |
+|---|---|
+| `3d06c20` | ADR-014 — a decisão, antes do código |
+| `e232f0b` | `capture/identity_store.py` — 30 testes |
+| `03016a0` | contrato do ingest: decidir → gravar → postar — 9 testes |
+| `f666259` | isolar a store nos testes |
+| `e076e35` | `capture/observation_identity.py` + bridge — 30 testes |
+| `1ce684f` | prova operacional contínua — 16 asserções |
+
+### A regra que isto protege
+
+**O ingest decide, o bridge recupera.** Nunca os dois decidindo. Ter dois
+lugares decidindo identidade foi o que produziu
+`preciso-que-verifique-o-por-que-3` como nome de projeto, com 37 observações
+reais.
+
+A junção nunca lê o formato do id. Hoje `memory_session_id` contém o sid como
+substring, e um leitor de substring passaria — até o worker mudar o formato,
+quando falharia **em silêncio** em vez de alto. Um teste usa um par de ids que
+não compartilham nada, que é como uma mudança de formato se pareceria.
+
+### Prova operacional, uma execução
+
+Sessão com tool call → parser → ingest → `PENDING` → POST real → `POSTED` →
+worker real com Ollama local → observation real → FK → `content_session_id` →
+lookup → `OBSERVED` → bridge real → commit no UMC → `BRIDGED`.
+
+| Asserção | Resultado |
+|---|---|
+| exatamente uma decisão para o sid | ✅ |
+| observation produzida pelo worker | ✅ |
+| FK alcança o nosso `content_session_id` | ✅ |
+| `PENDING`→`POSTED`→`OBSERVED`→`BRIDGED` em ordem | ✅ carimbos crescentes |
+| `workspace_id` no UMC = `project_id` decidido | ✅ |
+| `identity_origin` = `registry` | ✅ |
+| rótulo livre sem autoridade | ✅ `rotulo-invalido` ausente |
+| segunda execução do bridge não duplica | ✅ |
+| registry reaberto ainda responde | ✅ |
+| projeto A ≠ projeto B | ✅ |
+| nenhum outbox, nenhuma store viva | ✅ |
+| `integrity_check` / `foreign_key_check` | ✅ nos dois bancos |
+
+Sem stub de transporte, sem observation inserida à mão, sem metadata escrita
+direto no banco.
+
+### Quatro defeitos meus, achados pelos testes antes do commit
+
+1. **A quarentena era revertida** — gravada dentro da transação, apagada pelo
+   rollback da própria exceção. O conflito ficava detectado e não registrado.
+2. **O sanitizador não sanitizava** — `authorization: Bearer sk-…` contra
+   `\S+` casa com `Bearer` e deixa o token.
+3. **A store default escrevia no worktree** e, sendo singleton, carregava ids
+   entre testes. Só apareceu na rodada completa.
+4. **Duas asserções minhas confundiam id com nome** — `project_id` de repo
+   local sem remote é `local/<hash>`, e só o *nome* é o basename. É
+   exatamente o erro que a D004-R2 corrigiu no resolver.
+
+### Degradação, sem inventar identidade
+
+`missing_sdk_session` · `missing_capture_identity` ·
+`invalid_capture_identity` · contradição → `QUARANTINED`, sem gravar
+`workspace_id`. Health não reporta verde com nenhum deles: verde com conflito
+pendente é como um pipeline quebrado continua quebrado.
+
+### Observations legadas
+
+Não migradas, não reescritas, não inferidas. Continuam legacy/unclassified.
+ADR-012 vale.
