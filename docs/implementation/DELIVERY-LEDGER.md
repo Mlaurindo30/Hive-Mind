@@ -1517,3 +1517,60 @@ ser alvo de primeira classe, com dry-run padrão. O teste que asseverava
 "não suportado" foi substituído por um que exige suporte real.
 
 - `pytest tests/unit`: **1214 passed, 26 skipped, 2 failed** (pré-existentes).
+
+---
+
+## D010-G0 — Windows Native Migration Readiness (GATE)
+
+- fase: gate obrigatório de P6
+- estado: **NOT_STARTED**
+- objetivo: comprovar que o cutover não depende mais de lógica permanente
+  em scripts Windows.
+- inventário: [WINDOWS-NATIVE-MIGRATION.md](WINDOWS-NATIVE-MIGRATION.md) —
+  36 scripts shell + 6 Node + Task Scheduler + Docker, **0 UNKNOWN**.
+
+### Critérios (23)
+
+| # | Critério | Estado |
+|--:|---|---|
+| 1 | todo arquivo Windows inventariado | ✅ D010-G0 doc |
+| 2 | nenhum UNKNOWN | ✅ 0 |
+| 3 | todo componente classificado | ✅ |
+| 4 | `register-mcp.ps1` é wrapper mínimo | ❌ 456 L LEGACY_OWNER |
+| 5 | `register-mcp.sh` é wrapper mínimo | ❌ 439 L LEGACY_OWNER |
+| 6 | `register-windows-jobs.ps1` sem catálogo próprio | ❌ lista de jobs |
+| 7 | `install_services.py` sem catálogo próprio | ❌ `unit_definitions` |
+| 8 | `services.js` sem catálogo próprio | ❌ |
+| 9 | `supervisor.js` não é owner concorrente | ❌ 438 L |
+| 10 | ProjectIdentityResolver no pacote | ✅ D003-R1 |
+| 11 | canary runner no pacote | ✅ D004-R1 |
+| 12 | backup no pacote | ✅ D008-R1B |
+| 13 | agent registration no pacote | ✅ D009/D009-R4 |
+| 14 | captura no pacote | ❌ D009-R5 |
+| 15 | doctor/unregister no pacote | ❌ D009-R5 |
+| 16 | `runtime.yaml` é fonte única | ❌ 4 catálogos |
+| 17 | um owner por serviço | ❌ |
+| 18 | um owner por job | ❌ scheduler paralelo |
+| 19 | um owner por provider | ✅ |
+| 20 | testes arquiteturais verdes | ✅ 14 |
+| 21 | documentação atualizada | ✅ |
+| 22 | full regression verde | ⚠️ 2 falhas pré-existentes |
+| 23 | worktree limpa | ✅ |
+
+**7 de 23 critérios pendentes.** D010 só sai de BLOCKED com este gate DONE.
+
+### Sequência até D014
+
+```
+D009-R5  doctor, unregister, instruções e captura nativas   ← ATUAL
+D009-R6  wrappers PS1/SH mínimos, apply controlado, rollback
+D006-R1  runtime.yaml como catálogo único (bloqueado: hive_mind.services)
+D010-G0  auditoria final da migração Windows
+D010     cutover controlado
+D011     installer e lifecycle Windows
+D012     Windows descartável, instalação limpa, reboot
+D013     atualização da raiz
+D014     remoção final de shims, documentação, release
+```
+
+D003-R1, D004-R1, D008-R1V e D008-R1B **já concluídas** — não repetir.

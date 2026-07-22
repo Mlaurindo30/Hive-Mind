@@ -158,7 +158,8 @@ Scheduler, systemd, scripts), um owner de cada vez.
 
 | ID | Entrega | Dependências | Estado | Evidência | Commit inicial | Commit final |
 |---|---|---|---|---|---|---|
-| D010 | Cutover de owners legados | D009 | NOT_STARTED | — | — | — |
+| **D010-G0** | **Gate: Windows Native Migration Readiness** | D009-R6 | NOT_STARTED | 7 de 23 critérios pendentes | — | — |
+| D010 | Cutover de owners legados | **D010-G0** | **BLOCKED** | — | — | — |
 
 ### P7 — Installer Windows e lifecycle (spec F10)
 
