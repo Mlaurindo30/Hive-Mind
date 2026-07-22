@@ -128,9 +128,11 @@ Todo serviço de compose obrigatório declara `restart: unless-stopped`.
 do manifesto e falha se algum serviço não voltar após um restart do
 Docker — inclusive em projeto novo.
 
-Instalação limpa herda isso automaticamente: `install.ps1` e `install.sh`
-executam `docker compose up -d` sobre os arquivos do próprio repositório,
-não geram compose.
+A restart policy está presente nos compose consumidos pela instalação
+limpa — `install.ps1` e `install.sh` executam `docker compose up -d`
+sobre os arquivos do próprio repositório e não geram compose. **O fluxo
+completo de instalação limpa e reboot ainda não foi executado**, então a
+recuperação após reboot permanece não comprovada (gate W2/W3).
 
 ## State directory
 

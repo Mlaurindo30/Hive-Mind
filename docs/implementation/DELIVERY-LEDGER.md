@@ -1363,3 +1363,96 @@ agora sabidamente incorreta. O defeito real é que
 `scripts/maintenance/backup.py` está **untracked**: existe no runtime e
 desaparece numa instalação limpa. Correção adequada — versionar o script
 e restaurar o job — exige inspecionar o conteúdo antes de commitá-lo.
+
+---
+
+## D008-R1B — Validate and port native backup job
+
+- fase: validação semântica do inventário (P4)
+- estado: **auditoria DONE**; porte nativo NOT_STARTED
+- HEAD inicial: `69632bd`
+- entregável: [docs/backup.md](../backup.md)
+
+### Evidência preservada antes de qualquer análise
+
+`D:\Hive-Mind\backups\backup-job-audit-20260721-205811\` —
+`backup.py`, `backup.py.sha256`, `HiveMind-Backup.xml`, `task-info.txt`,
+`runtime-paths.txt`. Original intocado; a cópia não foi commitada.
+
+- SHA-256: `b891c100b17c7d7052b6d969ed130bb9f42128639ed6a7430a8a25e6913dbb05`
+- tamanho: 3068 bytes, mtime 2026-07-13
+- `git log --all -- scripts/maintenance/backup.py`: **vazio** — nunca
+  esteve no Git, em nenhuma branch.
+
+### Achado central: o script chamado `backup.py` não faz backup
+
+É um wrapper de 99 linhas sobre `scripts/health/backup_audit.py`
+(auditoria de artefatos + retenção). A tarefa o invoca **sem `--apply`**,
+logo roda em modo somente-relatório: grava um JSON em `logs/backup/` e
+não copia nem poda nada.
+
+### A tarefa não está morta
+
+| Campo | Valor |
+|---|---|
+| LastRunTime | 2026-07-21 02:00:01 |
+| **LastTaskResult** | **0 (sucesso)** |
+| NextRunTime | 2026-07-22 02:00 |
+| Execuções perdidas | 0 |
+
+### As três peças
+
+| Arquivo | Git | Papel |
+|---|---|---|
+| `scripts/health/backup_databases.py` (175 L) | rastreado | **o backup real** — `sqlite3.Connection.backup()`, cópia consistente com banco em uso |
+| `scripts/health/backup_audit.py` (312 L) | rastreado | auditoria/retenção/varredura de segredos |
+| `scripts/maintenance/backup.py` (99 L) | **untracked** | wrapper: defaults de retenção + log |
+
+Mais duplicação: `backup-audit-daily.ps1` e `backup-prune-weekly.ps1`
+têm a mesma responsabilidade, escrevem em outros diretórios de log e
+**não** estão registrados como tarefa. Nada consome `logs/backup/`.
+
+### Classificação
+
+| Item | Classificação |
+|---|---|
+| `scripts/maintenance/backup.py` | **SUPERSEDED** |
+| auditoria diária de artefatos | **OPTIONAL_BY_PROFILE** |
+| `backup-databases` | **REQUIRED** (já no manifesto) |
+
+### Correção à D008-R1V
+
+Remover o job `backup` do manifesto foi o **resultado certo pelo motivo
+errado**. Afirmei "job morto, nunca registrado em instalação limpa". O
+correto: ele roda e retorna sucesso, mas **não é backup** — é auditoria
+de artefatos; e o backup real (`backup-databases`) já estava declarado.
+O manifesto não perdeu capacidade de backup.
+
+Também retiro a afirmação anterior de que a correção do restart "já
+cobre instalação limpa": a policy **está** nos compose consumidos pelo
+instalador, mas o fluxo de instalação limpa + reboot **não foi
+executado** (gates W1–W3 seguem NOT_STARTED).
+
+### Riscos do backup atual (reais, não hipotéticos)
+
+- ausência de checksum e de manifesto de conteúdo;
+- ausência de teste de restauração;
+- retenção sem validar o backup novo antes de podar;
+- sem lock de execução única.
+
+### Cobertura honesta
+
+SQLite: BACKED_UP. Markdown do `cerebro/` e `.env`: NOT_SUPPORTED.
+Milvus, FalkorDB, RAGFlow: REQUIRES_SERVICE_SNAPSHOT. LightRAG:
+EXTERNALLY_MANAGED.
+
+### Conclusão sobre o porte
+
+O motor já existe e está correto no essencial (SQLite backup API). O
+trabalho nativo **não é reescrevê-lo**: é expor
+`hive-mind backup run|status|verify` sobre `backup_databases`, somar
+checksum/manifesto/lock/validação-antes-de-retenção, e criar `restore`
+separado e protegido. Nada disso foi implementado nesta entrega.
+
+- nenhum backup real executado; nenhum restore executado; nenhum backup
+  existente alterado ou removido; scheduler ativo intocado.
