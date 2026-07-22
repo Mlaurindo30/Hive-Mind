@@ -13,6 +13,7 @@ import pytest
 
 from hive_mind.validation.delivery import inspect_outbox, inspect_umc
 from hive_mind.validation.models import CanaryReport, CanaryResult, CanaryStatus
+from hive_mind.validation.sources import SourceInventory
 
 
 class TestReportAggregation:
@@ -170,3 +171,59 @@ class TestNoSyntheticData:
 
         source = Path(delivery.__file__).read_text(encoding="utf-8")
         assert "mode=ro" in source, "protected databases must be opened read-only"
+
+
+class TestProviderSourceSelection:
+    def test_uses_next_newest_source_when_newest_has_no_sessions(self, monkeypatch, tmp_path):
+        from hive_mind.validation import canary
+
+        newest = tmp_path / "initialized-but-empty.jsonl"
+        older = tmp_path / "session-history.jsonl"
+        monkeypatch.setattr(
+            canary.sources,
+            "inventory",
+            lambda provider: SourceInventory(provider, (newest, older), newest, 2.0),
+        )
+        parsed_sources = []
+
+        def parse_sessions(provider, source):
+            parsed_sources.append(source)
+            return [] if source == newest else [{"session_id": "real-session"}]
+
+        monkeypatch.setattr(canary.sources, "parse_sessions", parse_sessions)
+        monkeypatch.setattr(
+            canary,
+            "_attach_identity",
+            lambda provider, session, resolver, surface: {"project_id": "hive-mind"},
+        )
+
+        result = canary.run_provider("codex", resolver=object())
+
+        assert result.status is CanaryStatus.PASSED
+        assert result.project_id == "hive-mind"
+        assert parsed_sources == [newest, older]
+
+    def test_reports_all_attempted_sources_when_every_source_is_empty(self, monkeypatch, tmp_path):
+        from hive_mind.validation import canary
+
+        newest = tmp_path / "initialized-but-empty.jsonl"
+        older = tmp_path / "older-but-empty.jsonl"
+        monkeypatch.setattr(
+            canary.sources,
+            "inventory",
+            lambda provider: SourceInventory(provider, (newest, older), newest, 2.0),
+        )
+        parsed_sources = []
+
+        def parse_sessions(provider, source):
+            parsed_sources.append(source)
+            return []
+
+        monkeypatch.setattr(canary.sources, "parse_sessions", parse_sessions)
+
+        result = canary.run_provider("codex")
+
+        assert result.status is CanaryStatus.FAILED
+        assert parsed_sources == [newest, older]
+        assert newest.name in result.reason
+        assert older.name in result.reason

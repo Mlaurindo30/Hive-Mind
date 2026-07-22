@@ -8,7 +8,8 @@ doubles — it could not fail while real capture was broken.
 This canary injects nothing and writes nothing. For each provider it:
 
   1. resolves the provider's **real** source files from the adapter registry;
-  2. runs the provider's **real** parser over the newest one;
+  2. runs the provider's **real** parser over sources newest-first until one
+     produces sessions;
   3. resolves identity with the **real** shipped alias registry;
   4. reports the **real** delivery state (outbox + UMC), read-only.
 
@@ -87,15 +88,29 @@ def run_provider(
     if not inv.found:
         return done(CanaryStatus.SKIPPED, reason="no real source file on this host")
 
-    try:
-        sessions = sources.parse_sessions(provider, inv.newest)
-    except Exception as exc:  # noqa: BLE001 - a parser failure is a real result
-        return done(CanaryStatus.ERROR, reason=f"parser failed: {type(exc).__name__}: {exc}")
+    attempted_sources = []
+    sessions = []
+    for source in inv.files:
+        attempted_sources.append(source.name)
+        try:
+            sessions = sources.parse_sessions(provider, source)
+        except Exception as exc:  # noqa: BLE001 - a parser failure is a real result
+            return done(
+                CanaryStatus.ERROR,
+                reason=(
+                    f"parser failed for {source.name}: {type(exc).__name__}: {exc}"
+                ),
+            )
+        if sessions:
+            break
 
     if not sessions:
         return done(
             CanaryStatus.FAILED,
-            reason=f"parser produced no session from {inv.newest.name}",
+            reason=(
+                "parser produced no sessions from attempted sources: "
+                f"{', '.join(attempted_sources)}"
+            ),
         )
 
     resolver = resolver or _resolver()
