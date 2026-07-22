@@ -95,8 +95,11 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 
 | Gate | Requisito | Tipo de prova | Estado | Comando | Resultado | Evidência |
 |---|---|---|---|---|---|---|
-| M1 | Claude Mem recebe project canônico | unit | **DONE_UNIT** | `pytest tests/real/test_canary_multiagent_pipeline.py` | passed no código; **contradito pelo dado real**: 18.579 eventos capturados, 0 entregues | D004; reparo em D004-R2 |
-| M2 | bridge workspace_id=project_id | unit | **DONE_UNIT** | idem | passed no código; **contradito pelo dado real**: 0% das 1.094 observações do UMC têm `workspace_id` canônico | D004; reparo em D004-R2 |
+| M0 | entrega ao Claude Mem | operational | **OPERATIONAL** | leitura `mode=ro` de `claude-mem.db` (D004-R2) | 5.220 observações, 1.710 prompts, 662 sumários; escrita hoje. Entrega **não** está parada | errata D004-R2 |
+| M1 | Claude Mem recebe project canônico | unit+operational | **FAILED** | leitura `mode=ro` de `observations.project` | rótulo livre fragmentado: prompt virou projeto (99 linhas), worktree virou projeto (15). O envelope canônico vai só para `metadata`, não para o campo indexado | D004-R2 |
+| M2 | bridge workspace_id=project_id | unit | **NOT_REVERIFIED** | — | passou em unit; **não reverificado com evento novo** desde a errata. `observations` do Claude Mem não tem coluna `workspace_id` — a métrica anterior media a ausência da coluna | D004-R2 |
+| M3 | outbox backlog ≠ falha de entrega | operational | **DONE_READ_ONLY_REAL** | leitura `mode=ro` dos 2 outboxes | `attempts=0`, `last_error=0`, `dead_letter=0` em 20.649 linhas: nunca houve tentativa. Fila sem dono (ADR-004), não entrega falhada | errata D004-R2 |
+| M4 | writers dos outboxes identificados | processo | **DONE** | `~/.claude/settings.json`, `~/.codex/hooks.json` | ambos são `capture-hook.py`: claude = `LEGACY_ACTIVE_WRITER`, codex/antigravity/mimo = `LEGACY_INACTIVE_WRITER` desde 20/07. Zero UNKNOWN | D004-R2; nenhum desligado |
 | M3 | UMC filtra por project_id | integration | NOT_STARTED | — | — | — |
 | M4 | FTS | operational | NOT_STARTED | — | — | — |
 | M5 | sqlite-vec com metadata de projeto | operational | NOT_STARTED | — | — | — |

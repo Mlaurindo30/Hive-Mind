@@ -12,9 +12,12 @@
 - runtime ativo: `D:\Hive-Mind` (NÃO alterar até P9)
 - worktree: `D:\Hive-Mind\backups\worktrees\hive-mind-windows-zero-install`
 - spec: `specs/control-plane-redesign-v2.md`
-- estado global: F1 (empacotamento) concluída. **P1 não foi fechada**: a
-  cadeia funcional real continua quebrada (0 de 18.579 eventos de captura
-  entregues; 0% de `workspace_id` canônico em 1.094 observações reais).
+- estado global: F1 (empacotamento) concluída. **P1 não foi fechada** — mas
+  por uma razão diferente da registrada até D004-R2. A entrega ao Claude Mem
+  **funciona** (5.220 observações, escrita hoje); o que está quebrado é a
+  **identidade**: o campo indexado recebe rótulo livre. Os 20.649 eventos em
+  dois outboxes deprecados nunca tiveram tentativa de entrega — são fila sem
+  dono, não entrega falhada. Ver a errata no ledger.
   P2–P5 foram iniciadas mesmo assim — manifesto, daemon, scheduler e backup
   nativos existem e passam em teste, mas nenhum opera sobre o runtime.
 - **dívida de sequenciamento (registrada em D001-R2):** o plano exigia

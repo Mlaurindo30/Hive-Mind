@@ -1866,3 +1866,116 @@ Desligar o hook legado prova que o pipeline errado está desligado, não que o
 certo funciona. A captura real continua com 18.579 eventos e 0 entregues. Esse
 gate é **D004-R2**, a próxima entrega.
 
+---
+
+## D004-R2 — Errata: the delivery diagnosis was wrong (append-only)
+
+O diagnóstico anterior foi construído por leitura de documento, não por
+leitura de banco. Ao abrir os bancos reais em `mode=ro`, três afirmações
+que este projeto vinha repetindo — inclusive por mim, em D001-R2 — não se
+sustentaram. O texto errado **não foi apagado**; está corrigido aqui.
+
+### PREVIOUS CLAIM
+
+> "18.579 eventos capturados, **0 entregues**; cadeia de captura quebrada;
+> **0% de `workspace_id` canônico** em 1.094 observações reais."
+
+Usada como evidência em D001-R2, no critério 24 do gate D010-G0, no ADR-007
+(prova operacional NOT_STARTED), em M1/M2 da matriz e no painel.
+
+### NEW EVIDENCE
+
+Leitura direta, sem escrita, em 2026-07-22:
+
+| Banco | Linhas | Providers | Janela de escrita | `delivered_at` | `attempts` | `dead_letter` |
+|---|---:|---|---|---:|---:|---:|
+| `D:\Hive-Mind\logs\capture-outbox.db` | 2.070 | claude | 12/07 22:36 → **agora** | 0 | 0 | 0 |
+| `C:\Users\miche\.claude-mem\capture.db` | 18.579 | codex 17.710, antigravity 865, mimo 4 | 12/07 19:39 → **20/07 19:22** | 0 | 0 | 0 |
+| `C:\Users\miche\.claude-mem\claude-mem.db` | **5.220 observações** | — | → **hoje 15:04** | — | — | — |
+
+1. **São dois outboxes, não um.** Mesmo schema `capture_outbox`, mesmas
+   colunas. O arquivo dentro de `~/.claude-mem/` **não é a store do Claude
+   Mem** — é um segundo outbox que ficou nesse diretório. A store real é
+   `claude-mem.db`, ao lado dele.
+2. **Nenhum dos dois jamais tentou entregar.** `attempts=0`,
+   `last_error=0`, `dead_letter_at=0` em 100% das linhas. Não é entrega que
+   falhou: é fila deprecada sem dono, exatamente como a ADR-004 descreve.
+3. **A store real está viva.** 5.220 observações, 1.710 prompts, 662
+   sumários de sessão, 134 sessões SDK, com escrita hoje.
+4. **A coluna `workspace_id` não existe** em `observations`. As colunas são
+   `id, memory_session_id, project, text, type, title, subtitle, facts,
+   narrative, concepts, files_read, files_modified, prompt_number,
+   discovery_tokens, created_at, created_at_epoch, content_hash,
+   generated_by_model, relevance_count, merged_into_project, agent_type,
+   agent_id, metadata, synced_at`. Medir "0% de `workspace_id`" nessa tabela
+   media a ausência da coluna, não a ausência de identidade canônica.
+
+### CORRECTED CONCLUSION
+
+A cadeia canônica de entrega **não está globalmente parada**. O defeito
+comprovado é **identidade**, não entrega.
+
+`observations.project` é rótulo livre e está fragmentado:
+
+| Rótulo | n | O que é |
+|---|---:|---|
+| `Hive-Mind` | 3.550 | correto |
+| `IQ Option` | 1.113 | outro projeto legítimo |
+| `ins` | 229 | rótulo-lixo |
+| `agent-corporativo` | 139 | — |
+| `preciso-que-verifique-o-por-que-3` | 37 | **texto de prompt** |
+| `preciso-que-verifique-o-por-que` | 33 | **texto de prompt** |
+| `referenced-chatgpt-conversation-this-is-untrusted` | 29 | **texto de prompt** |
+| `hive-mind-windows-zero-install` | 15 | **a worktree, separada da própria raiz** |
+| `shadow-run-clean`, `pr`, `hermes` | 25 | rótulos-lixo |
+
+**Causa exata, em duas linhas de código.** Os dois entrypoints de captura
+divergem, e ambos estão declarados no `runtime.yaml`:
+
+| Entrypoint | Declaração | Identidade |
+|---|---|---|
+| `scripts/capture/capture-realtime.py:127` | serviço `sinapse-capture-realtime` (L164) | chama `attach_project_identity` → `project = identity.project_name` |
+| `scripts/capture/capture-tailer.py:130` | job `capture-tailer` (L278) | chama `core.ingest` direto — **sem identidade** |
+
+E `scripts/capture/capture_core.py:296` aceita o rótulo do parser como
+autoridade:
+
+```python
+proj = sess.get("project_name") or sess.get("project") or PROJECT
+```
+
+O envelope canônico é anexado apenas como `metadata.project_identity`,
+enquanto o campo `project` — o que o Claude Mem indexa e agrupa — recebe o
+texto livre. Um prompt vira projeto; uma worktree vira outro projeto.
+
+### Writers dos dois outboxes (nenhum UNKNOWN)
+
+Ambos são o **mesmo script**, ligado por dois hook-configs diferentes:
+
+| Outbox | Writer | Owner | Providers | Ativo | Classificação |
+|---|---|---|---|---|---|
+| `D:\Hive-Mind\logs\capture-outbox.db` | `scripts/capture/capture-hook.py` | `~/.claude/settings.json` — 5 eventos (SessionStart, UserPromptSubmit, PostToolUse, Stop, SessionEnd) | claude | **sim** | `LEGACY_ACTIVE_WRITER` |
+| `C:\Users\miche\.claude-mem\capture.db` | `scripts/capture/capture-hook.py` | `~/.codex/hooks.json` — 5 eventos, mesma forma | codex, antigravity, mimo | **não** desde 20/07 19:22 | `LEGACY_INACTIVE_WRITER` |
+
+`capture-hook.py:57` resolve o destino como
+`SINAPSE_HOME/logs/capture-outbox.db`, com override por `HIVE_CAPTURE_DB`.
+O segundo banco é herança de uma configuração em que esse caminho apontava
+para `~/.claude-mem`; o hook do Codex continua instalado, mas não produz
+linha nova desde 20/07. Os dados são `HISTORICAL_DATA`.
+
+**Nenhum writer é desligado nesta entrega.** O cutover pertence à fase
+autorizada depois.
+
+### IMPACTED GATES
+
+| Gate | Antes | Agora | Por quê |
+|---|---|---|---|
+| D010-G0 critério 24 | ❌ "0 entregues" | ❌ — texto corrigido | a entrega funciona; o que falha é a identidade canônica no campo indexado |
+| ADR-007 prova operacional | NOT_STARTED, por "cadeia quebrada" | NOT_STARTED, por outra razão | o Dream Cycle lê `project` livre porque a captura grava livre |
+| M1 / M2 (matriz) | `DONE_UNIT`, contraprova "0 entregues" | `DONE_UNIT`, contraprova corrigida | a contraprova real é a fragmentação de rótulo |
+| P8 (dropdown único) | PARTIAL | PARTIAL, agora quantificado | 9 rótulos-lixo medidos, não estimados |
+| D004-R2 | — | **IN_PROGRESS** | — |
+
+**Regra que fica:** backlog de outbox **não é** sinônimo de falha de
+entrega. São coisas independentes, e confundi-las custou a este projeto um
+diagnóstico errado repetido em cinco documentos.

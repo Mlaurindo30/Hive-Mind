@@ -211,3 +211,19 @@ introduzidos durante o período auditado (A-02, A-03).
 **D010 bloqueada** até D009 fechar e o scheduler paralelo (A-05) ser
 resolvido — fazer cutover com dois schedulers ativos em horários
 diferentes produziria execução dupla do Dream Cycle.
+
+---
+
+## Errata D004-R2 (2026-07-22)
+
+Achados desta auditoria que citam "0 de 18.579 eventos entregues" ou "0% de
+`workspace_id` canônico" estão **corrigidos** pela errata no
+[DELIVERY-LEDGER.md](DELIVERY-LEDGER.md).
+
+Resumo: a entrega ao Claude Mem funciona (5.220 observações, escrita hoje);
+os eventos parados estão em **dois** outboxes deprecados que nunca tentaram
+entregar; e a coluna `workspace_id` não existe na tabela medida. O defeito
+real é rótulo de projeto livre no campo indexado.
+
+O texto original é mantido como registro do que se acreditava então.
+

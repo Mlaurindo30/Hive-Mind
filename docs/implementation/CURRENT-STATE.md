@@ -6,7 +6,7 @@
   exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
   antes de existir. O validador aceita esse único passo **só** se o commit
   for somente-documentação, e falha para qualquer commit de código.
-- **active delivery:** D004-R2 (reparar a entrega da captura canônica)
+- **active delivery:** D004-R2 (identidade canônica na captura) — D009-R6 pausada
 - **last completed delivery:** **D009-R6** (registradores MCP reduzidos a
   wrappers) — `adcac3d`, `47912f2`. Antes dela, D001-R2 — 6 commits, nesta ordem:
   1. `7b40e59` `docs(implementation): reconcile project status with current HEAD`
@@ -28,7 +28,14 @@
 - **D010 status:** **BLOCKED** — exige D010-G0 DONE
 - **installation status:** instalação limpa NÃO executada
 - **reboot status:** reboot NÃO executado
-- **real data migration status:** NÃO executada (outbox com 18.579 eventos não entregues; UMC 0% workspace canônico)
+- **real data migration status:** NÃO executada. **Diagnóstico corrigido em
+  D004-R2** (errata no [ledger](DELIVERY-LEDGER.md)): a entrega canônica
+  **funciona** — 5.220 observações no Claude Mem, escrita hoje. Os 18.579 +
+  2.070 eventos estão em **dois outboxes deprecados sem dono**, que nunca
+  tentaram entregar (`attempts=0`). O defeito real é **identidade**: o campo
+  `project` recebe rótulo livre, então texto de prompt e nome de worktree
+  viraram projetos. A métrica anterior de "0% `workspace_id`" media uma
+  coluna que **não existe** nessa tabela.
 - **last full regression:** `pytest tests/unit` — **1317 passed, 18 skipped,
   2 failed** (D009-R6). As 2 são pré-existentes e foi provado por stash de
   `install.ps1`: falham idênticas sem a edição desta entrega.
@@ -75,7 +82,7 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D009-R5 | doctor, unregister, instruções nativas | **DONE_TEMP_CONFIG** | `25d348a` | doctor real: 1/9 healthy; captura = TO_REMOVE |
 | D009-R6 | Wrappers PS1/SH mínimos | **DONE_TEMP_CONFIG** | `47912f2` | 79 testes; PS1 456→55 L, SH 444→50 L; cadeia wrapper→CLI→config em temp |
 | D001-R2 | Reconciliar documentos com a verdade do Git | **DONE** | `776d504` | validador nativo: 11 checks, 18 testes |
-| D004-R2 | Reparar a entrega da captura canônica | **IN_PROGRESS** | — | — |
+| D004-R2 | Identidade canônica na captura | **IN_PROGRESS** | — | errata registrada; writers dos 2 outboxes identificados |
 | D002-R1 | Dream Cycle operacional sobre project_id real | NOT_STARTED | — | — |
 | D005-R1 | E2E real: memória gravada → consultável | NOT_STARTED | — | — |
 | D006-R2 | Entrypoints nativos de serviço | NOT_STARTED | — | — |

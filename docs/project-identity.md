@@ -148,3 +148,32 @@ rollback e autorização explícita.
 Ver [docs/implementation/CURRENT-STATE.md](implementation/CURRENT-STATE.md).
 O resolver está implementado e coberto por testes; a validação
 operacional por provider é a entrega D003/D004.
+
+## Onde a identidade estava vazando (D004-R2)
+
+O `ProjectIdentityResolver` resolve corretamente. O problema era **quem o
+consultava**: dos dois entrypoints de captura declarados no `runtime.yaml`,
+só um chamava `attach_project_identity`.
+
+| Entrypoint | Identidade |
+|---|---|
+| `capture-realtime.py` (serviço) | canônica |
+| `capture-tailer.py` (job) | rótulo livre do parser |
+
+E o motor aceitava o rótulo como autoridade:
+
+```python
+proj = sess.get("project_name") or sess.get("project") or PROJECT
+```
+
+Resultado medido em dados reais: texto de prompt virou nome de projeto
+(`preciso-que-verifique-o-por-que-3`, 37 observações) e a worktree virou um
+projeto separado da própria raiz (`hive-mind-windows-zero-install`, 15).
+
+**A correção não é fazer o tailer lembrar de chamar o resolver** — dois
+lugares que precisam lembrar da coisa certa é exatamente como isto nasceu.
+A identidade passa a ser decidida dentro do ingest nativo
+(`hive_mind.capture.ingest`), e os entrypoints fornecem apenas evidências.
+
+Ver [capture/providers.md](capture/providers.md).
+
