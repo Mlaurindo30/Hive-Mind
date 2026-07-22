@@ -72,8 +72,45 @@ def _known_commits(root: Path) -> set[str]:
 # ---------------------------------------------------------------------------
 # Checks
 # ---------------------------------------------------------------------------
+def _changed_outside_docs_since(root: Path, since: str) -> list[str]:
+    """Commits after `since` that touched anything but the living documents.
+
+    A commit that only edits `docs/implementation/**` cannot invalidate the
+    state those documents describe — it *is* the documents. Requiring the
+    dashboard to name the commit that writes it would be unsatisfiable: the
+    SHA does not exist until after the write.
+    """
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(root), "log", "--format=%h", "--name-only",
+             f"{since}..HEAD"],
+            capture_output=True, text=True, timeout=30, check=True,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return []
+    commits, current, touched_code = [], None, False
+    for line in out.stdout.splitlines() + [""]:
+        line = line.strip()
+        if not line:
+            if current and touched_code:
+                commits.append(current)
+            continue
+        if re.fullmatch(r"[0-9a-f]{7,40}", line):
+            if current and touched_code:
+                commits.append(current)
+            current, touched_code = line, False
+        elif not line.startswith("docs/implementation/"):
+            touched_code = True
+    return commits
+
+
 def check_dashboard_head(root: Path) -> list[Finding]:
-    """The dashboard HEAD must be the repository's HEAD."""
+    """The dashboard must name the commit whose state it describes.
+
+    Equal to HEAD is the normal case. It may also lag behind HEAD by
+    documentation-only commits — those are the dashboard writing itself down,
+    not project state moving on without it.
+    """
     head = git_head(root)
     if head is None:
         return []
@@ -81,12 +118,17 @@ def check_dashboard_head(root: Path) -> list[Finding]:
     match = re.search(r"\*\*HEAD:\*\*\s*`([0-9a-f]{7,40})`", text)
     if not match:
         return [Finding("dashboard-head", "no **HEAD:** line in the dashboard")]
-    if not (match.group(1).startswith(head) or head.startswith(match.group(1))):
-        return [Finding(
-            "dashboard-head",
-            f"dashboard says {match.group(1)}, repository is at {head}",
-        )]
-    return []
+    claimed = match.group(1)
+    if claimed.startswith(head) or head.startswith(claimed):
+        return []
+    stale = _changed_outside_docs_since(root, claimed)
+    if not stale:
+        return []
+    return [Finding(
+        "dashboard-head",
+        f"dashboard says {claimed}; repository is at {head} with "
+        f"{len(stale)} non-documentation commit(s) since: {stale}",
+    )]
 
 
 def check_single_head_per_document(root: Path) -> list[Finding]:

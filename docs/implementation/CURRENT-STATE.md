@@ -1,12 +1,15 @@
 # Project Status Dashboard
 
 - **branch:** `codex/control-plane-redesign`
-- **HEAD:** `fff8dc6`
+- **HEAD:** `7b40e59` (D001-R2)
 - **active delivery:** D001-R2 (reconciliação dos documentos de controle)
 - **last completed delivery:** D009-R5 (doctor, unregister, instruções nativas)
 - **next delivery:** D009-R6 → D004-R2 → D002-R1 → D005-R1 → D006-R2/R3 →
   D008-R2/R3 → D011-A → D010-G0 (**não ir direto de D009-R6 a D010-G0**)
-- **documentos vs Git:** verificados por `hive-mind implementation validate`
+- **documentos vs Git:** verificados por `hive-mind implementation validate`.
+  O painel pode ficar atrás do HEAD por commits **somente de documentação**
+  — nenhum SHA existe antes de ser escrito — mas nunca por um commit de
+  código: aí o validador falha.
 - **native control plane compliance:** PARTIAL
 - **runtime active root:** `D:\Hive-Mind` (não alterado, exceto DR-001 autorizado)
 - **runtime active owner:** Task Scheduler + `npm/lib/supervisor.js` (legado)

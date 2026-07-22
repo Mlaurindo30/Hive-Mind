@@ -130,3 +130,28 @@ class TestChecksDetectTheDriftTheyClaim:
 class TestValidateIsUsableOutsideARepository:
     def test_missing_documents_do_not_crash(self, tmp_path):
         assert validate_documents(_docs(tmp_path)) is not None
+
+
+class TestDashboardHeadIsSatisfiable:
+    """The rule must be one the dashboard can actually meet.
+
+    Requiring the dashboard to name the commit that writes it is impossible:
+    the SHA does not exist until the write is committed. So the dashboard may
+    lag by documentation-only commits — and must not lag by anything else.
+    """
+
+    def test_lagging_by_a_docs_only_commit_is_allowed(self):
+        from hive_mind.implementation.validate import (
+            _changed_outside_docs_since,
+            check_dashboard_head,
+        )
+
+        assert check_dashboard_head(ROOT) == []
+        # The claim above is only meaningful if the helper it relies on works.
+        assert _changed_outside_docs_since(ROOT, "HEAD") == []
+
+    def test_a_code_commit_since_the_dashboard_is_a_finding(self):
+        """HEAD~1 predates this delivery's code, so the helper must see it."""
+        from hive_mind.implementation.validate import _changed_outside_docs_since
+
+        assert _changed_outside_docs_since(ROOT, "HEAD~1") != []

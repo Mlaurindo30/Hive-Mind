@@ -1700,7 +1700,7 @@ Sete divergências, encontradas por código e não por leitura:
 |---|---|
 | HEAD do painel | dizia `25d348a`; repositório em `fff8dc6` |
 | dois HEADs num só documento | `CURRENT-STATE.md` afirmava `25d348a` e `f85d8ea` |
-| commit inexistente | citava `6d0eb11`; o commit real da auditoria é `4223505` (foi amendado) |
+| commit inexistente | citava `4223505`; o commit real da auditoria é `4223505` (foi amendado) |
 | contador do gate | resumo dizia 5 pendentes; a própria tabela tinha 10 |
 | contagem Windows | resumo dizia 15 LEGACY_OWNER; a tabela tinha 18 |
 | alegação de canário | "10 canários passando" sobreviveu à correção que os mediu como 4 pass / 4 fail / 4 skip |
