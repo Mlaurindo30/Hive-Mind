@@ -140,18 +140,72 @@ class TestDashboardHeadIsSatisfiable:
     lag by documentation-only commits — and must not lag by anything else.
     """
 
-    def test_lagging_by_a_docs_only_commit_is_allowed(self):
-        from hive_mind.implementation.validate import (
-            _changed_outside_docs_since,
-            check_dashboard_head,
-        )
+    def test_the_real_dashboard_satisfies_the_rule(self):
+        from hive_mind.implementation.validate import check_dashboard_head
 
         assert check_dashboard_head(ROOT) == []
-        # The claim above is only meaningful if the helper it relies on works.
-        assert _changed_outside_docs_since(ROOT, "HEAD") == []
 
-    def test_a_code_commit_since_the_dashboard_is_a_finding(self):
-        """HEAD~1 predates this delivery's code, so the helper must see it."""
+    @staticmethod
+    def _repo(tmp_path: Path, files: list[str]) -> tuple[Path, str]:
+        """A repo with one commit per file. Returns the root and the first SHA.
+
+        Built rather than borrowed: an assertion anchored to this repository's
+        own HEAD~1 passes or fails depending on what was committed last, which
+        is how the first version of this test broke itself.
+        """
+        import subprocess
+
+        def git(*args):
+            return subprocess.run(["git", "-C", str(tmp_path), *args],
+                                  capture_output=True, text=True, check=True)
+
+        git("init", "-q")
+        git("config", "user.email", "t@t")
+        git("config", "user.name", "t")
+        first = ""
+        for path in files:
+            target = tmp_path / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text("x\n", encoding="utf-8")
+            git("add", "-A")
+            git("commit", "-q", "-m", path)
+            if not first:
+                first = git("rev-parse", "--short", "HEAD").stdout.strip()
+        return tmp_path, first
+
+    def test_documentation_only_commits_do_not_make_it_stale(self, tmp_path):
         from hive_mind.implementation.validate import _changed_outside_docs_since
 
-        assert _changed_outside_docs_since(ROOT, "HEAD~1") != []
+        root, first = self._repo(tmp_path, [
+            "docs/implementation/CURRENT-STATE.md",
+            "docs/implementation/DELIVERY-LEDGER.md",
+            "docs/implementation/MASTER-PLAN.md",
+        ])
+        assert _changed_outside_docs_since(root, first) == []
+
+    def test_a_code_commit_does_make_it_stale(self, tmp_path):
+        from hive_mind.implementation.validate import _changed_outside_docs_since
+
+        root, first = self._repo(tmp_path, [
+            "docs/implementation/CURRENT-STATE.md",
+            "docs/implementation/MASTER-PLAN.md",
+            "src/hive_mind/thing.py",
+        ])
+        assert len(_changed_outside_docs_since(root, first)) == 1
+
+    def test_a_mixed_commit_counts_as_code(self, tmp_path):
+        """Docs edited alongside code is still code moving on."""
+        import subprocess
+
+        root, first = self._repo(tmp_path, ["docs/implementation/CURRENT-STATE.md"])
+        (root / "src").mkdir()
+        (root / "src" / "thing.py").write_text("x\n", encoding="utf-8")
+        (root / "docs" / "implementation" / "CURRENT-STATE.md").write_text(
+            "y\n", encoding="utf-8")
+        for args in (["add", "-A"], ["commit", "-q", "-m", "mixed"]):
+            subprocess.run(["git", "-C", str(root), *args], check=True,
+                           capture_output=True)
+
+        from hive_mind.implementation.validate import _changed_outside_docs_since
+
+        assert len(_changed_outside_docs_since(root, first)) == 1
