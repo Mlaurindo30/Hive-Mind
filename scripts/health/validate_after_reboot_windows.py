@@ -8,6 +8,11 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    from scripts.health.audit_runtime_paths_windows import audit_runtime_paths
+except ModuleNotFoundError:  # Direct script execution adds scripts/health to sys.path.
+    from audit_runtime_paths_windows import audit_runtime_paths
+
 ROOT = Path(__file__).resolve().parents[2]
 REPORT = ROOT / "logs" / "post-reboot-validation.json"
 
@@ -73,12 +78,14 @@ def main() -> int:
     services_healthy, unhealthy_services = assess_required_services(
         state, required_services
     )
+    runtime_path_findings = audit_runtime_paths(ROOT)
     checks = {
         "scheduled_supervisor": task_exists("HiveMind-Supervisor"),
         "supervisor_state_present": bool(state),
         "supervisor_manifest_present": bool(manifest),
         "required_services_declared": bool(required_services),
         "services_healthy": services_healthy,
+        "canonical_runtime_paths": not runtime_path_findings,
     }
     report = {
         "platform": "windows",
@@ -88,6 +95,7 @@ def main() -> int:
         "required_services": required_services,
         "unhealthy_required_services": unhealthy_services,
         "services": state,
+        "runtime_path_findings": runtime_path_findings,
         "status": "pass" if all(checks.values()) else "fail",
     }
     REPORT.parent.mkdir(parents=True, exist_ok=True)
