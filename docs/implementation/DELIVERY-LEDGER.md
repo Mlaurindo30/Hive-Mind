@@ -2490,3 +2490,47 @@ UNIQUE ligadas por FK declarada, com a chave gerada pelo nosso lado.
 O bridge continua proibido de resolver identidade. `observations.project`
 serve para exibição legacy, diagnóstico, detecção de contradição e auditoria —
 **nunca** como `project_id`, nunca como chave de lookup.
+
+---
+
+## M14 — Identity registry (IN_PROGRESS)
+
+Decisão **B**, medida em M14-A e registrada em ADR-014: o ingest persiste a
+decisão canônica antes do POST, chaveada por `content_session_id`; o bridge
+recupera. O bridge continua proibido de resolver.
+
+### Progresso, commit a commit
+
+| # | Commit | O quê | Estado |
+|--:|---|---|---|
+| 1 | `3d06c20` | ADR-014 | ✅ |
+| 2 | `e232f0b` | `src/hive_mind/capture/identity_store.py` + 30 testes | ✅ |
+| 3 | — | contrato do ingest: persistir `PENDING` **antes** do POST | ⏳ **próximo** |
+| 4 | — | lookup no bridge por `content_session_id`, sem resolver | ⏳ |
+| 5 | — | prova operacional contínua com worker real | ⏳ |
+| 6 | — | fechamento documental | ⏳ |
+
+### Dois defeitos meus, achados pelos testes antes do commit 2
+
+1. **A quarentena era revertida.** Eu escrevia o `QUARANTINED` e levantava
+   `IdentityConflict` dentro da mesma transação — o `__exit__` via a exceção
+   e fazia ROLLBACK. O conflito ficava detectado e **não registrado**, que é
+   pior do que não detectar. A exceção passou para depois do commit.
+2. **O sanitizador não sanitizava.** `authorization: Bearer sk-…` contra um
+   `\S+` casa com `Bearer` e deixa o token. Agora consome o esquema junto, e
+   pega token com forma de provider mesmo sem rótulo.
+
+### Próximo passo exato
+
+`src/hive_mind/capture/ingest.py`: entre `resolve_identity` e `engine.emit`,
+inserir `store.record_pending(...)` e, conforme a resposta do POST,
+`mark_posted` ou `mark_failed`. A ordem — persistir, depois postar — precisa
+de teste que falhe se for invertida.
+
+O `content_session_id` é o `sess["sid"]`, que já vem do parser e já é o que o
+worker preserva. **Não mudar o formato**; documentar e travar o contrato.
+
+### Estados
+
+M14-A `DONE` · M14 `IN_PROGRESS` · D004-R2 `PARTIAL` · D004-R2W `PARTIAL` ·
+D004-M `BLOCKED` · SEC-001 `BLOCKED` (independente) · D010 `BLOCKED`.
