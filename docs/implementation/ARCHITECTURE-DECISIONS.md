@@ -287,3 +287,56 @@ RAGFlow e demais serviços). Não criar os dois registries.
 - **Testes:** D009.
 - **Rollback:** rename mecânico antes do primeiro release público.
 - **Status:** ACCEPTED (aprovação humana registrada em 2026-07-19, D001).
+
+## ADR-014 — Capture identity decision registry
+
+- **Status:** ACCEPTED (M14, decisão medida em M14-A).
+
+- **Problema:** o Hive-Mind envia `metadata.project_identity` ao worker do
+  Claude Mem, e o worker aceita o campo nos três endpoints. Mas a observation
+  não é o payload enviado: o worker a gera com o modelo, a partir da sessão, e
+  escreve uma linha nova com `metadata` NULL. O `project_name` sobrevive em
+  `observations.project`; o `project_id` não sobrevive em lugar nenhum. E o
+  bridge precisa do `project_id` para gravar `workspace_id`.
+
+- **Correlação comprovada** (M14-A, medida no banco de um worker real):
+
+  ```
+  contentSessionId do POST  =  sid gerado pelo Hive-Mind
+                            =  sdk_sessions.content_session_id   (UNIQUE)
+
+  observations.memory_session_id
+    -> sdk_sessions.memory_session_id                            (UNIQUE, FK)
+    -> sdk_sessions.content_session_id
+  ```
+
+  A relação é foreign key declarada entre duas colunas UNIQUE. Não depende de
+  formato textual, e não usa `observations.project`.
+
+- **Decisão:** o ingest persiste a decisão canônica **antes** do POST,
+  chaveada por `content_session_id`. O bridge recupera por essa chave. O
+  registro vive num banco do Hive-Mind, separado; nada é alterado no Claude
+  Mem.
+
+  A regra que isso preserva: **o ingest decide, o bridge recupera.** Nunca o
+  bridge decide de novo — foi ter dois lugares decidindo identidade que
+  produziu `preciso-que-verifique-o-por-que-3` como projeto.
+
+- **Alternativas rejeitadas:**
+  - confiar em `observations.project` — é rótulo, não identidade;
+  - resolver de novo no bridge — reintroduz o segundo decisor;
+  - inferir por basename/cwd — o defeito original;
+  - extrair o sid de `memory_session_id` por substring — a string contém o sid
+    hoje, e nada garante que continue; a FK é a relação de verdade;
+  - editar `worker-service.cjs` no cache — depende de usuário e versão, e
+    quebra na atualização;
+  - adicionar coluna ao banco do Claude Mem — schema privado de terceiro;
+  - associar por timestamp — não é identidade.
+
+- **Consequências:** um banco novo, do Hive-Mind, com máquina de estados
+  (`PENDING` → `POSTED` → `OBSERVED` → `BRIDGED`, mais `FAILED` e
+  `QUARANTINED`). Observations antigas não têm entrada e continuam
+  legacy/unclassified — sem migração, sem inferência retroativa (ADR-012).
+
+- **Rollback:** desligar o lookup. A store fica para auditoria, o bridge volta
+  ao comportamento legacy/unclassified, e nada precisa mudar no Claude Mem.
