@@ -264,9 +264,13 @@ python3 scripts/services/sinapse-write.py health
 **To register the MCP without reinstalling everything** (e.g. you installed a new agent afterwards):
 
 ```bash
-./scripts/setup/register-mcp.sh           # detects and registers in all agents
-./scripts/setup/register-mcp.sh --check   # only shows status, does not modify
+./scripts/setup/register-mcp.sh --apply   # detects and registers in all agents
+./scripts/setup/register-mcp.sh           # same, but reports instead of writing
+./scripts/setup/register-mcp.sh --check   # diagnosis only; exits non-zero if incomplete
 ```
+
+Since D009-R6 the script is a wrapper: it locates `hive-mind` and forwards.
+The implementation is `hive-mind agents register`, shared by Windows and POSIX.
 
 The script is idempotent and registers only the `sinapse-memory` orchestrator, without
 deleting other people's MCP servers. Legacy records from Hive-Mind itself

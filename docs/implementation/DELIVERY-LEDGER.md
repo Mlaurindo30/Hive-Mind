@@ -1536,8 +1536,8 @@ ser alvo de primeira classe, com dry-run padrão. O teste que asseverava
 | 1 | todo arquivo Windows inventariado | ✅ D010-G0 doc |
 | 2 | nenhum UNKNOWN | ✅ 0 |
 | 3 | todo componente classificado | ✅ |
-| 4 | `register-mcp.ps1` é wrapper mínimo | ❌ 456 L LEGACY_OWNER |
-| 5 | `register-mcp.sh` é wrapper mínimo | ❌ 439 L LEGACY_OWNER |
+| 4 | `register-mcp.ps1` é wrapper mínimo | ✅ 55 L, D009-R6 |
+| 5 | `register-mcp.sh` é wrapper mínimo | ✅ 50 L, D009-R6 |
 | 6 | `register-windows-jobs.ps1` sem catálogo próprio | ❌ lista de jobs |
 | 7 | `install_services.py` sem catálogo próprio | ❌ `unit_definitions` |
 | 8 | `services.js` sem catálogo próprio | ❌ |
@@ -1558,7 +1558,7 @@ ser alvo de primeira classe, com dry-run padrão. O teste que asseverava
 | 23 | worktree limpa | ✅ |
 | 24 | **captura canônica entregando sem outbox** | ❌ 18.579 eventos capturados, **0 entregues**; 1.094 observações reais com **0%** `workspace_id` canônico — D004-R2 |
 
-**11 de 24 critérios pendentes** (13 completos, 10 falhando, 1 parcial). Contagem verificada por `hive-mind implementation validate`.
+**9 de 24 critérios pendentes** (15 completos, 8 falhando, 1 parcial). Contagem verificada por `hive-mind implementation validate`.
 
 ### Sequência até D014
 
@@ -1773,7 +1773,96 @@ preservar stdout/stderr e devolver o exit code. Toda a lógica fica em
 **Não fecha a captura real.** Desligar o hook legado prova que o pipeline
 errado está desligado, não que o certo funciona. Esse gate é D004-R2.
 
-### Estado
+### Callers auditados antes de encolher qualquer script
 
-Aberta. Auditoria de callers e contrato CLI legado em andamento.
+| Caller | Chamava | Argumentos | Esperava | Ação |
+|---|---|---|---|---|
+| `install.ps1:496` | `register-mcp.ps1` | nenhum | registrar **e escrever** | atualizado: `--apply --instructions` |
+| `install.sh:908` | `register-mcp.sh` | nenhum | idem | atualizado: `--apply --instructions` |
+| `install.sh:1004` | `register-mcp.sh` | nenhum | idem | atualizado: `--apply --instructions` |
+| `npm/bin/hive-mind.js:58` | `register-mcp.sh` | `--only <agent>` | registrar um agente | atualizado: `+ --apply` |
+| `tests/integration/test_register_mcp_check.py` | ambos | `--check` | exit 0 | contrato reescrito (ver abaixo) |
+| `tests/unit/test_register_mcp.py` | `.sh` | interno | internals do script | substituído por mapa de cobertura |
+| `tests/unit/test_outbox_delivery_isolated.py` | `.ps1` | leitura | sem outbox | continua verde |
+
+**O achado que impedia um wrapper puro:** os scripts legados **escreviam por
+padrão**; `hive-mind agents register` é dry-run por padrão, de propósito. Um
+repasse literal teria feito `install.ps1` parar de registrar em silêncio — a
+pior classe de regressão, porque a instalação continua "verde". Os callers
+passaram a declarar `--apply`, em vez de o wrapper injetar a flag por trás.
+
+### Contrato CLI legado → nativo
+
+| Opção legada | PS1 | SH | Nativo antes | Ação |
+|---|:-:|:-:|---|---|
+| `--only <agent>` | ✓ | ✓ | `--only` | SUPPORTED |
+| `--self`, `--agent` | ✓ | ✓ | — | ADD_NATIVE_ALIAS |
+| agente posicional | ✓ | ✓ | — | ADD_NATIVE_ALIAS |
+| `--check` | ✓ | ✓ | — | ADD_NATIVE_ALIAS → `doctor` |
+| `--list` | ✓ | ✓ | — | ADD_NATIVE_ALIAS |
+| `--no-instructions` | ✓ | ✓ | — | ADD_NATIVE_ALIAS |
+| `HIVE_SKIP_PROMPT` | — | ✓ | — | ADD_NATIVE_ALIAS |
+| `-CodexOnly` / `-ClaudeOnly` | ✓ | — | — | ADD_NATIVE_ALIAS |
+| `PROJECT_ROOT` (env) | — | ✓ | `--project-root` | SUPPORTED |
+| escrita por padrão | ✓ | ✓ | dry-run por padrão | UPDATE_CALLER |
+| injeção de instruções por padrão | ✓ | ✓ | opt-in | UPDATE_CALLER |
+| exit 2 para agente inválido | ✓ | ✓ | — | ADD_NATIVE_ALIAS |
+
+A tradução vive em `src/hive_mind/agents/compat.py`. Não nos wrappers: um
+wrapper que reinterpretasse os próprios argumentos seria lógica de produto de
+novo, no lugar de onde esta entrega a removeu.
+
+### Defeitos encontrados no caminho
+
+1. **`register --instructions` não fazia nada.** A flag foi declarada na
+   D009-R5 e nunca ligada — `hive-mind agents register --instructions` era um
+   no-op silencioso. Ligada aqui, porque o script legado injetava por padrão e
+   a paridade exige a funcionalidade, não só a flag.
+2. **`.ps1` e `.sh` divergiam em `PROJECT_ROOT`.** O `.sh` honrava a variável;
+   o `.ps1` a ignorava e derivava a raiz de `$PSScriptRoot`. Encontrado porque
+   um teste de "executável ausente" continuou achando o `.venv` real. O `.ps1`
+   passou a honrar `PROJECT_ROOT` — mesma semântica nas duas plataformas.
+3. **`agents doctor` não tinha `--only`.** Necessário para `--check --only X`.
+
+### O contrato de `--check`, reescrito
+
+A spec R5.4 exigia exit 0 "independentemente de quantos agentes estão
+instalados". Isso era verdade do script antigo e tornava `--check` inútil como
+gate: uma instalação onde nada foi registrado passava.
+
+Agora: **0** sse todo provider **detectado** está configurado; **não-zero**
+quando o diagnóstico está incompleto. Provider ausente não é falha — não há o
+que configurar para um agente que não existe. No host real o comando sai 1 e
+reporta 1 de 9 saudáveis, que é a resposta honesta.
+
+O teste deixou de fixar o valor 0 e passou a derivar o esperado do próprio
+diagnóstico, para não codificar o estado do host de hoje.
+
+### Prova
+
+| Prova | Resultado |
+|---|---|
+| `tests/unit/test_registration_wrappers.py` | 56 passed — estrutura (sem provider, path, JSON/TOML, marcador, outbox, backup) + comportamento (repasse fiel, streams, exit codes, executável ausente) |
+| `tests/integration/test_registration_through_wrappers.py` | 23 passed — wrapper→CLI→config em HOME/APPDATA/project temporários: terceiros preservados, TOML válido com comentários, VS Code `servers` + `type: stdio`, backup, idempotência, `--instructions`, unregister seletivo, exit 2 |
+| `tests/integration/test_register_mcp_check.py` | 3 passed — contrato de exit code derivado do diagnóstico |
+| `bash -n` + PowerShell `Parser::ParseFile` | ambos válidos |
+| configs reais | intocados — asserção explícita sobre o mtime de `~/.codex/config.toml`, `~/.claude.json`, `~/.qwen/settings.json` |
+
+Contagem de linhas **não** é evidência: os testes de estrutura procuram o que
+um registrador sabia, não quantas linhas sobraram.
+
+### Limites conhecidos, medidos e não presumidos
+
+- `&` e `|` não sobrevivem a um duplo `.cmd` no Windows — cmd.exe os
+  interpreta antes do wrapper. O duplo de teste é `.ps1`, que o PowerShell
+  invoca direto, como a `.exe` do console script em produção.
+- Um `-` isolado falha no parser do `powershell.exe -File`, antes do corpo do
+  script: um script de uma linha que só imprime `$args` falha igual. Medido,
+  não presumido; nenhum caller passa isso.
+
+### Isto **não** fecha a captura
+
+Desligar o hook legado prova que o pipeline errado está desligado, não que o
+certo funciona. A captura real continua com 18.579 eventos e 0 entregues. Esse
+gate é **D004-R2**, a próxima entrega.
 

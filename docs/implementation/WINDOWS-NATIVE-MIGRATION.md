@@ -28,8 +28,6 @@ D010-G0.**
 | Arquivo | L | Função atual | Owner | Destino | Estado | Delivery | Remoção |
 |---|--:|---|---|---|---|---|---|
 | `install.ps1` | 568 | instalação completa, Docker, MCP, perfis | script | `hive-mind install` | **LEGACY_OWNER** | D011 | D014 |
-| `scripts/setup/register-mcp.ps1` | 456 | detecção, paths, merge JSON/TOML, prompts | script | `hive_mind.agents` | **LEGACY_OWNER** | D009-R6 | D014 |
-| `scripts/setup/register-mcp.sh` | 439 | idem (POSIX) | script | `hive_mind.agents` | **LEGACY_OWNER** | D009-R6 | D014 |
 | `scripts/lib/HiveMind.Windows.psm1` | 388 | utilidades Windows compartilhadas | script | `hive_mind.platform` | **LEGACY_OWNER** | D011 | D014 |
 | `scripts/setup/bootstrap-prerequisites.ps1` | 178 | pré-requisitos, Docker, downloads | script | `hive-mind install` | **LEGACY_OWNER** | D011 | D014 |
 | `scripts/setup/install_services.py` | 1232 | **catálogo de serviços** (`unit_definitions`) | script | `config/runtime.yaml` | **LEGACY_OWNER** | D006-R1 | D014 |
@@ -49,6 +47,7 @@ D010-G0.**
 
 | Componente | Destino nativo | Estado | Delivery |
 |---|---|---|---|
+| registro MCP (`register-mcp.ps1` 456→55 L, `.sh` 444→50 L) | `hive_mind.agents` + `hive_mind.agents.compat` | **NATIVE** (ambos os scripts são THIN_WRAPPER) | D009-R6 ✅ |
 | `ProjectIdentityResolver` | `hive_mind.projects.identity` | **NATIVE** (legado é SHIM) | D003-R1 ✅ |
 | canary multiagente | `hive_mind.validation` | **NATIVE** (legado é SHIM, 225→28 L) | D004-R1 ✅ |
 | motor de backup | `hive_mind.maintenance.backup` | **NATIVE** (legado é SHIM, 175→45 L) | D008-R1B ✅ |
@@ -67,6 +66,7 @@ formais ou são removidos junto do respectivo componente.
 `scripts/capture/{claude-mem-hook,copilot-wrapper}.ps1`,
 `scripts/graph/{build-graph,serve-graph}.ps1`,
 `scripts/maintenance/{integrations-update,sync-diario}.ps1`,
+`scripts/setup/{register-mcp.ps1,register-mcp.sh}` (D009-R6),
 `scripts/utils/recover.ps1`, `scripts/claude-mem-local.ps1`,
 `scripts/setup/{setup-brain.ps1,start-windows-supervisor.ps1,apply-hidden-supervisor-task.ps1}`,
 `scripts/setup/start-windows-supervisor-hidden.vbs`,
@@ -107,10 +107,10 @@ não aplicável nesta instalação.
 
 | Categoria | Contagem |
 |---|---:|
-| NATIVE (portado) | 8 componentes |
-| LEGACY_OWNER (bloqueiam D010) | **18** |
+| NATIVE (portado) | 9 componentes |
+| LEGACY_OWNER (bloqueiam D010) | **16** |
 | TO_REMOVE | 3 |
-| THIN_WRAPPER | ~22 |
+| THIN_WRAPPER | ~24 (inclui os 2 registradores, D009-R6) |
 | EXTERNAL_COMPONENT | Docker, WinSW |
 | **UNKNOWN** | **0** |
 

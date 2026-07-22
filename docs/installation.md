@@ -88,8 +88,12 @@ Useful switches: `-Profile local-min|local-full`, `-WithTests`, `-WithRealTests`
 `powershell.exe -ExecutionPolicy Bypass`. Register/re-register MCP for a single agent with:
 
 ```powershell
-./scripts/setup/register-mcp.ps1 -ClaudeOnly    # or -CodexOnly, or omit both for all supported targets
+./scripts/setup/register-mcp.ps1 --claude-only --apply   # or --codex-only, or neither for every detected agent
 ```
+
+Both `register-mcp.ps1` and `register-mcp.sh` are wrappers over
+`hive-mind agents register` (D009-R6) — same implementation, same option set,
+same results on either platform. See [agents.md](agents.md).
 
 **Known gaps versus `install.sh`'s 12-step process (as of 2026-07-09), so you aren't surprised:**
 
@@ -97,10 +101,9 @@ Useful switches: `-Profile local-min|local-full`, `-WithTests`, `-WithRealTests`
   `snowflake-arctic-embed2:latest` / `qwen2.5:3b` / `minicpm-v4.6:latest` yourself first.
 - `scripts/graph/build-graph.ps1` always does structural (AST-only) reindexing; it doesn't yet
   select a semantic-extraction backend (Gemini/Ollama) the way `build-graph.sh` does.
-- `register-mcp.ps1` currently registers 3 targets (project `.mcp.json`, Codex, `~/.claude.json`)
-  versus the 14 agent keys `register-mcp.sh` supports, and does not yet inject the mandatory
-  `config/sinapse-agent-prompt.md` operational block into `CLAUDE.md`/`AGENTS.md`/etc. — register
-  manually per-agent, and copy that block into your agent's instructions file if it's missing.
+- ~~`register-mcp.ps1` registers fewer targets than `register-mcp.sh`~~ — **closed in D009-R6.**
+  Both are now wrappers over the same native implementation, so the 13 agent keys and the
+  `config/sinapse-agent-prompt.md` injection (`--instructions`) are identical on both platforms.
 - No cron/Task Scheduler equivalent is installed yet — periodic jobs (graph rebuild, Dream Cycle,
   backups, quarantine drain) need to be scheduled by hand (e.g. via `Register-ScheduledTask`) or run
   manually.

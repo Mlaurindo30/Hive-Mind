@@ -101,7 +101,7 @@ Register Hive-Mind as an MCP server FOR YOURSELF — the agent reading this prom
 Register only YOUR config, not anyone else's.
 
   cd ~/Hive-Mind
-  ./scripts/setup/register-mcp.sh --only <your-agent>
+  ./scripts/setup/register-mcp.sh --only <your-agent> --apply
 
 Replace <your-agent> with your identity. Valid keys:
   claude codex gemini qwen kimi kiro kilo roo vscode cursor opencode openclaw
@@ -113,6 +113,10 @@ It safely merges the project-managed `sinapse-memory` MCP into YOUR config, remo
 Hive-Mind's own legacy entries (claude-mem-local, neural-memory-local) and never touches
 third-party servers. List keys: ./scripts/setup/register-mcp.sh --list
 Check status without changes: ./scripts/setup/register-mcp.sh --only <your-agent> --check
+
+Without --apply nothing is written: the command reports what it would change and
+exits. The script is a wrapper over `hive-mind agents register`; the equivalent
+native call is `hive-mind agents register --only <your-agent> --apply`.
 
 After registering, restart yourself and confirm with: "use the sinapse_health tool"
 ```
@@ -201,7 +205,8 @@ cross-cutting execution layer. Full anatomy: [`docs/01-architecture.md` §2](doc
 | `search_memories` | HNSW/text search over consolidated neurons |
 
 Project-managed MCP templates live in `config/mcp/`; generated per-agent runtime
-configs are written by `scripts/setup/register-mcp.sh` into each agent's own config
+configs are written by `hive-mind agents register` (which
+`scripts/setup/register-mcp.{sh,ps1}` wrap) into each agent's own config
 location (for example Codex `~/.codex/mcp.json`, Cursor `.cursor/mcp.json`, Gemini
 `~/.gemini/settings.json`).
 

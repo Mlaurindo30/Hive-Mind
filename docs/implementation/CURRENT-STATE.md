@@ -1,22 +1,22 @@
 # Project Status Dashboard
 
 - **branch:** `codex/control-plane-redesign`
-- **HEAD:** `d3e4c6d` — último commit de `git log` no momento em que este
+- **HEAD:** `47912f2` — último commit de `git log` no momento em que este
   painel foi escrito. Por construção ele fica atrás do HEAD atual por
   exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
   antes de existir. O validador aceita esse único passo **só** se o commit
   for somente-documentação, e falha para qualquer commit de código.
-- **active delivery:** D009-R6 (wrappers PS1/SH mínimos) — registro aberto no
-  [ledger](DELIVERY-LEDGER.md)
-- **last completed delivery:** **D001-R2** (reconciliação dos documentos de
-  controle) — 5 commits, nesta ordem:
+- **active delivery:** D004-R2 (reparar a entrega da captura canônica)
+- **last completed delivery:** **D009-R6** (registradores MCP reduzidos a
+  wrappers) — `adcac3d`, `47912f2`. Antes dela, D001-R2 — 6 commits, nesta ordem:
   1. `7b40e59` `docs(implementation): reconcile project status with current HEAD`
   2. `9bd34f4` `docs(implementation): point the dashboard at the reconciliation commit`
   3. `7fc70dd` `docs(implementation): set dashboard HEAD to 9bd34f4`
   4. `18eab01` `test(implementation): anchor the HEAD-rule tests to a synthetic repo`
   5. `d3e4c6d` `docs(implementation): close D001-R2 at 18eab01`
-- **next delivery:** D009-R6 → D004-R2 → D002-R1 → D005-R1 → D006-R2/R3 →
-  D008-R2/R3 → D011-A → D010-G0 (**não ir direto de D009-R6 a D010-G0**)
+  6. `776d504` `docs(implementation): correct dashboard HEAD, ordering and delivery states`
+- **next delivery:** D004-R2 → D002-R1 → D005-R1 → D006-R2/R3 → D008-R2/R3 →
+  D011-A → D010-G0 (**não ir de D009-R6 direto a D010-G0**)
 - **documentos vs Git:** verificados por `hive-mind implementation validate`.
 - **disciplina de fechamento:** atualizar este HEAD é o **último** passo de
   qualquer entrega, num commit que toque apenas `docs/implementation/`.
@@ -29,9 +29,9 @@
 - **installation status:** instalação limpa NÃO executada
 - **reboot status:** reboot NÃO executado
 - **real data migration status:** NÃO executada (outbox com 18.579 eventos não entregues; UMC 0% workspace canônico)
-- **last full regression:** `pytest tests/` completo — **1522 passed, 102
-  skipped, 17 failed**. A contagem anterior deste painel (1239/26/2) era de
-  `tests/unit` apenas, o que fazia 15 falhas desaparecerem do relatório.
+- **last full regression:** `pytest tests/unit` — **1317 passed, 18 skipped,
+  2 failed** (D009-R6). As 2 são pré-existentes e foi provado por stash de
+  `install.ps1`: falham idênticas sem a edição desta entrega.
 - **known test failures (17, todas pré-existentes a D001-R2):**
   - 2 em `test_windows_install_contract.py` — UnicodeDecodeError de stdout PowerShell;
   - 1 em `test_acceptance_split.py` — `test_canary_multiagent_pipeline.py` e
@@ -57,7 +57,7 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D006 | Manifesto declarativo | **PARTIAL** | `1db2523` | 10 testes | 4 catálogos concorrentes |
 | D007 | Daemon shadow | **IMPLEMENTED_NO_CUTOVER** | `cb4c66d` | run --shadow real, HTTP, socket | cutover |
 | D008 | Supervisor e scheduler | **PARTIAL** | `1857869` | processos sintéticos reais | disparo de jobs, cutover |
-| D009 | Registro MCP/captura nativo | **PARTIAL** | `25d348a` | detect 9/13, doctor 1/9 healthy, TOML nativo | wrappers PS1/SH (D009-R6) |
+| D009 | Registro MCP/captura nativo | **PARTIAL** | `47912f2` | detect 9/13, doctor 1/9 healthy, TOML nativo, wrappers mínimos | captura real **não** provada — gate é D004-R2 |
 | D010 | Cutover de owners legados | **BLOCKED** | — | — | exige D010-G0 |
 | D011 | Installer e lifecycle Windows | NOT_STARTED | — | — | — |
 | D012 | Windows descartável + reboot | NOT_STARTED | — | — | — |
@@ -73,9 +73,9 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D009-R3 | Paridade POSIX do capture hook | **DONE** | `fef5383` | ADR-004 restaurado |
 | D009-R4 | Writer TOML do Codex | **DONE_TEMP_CONFIG** | `e86b1fa` | cópia do config real (181 L) |
 | D009-R5 | doctor, unregister, instruções nativas | **DONE_TEMP_CONFIG** | `25d348a` | doctor real: 1/9 healthy; captura = TO_REMOVE |
-| D009-R6 | Wrappers PS1/SH mínimos | NOT_STARTED | — | — |
-| D001-R2 | Reconciliar documentos com a verdade do Git | **IN_PROGRESS** | — | validador nativo: 11 checks, 14 testes |
-| D004-R2 | Reparar a entrega da captura canônica | NOT_STARTED | — | — |
+| D009-R6 | Wrappers PS1/SH mínimos | **DONE_TEMP_CONFIG** | `47912f2` | 79 testes; PS1 456→55 L, SH 444→50 L; cadeia wrapper→CLI→config em temp |
+| D001-R2 | Reconciliar documentos com a verdade do Git | **DONE** | `776d504` | validador nativo: 11 checks, 18 testes |
+| D004-R2 | Reparar a entrega da captura canônica | **IN_PROGRESS** | — | — |
 | D002-R1 | Dream Cycle operacional sobre project_id real | NOT_STARTED | — | — |
 | D005-R1 | E2E real: memória gravada → consultável | NOT_STARTED | — | — |
 | D006-R2 | Entrypoints nativos de serviço | NOT_STARTED | — | — |
@@ -89,7 +89,7 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D008-R1V | Inventário de jobs validado | **DONE** | `33191e3` | 18 jobs vivos; 1 morto removido |
 | D008-R1B | Backup nativo verificado | **DONE_SYNTHETIC** | `4f22a3c` | run→verify→restore sintético |
 | DR-001 | Restart policy do Docker | **DONE** | `69632bd` | 7/7 containers `unless-stopped` |
-| **D010-G0** | **Windows Native Migration Readiness** | **NOT_STARTED** | — | gate obrigatório de D010: 13 completos / 10 falhando / 1 parcial de 24 |
+| **D010-G0** | **Windows Native Migration Readiness** | **NOT_STARTED** | — | gate obrigatório de D010: 15 completos / 8 falhando / 1 parcial de 24 |
 
 Inventário completo: [WINDOWS-NATIVE-MIGRATION.md](WINDOWS-NATIVE-MIGRATION.md)
 
