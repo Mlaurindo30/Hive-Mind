@@ -2534,3 +2534,48 @@ worker preserva. **Não mudar o formato**; documentar e travar o contrato.
 
 M14-A `DONE` · M14 `IN_PROGRESS` · D004-R2 `PARTIAL` · D004-R2W `PARTIAL` ·
 D004-M `BLOCKED` · SEC-001 `BLOCKED` (independente) · D010 `BLOCKED`.
+
+### M14 — progresso atualizado
+
+| # | Commit | O quê | Estado |
+|--:|---|---|---|
+| 1 | `3d06c20` | ADR-014 | ✅ |
+| 2 | `e232f0b` | `identity_store.py` + 30 testes | ✅ |
+| 3 | `03016a0` | contrato do ingest: decidir → gravar → postar, 9 testes | ✅ |
+| 3b | `f666259` | isolar a store nos testes | ✅ |
+| 4 | — | lookup no bridge por `content_session_id` | ⏳ **próximo** |
+| 5 | — | prova operacional contínua com worker real | ⏳ |
+| 6 | — | fechamento documental | ⏳ |
+
+Regressão em `f666259`: **1416 passed**, 18 skipped, 4 failed — 2 são o
+painel (some no commit de fechamento) e 2 são as conhecidas de
+`test_windows_install_contract.py`.
+
+#### Terceiro defeito meu, achado pela suíte completa
+
+O `default_identity_store()` criou um banco real em `.hive-mind/state/`
+durante os testes e, sendo singleton de processo, levava ids de sessão de um
+teste para o outro. A suíte passava ou falhava por ordem. Só apareceu na
+rodada completa; a focada estava verde. Em produção o default fica — é ele
+que garante que nada seja entregue sem decisão recuperável — e o teste passa
+a apontar `HIVE_CAPTURE_IDENTITY_DB` para caminho temporário.
+
+#### Próximo passo exato
+
+Criar `resolve_capture_identity_for_observation(...)` — helper dedicado, sem
+SQL espalhado no bridge. Entrada: `observation.memory_session_id`, conexão
+read-only com o Claude Mem, `IdentityStore`. Fluxo:
+
+```
+observations.memory_session_id
+  -> sdk_sessions (FK)  -> content_session_id
+  -> IdentityStore.get  -> envelope + verificação de hash
+```
+
+Sem `sdk_session` → `missing_sdk_session` → legacy/unclassified.
+Sem decisão → `missing_capture_identity` → legacy/unclassified.
+Envelope e registry discordando no `project_id` → `QUARANTINED`, sem gravar
+`workspace_id`.
+
+E o teste arquitetural que falha se o bridge importar ou chamar o
+`ProjectIdentityResolver`.
