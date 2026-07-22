@@ -85,15 +85,29 @@ def test_codex_is_delivered_by_capture_core_ingest():
     assert "codex" in adapters, "codex must stay registered as a parser adapter"
     assert adapters["codex"]["owner"] == "realtime", (
         "codex must be delivered by capture-realtime.py, which calls "
-        "capture_core.ingest()"
+        "hive_mind.capture.ingest()"
     )
 
 
 @pytest.mark.parametrize("runner", ["capture-realtime.py", "capture-tailer.py"])
-def test_delivery_runners_call_capture_core_ingest(runner):
+def test_delivery_runners_use_the_canonical_ingest(runner):
+    """Both runners deliver through the one enforcing entrypoint.
+
+    The canonical path moved from `capture_core.ingest` to
+    `hive_mind.capture.ingest` in D004-R2, and the move is the point: the
+    package decides project identity, so a runner cannot deliver without it.
+    Calling the transport (`engine.emit`) directly would bypass that, which is
+    exactly what the tailer used to do.
+    """
     text = (CAPTURE / runner).read_text(encoding="utf-8")
-    assert "core.ingest(" in text, (
-        f"{runner} must deliver through capture_core.ingest()"
+    assert "capture.ingest(" in text, (
+        f"{runner} must deliver through hive_mind.capture.ingest()"
+    )
+    assert "core.ingest(" not in text, (
+        f"{runner} still calls the pre-D004-R2 entrypoint"
+    )
+    assert "engine.emit(" not in text and "core.emit(" not in text, (
+        f"{runner} must not call the transport directly — that skips identity"
     )
     for token in ("CaptureQueue", "capture_queue"):
         assert token not in text, (

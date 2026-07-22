@@ -30,7 +30,12 @@ def test_rest_adapter_sem_sources_e_processado_quando_explicitamente_habilitado(
 
     monkeypatch.setattr(tailer.core, "worker_alive", lambda: True)
     monkeypatch.setattr(tailer.core, "SeenStore", lambda: Store())
-    monkeypatch.setattr(tailer.core, "ingest", lambda *_a: calls.__setitem__("ingest", calls["ingest"] + 1) or 1)
+    # O tailer chama hive_mind.capture.ingest.ingest desde D004-R2; interceptar
+    # o motor deixaria de ver a chamada, porque o motor agora só transporta.
+    monkeypatch.setattr(
+        tailer.capture, "ingest",
+        lambda *_a, **_k: calls.__setitem__("ingest", calls["ingest"] + 1) or 1,
+    )
     monkeypatch.setattr(tailer, "_acquire_lock", lambda: object())
     monkeypatch.setattr(tailer, "ADAPTERS", {
         "screenpipe": {

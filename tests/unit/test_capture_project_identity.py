@@ -108,9 +108,12 @@ def test_realtime_resolves_once_and_ingests_complete_identity_envelope(tmp_path,
         "referenced_projects": ["another-project"],
     }
 
+    # Intercepta o transporte, não o ingest: assim a identidade é resolvida
+    # de verdade e o teste observa o que o motor receberia. Interceptar o
+    # ingest testaria o duplo (D004-R2).
     monkeypatch.setattr(
-        module.core,
-        "ingest",
+        module.capture.engine,
+        "emit",
         lambda provider, session, store: delivered.append(session) or 1,
     )
     daemon = module.RealtimeCapture(
@@ -206,7 +209,11 @@ def test_session_event_normalization_preserves_identity_without_changing_event_h
 
 
 def test_capture_core_sends_identity_metadata_without_changing_content_hash(tmp_path, monkeypatch):
-    module = _load(ROOT / "scripts" / "capture" / "capture_core.py", "capture_core_identity")
+    # O motor mudou para o pacote em D004-R2; carregar o shim e aplicar
+    # monkeypatch nele renomearia a referência re-exportada, e o motor real
+    # continuaria usando a sua.
+    from hive_mind.capture import engine as module
+
     resolver = RecordingResolver()
     session = attach_project_identity(
         "copilot",
@@ -232,8 +239,10 @@ def test_capture_core_sends_identity_metadata_without_changing_content_hash(tmp_
     store = module.SeenStore(tmp_path / "seen.db")
     before = module.content_hash("session-3", "o", "Message", module._norm("answer one"))
     try:
-        assert module.ingest("copilot", session, store) == 1
-        assert module.ingest("copilot", session, store) == 0
+        # emit(), não ingest(): a sessão já passou pela resolução de
+        # identidade acima, e o que se verifica aqui é o transporte.
+        assert module.emit("copilot", session, store) == 1
+        assert module.emit("copilot", session, store) == 0
     finally:
         store.close()
     after = module.content_hash("session-3", "o", "Message", module._norm("answer one"))
@@ -732,9 +741,12 @@ def test_realtime_ingests_safe_fallback_when_environment_project_id_is_invalid(
     monkeypatch.setenv("HIVE_PROJECT_ID", "not safe!")
     monkeypatch.delenv("HIVE_PROJECT_ROOT", raising=False)
     delivered: list[dict] = []
+    # Intercepta o transporte, não o ingest: assim a identidade é resolvida
+    # de verdade e o teste observa o que o motor receberia. Interceptar o
+    # ingest testaria o duplo (D004-R2).
     monkeypatch.setattr(
-        module.core,
-        "ingest",
+        module.capture.engine,
+        "emit",
         lambda provider, session, store: delivered.append(session) or 1,
     )
     daemon = module.RealtimeCapture(

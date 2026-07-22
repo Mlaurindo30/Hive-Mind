@@ -27,7 +27,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import capture_core as core                       # noqa: E402
+from hive_mind.capture import ingest as capture   # noqa: E402
+from hive_mind.capture import engine as core      # noqa: E402
 from capture_adapters import ADAPTERS, adapters_by_owner  # noqa: E402
 
 
@@ -127,7 +128,15 @@ def main() -> int:
                     print(f"  ⚠ {plat}:{s.name}: parse falhou ({exc})")
                     continue
                 for sess in sessions:
-                    total += core.ingest(plat, sess, store)
+                    # Identity is resolved inside ingest(), not here. This
+                    # line used to call the transport directly, which is how
+                    # the tailer wrote free-text project labels while the
+                    # realtime watcher wrote canonical ones (D004-R2).
+                    total += capture.ingest(
+                        plat, sess, store,
+                        default_surface=adp.get('surface'),
+                        on_refused=lambda r: print(f'  ⚠ {r}'),
+                    )
         print(f"total: {total}")
         return 0
     finally:

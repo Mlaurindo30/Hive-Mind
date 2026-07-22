@@ -33,7 +33,7 @@ for _entry in (str(_HERE), str(ROOT)):
 import capture_core as core                                # noqa: E402
 from capture_adapters import adapters_by_owner             # noqa: E402
 from hive_mind.projects.identity import ProjectIdentityResolver  # noqa: E402
-from scripts.capture.session_events import attach_project_identity  # noqa: E402
+from hive_mind.capture import ingest as capture  # noqa: E402
 from scripts.capture.capture_sources import (              # noqa: E402
     PollingReconciler,
     SourceChange,
@@ -124,24 +124,25 @@ class RealtimeCapture:
         for path in targets:
             try:
                 for session in parser(path) or []:
-                    normalized = attach_project_identity(
+                    # No attach_project_identity here any more: ingest()
+                    # resolves identity for every entrypoint, so there is
+                    # nothing left for this one to forget (D004-R2).
+                    delivered += capture.ingest(
                         provider,
                         session,
+                        self._store,
                         resolver=self._resolver,
                         default_surface=adapter.get("surface") or "unknown",
+                        on_degraded=lambda identity: log_event(
+                            "warning", "project_identity_unclassified",
+                            provider=provider, project_id=identity.project_id,
+                        ),
+                        on_refused=lambda refused: log_event(
+                            "warning", "project_identity_refused",
+                            provider=provider, reason=refused.reason,
+                            detail=refused.detail,
+                        ),
                     )
-                    for diagnostic in normalized.get(
-                        "project_identity_diagnostics", ()
-                    ):
-                        if isinstance(diagnostic, dict):
-                            log_event(
-                                "warning",
-                                "project_identity_fallback",
-                                provider=provider,
-                                status=diagnostic.get("status", "degraded"),
-                                reason=diagnostic.get("reason", "invalid_evidence"),
-                            )
-                    delivered += core.ingest(provider, normalized, self._store)
             except Exception as exc:
                 log_event("warning", "parse_or_delivery_failed", provider=provider, path=str(path), error=str(exc))
         if delivered:

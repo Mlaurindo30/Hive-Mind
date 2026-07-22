@@ -67,14 +67,30 @@ def test_source_change_uses_linux_compatible_direct_ingest_once(tmp_path: Path, 
         }]
 
     class Store:
+        """Stand-in for SeenStore: the transport touches and dedupes through it."""
+
+        def __init__(self):
+            self.seen = set()
+
+        def touch(self, platform, sid):
+            pass
+
+        def contains(self, platform, sid, digest):
+            return digest in self.seen
+
+        def add(self, platform, sid, digest):
+            self.seen.add(digest)
+
         def close(self):
             pass
 
-    def ingest(provider, session, store):
+    def ingest(provider, session, store, **_kwargs):
         delivered.append((provider, session["sid"]))
         return 1
 
-    monkeypatch.setattr(module.core, "ingest", ingest)
+    # Intercepta o ingest nativo — o entrypoint deixou de resolver
+    # identidade por conta própria em D004-R2.
+    monkeypatch.setattr(module.capture, "ingest", ingest)
     registry = {
         "antigravity": {
             "owner": "realtime",
@@ -96,6 +112,20 @@ def test_unknown_provider_change_is_ignored(tmp_path: Path):
     module = load_capture_realtime()
 
     class Store:
+        """Stand-in for SeenStore: the transport touches and dedupes through it."""
+
+        def __init__(self):
+            self.seen = set()
+
+        def touch(self, platform, sid):
+            pass
+
+        def contains(self, platform, sid, digest):
+            return digest in self.seen
+
+        def add(self, platform, sid, digest):
+            self.seen.add(digest)
+
         def close(self):
             pass
 
@@ -120,10 +150,25 @@ def test_sqlite_wal_change_reparses_canonical_database(tmp_path: Path, monkeypat
         return [{"sid": "copilot-1", "prompt": "real prompt", "turns": []}]
 
     class Store:
+        """Stand-in for SeenStore: the transport touches and dedupes through it."""
+
+        def __init__(self):
+            self.seen = set()
+
+        def touch(self, platform, sid):
+            pass
+
+        def contains(self, platform, sid, digest):
+            return digest in self.seen
+
+        def add(self, platform, sid, digest):
+            self.seen.add(digest)
+
         def close(self):
             pass
 
-    monkeypatch.setattr(module.core, "ingest", lambda provider, session, store: 1)
+    monkeypatch.setattr(module.capture, "ingest",
+                        lambda *_a, **_k: 1)
     registry = {
         "copilot": {
             "owner": "realtime",
