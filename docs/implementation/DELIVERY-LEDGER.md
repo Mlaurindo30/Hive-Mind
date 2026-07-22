@@ -2663,3 +2663,43 @@ pendente é como um pipeline quebrado continua quebrado.
 
 Não migradas, não reescritas, não inferidas. Continuam legacy/unclassified.
 ADR-012 vale.
+
+---
+
+## D004-M — Real provider capture matrix (IN_PROGRESS)
+
+Inventário medido antes de qualquer execução:
+[reports/provider-capture-matrix.md](../../reports/provider-capture-matrix.md).
+
+`hive-mind agents detect`: 9 de 13. Sete providers têm fonte real utilizável,
+e **seis dessas fontes são históricas** — de 46 a 141 horas atrás. Só
+antigravity tem fonte tocada há 1,4 h. A regra é explícita: fonte histórica
+não vira `PASS` de evento novo, então esses seis exigem executar uma sessão
+mínima com a configuração já existente.
+
+`kimi` está `NO_SOURCE` — detectado, com padrão de fonte declarado, e zero
+arquivos. `roo`, `openclaw` e `swarmclaw` estão `NOT_INSTALLED`.
+
+**Kiro e Cursor** aparecem em `agents detect` e **não têm adapter de
+captura**. São alvos de registro MCP, não fontes. Precisam de classificação
+explícita, não de omissão.
+
+### Lacuna bloqueante encontrada na descoberta
+
+Não existe política declarativa de providers obrigatórios por perfil. O
+registry lista 13 sem marcar obrigatoriedade, e os perfis do `runtime.yaml`
+(`local-min`, `local-full`) governam **serviços**, não providers de captura.
+
+Conforme a instrução: não inventar a política durante o teste, não tratar os
+13 como obrigatórios, e manter **D004 `PARTIAL`** até ela existir. Registrada
+a subentrega **D004-P — política de providers por perfil**.
+
+### Reavaliações formais
+
+D004-R2W passa a **DONE**: worker real descartável, transporte real,
+observation real, correlação por FK, registry gravado antes do POST, bridge
+real, UMC temporário, `workspace_id` canônico, `PENDING`→`BRIDGED`, retry,
+dedupe, restart, isolamento A/B, nada ativo alterado, worktree limpa.
+
+D004-R2 permanece **PARTIAL** — correção estrutural pronta, matriz pendente.
+
