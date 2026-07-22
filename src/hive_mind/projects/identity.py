@@ -566,7 +566,8 @@ class ProjectIdentityResolver:
                 )
             return self._identity(
                 project_id=_local_project_id(git.git_common_dir, git.repository_root),
-                project_name=Path(git.repository_root).name,
+                project_name=_local_project_name(git.git_common_dir,
+                                                 git.repository_root),
                 workspace=workspace, git=git,
                 provider=provider_key, surface=surface_key,
                 method="git_common_dir", confidence=0.88, references=references,
@@ -797,6 +798,30 @@ def _remote_project_name(remote: str) -> str:
 def _local_project_id(common_dir: str, repository_root: str) -> str:
     del repository_root
     return f"local/{_stable_digest(canonical_path_key(common_dir))}"
+
+
+def _local_project_name(common_dir: str, repository_root: str) -> str:
+    """The name of the repository, not of the directory the session ran in.
+
+    `repository_root` is the *worktree's* root, so naming from it split a
+    project in two: this repository appears in the production store both as
+    `Hive-Mind` (3.550 observations) and as `hive-mind-windows-zero-install`
+    (15) — the same project under the name of one of its worktrees.
+
+    The id was already derived from the git common directory, which is shared
+    by a repository and every worktree of it, and was correct. The name was
+    not, and the name is the field Claude Mem groups by.
+    """
+    common = Path(common_dir)
+    # `.../repo/.git` for a checkout, `.../repo/.git/worktrees/x` for a
+    # worktree whose common dir was reported unnormalised.
+    for candidate in (common, *common.parents):
+        if candidate.name == ".git" and candidate.parent.name:
+            return candidate.parent.name
+    # A bare repository has no `.git` segment; its own name is the project.
+    if common.name:
+        return common.name.removesuffix(".git") or common.name
+    return Path(repository_root).name
 
 
 def _declared_root_project_id(root: str) -> str:
