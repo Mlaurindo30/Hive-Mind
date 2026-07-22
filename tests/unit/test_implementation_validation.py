@@ -193,6 +193,20 @@ class TestDashboardHeadIsSatisfiable:
         ])
         assert len(_changed_outside_docs_since(root, first)) == 1
 
+    def test_markdown_outside_the_implementation_docs_still_counts_as_docs(self, tmp_path):
+        """README.md and AGENTS.md describe the project; they are not its state.
+
+        The first version of this rule looked only at `docs/implementation/`,
+        and flagged a delivery's own README update as the project moving on.
+        """
+        from hive_mind.implementation.validate import _changed_outside_docs_since
+
+        root, first = self._repo(tmp_path, [
+            "docs/implementation/CURRENT-STATE.md", "README.md", "AGENTS.md",
+            "docs/agents.md",
+        ])
+        assert _changed_outside_docs_since(root, first) == []
+
     def test_a_mixed_commit_counts_as_code(self, tmp_path):
         """Docs edited alongside code is still code moving on."""
         import subprocess

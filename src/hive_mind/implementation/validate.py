@@ -72,13 +72,24 @@ def _known_commits(root: Path) -> set[str]:
 # ---------------------------------------------------------------------------
 # Checks
 # ---------------------------------------------------------------------------
-def _changed_outside_docs_since(root: Path, since: str) -> list[str]:
-    """Commits after `since` that touched anything but the living documents.
+def _is_documentation(path: str) -> bool:
+    """Whether a changed path is documentation rather than project state.
 
-    A commit that only edits `docs/implementation/**` cannot invalidate the
-    state those documents describe — it *is* the documents. Requiring the
-    dashboard to name the commit that writes it would be unsatisfiable: the
-    SHA does not exist until after the write.
+    Any Markdown file counts, not only `docs/implementation/**`. The narrower
+    rule flagged a commit that updated README.md and AGENTS.md as if the
+    project had moved on — it had not; the same delivery was being written
+    down in the places that describe it to users.
+    """
+    return path.endswith(".md") or path.startswith("docs/")
+
+
+def _changed_outside_docs_since(root: Path, since: str) -> list[str]:
+    """Commits after `since` that changed project state, not just its description.
+
+    A documentation-only commit cannot invalidate the state the documents
+    describe — it *is* the documents. Requiring the dashboard to name the
+    commit that writes it would be unsatisfiable: the SHA does not exist until
+    after the write.
     """
     try:
         out = subprocess.run(
@@ -99,7 +110,7 @@ def _changed_outside_docs_since(root: Path, since: str) -> list[str]:
             if current and touched_code:
                 commits.append(current)
             current, touched_code = line, False
-        elif not line.startswith("docs/implementation/"):
+        elif not _is_documentation(line):
             touched_code = True
     return commits
 
