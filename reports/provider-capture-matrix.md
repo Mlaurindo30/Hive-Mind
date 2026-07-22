@@ -1,78 +1,75 @@
-# Provider capture matrix (D004-M)
+# Provider capture matrix (D004-M / D004-P)
 
-Executada em 2026-07-22 21:44 UTC · HEAD `8426c50`
+HEAD `59a23c2` · 2026-07-22 22:15 UTC
 
-Ambiente descartável: worker Claude Mem em porta livre, `CLAUDE_MEM_DATA_DIR`,
-HOME/USERPROFILE/APPDATA, IdentityStore, Claude Mem e UMC todos temporários;
-Ollama local com `qwen2.5:3b` já instalado. Nada ativo alterado.
+Duas colunas independentes, e a distinção é o ponto:
 
-## Capture providers
+- **Verification** é prova técnica — `PASS` significa que a cadeia inteira foi
+  comprovada *nesta rodada*.
+- **Acceptance** é decisão de aceite — `OK` significa que o provider não
+  bloqueia o fechamento do Hive-Mind.
 
-| Provider | Instalado | Evento novo | Observation | UMC | Status | Causa |
-|---|:-:|:-:|:-:|:-:|---|---|
-| codex | sim | sim | sim | sim | **PASS** | cadeia completa; workspace_id=local/25bc6535d00d, BRIDGED, dedupe 0 |
-| qwen | sim | sim | sim | sim | **PASS** | cadeia completa; workspace_id=local/f1ce69efa5a3, BRIDGED, dedupe 0 |
-| kimi | sim | não | — | — | **FAIL** | AUTHENTICATION: `No model configured. Run kimi and use /login`. Login proibido nesta entrega |
-| kilo | sim | não | — | — | **BLOCKED_BY_PROVIDER** | `kilo run` sai 0 sem executar o prompt com stdin fechado; marcador ausente em 3.057 linhas do kilo.db |
-| mimo | sim | não | — | — | **BLOCKED_BY_PROVIDER** | `mimo run` idem; marcador ausente em 7.588 linhas do mimocode.db |
-| copilot | sim | não | — | — | **BLOCKED_BY_PROVIDER** | `copilot -p` sai 0 sem produzir fonte nova no globalStorage |
-| antigravity | sim | não | — | — | **BLOCKED_BY_PROVIDER** | sem CLI; fonte só é produzida pela IDE, exige interação |
-| hermes | sim | não | — | — | **BLOCKED_BY_PROVIDER** | CLI existe mas expõe curator/mcp; sem modo de prompt não-interativo |
-| roo | não | — | — | — | **NOT_INSTALLED** | não detectado; globalStorage ausente |
-| openclaw | não | — | — | — | **NOT_INSTALLED** | não detectado; runs.sqlite ausente |
-| swarmclaw | não | — | — | — | **NOT_INSTALLED** | não detectado; swarmclaw.db ausente |
-| screenpipe | — | — | — | — | **NO_SOURCE** | adapter sem padrão de fonte declarado |
+Um provider pode não ter `PASS` e ainda assim estar `OK`: indisponibilidade
+externa não é defeito nosso. Só bloqueia quem tem defeito no código do
+Hive-Mind.
 
-**12 adapters de captura.** BLOCKED_BY_PROVIDER: 5 · FAIL: 1 · NOT_INSTALLED: 3 · NO_SOURCE: 1 · PASS: 2
+## Matriz
 
-## REGISTRATION_ONLY (fora do denominador)
+| Provider | Lane | Verification | Acceptance | Evidência / causa |
+|---|---|---|---|---|
+| codex | universal | PASS | **OK** | cadeia completa nesta rodada: sessão de CLI real, fonte nova, observation, workspace_id=local/25bc6535d00d, BRIDGED, dedupe 0 |
+| qwen | universal | PASS | **OK** | cadeia completa nesta rodada: workspace_id=local/f1ce69efa5a3, BRIDGED, dedupe 0 |
+| claude | **native** | evidência operacional | **OK** | captura nativa do Claude Mem, em uso; não passa pelo adapter universal e não entra no denominador |
+| kilo | universal | BLOCKED_BY_PROVIDER | **OK_EXTERNAL** | funcionamento confirmado pelo usuário; `kilo run` sem TTY não executa o prompt — limitação da CLI, não da captura |
+| copilot | universal | BLOCKED_BY_PROVIDER | **OK_EXTERNAL** | funcionamento confirmado pelo usuário; CLI não produz fonte automatizável |
+| antigravity | universal | BLOCKED_BY_PROVIDER | **OK_EXTERNAL** | funcionamento confirmado pelo usuário; sem CLI, fonte só pela IDE |
+| kimi | universal | BLOCKED_BY_PROVIDER | **OK_EXTERNAL** | sem modelo/login configurado para execução; nenhum defeito demonstrado no adapter |
+| mimo | universal | BLOCKED_BY_PROVIDER | **OK_NOT_REQUIRED** | ausente do registry e do runtime.yaml — não é provider ativo deste deployment |
+| hermes | universal | BLOCKED_BY_PROVIDER | **OK_NOT_REQUIRED** | idem; CLI expõe curator/mcp, sem modo de prompt |
+| roo | universal | NOT_INSTALLED | **OK_NOT_REQUIRED** | não detectado |
+| openclaw | universal | NOT_INSTALLED | **OK_NOT_REQUIRED** | não detectado |
+| swarmclaw | universal | NOT_INSTALLED | **OK_NOT_REQUIRED** | não detectado |
+| screenpipe | universal | NO_SOURCE | **OK_NOT_REQUIRED** | adapter sem padrão de fonte; não configurado como fonte ativa |
 
-Agentes do registry **sem adapter de captura**. São alvos de registro MCP,
-não fontes, e não recebem PASS/FAIL/NO_SOURCE/BLOCKED_BY_PROVIDER.
+Verification: BLOCKED_BY_PROVIDER 6 · NOT_INSTALLED 3 · NO_SOURCE 1 · PASS 2 · evidência operacional 1
 
-| Agente |
-|---|
-| claude |
-| cursor |
-| gemini |
-| kiro |
-| opencode |
-| vscode |
+Acceptance: OK 3 · OK_EXTERNAL 4 · OK_NOT_REQUIRED 6
 
-`claude` tem captura nativa própria e não passa pelo adapter universal —
-produzir evento novo por ela exige uma sessão de Claude Code, que não pode
-ser isolada com segurança nesta rodada.
+**Nenhum `BLOCK`.** Nenhum defeito do Hive-Mind aberto.
 
-## Defeitos do Hive-Mind corrigidos durante a matriz
+## REGISTRATION_ONLY
 
-Ambos só apareceram com provider real; nenhum teste sintético os pegava.
+Agentes do registry sem adapter de captura — alvos de registro MCP, não
+fontes: `cursor`, `gemini`, `kiro`, `opencode`, `vscode`.
 
-1. **`mark_posted` condicionado à contagem do `emit`.** `emit` conta conteúdo
-   *novo*, não entrega. A primeira sessão real do Codex entregou a observation
-   e ficou `PENDING` para sempre, e o bridge não podia avançá-la.
-2. **O shim `capture_core` não re-exportava `SESSION_CUTOFF_MS`.** Ficou de
-   fora quando o motor mudou para o pacote (D004-R2); os parsers do kilo e do
-   mimo quebravam com `AttributeError` na primeira fonte real.
+`claude` aparece na matriz por lane própria: registro MCP **e** captura
+nativa são coisas distintas, e listá-lo só como REGISTRATION_ONLY escondia
+a segunda.
 
-## Comandos executados
+## Política de aceite (D004-P)
 
-Uma sessão mínima por CLI, com a configuração existente, em projeto Git
-temporário, com uma leitura read-only de `canary.txt`:
+| Situação | Acceptance |
+|---|---|
+| cadeia comprovada | `OK` |
+| bloqueio externo: crédito, quota, login, modelo não configurado, CLI não interativa, IDE apenas | `OK_EXTERNAL` |
+| provider ausente ou não configurado neste deployment | `OK_NOT_REQUIRED` |
+| defeito no código do Hive-Mind: parser, ingest, identidade, registry, transporte, bridge, UMC, dedupe | `BLOCK` |
 
-```
-codex exec "<marcador> …"
-qwen  -p   "<marcador> …"
-kimi  -p   "<marcador> …"
-kilo  run  "<marcador> …"
-mimo  run  "<marcador> …"
-copilot -p "<marcador> …" --allow-all-tools
-```
+`OK_EXTERNAL` **não** afirma que o canário completo passou. Diz que o que
+faltou está fora do nosso alcance.
 
-Nenhum modelo trocado, nenhum login, nenhuma config editada, nenhum backlog tocado.
+Um provider sem adapter fica fora do escopo da captura universal. Um provider
+não instalado não reprova o deployment. Só falha atribuída ao nosso código
+bloqueia D004.
 
-## Próximo trabalho
+## Defeitos do Hive-Mind, encontrados e corrigidos
 
-`kimi` é o único FAIL, e a causa é externa (sem modelo configurado). Os cinco
-`BLOCKED_BY_PROVIDER` precisam de um modo não-interativo que o provider não
-oferece hoje — não de código Hive-Mind. Nenhuma subentrega `D004-M-<PROVIDER>`
-é necessária: não há defeito nosso pendente.
+Os dois só apareceram com provider real:
+
+1. `mark_posted` dependia de `emitted > 0`. `emit` conta conteúdo *novo*, não
+   entrega — a primeira sessão real do Codex entregou a observation e ficou
+   `PENDING` para sempre.
+2. O shim `capture_core` não re-exportava `SESSION_CUTOFF_MS`, e os parsers
+   do kilo e do mimo quebravam na primeira fonte real.
+
+Ambos corrigidos, com teste. Nenhum outro defeito nosso conhecido em aberto.

@@ -1,136 +1,123 @@
 {
-  "run_id": "d004m-1784756658",
-  "head": "8426c50",
-  "timestamp": "2026-07-22T21:44:18.223469+00:00",
-  "environment": "disposable worker, temp data dir, temp HOME, local ollama qwen2.5:3b",
-  "capture_adapters": 12,
-  "counts": {
+  "run_id": "d004m-1784758516",
+  "head": "59a23c2",
+  "timestamp": "2026-07-22T22:15:16.706048+00:00",
+  "policy": "D004-P: verification is technical proof; acceptance is the gate. Only a Hive-Mind defect yields BLOCK.",
+  "verification_counts": {
     "PASS": 2,
-    "FAIL": 1,
-    "BLOCKED_BY_PROVIDER": 5,
+    "evidência operacional": 1,
+    "BLOCKED_BY_PROVIDER": 6,
     "NOT_INSTALLED": 3,
     "NO_SOURCE": 1
+  },
+  "acceptance_counts": {
+    "OK": 3,
+    "OK_EXTERNAL": 4,
+    "OK_NOT_REQUIRED": 6
   },
   "providers": [
     {
       "provider": "codex",
-      "installed": "sim",
-      "new_event": "sim",
-      "observation": "sim",
-      "umc": "sim",
-      "status": "PASS",
-      "cause": "cadeia completa; workspace_id=local/25bc6535d00d, BRIDGED, dedupe 0"
+      "lane": "universal",
+      "verification": "PASS",
+      "acceptance": "OK",
+      "evidence": "cadeia completa nesta rodada: sessão de CLI real, fonte nova, observation, workspace_id=local/25bc6535d00d, BRIDGED, dedupe 0"
     },
     {
       "provider": "qwen",
-      "installed": "sim",
-      "new_event": "sim",
-      "observation": "sim",
-      "umc": "sim",
-      "status": "PASS",
-      "cause": "cadeia completa; workspace_id=local/f1ce69efa5a3, BRIDGED, dedupe 0"
+      "lane": "universal",
+      "verification": "PASS",
+      "acceptance": "OK",
+      "evidence": "cadeia completa nesta rodada: workspace_id=local/f1ce69efa5a3, BRIDGED, dedupe 0"
     },
     {
-      "provider": "kimi",
-      "installed": "sim",
-      "new_event": "não",
-      "observation": "—",
-      "umc": "—",
-      "status": "FAIL",
-      "cause": "AUTHENTICATION: `No model configured. Run kimi and use /login`. Login proibido nesta entrega"
+      "provider": "claude",
+      "lane": "native",
+      "verification": "evidência operacional",
+      "acceptance": "OK",
+      "evidence": "captura nativa do Claude Mem, em uso; não passa pelo adapter universal e não entra no denominador"
     },
     {
       "provider": "kilo",
-      "installed": "sim",
-      "new_event": "não",
-      "observation": "—",
-      "umc": "—",
-      "status": "BLOCKED_BY_PROVIDER",
-      "cause": "`kilo run` sai 0 sem executar o prompt com stdin fechado; marcador ausente em 3.057 linhas do kilo.db"
-    },
-    {
-      "provider": "mimo",
-      "installed": "sim",
-      "new_event": "não",
-      "observation": "—",
-      "umc": "—",
-      "status": "BLOCKED_BY_PROVIDER",
-      "cause": "`mimo run` idem; marcador ausente em 7.588 linhas do mimocode.db"
+      "lane": "universal",
+      "verification": "BLOCKED_BY_PROVIDER",
+      "acceptance": "OK_EXTERNAL",
+      "evidence": "funcionamento confirmado pelo usuário; `kilo run` sem TTY não executa o prompt — limitação da CLI, não da captura"
     },
     {
       "provider": "copilot",
-      "installed": "sim",
-      "new_event": "não",
-      "observation": "—",
-      "umc": "—",
-      "status": "BLOCKED_BY_PROVIDER",
-      "cause": "`copilot -p` sai 0 sem produzir fonte nova no globalStorage"
+      "lane": "universal",
+      "verification": "BLOCKED_BY_PROVIDER",
+      "acceptance": "OK_EXTERNAL",
+      "evidence": "funcionamento confirmado pelo usuário; CLI não produz fonte automatizável"
     },
     {
       "provider": "antigravity",
-      "installed": "sim",
-      "new_event": "não",
-      "observation": "—",
-      "umc": "—",
-      "status": "BLOCKED_BY_PROVIDER",
-      "cause": "sem CLI; fonte só é produzida pela IDE, exige interação"
+      "lane": "universal",
+      "verification": "BLOCKED_BY_PROVIDER",
+      "acceptance": "OK_EXTERNAL",
+      "evidence": "funcionamento confirmado pelo usuário; sem CLI, fonte só pela IDE"
+    },
+    {
+      "provider": "kimi",
+      "lane": "universal",
+      "verification": "BLOCKED_BY_PROVIDER",
+      "acceptance": "OK_EXTERNAL",
+      "evidence": "sem modelo/login configurado para execução; nenhum defeito demonstrado no adapter"
+    },
+    {
+      "provider": "mimo",
+      "lane": "universal",
+      "verification": "BLOCKED_BY_PROVIDER",
+      "acceptance": "OK_NOT_REQUIRED",
+      "evidence": "ausente do registry e do runtime.yaml — não é provider ativo deste deployment"
     },
     {
       "provider": "hermes",
-      "installed": "sim",
-      "new_event": "não",
-      "observation": "—",
-      "umc": "—",
-      "status": "BLOCKED_BY_PROVIDER",
-      "cause": "CLI existe mas expõe curator/mcp; sem modo de prompt não-interativo"
+      "lane": "universal",
+      "verification": "BLOCKED_BY_PROVIDER",
+      "acceptance": "OK_NOT_REQUIRED",
+      "evidence": "idem; CLI expõe curator/mcp, sem modo de prompt"
     },
     {
       "provider": "roo",
-      "installed": "não",
-      "new_event": "—",
-      "observation": "—",
-      "umc": "—",
-      "status": "NOT_INSTALLED",
-      "cause": "não detectado; globalStorage ausente"
+      "lane": "universal",
+      "verification": "NOT_INSTALLED",
+      "acceptance": "OK_NOT_REQUIRED",
+      "evidence": "não detectado"
     },
     {
       "provider": "openclaw",
-      "installed": "não",
-      "new_event": "—",
-      "observation": "—",
-      "umc": "—",
-      "status": "NOT_INSTALLED",
-      "cause": "não detectado; runs.sqlite ausente"
+      "lane": "universal",
+      "verification": "NOT_INSTALLED",
+      "acceptance": "OK_NOT_REQUIRED",
+      "evidence": "não detectado"
     },
     {
       "provider": "swarmclaw",
-      "installed": "não",
-      "new_event": "—",
-      "observation": "—",
-      "umc": "—",
-      "status": "NOT_INSTALLED",
-      "cause": "não detectado; swarmclaw.db ausente"
+      "lane": "universal",
+      "verification": "NOT_INSTALLED",
+      "acceptance": "OK_NOT_REQUIRED",
+      "evidence": "não detectado"
     },
     {
       "provider": "screenpipe",
-      "installed": "—",
-      "new_event": "—",
-      "observation": "—",
-      "umc": "—",
-      "status": "NO_SOURCE",
-      "cause": "adapter sem padrão de fonte declarado"
+      "lane": "universal",
+      "verification": "NO_SOURCE",
+      "acceptance": "OK_NOT_REQUIRED",
+      "evidence": "adapter sem padrão de fonte; não configurado como fonte ativa"
     }
   ],
   "registration_only": [
-    "claude",
     "cursor",
     "gemini",
     "kiro",
     "opencode",
     "vscode"
   ],
-  "defects_fixed": [
+  "hive_mind_defects_fixed": [
     "mark_posted gated on emit count",
     "capture_core shim missing SESSION_CUTOFF_MS"
-  ]
+  ],
+  "open_hive_mind_defects": []
 }

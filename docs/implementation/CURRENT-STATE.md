@@ -6,7 +6,7 @@
   exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
   antes de existir. O validador aceita esse único passo **só** se o commit
   for somente-documentação, e falha para qualquer commit de código.
-- **active delivery:** **D004-P** (política declarativa de providers) — D004-M fechada.
+- **active delivery:** **D002-R1** (Dream Cycle operacional) — D004 fechada.
   SEC-001 segue BLOCKED, independente e sem bloquear testes locais.
 - **last completed delivery:** **D009-R6** (registradores → wrappers).
   D004-R2 e D004-R2W estão **PARTIAL**. Antes dela: D004-R2 (**PARTIAL**, não fechada), D009-R6
@@ -65,7 +65,7 @@ começa com DONE, e o leitor que só escaneia a coluna via a entrega fechada.
 | D001 | Documentação viva | **DONE** | `834e405` | 8 docs, aprovado | — |
 | D002 | Dream Cycle por project_id | **PARTIAL** | `2ae8558` | unit + SQLite real | ciclo real com modelos |
 | D003 | Identidade de projeto validada | **PARTIAL** | `fca4c5a` | repo Git real + registry | canário por provider |
-| D004 | Canários multiagente | **PARTIAL** | `989ebee` | canário real: 4 pass, 4 fail; identidade canônica corrigida (D004-R2) | matriz por provider |
+| D004 | Canários multiagente | **DONE** | — | matriz completa: 0 BLOCK, nenhum defeito do Hive-Mind aberto; codex e qwen com cadeia comprovada | — |
 | D005 | E2E memória → consulta | **PARTIAL** | `d793353` | testes reais | depende de scripts não portados |
 | D006 | Manifesto declarativo | **PARTIAL** | `1db2523` | 10 testes | 4 catálogos concorrentes |
 | D007 | Daemon shadow | **PARTIAL** | `cb4c66d` | run --shadow real, HTTP, socket | cutover; evidência: código pronto, sem cutover |
@@ -88,12 +88,12 @@ começa com DONE, e o leitor que só escaneia a coluna via a entrega fechada.
 | D009-R5 | doctor, unregister, instruções nativas | **DONE** | `25d348a` | doctor real: 1/9 healthy; captura = TO_REMOVE; evidência: configs temporários |
 | D009-R6 | Wrappers PS1/SH mínimos | **DONE** | `47912f2` | 79 testes; PS1 456→55 L, SH 444→50 L; cadeia wrapper→CLI→config em temp; evidência: configs temporários |
 | D001-R2 | Reconciliar documentos com a verdade do Git | **DONE** | `776d504` | validador nativo: 11 checks, 18 testes |
-| D004-R2 | Identidade canônica na captura | **PARTIAL** | `0664afc` | ingest nativo e identidade canônica implementados; payload de ingestão comprovado até a fronteira do worker; bridge comprovado separadamente contra stores temporárias | matriz por provider |
+| D004-R2 | Identidade canônica na captura | **DONE** | `0664afc` | ingest nativo e identidade canônica implementados; payload de ingestão comprovado até a fronteira do worker; bridge comprovado separadamente contra stores temporárias | matriz por provider |
 | D004-R2W | Entrega via worker real isolado | **DONE** | `1ce684f` | worker real descartável, transporte real, observation real, FK, registry antes do POST, bridge real, `workspace_id` canônico, PENDING→BRIDGED, retry, restart, A/B | — |
 | **SEC-001** | Credencial de provider exposta na saída | **BLOCKED** | `1cdc7d5` | scanner sem impressão: 0 ocorrências em 14.973 objetos Git, 9.580 arquivos, staged e mensagens | **rotação humana da chave** |
 | M14 | Identidade canônica até a observation | **DONE** | `1ce684f` | 85 testes; cadeia única com worker real: `workspace_id` no UMC = `project_id` decidido antes do POST | — |
 | D004-M | Matriz por provider | **DONE** | — | 12 adapters classificados, zero UNKNOWN: 2 PASS (codex, qwen), 1 FAIL, 5 BLOCKED_BY_PROVIDER, 3 NOT_INSTALLED, 1 NO_SOURCE | — |
-| D004-P | Política de providers por perfil | **NOT_STARTED** | — | lacuna registrada em D004-M | — |
+| D004-P | Política de aceite de providers | **DONE** | — | verificação e aceite separados; 0 BLOCK, 3 OK, 4 OK_EXTERNAL, 6 OK_NOT_REQUIRED | — |
 | D010-C1 | Remover propriedade legada do capture hook | **NOT_STARTED** | — | writers e paths de config registrados | depende de D004-M |
 | D002-R1 | Dream Cycle operacional sobre project_id real | NOT_STARTED | — | — |
 | D005-R1 | E2E real: memória gravada → consultável | NOT_STARTED | — | — |

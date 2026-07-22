@@ -177,3 +177,19 @@ is fragile and the FK is the real relation.
 So the identity decision is made once, at ingest, and stored against
 `content_session_id`. The bridge looks it up. The bridge never resolves.
 
+## Verification is not acceptance (D004-P)
+
+A provider without credit, without a login, or whose CLI needs a TTY says
+nothing about this codebase. Marking it `FAIL` claimed that it did.
+
+So the matrix carries two independent columns. **Verification** is technical
+proof — `PASS` means the whole chain was demonstrated in that run.
+**Acceptance** is the gate — `OK` means the provider does not block release.
+
+Only a defect in Hive-Mind code produces `BLOCK`: parser, ingest, identity,
+registry, transport, bridge, UMC, dedupe. External unavailability is
+`OK_EXTERNAL`, which does not claim the canary passed — it says what was
+missing was out of reach.
+
+Full matrix: [../../reports/provider-capture-matrix.md](../../reports/provider-capture-matrix.md)
+

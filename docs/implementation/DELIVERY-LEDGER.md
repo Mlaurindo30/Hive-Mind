@@ -2703,3 +2703,54 @@ dedupe, restart, isolamento A/B, nada ativo alterado, worktree limpa.
 
 D004-R2 permanece **PARTIAL** — correção estrutural pronta, matriz pendente.
 
+---
+
+## D004-P — Provider acceptance policy (DONE)
+
+Eu vinha tratando indisponibilidade externa como defeito nosso. Um provider
+sem crédito, sem login, ou cuja CLI não roda sem TTY, não diz nada sobre o
+código do Hive-Mind — e marcá-lo `FAIL` afirmava que dizia.
+
+A matriz passa a ter duas colunas independentes:
+
+**Verification** é prova técnica. `PASS` significa que a cadeia inteira foi
+comprovada *nesta rodada*.
+
+**Acceptance** é decisão de aceite. `OK` significa que o provider não bloqueia
+o fechamento.
+
+| Situação | Acceptance |
+|---|---|
+| cadeia comprovada | `OK` |
+| bloqueio externo: crédito, quota, login, modelo não configurado, CLI não interativa, IDE apenas | `OK_EXTERNAL` |
+| provider ausente ou não configurado neste deployment | `OK_NOT_REQUIRED` |
+| defeito no nosso código: parser, ingest, identidade, registry, transporte, bridge, UMC, dedupe | `BLOCK` |
+
+`OK_EXTERNAL` **não** afirma que o canário passou. Diz que o que faltou está
+fora do nosso alcance — e essa distinção é a diferença entre um relatório
+honesto e um relatório pessimista.
+
+### Resultado
+
+**Acceptance:** 3 `OK` · 4 `OK_EXTERNAL` · 6 `OK_NOT_REQUIRED` · **0 `BLOCK`**
+
+**Verification:** 2 `PASS` (codex, qwen) · 1 evidência operacional (claude,
+lane nativa) · 6 `BLOCKED_BY_PROVIDER` · 3 `NOT_INSTALLED` · 1 `NO_SOURCE`
+
+`mimo`, `hermes` e `screenpipe` têm adapter mas **não estão no registry nem no
+`runtime.yaml`** — não são providers ativos deste deployment, então
+`OK_NOT_REQUIRED`. Verificado por leitura, sem executar mais nada.
+
+`claude` ganhou lane própria. Registro MCP e captura nativa são coisas
+distintas, e listá-lo só como REGISTRATION_ONLY escondia a segunda.
+
+### Por que D004 fecha
+
+Os dois únicos defeitos do Hive-Mind que a execução real revelou estão
+corrigidos e testados: `mark_posted` dependendo de `emitted > 0`, e o shim
+`capture_core` sem `SESSION_CUTOFF_MS`. Nenhum outro está aberto, e nenhum
+provider está `BLOCK`.
+
+D004-R2, D004-M, D004-P e D004 fecham. Providers com `OK_EXTERNAL` não
+impedem o fechamento — é exatamente para isso que a coluna existe.
+
