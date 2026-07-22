@@ -72,6 +72,15 @@ def test_legacy_definitions_are_still_readable():
     assert _windows_task_scripts(), "could not parse Windows scheduled tasks"
 
 
+# Legacy scripts whose responsibility now lives in a native command. The
+# manifest declares the native command, so a script-path comparison no longer
+# finds them — that is the point of porting, not a coverage gap.
+PORTED_TO_NATIVE = {
+    # D008-R1B: hive-mind backup run --apply
+    "scripts/health/backup_databases.py",
+}
+
+
 def _live(scripts: set[str]) -> set[str]:
     """Only legacy entries whose script actually exists count for parity.
 
@@ -105,7 +114,9 @@ def test_dead_windows_tasks_are_deliberately_excluded():
 
 
 def test_manifest_covers_every_systemd_timer():
-    missing = set(_systemd_timer_scripts().values()) - _manifest_scripts()
+    missing = (
+        set(_systemd_timer_scripts().values()) - _manifest_scripts() - PORTED_TO_NATIVE
+    )
     assert missing == set(), (
         "config/runtime.yaml does not schedule jobs the Linux systemd timers "
         f"still run: {sorted(missing)}"

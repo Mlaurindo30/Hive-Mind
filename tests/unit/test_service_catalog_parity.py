@@ -34,6 +34,15 @@ KNOWN_MANIFEST_GAPS = {
 }
 
 
+# Legacy scripts whose responsibility now lives in a native command. The
+# manifest declares the native command, so a script-path comparison no longer
+# finds them — that is the point of porting, not a coverage gap.
+PORTED_TO_NATIVE = {
+    # D008-R1B: hive-mind backup run --apply
+    "scripts/health/backup_databases.py",
+}
+
+
 def _norm(path: str) -> str:
     return path.replace("\\", "/").strip()
 
@@ -149,6 +158,7 @@ def test_manifest_covers_every_systemd_unit_script():
         - _manifest_scripts()
         - KNOWN_MANIFEST_GAPS
         - aspirational_scripts
+        - PORTED_TO_NATIVE
     )
     assert missing == set(), (
         "the manifest does not cover scripts the systemd units run; a cutover "

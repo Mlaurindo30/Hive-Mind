@@ -394,8 +394,8 @@ jobs:
     blocking_service: null
 
   - name: backup-databases
-    description: Daily database backup
-    command: ["python", "scripts/health/backup_databases.py"]
+    description: Daily verified SQLite backup (native engine, D008-R1B)
+    command: ["hive-mind", "backup", "run", "--apply"]
     schedule:
       type: cron
       expression: "0 2 * * *"
