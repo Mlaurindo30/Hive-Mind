@@ -118,7 +118,11 @@ class TestNativeCodeDoesNotDelegateToLegacyScripts:
         - `implementation/validate.py` and `implementation/status.py` invoke
           `git` for the same reason — HEAD, branch and the commit list are the
           ground truth the living documents are checked against. Reading that
-          from anything but git would defeat the check.
+          from anything but git would defeat the check;
+        - `security/secret_scan.py` invokes `git` to read the object store
+          while auditing a leaked credential. It reads blobs *through* git
+          precisely so the secret never becomes a command-line argument, which
+          is what `git grep <secret>` would do.
 
         The prohibitions that matter are enforced separately and still hold
         for every module: no legacy script is executed, and no shell
@@ -129,6 +133,7 @@ class TestNativeCodeDoesNotDelegateToLegacyScripts:
             "projects/identity.py",
             "implementation/validate.py",
             "implementation/status.py",
+            "security/secret_scan.py",
         }
         offenders = []
         for path in _python_sources():

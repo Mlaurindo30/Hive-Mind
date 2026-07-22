@@ -6,9 +6,10 @@
   exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
   antes de existir. O validador aceita esse único passo **só** se o commit
   for somente-documentação, e falha para qualquer commit de código.
-- **active delivery:** D004-M (matriz por provider) — **não iniciar D002-R1 antes**
-- **last completed delivery:** **D004-R2W** (entrega via worker real isolado)
-  — `499768d`. Antes dela: D004-R2 (**PARTIAL**, não fechada), D009-R6
+- **active delivery:** **SEC-001** — bloqueio humano único: rotação da chave.
+  D004-M bloqueada até isso e até uma observation real.
+- **last completed delivery:** **D009-R6** (registradores → wrappers).
+  D004-R2 e D004-R2W estão **PARTIAL**. Antes dela: D004-R2 (**PARTIAL**, não fechada), D009-R6
   (`adcac3d` −442/−430 linhas, `47912f2`, `20adb39`; wrappers com 32 e 22
   linhas executáveis, zero lógica de produto — evidência verificada) e
   D001-R2 — 6 commits, nesta ordem:
@@ -84,8 +85,9 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D009-R6 | Wrappers PS1/SH mínimos | **DONE_TEMP_CONFIG** | `47912f2` | 79 testes; PS1 456→55 L, SH 444→50 L; cadeia wrapper→CLI→config em temp |
 | D001-R2 | Reconciliar documentos com a verdade do Git | **DONE** | `776d504` | validador nativo: 11 checks, 18 testes |
 | D004-R2 | Identidade canônica na captura | **PARTIAL** | `0664afc` | ingest nativo e identidade canônica implementados; payload de ingestão comprovado até a fronteira do worker; bridge comprovado separadamente contra stores temporárias | matriz por provider |
-| D004-R2W | Entrega via worker real isolado | **DONE** | `499768d` | 8 testes; worker descartável em porta livre, transporte real sem stub, **linha existe** na store temporária com `project` canônico | — |
-| D004-M | Matriz por provider | **NOT_STARTED** | — | — | 9 providers com fonte conhecida |
+| D004-R2W | Entrega via worker real isolado | **PARTIAL** | `499768d` | 14 testes; worker descartável, ambiente por allowlist sem credencial, transporte real, `user_prompt` gravado, projeto canônico no log do worker | observation real — exige provider decidido |
+| **SEC-001** | Credencial de provider exposta na saída | **BLOCKED** | `1cdc7d5` | scanner sem impressão: 0 ocorrências em 14.973 objetos Git, 9.580 arquivos, staged e mensagens | **rotação humana da chave** |
+| D004-M | Matriz por provider | **BLOCKED** | — | — | depende de SEC-001 e de uma observation real |
 | D010-C1 | Remover propriedade legada do capture hook | **NOT_STARTED** | — | writers e paths de config registrados | depende de D004-M |
 | D002-R1 | Dream Cycle operacional sobre project_id real | NOT_STARTED | — | — |
 | D005-R1 | E2E real: memória gravada → consultável | NOT_STARTED | — | — |

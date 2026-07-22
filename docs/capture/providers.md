@@ -108,9 +108,29 @@ either one starts calling `attach_project_identity` again.
 | project A isolated from project B | proven |
 | replay does not duplicate | proven |
 | real HTTP to a real worker | proven (D004-R2W) — disposable worker on a free port, no `_post` stub |
-| **row existing in a Claude Mem store** | proven — `project='Hive-Mind'` in the temporary store |
+| worker environment free of host credentials | proven — built from an allowlist, not inherited |
+| `user_prompt` row in the temporary store | proven |
+| canonical project across the HTTP boundary | proven — the worker's own log records `Session initialized {project=Hive-Mind}` |
+| **`observation` row** | **not proven** — see below |
 | bridge → UMC `workspace_id` | proven, production bridge against temporary databases |
 | per-provider matrix | **not started** — one green event proves the path, not 13 providers |
+
+### Where the isolated chain stops
+
+An isolated worker cannot authenticate. Given an environment built from an
+allowlist, the Claude CLI answers `Not logged in · Please run /login`, and
+the worker stores the prompt but produces neither a summary nor an
+observation.
+
+That is correct, not a regression. The first isolated run *did* produce a
+summary — because it inherited the whole environment and found the host's
+real login through `CLAUDE_CONFIG_DIR`. A test that only passes by borrowing
+the user's credentials is not proving isolation.
+
+Producing an observation therefore needs a provider chosen on purpose: a
+local model, or a credential minted for the test and scoped to it. That is a
+decision, not a detail, and two tests pin the boundary so it is not later
+"fixed" by letting credentials back in.
 
 ### Running a disposable worker
 

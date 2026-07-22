@@ -211,3 +211,22 @@ Dependência: `pywin32` (Windows), decidido no ledger DH-002.
 
 Ver [CURRENT-STATE.md](implementation/CURRENT-STATE.md) e
 [ACCEPTANCE-MATRIX.md](implementation/ACCEPTANCE-MATRIX.md) (grupo Runtime).
+
+## O worker do Claude Mem (achado D004-R2W)
+
+`config/runtime.yaml` declara o serviço `sinapse-claude-mem` como
+`python -m claude_mem.worker`. **Esse módulo não existe** — não é
+importável. O processo vivo é `bun` executando `worker-service.cjs` do cache
+de plugins do Claude Code.
+
+O manifesto nomeia um comando que ninguém executa, então não pode ser o
+catálogo único que a D006 pretende. Registrado como M10 `FAILED`, atribuído
+a **D006-R2**.
+
+A correção **não** é apontar para o path do cache. Ele depende do usuário,
+da versão do plugin e do cache, não é instalável e quebra em qualquer
+atualização. D006-R2 deve entregar um launcher nativo que descubra a
+instalação, valide o entrypoint, respeite `CLAUDE_MEM_DATA_DIR`, aceite
+porta configurável e falhe com erro claro — e o manifesto aponta para o
+launcher.
+
