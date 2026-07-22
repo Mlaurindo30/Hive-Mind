@@ -161,7 +161,20 @@ Estados: PROPOSED / ACCEPTED / SUPERSEDED / DEPRECATED.
   `scripts/dream/daily_writer.py`, testes de segregação.
 - **Testes:** novos em D002 (unit + integração SQLite real + A/B).
 - **Rollback:** git revert da D002.
-- **Status:** ACCEPTED (decisão firmada; implementação NOT_STARTED).
+- **Status (quatro níveis distintos — D001-R2):**
+  - **DECISÃO:** ACCEPTED. Agrupar por `project_id` é a regra vigente.
+  - **CÓDIGO:** PARTIAL. `dream_cycle.py` resolve a precedência canônica
+    (`workspace_id` → label legado → `HIVE_DEFAULT_PROJECT`) e o
+    frontmatter emite `project_id`/`project_name`/`identity_source`.
+  - **PROVA UNITÁRIA + SQLITE:** DONE. Partição e segregação A/B provadas
+    em SQLite real.
+  - **PROVA OPERACIONAL:** NOT_STARTED. Nenhum ciclo real executou sobre
+    as 1.094 observações do UMC, onde **0%** têm `workspace_id` canônico.
+    Enquanto a captura não entregar (D004-R2), o Dream Cycle continuará
+    lendo apenas labels legados. Entrega de reparo: **D002-R1**.
+
+  Um estado único aqui seria enganoso: dizer ACCEPTED sugere resolvido e
+  dizer NOT_STARTED apaga o código que existe e passa em teste.
 
 ## ADR-008 — Docker boundary
 

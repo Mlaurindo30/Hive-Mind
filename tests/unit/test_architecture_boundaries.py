@@ -114,13 +114,22 @@ class TestNativeCodeDoesNotDelegateToLegacyScripts:
         - `daemon/managed.py` supervises services declared in the manifest;
         - `projects/identity.py` invokes `git` to read repository facts
           (toplevel, common-dir, branch, remote). That is a tool being queried
-          for data, not a service being spawned.
+          for data, not a service being spawned;
+        - `implementation/validate.py` and `implementation/status.py` invoke
+          `git` for the same reason — HEAD, branch and the commit list are the
+          ground truth the living documents are checked against. Reading that
+          from anything but git would defeat the check.
 
         The prohibitions that matter are enforced separately and still hold
         for every module: no legacy script is executed, and no shell
         (powershell/pwsh/bash/cmd) is spawned.
         """
-        allowed = {"daemon/managed.py", "projects/identity.py"}
+        allowed = {
+            "daemon/managed.py",
+            "projects/identity.py",
+            "implementation/validate.py",
+            "implementation/status.py",
+        }
         offenders = []
         for path in _python_sources():
             rel = path.relative_to(SRC).as_posix()

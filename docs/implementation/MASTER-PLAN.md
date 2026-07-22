@@ -3,7 +3,8 @@
 ## Baseline
 
 - branch: `codex/control-plane-redesign`
-- HEAD: `ae32195` (docs(implementation): establish living execution plan)
+- HEAD: `fff8dc6` (reconciliado em D001-R2; verificado por `hive-mind implementation validate`)
+- HEAD do baseline original (D001): `ae32195`
 - HEAD anterior a D001: `b329e84`
 - base: `d246f0c` (41 commits à frente; ~62 vs `main`)
 - versão: 3.10.1 (worktree) / runtime ativo 3.10.0
@@ -11,8 +12,15 @@
 - runtime ativo: `D:\Hive-Mind` (NÃO alterar até P9)
 - worktree: `D:\Hive-Mind\backups\worktrees\hive-mind-windows-zero-install`
 - spec: `specs/control-plane-redesign-v2.md`
-- estado global: F1 (empacotamento) concluída; F2+ não iniciadas;
-  cadeia funcional quebrada no Dream Cycle (agrupa por label livre)
+- estado global: F1 (empacotamento) concluída. **P1 não foi fechada**: a
+  cadeia funcional real continua quebrada (0 de 18.579 eventos de captura
+  entregues; 0% de `workspace_id` canônico em 1.094 observações reais).
+  P2–P5 foram iniciadas mesmo assim — manifesto, daemon, scheduler e backup
+  nativos existem e passam em teste, mas nenhum opera sobre o runtime.
+- **dívida de sequenciamento (registrada em D001-R2):** o plano exigia
+  fechar P1 antes de P2+. Trabalhar fora de ordem produziu control plane
+  novo sobre uma cadeia de dados ainda quebrada. As entregas de reparo
+  D004-R2, D002-R1 e D005-R1 pagam essa dívida antes de D010-G0.
 - aprovações (2026-07-19): MASTER-PLAN APROVADO; ADR-013 APROVADO
 
 ## Princípios obrigatórios

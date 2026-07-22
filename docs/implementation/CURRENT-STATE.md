@@ -1,10 +1,12 @@
 # Project Status Dashboard
 
 - **branch:** `codex/control-plane-redesign`
-- **HEAD:** `25d348a`
-- **active delivery:** D009-R6 (wrappers PS1/SH mínimos)
+- **HEAD:** `fff8dc6`
+- **active delivery:** D001-R2 (reconciliação dos documentos de controle)
 - **last completed delivery:** D009-R5 (doctor, unregister, instruções nativas)
-- **next delivery:** D009-R6 → D006-R1 → D010-G0
+- **next delivery:** D009-R6 → D004-R2 → D002-R1 → D005-R1 → D006-R2/R3 →
+  D008-R2/R3 → D011-A → D010-G0 (**não ir direto de D009-R6 a D010-G0**)
+- **documentos vs Git:** verificados por `hive-mind implementation validate`
 - **native control plane compliance:** PARTIAL
 - **runtime active root:** `D:\Hive-Mind` (não alterado, exceto DR-001 autorizado)
 - **runtime active owner:** Task Scheduler + `npm/lib/supervisor.js` (legado)
@@ -12,8 +14,16 @@
 - **installation status:** instalação limpa NÃO executada
 - **reboot status:** reboot NÃO executado
 - **real data migration status:** NÃO executada (outbox com 18.579 eventos não entregues; UMC 0% workspace canônico)
-- **last full regression:** 1239 passed, 26 skipped, 2 failed
-- **known test failures:** 2 pré-existentes em `test_windows_install_contract.py` (UnicodeDecodeError de stdout PowerShell)
+- **last full regression:** `pytest tests/` completo — **1522 passed, 102
+  skipped, 17 failed**. A contagem anterior deste painel (1239/26/2) era de
+  `tests/unit` apenas, o que fazia 15 falhas desaparecerem do relatório.
+- **known test failures (17, todas pré-existentes a D001-R2):**
+  - 2 em `test_windows_install_contract.py` — UnicodeDecodeError de stdout PowerShell;
+  - 1 em `test_acceptance_split.py` — `test_canary_multiagent_pipeline.py` e
+    `test_e2e_memory_to_query_pipeline.py` sem `@pytest.mark.real`;
+  - 2 em `tests/model_gateway/` — bridge legado e execução não suportada;
+  - 12 em `tests/real/` — exigem backends vivos (Milvus, FalkorDB, modelos)
+    e a cadeia de captura, que está quebrada (D004-R2).
 - **worktree status:** limpa, exceto 16 untracked em `.tmp/` (LOCAL TEST ARTIFACT)
 
 ## Entregas
@@ -43,21 +53,38 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 
 | ID | Objetivo | Status | Commit | Prova |
 |---|---|---|---|---|
-| D009-R1 | Auditoria de propriedade nativa | **DONE** | `6d0eb11` | 6 achados (A-01…A-06) |
+| D009-R1 | Auditoria de propriedade nativa | **DONE** | `4223505` | 6 achados (A-01…A-06) |
 | D009-R2 | Testes arquiteturais | **DONE** | `a8f0e59` | 14 testes verdes |
 | D009-R3 | Paridade POSIX do capture hook | **DONE** | `fef5383` | ADR-004 restaurado |
 | D009-R4 | Writer TOML do Codex | **DONE_TEMP_CONFIG** | `e86b1fa` | cópia do config real (181 L) |
 | D009-R5 | doctor, unregister, instruções nativas | **DONE_TEMP_CONFIG** | `25d348a` | doctor real: 1/9 healthy; captura = TO_REMOVE |
 | D009-R6 | Wrappers PS1/SH mínimos | NOT_STARTED | — | — |
+| D001-R2 | Reconciliar documentos com a verdade do Git | **IN_PROGRESS** | — | validador nativo: 11 checks, 14 testes |
+| D004-R2 | Reparar a entrega da captura canônica | NOT_STARTED | — | — |
+| D002-R1 | Dream Cycle operacional sobre project_id real | NOT_STARTED | — | — |
+| D005-R1 | E2E real: memória gravada → consultável | NOT_STARTED | — | — |
+| D006-R2 | Entrypoints nativos de serviço | NOT_STARTED | — | — |
+| D006-R3 | runtime.yaml como catálogo único | NOT_STARTED | — | — |
+| D008-R2 | Disparo real de jobs pelo scheduler | NOT_STARTED | — | — |
+| D008-R3 | Journal de cutover e rollback | NOT_STARTED | — | — |
+| D011-A | Installer nativo (resolve circularidade D010/D011) | NOT_STARTED | — | — |
 | D003-R1 | Resolver no pacote nativo | **DONE** | `bf60028` | 115 testes; legado é shim |
 | D004-R1 | Canary runner nativo | **DONE** | `e83d260` | canário sobre dados reais |
 | D006-R1 | Catálogo único | **PARTIAL** | `b9af988` | bloqueado: 4 serviços aspiracionais + post-reboot ausente |
 | D008-R1V | Inventário de jobs validado | **DONE** | `33191e3` | 18 jobs vivos; 1 morto removido |
 | D008-R1B | Backup nativo verificado | **DONE_SYNTHETIC** | `4f22a3c` | run→verify→restore sintético |
 | DR-001 | Restart policy do Docker | **DONE** | `69632bd` | 7/7 containers `unless-stopped` |
-| **D010-G0** | **Windows Native Migration Readiness** | **NOT_STARTED** | — | gate obrigatório de D010 |
+| **D010-G0** | **Windows Native Migration Readiness** | **NOT_STARTED** | — | gate obrigatório de D010: 13 completos / 10 falhando / 1 parcial de 24 |
 
 Inventário completo: [WINDOWS-NATIVE-MIGRATION.md](WINDOWS-NATIVE-MIGRATION.md)
+
+### Este painel é verificável
+
+`hive-mind implementation status` deriva HEAD, branch, contadores do gate e
+LEGACY_OWNER das fontes reais; `hive-mind implementation validate` falha se
+este documento discordar do repositório. `tests/unit/test_implementation_validation.py`
+roda os mesmos checks na regressão, então a divergência aparece como teste
+vermelho e não como algo que um leitor precisa notar.
 — 15 `LEGACY_OWNER` bloqueiam D010, 0 `UNKNOWN`.
 
 ---
@@ -80,8 +107,8 @@ Atualizado em: 2026-07-21 (dashboard + D010-G0). O painel acima é a fonte de es
 ## Git
 
 - branch: `codex/control-plane-redesign`
-- HEAD: `f85d8ea` (feat(real): execute multiagent canary pipeline for all providers (D004))
-  + D005 (E2E Claude Mem -> Cérebro -> Índices -> Consulta completos)
+- HEAD: ver o painel no topo deste documento (fonte única). Esta seção
+  descreve camadas, não estado de commit.
 - staged: nenhum
 - unstaged: nenhum
 - untracked: 16 arquivos em `.tmp/` — LOCAL TEST ARTIFACT (canário
@@ -121,7 +148,7 @@ teste unitário/integração; "REAL" = comprovado com evento real pós-HEAD.
 |---|---|---|---|
 | provider source | REAL (D004) | canários provam cadeia inteira de ponta a ponta | — |
 | parser | REAL (D004) | parsers validados nos canários multiagente | — |
-| project identity | REAL (D004) | repo Git real + worktree real + registry entregue → `hive-mind`; 10 canários de providers passando; **bug de normalização dupla corrigido** | fora do pacote nativo |
+| project identity | REAL (D003) | repo Git real + worktree real + registry entregue → `hive-mind`; **bug de normalização dupla corrigido**. Canário real (D004-R1): **4 passed / 4 failed / 4 skipped** | entrega de captura quebrada (D004-R2) |
 | capture_core.ingest | REAL (D004) | ingestão bem sucedida no Claude Mem isolado dos canários | — |
 | Claude Mem | REAL (D004) | `project_identity` gravado nos metadados da observação | dropdown com labels legados não migrados |
 | bridge | REAL (D004) | `core/knowledge/claude_mem_bridge.py:401-435` grava `workspace_id = project_id` | — |

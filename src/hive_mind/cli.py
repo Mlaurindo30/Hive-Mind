@@ -171,6 +171,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="DESTRUCTIVE: replace existing files at the destination",
     )
     bk_restore.add_argument("--json", action="store_true", help="emit as JSON")
+
+    impl = sub.add_parser(
+        "implementation", help="state of the living implementation documents"
+    )
+    impl_sub = impl.add_subparsers(dest="implementation_command")
+    impl_status = impl_sub.add_parser(
+        "status", help="dashboard derived from git and the documents"
+    )
+    impl_status.add_argument("--json", action="store_true", help="emit as JSON")
+    impl_sub.add_parser(
+        "validate", help="fail if a document disagrees with the repository"
+    )
     return p
 
 
@@ -252,8 +264,50 @@ def main(argv: "list[str] | None" = None) -> int:
         return _validate_agents(args)
     if args.command == "backup":
         return _backup(args)
+    if args.command == "implementation":
+        return _implementation(args)
     parser.print_help()
     return 0
+
+
+def _implementation(args) -> int:
+    """Report — or enforce — agreement between the documents and the repo."""
+    from hive_mind.implementation.status import collect_status, render_status
+    from hive_mind.implementation.validate import validate_documents
+
+    if args.implementation_command == "status":
+        status = collect_status()
+        if args.json:
+            print(json.dumps({
+                "branch": status.branch,
+                "head": status.head,
+                "gate": {
+                    "done": status.gate_done,
+                    "failing": status.gate_failing,
+                    "partial": status.gate_partial,
+                    "total": status.gate_total,
+                },
+                "legacy_owners": status.legacy_owners,
+                "d010": status.d010,
+                "findings": [{"check": f.check, "detail": f.detail}
+                             for f in status.findings],
+            }, ensure_ascii=False, indent=2))
+        else:
+            print(render_status(status))
+        return 1 if status.findings else 0
+
+    if args.implementation_command == "validate":
+        findings = validate_documents()
+        if not findings:
+            print("implementation documents: consistent with the repository")
+            return 0
+        print(f"{len(findings)} divergence(s):", file=sys.stderr)
+        for finding in findings:
+            print(f"  {finding}", file=sys.stderr)
+        return 1
+
+    print("usage: hive-mind implementation {status,validate}", file=sys.stderr)
+    return 2
 
 
 def _backup(args) -> int:

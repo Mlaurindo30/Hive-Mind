@@ -70,9 +70,11 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | AG2 | merge MCP transacional (backup/atomic/dry-run) | unit+operational | DONE | `pytest tests/unit/test_agents_mcp_config.py` + demo em config temp | 10 passed; terceiros preservados, legados removidos, JSON inválido recusado sem clobber, idempotente | D009 fatia 2 |
 | AG2b | `agents register` (mapa provider→config) | unit+operational | PARTIAL | `pytest tests/unit/test_agents_register.py` + dry-run real | 9 passed; dry-run resolveu 11 alvos reais sem escrever nada | D009 fatia 3; `--apply` não executado (decisão do usuário) |
 | AG2c | writer TOML (Codex `config.toml`) | unit+operational | DONE | `pytest tests/unit/test_agents_toml_config.py` + merge em cópia do config real | 13 passed; terceiros e comentários preservados, subtabelas substituídas, idempotente, original intocado | D009-R4; tomlkit |
-| AG3 | instalação de instruções | — | NOT_STARTED | — | — | D009 |
-| AG4 | `agents doctor` | — | NOT_STARTED | — | — | D009 |
-| AG5 | wrappers PS1/SH mínimos | — | NOT_STARTED | — | register-mcp.{ps1,sh} → `hive-mind agents register` | D009 |
+| AG3 | instalação de instruções | unit+operational | **DONE_TEMP_CONFIG** | `pytest tests/unit/test_agents_doctor.py::TestInstruction*` + apply em `tmp_path` | 14 passed; bloco gerenciado idempotente, bloco da era PowerShell substituído sem duplicar, conteúdo do usuário preservado | D009-R5; nenhum arquivo de instrução real tocado |
+| AG4 | `agents doctor` | unit+operational | **DONE_READ_ONLY_REAL** | `pytest tests/unit/test_agents_doctor.py::TestDoctor` + `hive-mind agents doctor` no host | 5 passed; diagnóstico real leu configs reais **sem escrever**; `which` injetável impede vazamento do PATH do host | D009-R5 |
+| AG5 | wrappers PS1/SH mínimos | — | **NOT_STARTED** | — | — | D009-R6 (próxima entrega) |
+| AG6 | `agents unregister` | unit+operational | **DONE_TEMP_CONFIG** | `pytest tests/unit/test_agents_doctor.py::TestUnregister` | 5 passed; remove só a entrada `sinapse-memory`, preserva MCP de terceiros em JSON e TOML, idempotente | D009-R5; nenhum config real alterado |
+| AG7 | captura nativa por provider | — | **NOT_APPLICABLE_BY_ARCHITECTURE** | — | a captura não é registrada por provider: o caminho canônico é `provider/parser → sessão normalizada → capture_core.ingest → Claude Mem` (ADR-004). Instalar hooks por agente reintroduziria o outbox deprecado | ADR-004; entrega real é D004-R2 |
 
 ## Project identity
 
@@ -83,7 +85,7 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | P3 | remote normalizado sem credenciais | integration | DONE | `pytest tests/integration/test_project_identity_git.py` | passed (https/ssh/scp) | `project_identity.py:86` |
 | P4 | branch/worktree só metadados | integration | DONE | `test_worktree_name_and_branch_stay_metadata` | passed | D003 |
 | P5 | Qwen/VS Code/miche/app/hermes não viram project_id | integration | DONE | `TestSurfacesAreNotProjects` | 6 passed; superfícies → `unclassified/*` | D003 |
-| P6 | projeto A/B isolados | integration | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py` | passed (10 isolates) | canários provam isolamento A/B no sqlite de destino (D004) |
+| P6 | projeto A/B isolados | integration | PARTIAL | `pytest tests/real/test_canary_multiagent_pipeline.py` | PARTIAL | isolamento A/B provado em SQLite real (D003); canário real D004-R1: 4 passed / 4 failed / 4 skipped |
 | P7 | cross-project só quando solicitado | integration | PARTIAL | `test_two_projects_stay_isolated_and_filter_cleanly` | passed | falta prova via consulta real (D005) |
 | P8 | dropdown Claude Mem mostra um único Hive-Mind | integration | PARTIAL | `test_root_and_worktree_sessions_show_one_dropdown_entry` | passed no campo `project` da sessão | falta observar a UI com eventos reais (D004); labels legados exigem migração autorizada |
 
@@ -91,8 +93,8 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 
 | Gate | Requisito | Tipo de prova | Estado | Comando | Resultado | Evidência |
 |---|---|---|---|---|---|---|
-| M1 | Claude Mem recebe project canônico | unit | DONE | `pytest tests/real/test_canary_multiagent_pipeline.py` | passed | D004; `project_identity` envelope anexado na ingestão |
-| M2 | bridge workspace_id=project_id | unit | DONE | idem | passed | D004; observations.workspace_id = hive-mind |
+| M1 | Claude Mem recebe project canônico | unit | **DONE_UNIT** | `pytest tests/real/test_canary_multiagent_pipeline.py` | passed no código; **contradito pelo dado real**: 18.579 eventos capturados, 0 entregues | D004; reparo em D004-R2 |
+| M2 | bridge workspace_id=project_id | unit | **DONE_UNIT** | idem | passed no código; **contradito pelo dado real**: 0% das 1.094 observações do UMC têm `workspace_id` canônico | D004; reparo em D004-R2 |
 | M3 | UMC filtra por project_id | integration | NOT_STARTED | — | — | — |
 | M4 | FTS | operational | NOT_STARTED | — | — | — |
 | M5 | sqlite-vec com metadata de projeto | operational | NOT_STARTED | — | — | — |
@@ -123,7 +125,7 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | BK2 | retenção só após verificação | unit | DONE | `test_a_failed_run_never_prunes` | passed | corrige defeito do motor legado |
 | BK3 | lock de execução única | unit | DONE | `TestLock` | 3 passed | `MaintenanceLock` |
 | BK4 | manifesto + SHA-256 + verify | unit | DONE | `TestManifestAndVerify` | 6 passed | detecta tamper/truncado/ausente |
-| BK5 | restore em diretório alternativo | unit+operational | DONE | `TestRestore` + prova sintética | 500 registros idênticos, `integrity_check ok`, `foreign_key_check` vazio | dados sintéticos |
+| BK5 | restore em diretório alternativo | unit+operational | **DONE_SYNTHETIC** | `TestRestore` + prova sintética | 500 registros idênticos, `integrity_check ok`, `foreign_key_check` vazio | dados sintéticos |
 | BK6 | backup de dados reais | operational | **NOT_EXECUTED** | — | exige autorização | — |
 | BK7 | restore de dados reais | operational | **NOT_EXECUTED** | — | exige autorização | — |
 
@@ -150,7 +152,7 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | R16c | ordenação bridge→dream como dependência declarada | unit | DONE | `pytest tests/unit/test_job_dependencies.py` | 9 passed; schema `depends_on` + policy, ciclo/fantasma rejeitados | D008-R1V |
 | R16d | execução real dos 18 jobs | operational | NOT_STARTED | — | daemon só calcula em shadow; não dispara | F7/D010 |
 | R16e | enforcement da dependência em runtime (falha/atraso/reboot/misfire) | operational | NOT_STARTED | — | exige scheduler disparando | F7/D010 |
-| R16f | backup restaurável | operational | NOT_STARTED | — | restauração nunca testada | D011 |
+| R16f | backup restaurável | operational | **DONE_SYNTHETIC** | `TestRestore` + prova sintética (BK5) | 500 registros idênticos, `integrity_check ok`, `foreign_key_check` vazio — em banco sintético | restauração de banco **real** continua NOT_EXECUTED (BK7) |
 | R16 | shadow scheduler (calcula next-run) | unit+operational | DONE | `pytest tests/unit/test_shadow_scheduler.py` + real | 10 passed; jobs do manifesto: dream-cycle→03:00, tailer→+30s; dispara nada | D008 fatia 4; spec F6/D.6 |
 | R17 | persistência do scheduler (SQLite, sobrevive restart) | unit+operational | DONE | `pytest tests/unit/test_sqlite_scheduler_store.py` + demo restart | 9 passed; next-run sobreviveu a nova instância do store com timezone | D008 fatia 5; spec D.6 |
 | R18 | disparo de jobs managed / cutover journal / cutover real | — | NOT_STARTED | — | F7 firing (store pronto) + journal (D.3) + cutover (D010, gate humano) | D010 |

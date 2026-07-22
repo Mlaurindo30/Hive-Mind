@@ -1529,7 +1529,7 @@ ser alvo de primeira classe, com dry-run padrão. O teste que asseverava
 - inventário: [WINDOWS-NATIVE-MIGRATION.md](WINDOWS-NATIVE-MIGRATION.md) —
   36 scripts shell + 6 Node + Task Scheduler + Docker, **0 UNKNOWN**.
 
-### Critérios (23)
+### Critérios (24)
 
 | # | Critério | Estado |
 |--:|---|---|
@@ -1546,7 +1546,7 @@ ser alvo de primeira classe, com dry-run padrão. O teste que asseverava
 | 11 | canary runner no pacote | ✅ D004-R1 |
 | 12 | backup no pacote | ✅ D008-R1B |
 | 13 | agent registration no pacote | ✅ D009/D009-R4 |
-| 14 | captura no pacote | ✅ caminho canônico não usa hook; script é TO_REMOVE |
+| 14 | código de captura no pacote | ✅ caminho canônico não usa hook; script é TO_REMOVE |
 | 15 | doctor/unregister no pacote | ✅ D009-R5 |
 | 16 | `runtime.yaml` é fonte única | ❌ 4 catálogos |
 | 17 | um owner por serviço | ❌ |
@@ -1556,24 +1556,67 @@ ser alvo de primeira classe, com dry-run padrão. O teste que asseverava
 | 21 | documentação atualizada | ✅ |
 | 22 | full regression verde | ⚠️ 2 falhas pré-existentes |
 | 23 | worktree limpa | ✅ |
+| 24 | **captura canônica entregando sem outbox** | ❌ 18.579 eventos capturados, **0 entregues**; 1.094 observações reais com **0%** `workspace_id` canônico — D004-R2 |
 
-**5 de 23 critérios pendentes.** D010 só sai de BLOCKED com este gate DONE.
+**11 de 24 critérios pendentes** (13 completos, 10 falhando, 1 parcial). Contagem verificada por `hive-mind implementation validate`.
 
 ### Sequência até D014
 
 ```
-D009-R5  doctor, unregister, instruções e captura nativas   ← ATUAL
+D001-R2  reconciliar documentos de controle com a verdade do Git  ← ATUAL
 D009-R6  wrappers PS1/SH mínimos, apply controlado, rollback
-D006-R1  runtime.yaml como catálogo único (bloqueado: hive_mind.services)
+D004-R2  reparar a entrega da captura canônica (18.579 → Claude Mem)
+D002-R1  Dream Cycle operacional sobre project_id real
+D005-R1  E2E real: memória gravada → consultável
+D006-R2  entrypoints nativos de serviço (hive_mind.services.*)
+D006-R3  runtime.yaml como catálogo único (depende de D006-R2)
+D008-R2  disparo real de jobs pelo scheduler gerenciado
+D008-R3  journal de cutover e rollback
+D011-A   **implementação do installer nativo** (resolve a circularidade)
 D010-G0  auditoria final da migração Windows
 D010     cutover controlado
-D011     installer e lifecycle Windows
+D011     lifecycle Windows sobre o installer nativo de D011-A
 D012     Windows descartável, instalação limpa, reboot
 D013     atualização da raiz
 D014     remoção final de shims, documentação, release
 ```
 
 D003-R1, D004-R1, D008-R1V e D008-R1B **já concluídas** — não repetir.
+
+**Não ir direto de D009-R6 para D010-G0.** O gate mede migração de
+scripts; as entregas de reparo acima medem se o produto funciona. Passar
+o gate com a cadeia de dados quebrada certificaria um control plane
+nativo que não move um único registro real.
+
+### Circularidade D010/D011 resolvida (D001-R2)
+
+O plano exigia que D010 (cutover) precedesse D011 (installer), mas
+D010-G0 exige que `install.ps1` (568 L) e `bootstrap-prerequisites.ps1`
+(178 L) deixem de ser `LEGACY_OWNER` — o que só o installer nativo faz.
+Cada uma esperava a outra.
+
+Corte: **D011-A — Native installer implementation** é extraída de D011 e
+executa **antes** de D010-G0. Ela entrega `hive-mind install` no pacote
+nativo; `install.ps1` vira wrapper. D011 mantém o restante do lifecycle
+Windows (update, repair, rollback, uninstall) e continua depois de D010.
+
+---
+
+## Entregas registradas em D001-R2 (planejadas, não iniciadas)
+
+Existiam como trabalho conhecido mas não estavam no ledger — ausência que
+fazia a sequência parecer mais curta do que é.
+
+| Delivery | Objetivo | Estado | Depende de | Prova exigida para fechar |
+|---|---|---|---|---|
+| **D004-R2** | reparar a entrega da captura canônica: 18.579 eventos capturados e 0 entregues | NOT_STARTED | — | eventos reais chegando ao Claude Mem com `project_id` canônico, sem reativar o outbox (ADR-004) |
+| **D002-R1** | Dream Cycle operacional sobre `project_id` real | NOT_STARTED | D004-R2 | ciclo real produzindo Markdown particionado por `project_id`, não por label |
+| **D005-R1** | E2E real: memória gravada → indexada → consultável | NOT_STARTED | D002-R1 | `sinapse_query` devolvendo um registro criado na mesma execução |
+| **D006-R2** | entrypoints nativos de serviço | NOT_STARTED | — | os 4 serviços do manifesto apontam para módulos que existem |
+| **D006-R3** | `runtime.yaml` como catálogo único | NOT_STARTED | D006-R2 | `install_services.py` e `services.js` consomem o manifesto ou saem |
+| **D008-R2** | disparo real de jobs pelo scheduler gerenciado | NOT_STARTED | D006-R3 | job real disparado pelo daemon, com dependência e lock honrados |
+| **D008-R3** | journal de cutover e rollback | NOT_STARTED | D008-R2 | cutover revertido a partir do journal, sem perda de estado |
+| **D011-A** | implementação do installer nativo | NOT_STARTED | D009-R6 | instalação limpa por `hive-mind install`; `install.ps1` vira wrapper |
 
 ---
 
@@ -1641,3 +1684,76 @@ nativamente. Registrado em WINDOWS-NATIVE-MIGRATION.md.
 
 - `pytest tests/unit`: **1239 passed, 26 skipped, 2 failed** (pré-existentes).
 - nenhuma alteração em config real, runtime, tarefas ou bancos.
+
+---
+
+## D001-R2 — Reconcile the control documents with git truth
+
+Halt on D009-R6. Os documentos vivos tinham divergido da verdade do Git a
+ponto de não servirem como fonte de estado.
+
+### O que estava errado
+
+Sete divergências, encontradas por código e não por leitura:
+
+| Divergência | Detalhe |
+|---|---|
+| HEAD do painel | dizia `25d348a`; repositório em `fff8dc6` |
+| dois HEADs num só documento | `CURRENT-STATE.md` afirmava `25d348a` e `f85d8ea` |
+| commit inexistente | citava `6d0eb11`; o commit real da auditoria é `4223505` (foi amendado) |
+| contador do gate | resumo dizia 5 pendentes; a própria tabela tinha 10 |
+| contagem Windows | resumo dizia 15 LEGACY_OWNER; a tabela tinha 18 |
+| alegação de canário | "10 canários passando" sobreviveu à correção que os mediu como 4 pass / 4 fail / 4 skip |
+| P6 na matriz | `DONE` com "passed (10 isolates)" — evidência da era mockada |
+
+Mais duas encontradas pelos checks novos durante a própria entrega:
+
+- **M1/M2 estavam `DONE`** afirmando que o Claude Mem recebe `project`
+  canônico, enquanto o dado real mostra 18.579 eventos com 0 entregues e
+  **0%** de `workspace_id` canônico em 1.094 observações. Reclassificados
+  como `DONE_UNIT` **com a contraprova ao lado**.
+- **Eu mesmo quebrei o contador** ao adicionar o critério 24; o validador
+  falhou no meu commit antes de eu perceber.
+
+### Reclassificações
+
+- AG3 `DONE_TEMP_CONFIG`, AG4 `DONE_READ_ONLY_REAL`, AG5 `NOT_STARTED`;
+- AG6 (`agents unregister`) `DONE_TEMP_CONFIG` — não existia na matriz;
+- AG7 `NOT_APPLICABLE_BY_ARCHITECTURE` — captura não é por provider (ADR-004);
+- BK5 e R16f `DONE_SYNTHETIC`; R16f não era `NOT_STARTED` — o restore foi
+  provado, em dados sintéticos;
+- ADR-007 passa a ter quatro estados distintos (decisão / código / prova
+  unitária / prova operacional), porque um estado único mentia nos dois sentidos.
+
+### Dívida de sequenciamento registrada
+
+P1 nunca fechou; P2–P5 começaram assim mesmo. O resultado é control plane
+nativo sobre uma cadeia de dados quebrada. Oito entregas de reparo foram
+adicionadas ao ledger — existiam como trabalho conhecido, não como registro.
+
+### Circularidade D010/D011
+
+D010-G0 exigia que `install.ps1` deixasse de ser owner; só o installer
+nativo (D011) faz isso; D011 vinha depois de D010. **D011-A** é extraída e
+executa antes do gate.
+
+### O que impede a próxima deriva
+
+`hive-mind implementation status` deriva o painel; `validate` falha se
+discordar do repositório. 11 checks, 14 testes
+(`tests/unit/test_implementation_validation.py`) — cada check tem um teste
+que prova que ele detecta a deriva que alega detectar, e um que prova que
+não dispara no caso legítimo (`DONE_SYNTHETIC` ao lado de `FAILED` é
+aceitável; `DONE` puro não é; delivery citada nas notas não é atribuição).
+
+### Regressão
+
+`pytest tests/unit`: **1253 passed, 26 skipped, 2 failed** (as 2 conhecidas).
+`pytest tests/`: **1522 passed, 102 skipped, 17 failed** — todas as 17
+pré-existentes; o painel antes reportava só `tests/unit`, escondendo 15.
+
+### Escopo
+
+Somente documentação e validação. Nenhum runtime, config, banco, tarefa ou
+serviço alterado.
+

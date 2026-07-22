@@ -108,7 +108,7 @@ não aplicável nesta instalação.
 | Categoria | Contagem |
 |---|---:|
 | NATIVE (portado) | 8 componentes |
-| LEGACY_OWNER (bloqueiam D010) | **15** |
+| LEGACY_OWNER (bloqueiam D010) | **18** |
 | TO_REMOVE | 3 |
 | THIN_WRAPPER | ~22 |
 | EXTERNAL_COMPONENT | Docker, WinSW |
