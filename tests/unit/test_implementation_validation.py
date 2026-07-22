@@ -278,3 +278,32 @@ class TestSubDeliveriesAreTheirOwnDeliveries:
         _write(root, "CURRENT-STATE.md",
                "| D004-R1 | canary runner nativo | **DONE** | `abc1234` | p |\n")
         assert check_no_done_over_a_failed_gate(root) == []
+
+
+class TestHexIsNotAlwaysACommit:
+    """A SHA-256 fingerprint looks exactly like a short commit id.
+
+    SEC-001 records a credential's fingerprint so the incident can be tracked
+    without the secret. The commit check flagged it as a commit that does not
+    exist — correct about the hex, wrong about what it was.
+    """
+
+    def test_a_labelled_fingerprint_is_not_treated_as_a_commit(self, tmp_path):
+        from hive_mind.implementation.validate import check_referenced_commits_exist
+
+        root = _docs(tmp_path)
+        _write(root, "DELIVERY-LEDGER.md",
+               "Fingerprint SHA-256 (12): `c1ed5eac4f61`\n")
+        # No git repository here, so the check no-ops; assert on the helper.
+        from hive_mind.implementation.validate import NON_COMMIT_HEX
+
+        assert NON_COMMIT_HEX.search("Fingerprint SHA-256 (12): `c1ed5eac4f61`")
+        assert not NON_COMMIT_HEX.search("- **HEAD:** `abc1234` (D001-R2)")
+        assert check_referenced_commits_exist(root) == []
+
+    def test_an_unlabelled_unknown_sha_is_still_caught(self):
+        """The check must not have been softened into uselessness."""
+        from hive_mind.implementation.validate import check_referenced_commits_exist
+
+        findings = check_referenced_commits_exist(ROOT)
+        assert findings == [], "\n".join(str(f) for f in findings)

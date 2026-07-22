@@ -159,6 +159,13 @@ def check_single_head_per_document(root: Path) -> list[Finding]:
     return findings
 
 
+# A hex string in backticks is usually a commit, but not always: a SHA-256
+# fingerprint, a blob id or a content digest look identical and are not
+# history. Lines that say what the value is are taken at their word.
+NON_COMMIT_HEX = re.compile(
+    r"fingerprint|sha-?256|digest|blob|checksum|hash", re.IGNORECASE)
+
+
 def check_referenced_commits_exist(root: Path) -> list[Finding]:
     """A document must not cite a commit that is not in the history."""
     known = _known_commits(root)
@@ -166,14 +173,19 @@ def check_referenced_commits_exist(root: Path) -> list[Finding]:
         return []
     findings = []
     for relative in (CURRENT_STATE, MASTER_PLAN, LEDGER, MATRIX):
-        text = _read(root, relative)
-        for sha in {m.group(1) for m in SHA_PATTERN.finditer(text)}:
-            if len(sha) < 7:
+        seen: set[str] = set()
+        for line in _read(root, relative).splitlines():
+            if NON_COMMIT_HEX.search(line):
                 continue
-            if not any(k.startswith(sha) or sha.startswith(k) for k in known):
-                findings.append(Finding(
-                    "unknown-commit", f"{relative.name} cites `{sha}`, not in history"
-                ))
+            for match in SHA_PATTERN.finditer(line):
+                sha = match.group(1)
+                if len(sha) < 7 or sha in seen:
+                    continue
+                seen.add(sha)
+                if not any(k.startswith(sha) or sha.startswith(k) for k in known):
+                    findings.append(Finding(
+                        "unknown-commit",
+                        f"{relative.name} cites `{sha}`, not in history"))
     return findings
 
 
