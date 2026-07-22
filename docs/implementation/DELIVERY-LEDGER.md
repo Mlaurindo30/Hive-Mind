@@ -2210,3 +2210,83 @@ para `~/.claude-mem`. Nenhum `UNKNOWN`.
 Depende de D004 (matriz por provider) estar verde: desligar o writer legado
 antes de saber que a captura canônica cobre cada provider trocaria backlog
 não entregue por captura perdida.
+
+---
+
+## SEC-001 — OpenRouter credential exposed in execution output (BLOCKED)
+
+### Causa
+
+Durante a auditoria do worker para a D004-R2W eu li
+`C:\Users\miche\.claude-mem\settings.json` e imprimi o arquivo inteiro na
+saída da sessão. O arquivo contém uma credencial real de provider, que foi
+exibida em texto claro.
+
+A leitura era legítima — a auditoria precisava saber como o worker resolve
+config. Imprimir o arquivo inteiro não era: bastava listar as chaves.
+
+### Estado
+
+**BLOCKED**, aguardando ação humana. Não é possível resolver por código: a
+credencial está comprometida por ter sido exibida, e só o provedor pode
+revogá-la.
+
+### Ação humana obrigatória
+
+1. revogar/rotacionar a chave no provedor;
+2. substituir o valor armazenado **somente depois** da rotação;
+3. confirmar a revogação da chave antiga.
+
+Nada disso é automatizado aqui. `settings.json` **não foi alterado**.
+
+### Extensão da exposição — auditada sem imprimir o segredo
+
+`hive_mind.security.secret_scan` lê o valor do arquivo, mantém em memória,
+e reporta apenas fingerprint e localização. A chave nunca vai para stdout,
+para uma linha de comando, nem para uma mensagem de exceção — motivo pelo
+qual `git grep <chave>` e `git log -S <chave>` **não** foram usados: eles
+colocariam o segredo no histórico do shell e na listagem de processos.
+
+Fingerprint SHA-256 (12): `c1ed5eac4f61`
+
+| Superfície | Cobertura | Ocorrências |
+|---|---|---:|
+| worktree + scratchpad | 9.580 arquivos lidos | **0** |
+| arquivos rastreados | 867 | **0** |
+| diff staged | completo | **0** |
+| mensagens de commit | `--all` | **0** |
+| objetos Git | **14.973 objetos, 12.040 blobs** | **0** |
+| ambiente do processo | 0 variáveis com aparência de credencial | **0** |
+
+**Conclusão:** a credencial não está em nenhum arquivo rastreado, commit,
+blob, documentação, relatório ou fixture. Não há histórico a reescrever.
+
+Isso **não** reduz a gravidade. A chave foi exibida; apagar a saída não a
+descompromete. A rotação continua obrigatória.
+
+### Provider efetivamente usado pelo worker isolado
+
+A afirmação anterior — *"o settings temporário não tinha provider, então a
+chave real não foi usada"* — era uma inferência, não prova. Determinado
+agora a partir do log do próprio worker e do ambiente:
+
+| Pergunta | Resposta |
+|---|---|
+| provider usado | Claude Code SDK |
+| modelo | selecionado pelo SDK; o log registra a query, não um id de modelo de terceiro |
+| autenticação | **OAuth token lido do keychain do sistema no spawn** (`authMethod=Claude Code OAuth token (read from system keychain at spawn)`) |
+| fonte da configuração | `<temp>/settings.json`, criado pelo teste |
+| variável de ambiente de credencial | **nenhuma** — 0 variáveis com aparência de credencial no processo pai |
+| fallback para config global | **sim, parcial** — o SDK buscou auth no keychain do sistema |
+| chave OpenRouter usada | **não** — não estava no ambiente nem no settings temporário |
+| HOME/USERPROFILE reais consultados | **sim** — o launcher herdava o ambiente inteiro |
+
+O último item é o defeito de isolamento real: herdar o ambiente inteiro
+significa que *qualquer* credencial presente teria sido herdada. Nesta
+máquina não havia nenhuma, o que é sorte e não desenho. Corrigido em
+D004-R2W com um launcher de allowlist.
+
+### Regra que fica
+
+Ler um arquivo de configuração para auditoria é legítimo; **imprimi-lo não
+é**. Auditoria de config lista chaves e reporta presença, nunca valores.
