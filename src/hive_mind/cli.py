@@ -132,6 +132,28 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     val_agents.add_argument("--only", default=None, help="validate a single provider")
     val_agents.add_argument("--json", action="store_true", help="emit as JSON")
+
+    backup_cmd = sub.add_parser("backup", help="verified SQLite backup workflow")
+    backup_sub = backup_cmd.add_subparsers(dest="backup_command")
+    bk_run = backup_sub.add_parser("run", help="create a verified backup")
+    bk_run.add_argument("--apply", action="store_true",
+                        help="actually write the backup (default: dry-run)")
+    bk_run.add_argument("--json", action="store_true", help="emit as JSON")
+    bk_status = backup_sub.add_parser("status", help="what backups exist right now")
+    bk_status.add_argument("--json", action="store_true", help="emit as JSON")
+    bk_verify = backup_sub.add_parser("verify", help="re-check a backup manifest")
+    bk_verify.add_argument("--manifest", default=None, help="manifest path")
+    bk_verify.add_argument("--json", action="store_true", help="emit as JSON")
+    bk_restore = backup_sub.add_parser(
+        "restore", help="restore into an alternate directory (never in place by default)"
+    )
+    bk_restore.add_argument("--manifest", required=True, help="manifest to restore from")
+    bk_restore.add_argument("--into", required=True, help="destination directory")
+    bk_restore.add_argument(
+        "--overwrite-live", action="store_true",
+        help="DESTRUCTIVE: replace existing files at the destination",
+    )
+    bk_restore.add_argument("--json", action="store_true", help="emit as JSON")
     return p
 
 
@@ -211,8 +233,100 @@ def main(argv: "list[str] | None" = None) -> int:
         return _agents(args)
     if args.command == "validate" and args.validate_command == "agents":
         return _validate_agents(args)
+    if args.command == "backup":
+        return _backup(args)
     parser.print_help()
     return 0
+
+
+def _backup(args) -> int:
+    """Verified backup workflow. `run` is dry-run unless --apply."""
+    from pathlib import Path
+
+    from hive_mind.maintenance import backup as engine
+    from hive_mind.maintenance.lock import MaintenanceLockError
+
+    command = args.backup_command
+
+    if command == "status":
+        data = engine.status()
+        if args.json:
+            print(json.dumps(data, ensure_ascii=False, indent=2))
+            return 0
+        print(f"{'TARGET':<14} {'SRC':<5} {'BACKUPS':>7}  NEWEST")
+        for entry in data["targets"]:
+            src = "yes" if entry["source_present"] else "no"
+            print(f"{entry['name']:<14} {src:<5} {entry['backups']:>7}  "
+                  f"{entry['newest'] or '-'}")
+        print("\ncoverage:")
+        for component, state in data["coverage"].items():
+            print(f"  {component:<20} {state}")
+        return 0
+
+    if command == "run":
+        try:
+            report = engine.run(dry_run=not args.apply)
+        except MaintenanceLockError as exc:
+            print(f"backup: {exc}", file=sys.stderr)
+            return 1
+        if args.json:
+            print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+            return 0 if report.healthy else 1
+        mode = "APPLIED" if args.apply else "DRY-RUN (nothing written)"
+        print(f"hive-mind backup run — {mode}\n")
+        for result in report.results:
+            print(f"  {result.status:<5} {result.name:<14} {result.detail}")
+            for pruned in result.pruned:
+                print(f"        pruned: {pruned}")
+        if report.manifest_path:
+            print(f"\n  manifest: {report.manifest_path}")
+        if not args.apply:
+            print("\nRe-run with --apply to write the backup.")
+        return 0 if report.healthy else 1
+
+    if command == "verify":
+        manifest = args.manifest
+        if not manifest:
+            for target in engine.default_targets():
+                found = engine.latest_manifest(target.dest_dir)
+                if found:
+                    manifest = found
+                    break
+        if not manifest:
+            print("no manifest found; run `hive-mind backup run --apply` first",
+                  file=sys.stderr)
+            return 1
+        result = engine.verify(manifest)
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(f"verify {result['manifest']}")
+            for check in result["checks"]:
+                mark = "OK  " if check["ok"] else "FAIL"
+                print(f"  {mark} {check['name']:<14} {check['reason']}")
+        return 0 if result["ok"] else 1
+
+    if command == "restore":
+        try:
+            result = engine.restore(
+                args.manifest, Path(args.into),
+                allow_overwrite_live=args.overwrite_live,
+            )
+        except engine.RestoreRefused as exc:
+            print(f"restore refused: {exc}", file=sys.stderr)
+            return 1
+        except (ValueError, FileNotFoundError) as exc:
+            print(f"restore failed: {exc}", file=sys.stderr)
+            return 1
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            for entry in result["restored"]:
+                print(f"  restored {entry['name']} -> {entry['path']}")
+        return 0
+
+    print("usage: hive-mind backup {run|status|verify|restore}", file=sys.stderr)
+    return 1
 
 
 def _validate_agents(args) -> int:

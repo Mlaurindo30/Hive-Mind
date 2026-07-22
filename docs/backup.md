@@ -117,18 +117,60 @@ registrado". O correto: o job roda e tem sucesso, mas **não é backup** —
 é auditoria de artefatos, e o backup real (`backup-databases`) já estava
 no manifesto. O manifesto não perdeu capacidade de backup.
 
-## Trabalho nativo pendente
+## Motor nativo (implementado)
 
-O motor de backup **já existe e está correto no essencial** (SQLite
-backup API). O trabalho nativo não é reescrevê-lo, e sim:
+`src/hive_mind/maintenance/backup.py` — portado de
+`scripts/health/backup_databases.py`, preservando o que já estava certo
+(`sqlite3.Connection.backup()` sobre origem `mode=ro`) e somando o que
+faltava:
 
-1. expor `hive-mind backup run|status|verify` sobre `backup_databases`;
-2. adicionar o que falta: manifesto de conteúdo, SHA-256, lock de
-   execução única, validação antes da retenção;
-3. `hive-mind backup restore` separado e protegido;
-4. decidir se a auditoria diária de artefatos permanece como job.
+| Garantia | Antes | Agora |
+|---|---|---|
+| lock de execução única | ausente | `MaintenanceLock` (exclusive-create) |
+| finalização | escrita direta | `.partial` + `os.replace` atômico |
+| verificação | nenhuma | `integrity_check` + `foreign_key_check` + SHA-256 |
+| **retenção** | **podava logo após copiar** | **só após o novo backup ser verificado** |
+| manifesto de conteúdo | ausente | JSON com artefatos, hashes, tamanhos, cobertura |
+| dry-run | ausente | padrão do `run` |
+| restore | ausente | diretório alternativo por padrão |
 
-Nada disso foi implementado nesta entrega — ela é auditoria.
+O defeito mais grave do motor legado era a retenção: podava
+imediatamente após a cópia, então um backup novo corrompido podia
+despejar um antigo bom. Coberto por
+`test_a_failed_run_never_prunes`.
+
+### Comandos
+
+```powershell
+hive-mind backup run [--apply]     # dry-run por padrão
+hive-mind backup status
+hive-mind backup verify [--manifest <path>]
+hive-mind backup restore --manifest <path> --into <dir> [--overwrite-live]
+```
+
+`restore` grava em **diretório alternativo** por padrão; sobrescrever
+exige `--overwrite-live` explícito.
+
+### Prova operacional (dados sintéticos, banco aberto em WAL)
+
+```
+1. 500 registros, WAL, banco ABERTO durante a cópia
+2. backup run        healthy=True
+3. verify            ok=True
+4. restore           diretório alternativo
+5. comparação        500 registros idênticos
+6. integrity_check   ok
+7. foreign_key_check vazio
+```
+
+Nenhum banco real foi lido ou escrito nesta prova.
+
+### Scripts legados
+
+`scripts/health/backup_databases.py`: 175 linhas → shim que delega ao
+comando nativo (preserva o contrato antigo de sempre escrever, passando
+`--apply`). `scripts/maintenance/backup.py` permanece untracked e **não
+foi commitado** — é SUPERSEDED.
 
 ## Evidência preservada
 
