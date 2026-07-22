@@ -37,7 +37,7 @@ function run(cmd, args, opts = {}) {
 const path = require('path');
 const os = require('os');
 
-function windowsInstallerArgs(options = {}, root = homeDir()) {
+function windowsInstallerArgs(options = {}, root = path.resolve(__dirname, '..', '..')) {
   const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'install.ps1')];
   args.push('-Profile', options.profile || 'local-min');
   if (options.withTests) args.push('-WithTests');
