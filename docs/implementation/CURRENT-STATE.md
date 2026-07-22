@@ -1,7 +1,7 @@
 # Project Status Dashboard
 
 - **branch:** `codex/control-plane-redesign`
-- **HEAD:** `f69bcfb` — último commit de `git log` no momento em que este
+- **HEAD:** `c268b9b` — último commit de `git log` no momento em que este
   painel foi escrito. Por construção ele fica atrás do HEAD atual por
   exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
   antes de existir. O validador aceita esse único passo **só** se o commit
@@ -37,7 +37,7 @@
   `capture_adapters.py` do runtime ativo observa paths que os providers
   abandonaram. codex e claude seguem entregando. Correção existe na
   worktree e **não** foi aplicada ao runtime. Detalhe em
-  [reports/live-provider-capture-recovery.md](../../reports/live-provider-capture-recovery.md).
+  `reports/live-provider-capture-recovery.md`.
 - **real data migration status:** NÃO executada, e **não será** nesta fase —
   os registros históricos fragmentados permanecem onde estão. O defeito de
   identidade que os criou está corrigido em D004-R2: `project` deixou de
