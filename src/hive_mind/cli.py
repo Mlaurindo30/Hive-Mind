@@ -123,6 +123,23 @@ def _build_parser() -> argparse.ArgumentParser:
     ag_reg.add_argument("--only", default=None, help="register a single provider by id")
     ag_reg.add_argument("--project-root", default=None, help="project root override")
     ag_reg.add_argument("--json", action="store_true", help="emit as JSON")
+    ag_reg.add_argument(
+        "--instructions", action="store_true",
+        help="also install the managed instruction block for each provider",
+    )
+    ag_doc = agents_sub.add_parser("doctor", help="diagnose agent integrations (read-only)")
+    ag_doc.add_argument("--project-root", default=None, help="project root override")
+    ag_doc.add_argument("--json", action="store_true", help="emit as JSON")
+    ag_unreg = agents_sub.add_parser(
+        "unregister", help="remove the Hive-Mind entry from provider configs"
+    )
+    ag_unreg.add_argument("--apply", action="store_true", help="actually write (default: dry-run)")
+    ag_unreg.add_argument("--only", default=None, help="a single provider by id")
+    ag_unreg.add_argument("--project-root", default=None, help="project root override")
+    ag_unreg.add_argument(
+        "--instructions", action="store_true", help="also remove the instruction block"
+    )
+    ag_unreg.add_argument("--json", action="store_true", help="emit as JSON")
 
     validate_cmd = sub.add_parser("validate", help="validate the pipeline against real data")
     validate_sub = validate_cmd.add_subparsers(dest="validate_command")
@@ -405,9 +422,96 @@ def _agents(args) -> int:
 
     if args.agents_command == "register":
         return _agents_register(args)
+    if args.agents_command == "doctor":
+        return _agents_doctor(args)
+    if args.agents_command == "unregister":
+        return _agents_unregister(args)
 
-    print("usage: hive-mind agents {detect|list|register}", file=sys.stderr)
+    print("usage: hive-mind agents {detect|list|register|doctor|unregister}",
+          file=sys.stderr)
     return 1
+
+
+def _agents_env():
+    """(home, appdata) from the environment, resolved once."""
+    from pathlib import Path
+
+    home = Path(os.environ.get("USERPROFILE") or os.path.expanduser("~"))
+    return home, Path(os.environ.get("APPDATA") or (home / "AppData" / "Roaming"))
+
+
+def _agents_doctor(args) -> int:
+    from hive_mind.agents.doctor import diagnose
+
+    try:
+        root = resolve_project_root(cli_root=args.project_root)
+    except ProjectRootNotFound as exc:
+        print(str(exc), file=sys.stderr)
+        return EX_CONFIG
+    home, appdata = _agents_env()
+    report = diagnose(home=home, appdata=appdata, project_root=root)
+
+    if args.json:
+        print(json.dumps(
+            [{"provider": d.provider, "detected": d.detected,
+              "registered": d.fully_registered, "healthy": d.healthy,
+              "instructions": d.instructions_installed,
+              "configs": [c.__dict__ for c in d.configs]} for d in report],
+            ensure_ascii=False, indent=2,
+        ))
+        return 0 if all(d.healthy for d in report) else 1
+
+    print("hive-mind agents doctor — read-only\n")
+    print(f"{'':4}{'PROVIDER':<12} {'DETECTED':<9} {'REGISTERED':<11} INSTRUCTIONS")
+    unhealthy = 0
+    for d in report:
+        if not d.detected:
+            continue
+        mark = "OK  " if d.healthy else "WARN"
+        unhealthy += 0 if d.healthy else 1
+        inst = "yes" if d.instructions_installed else ("n/a" if not d.instruction_path else "no")
+        print(f"{mark}{d.provider:<12} {'yes':<9} "
+              f"{('yes' if d.fully_registered else 'no'):<11} {inst}")
+    detected = [d for d in report if d.detected]
+    print(f"\n{len(detected) - unhealthy} of {len(detected)} detected providers healthy")
+    return 0 if unhealthy == 0 else 1
+
+
+def _agents_unregister(args) -> int:
+    from hive_mind.agents.detect import detect_providers
+    from hive_mind.agents.doctor import unregister_providers
+
+    try:
+        root = resolve_project_root(cli_root=args.project_root)
+    except ProjectRootNotFound as exc:
+        print(str(exc), file=sys.stderr)
+        return EX_CONFIG
+    home, appdata = _agents_env()
+    targets = [args.only] if args.only else [r.id for r in detect_providers() if r.detected]
+    if not targets:
+        print("no providers detected", file=sys.stderr)
+        return 1
+    try:
+        results = unregister_providers(
+            targets, home=home, appdata=appdata, project_root=root,
+            dry_run=not args.apply, remove_instruction_block=args.instructions,
+        )
+    except KeyError as exc:
+        print(f"unknown provider: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps([r.__dict__ for r in results], ensure_ascii=False, indent=2))
+        return 0
+    mode = "APPLIED" if args.apply else "DRY-RUN (nothing written)"
+    print(f"hive-mind agents unregister — {mode}\n")
+    for r in results:
+        state = "would remove" if not args.apply and r.changed else (
+            "removed" if r.changed else "not present")
+        print(f"  {'OK ' if r.changed else '== '}  {r.provider:<10} {r.path}  [{state}]")
+    if not args.apply:
+        print("\nRe-run with --apply to write these changes.")
+    return 0
 
 
 def _agents_register(args) -> int:

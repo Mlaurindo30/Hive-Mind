@@ -166,3 +166,25 @@ def _write_atomic(path: Path, text: str, created: bool) -> Optional[str]:
         tmp.unlink(missing_ok=True)
         raise
     return str(backup) if backup is not None else None
+
+
+def remove_from_codex_config(
+    path: Path | str, server_name: str, *, dry_run: bool = True
+) -> TomlMergeResult:
+    """Remove `[mcp_servers.<server_name>]` and its subtables, keeping the rest."""
+    import tomlkit
+
+    path = Path(path)
+    if not path.exists():
+        return TomlMergeResult(str(path), False, False, None, ())
+    document = _load(path)  # raises ValueError on invalid TOML, before any write
+
+    servers = document.get(MCP_TABLE)
+    if not servers or server_name not in servers:
+        return TomlMergeResult(str(path), False, False, None, ())
+    if dry_run:
+        return TomlMergeResult(str(path), True, False, None, ())
+
+    del servers[server_name]
+    backup = _write_atomic(path, tomlkit.dumps(document), created=False)
+    return TomlMergeResult(str(path), True, False, backup, ())

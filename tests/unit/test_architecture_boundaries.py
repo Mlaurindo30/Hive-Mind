@@ -60,18 +60,42 @@ def _code_without_docstrings(path: Path) -> str:
     return "\n".join(kept)
 
 
+# A legacy script name may appear in executable code when it is part of a
+# *recognition* constant rather than an invocation. The instruction installer
+# must know the marker register-mcp.ps1 wrote, otherwise it would append a
+# second managed block beside the old one instead of replacing it.
+RECOGNITION_ALLOWANCES = {
+    "agents/instructions.py": {"register-mcp.ps1"},
+}
+
+
 class TestNativeCodeDoesNotDelegateToLegacyScripts:
     def test_no_module_executes_a_legacy_script(self):
         offenders = []
         for path in _python_sources():
             code = _code_without_docstrings(path)
+            allowed = RECOGNITION_ALLOWANCES.get(path.relative_to(SRC).as_posix(), set())
             for marker in LEGACY_SCRIPT_MARKERS:
-                if marker in code:
+                if marker in code and marker not in allowed:
                     offenders.append(f"{path.relative_to(ROOT)}: {marker}")
         assert offenders == [], (
             "native code must implement behaviour directly, never shell out to "
             f"a legacy script: {offenders}"
         )
+
+    def test_recognition_allowances_are_still_needed(self):
+        """An allowance that stopped being used must be removed, not linger."""
+        for rel, markers in RECOGNITION_ALLOWANCES.items():
+            code = _code_without_docstrings(SRC / rel)
+            stale = {m for m in markers if m not in code}
+            assert stale == set(), f"{rel}: drop unused allowances {sorted(stale)}"
+
+    def test_allowed_mentions_are_not_invocations(self):
+        """The allowance covers naming a marker, never running the script."""
+        for rel in RECOGNITION_ALLOWANCES:
+            code = _code_without_docstrings(SRC / rel)
+            for smell in ("subprocess", "os.system", "Popen"):
+                assert smell not in code, f"{rel} invokes something: {smell}"
 
     def test_no_module_spawns_powershell_or_bash(self):
         offenders = []

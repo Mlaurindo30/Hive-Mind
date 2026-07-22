@@ -37,6 +37,9 @@ class ProviderSpec:
     home_markers: tuple[str, ...] = ()
     appdata_markers: tuple[str, ...] = ()
     configs: tuple[ConfigTarget, ...] = ()
+    # Instruction file this agent reads, relative to the project root.
+    # Ported from Get-PromptTarget in register-mcp.ps1.
+    prompt_target: str | None = None
 
 
 _VSCODE_STORAGE = "Code/User/globalStorage"
@@ -44,6 +47,7 @@ _VSCODE_STORAGE = "Code/User/globalStorage"
 PROVIDERS: tuple[ProviderSpec, ...] = (
     ProviderSpec(
         "claude", "Claude Code", commands=("claude",),
+        prompt_target="CLAUDE.md",
         configs=(
             ConfigTarget("home", ".claude.json"),
             ConfigTarget("project", ".mcp.json"),
@@ -51,6 +55,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
     ),
     ProviderSpec(
         "codex", "Codex", commands=("codex",),
+        prompt_target="AGENTS.md",
         configs=(
             ConfigTarget("home", ".codex/config.toml", kind="toml"),
             ConfigTarget("home", ".codex/mcp.json"),
@@ -58,23 +63,28 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
     ),
     ProviderSpec(
         "gemini", "Gemini CLI", commands=("gemini",),
+        prompt_target="GEMINI.md",
         configs=(ConfigTarget("home", ".gemini/settings.json"),),
     ),
     ProviderSpec(
         "qwen", "Qwen Code", commands=("qwen",), home_markers=(".qwen",),
+        prompt_target="AGENTS.md",
         configs=(ConfigTarget("home", ".qwen/settings.json"),),
     ),
     ProviderSpec(
         "kimi", "Kimi Code", commands=("kimi",), home_markers=(".kimi",),
+        prompt_target="AGENTS.md",
         configs=(ConfigTarget("home", ".kimi/mcp.json"),),
     ),
     ProviderSpec(
         "kiro", "Kiro", commands=("kiro",), home_markers=(".kiro",),
+        prompt_target="AGENTS.md",
         configs=(ConfigTarget("home", ".kiro/settings/mcp.json"),),
     ),
     ProviderSpec(
         "kilo",
         "Kilo Code",
+        prompt_target="AGENTS.md",
         home_markers=(".kilocode",),
         appdata_markers=(f"{_VSCODE_STORAGE}/kilocode.kilo-code",),
         configs=(
@@ -87,6 +97,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
     ProviderSpec(
         "roo",
         "Roo Cline",
+        prompt_target="AGENTS.md",
         appdata_markers=(f"{_VSCODE_STORAGE}/rooveterinaryinc.roo-cline",),
         configs=(
             ConfigTarget(
@@ -98,6 +109,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
     ProviderSpec(
         "vscode",
         "VS Code (Copilot Chat)",
+        prompt_target=".github/copilot-instructions.md",
         commands=("code",),
         appdata_markers=(f"{_VSCODE_STORAGE}/github.copilot-chat",),
         configs=(
@@ -108,14 +120,17 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
     ),
     ProviderSpec(
         "cursor", "Cursor", home_markers=(".cursor",),
+        prompt_target=".cursor/rules/hive-mind.md",
         configs=(ConfigTarget("home", ".cursor/mcp.json"),),
     ),
     ProviderSpec(
         "opencode", "OpenCode", commands=("opencode",),
+        prompt_target="AGENTS.md",
         configs=(ConfigTarget("home", ".opencode/mcp.json"),),
     ),
     ProviderSpec(
         "openclaw", "OpenClaw", commands=("openclaw",),
+        prompt_target="AGENTS.md",
         configs=(ConfigTarget("home", ".openclaw/openclaw.json"),),
     ),
     # SwarmClaw stores its config in a SQLite database, not a JSON/TOML file;

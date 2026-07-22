@@ -122,3 +122,28 @@ def _write_atomic(path: Path, data: dict, created: bool) -> Optional[str]:
             tmp.unlink(missing_ok=True)
         raise
     return str(backup) if backup is not None else None
+
+
+def remove_mcp_config(
+    path: Path | str,
+    server_name: str,
+    root_key: str = DEFAULT_ROOT_KEY,
+    *,
+    dry_run: bool = True,
+) -> MergeResult:
+    """Remove the server entry, leaving every other server untouched."""
+    path = Path(path)
+    if not path.exists():
+        return MergeResult(str(path), False, False, None, ())
+    data = _load(path)  # raises ValueError on invalid JSON, before any write
+
+    servers = dict(data.get(root_key) or {})
+    if server_name not in servers:
+        return MergeResult(str(path), False, False, None, ())
+    if dry_run:
+        return MergeResult(str(path), True, False, None, ())
+
+    servers.pop(server_name)
+    data[root_key] = servers
+    backup = _write_atomic(path, data, created=False)
+    return MergeResult(str(path), True, False, backup, ())

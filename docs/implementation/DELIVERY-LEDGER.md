@@ -1574,3 +1574,70 @@ D014     remoção final de shims, documentação, release
 ```
 
 D003-R1, D004-R1, D008-R1V e D008-R1B **já concluídas** — não repetir.
+
+---
+
+## D009-R5 — agents doctor, unregister e instruções nativas
+
+- fase: remediação (P5)
+- estado: **DONE_TEMP_CONFIG** (prova em arquivos temporários; nada real escrito)
+- HEAD inicial: `e59be0e`
+
+### Implementado
+
+| Módulo | Responsabilidade |
+|---|---|
+| `agents/instructions.py` | bloco gerenciado BEGIN/END, idempotente, backup + escrita atômica; reconhece e **substitui** o marcador escrito pelo `register-mcp.ps1` |
+| `agents/doctor.py` | diagnóstico read-only por provider (detectado / registrado em cada config / instruções instaladas) + `unregister_providers` |
+| `agents/mcp_config.py` | `remove_mcp_config` — remove só a entrada Hive-Mind |
+| `agents/toml_config.py` | `remove_from_codex_config` — remove a subárvore, preserva terceiros |
+| `registry.py` | `prompt_target` por provider, portado de `Get-PromptTarget` |
+| `cli.py` | `hive-mind agents doctor` e `agents unregister` (dry-run padrão), `register --instructions` |
+
+Alvos de instrução portados: `CLAUDE.md`, `GEMINI.md`, `AGENTS.md`
+(8 providers), `.github/copilot-instructions.md`,
+`.cursor/rules/hive-mind.md`. `swarmclaw` corretamente sem alvo (usa SQLite).
+
+### Prova operacional real (read-only)
+
+`hive-mind agents doctor` contra o ambiente real reporta honestamente:
+
+```
+    PROVIDER     DETECTED  REGISTERED  INSTRUCTIONS
+WARNclaude       yes       no          no
+OK  codex        yes       yes         yes
+WARNgemini       yes       no          no
+WARNqwen         yes       no          yes
+...
+1 of 9 detected providers healthy
+```
+
+Nenhuma escrita: `doctor` é read-only e `unregister` é dry-run por padrão.
+
+### Defeito de testabilidade corrigido
+
+`diagnose` usava o `PATH` real do host, então `qwen` da máquina vazava
+para dentro de um teste que supunha ambiente vazio. `which` passou a ser
+injetável — o mesmo contrato que `detect_providers` já tinha.
+
+### Refinamento do teste arquitetural
+
+`instructions.py` cita `register-mcp.ps1` em `LEGACY_BEGIN_MARKER` — a
+constante que **reconhece** o bloco antigo para substituí-lo. Mencionar
+não é executar. Foi adicionada uma exceção nomeada (`RECOGNITION_ALLOWANCES`)
+com dois testes que a protegem: um falha se a exceção deixar de ser
+necessária, outro falha se o arquivo isento passar a invocar algo.
+
+### Sobre "captura nativa"
+
+O 4º item da D009-R5 era instalar captura nativamente. A auditoria
+(D009-R1/R3) já estabeleceu que `install-capture-hooks.py` instala o
+caminho **outbox deprecado** (ADR-004/ADR-011), desligado de ambos os
+instaladores. O caminho canônico (`capture_core.ingest` via
+realtime/tailer) **não precisa de hook por provider** — é serviço
+declarado no manifesto. Portanto não há instalador de captura a portar:
+o correto é remover o script (classificado `TO_REMOVE`), não recriá-lo
+nativamente. Registrado em WINDOWS-NATIVE-MIGRATION.md.
+
+- `pytest tests/unit`: **1239 passed, 26 skipped, 2 failed** (pré-existentes).
+- nenhuma alteração em config real, runtime, tarefas ou bancos.
