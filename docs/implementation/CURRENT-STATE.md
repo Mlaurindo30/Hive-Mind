@@ -1,7 +1,7 @@
 # Project Status Dashboard
 
 - **branch:** `codex/control-plane-redesign`
-- **HEAD:** `11cd752` — último commit de `git log` no momento em que este
+- **HEAD:** `3439fd5` — último commit de `git log` no momento em que este
   painel foi escrito. Por construção ele fica atrás do HEAD atual por
   exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
   antes de existir. O validador aceita esse único passo **só** se o commit
