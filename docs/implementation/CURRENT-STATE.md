@@ -1,7 +1,7 @@
 # Project Status Dashboard
 
 - **branch:** `codex/control-plane-redesign`
-- **HEAD:** `7b40e59` (D001-R2)
+- **HEAD:** `9bd34f4` (D001-R2)
 - **active delivery:** D001-R2 (reconciliação dos documentos de controle)
 - **last completed delivery:** D009-R5 (doctor, unregister, instruções nativas)
 - **next delivery:** D009-R6 → D004-R2 → D002-R1 → D005-R1 → D006-R2/R3 →
