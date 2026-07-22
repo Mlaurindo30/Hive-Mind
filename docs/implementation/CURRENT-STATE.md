@@ -52,9 +52,13 @@
 
 ## Entregas
 
-Qualificadores de status: `DONE` exige prova real. `DONE_SYNTHETIC` /
-`DONE_TEMP_CONFIG` indicam prova apenas com dados sintéticos ou cópia
-temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
+**Estados oficiais**, e são os únicos: `NOT_STARTED`, `IN_PROGRESS`,
+`PARTIAL`, `BLOCKED`, `FAILED`, `DONE`, `SUPERSEDED`.
+
+Um qualificador — dados sintéticos, config temporária, somente leitura — vai
+na coluna de evidência, **nunca** na de estado. `DONE_SYNTHETIC` como estado
+parecia informativo e não era: escondia um `PARTIAL` atrás de uma palavra que
+começa com DONE, e o leitor que só escaneia a coluna via a entrega fechada.
 
 | Delivery | Objective | Status | Last commit | Real proof | Remaining |
 |---|---|---|---|---|---|
@@ -64,7 +68,7 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D004 | Canários multiagente | **PARTIAL** | `989ebee` | canário real: 4 pass, 4 fail; identidade canônica corrigida (D004-R2) | matriz por provider |
 | D005 | E2E memória → consulta | **PARTIAL** | `d793353` | testes reais | depende de scripts não portados |
 | D006 | Manifesto declarativo | **PARTIAL** | `1db2523` | 10 testes | 4 catálogos concorrentes |
-| D007 | Daemon shadow | **IMPLEMENTED_NO_CUTOVER** | `cb4c66d` | run --shadow real, HTTP, socket | cutover |
+| D007 | Daemon shadow | **PARTIAL** | `cb4c66d` | run --shadow real, HTTP, socket | cutover; evidência: código pronto, sem cutover |
 | D008 | Supervisor e scheduler | **PARTIAL** | `1857869` | processos sintéticos reais | disparo de jobs, cutover |
 | D009 | Registro MCP/captura nativo | **PARTIAL** | `47912f2` | detect 9/13, doctor 1/9 healthy, TOML nativo, wrappers mínimos | captura real **não** provada — gate é D004-R2 |
 | D010 | Cutover de owners legados | **BLOCKED** | — | — | exige D010-G0 |
@@ -80,9 +84,9 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D009-R1 | Auditoria de propriedade nativa | **DONE** | `4223505` | 6 achados (A-01…A-06) |
 | D009-R2 | Testes arquiteturais | **DONE** | `a8f0e59` | 14 testes verdes |
 | D009-R3 | Paridade POSIX do capture hook | **DONE** | `fef5383` | ADR-004 restaurado |
-| D009-R4 | Writer TOML do Codex | **DONE_TEMP_CONFIG** | `e86b1fa` | cópia do config real (181 L) |
-| D009-R5 | doctor, unregister, instruções nativas | **DONE_TEMP_CONFIG** | `25d348a` | doctor real: 1/9 healthy; captura = TO_REMOVE |
-| D009-R6 | Wrappers PS1/SH mínimos | **DONE_TEMP_CONFIG** | `47912f2` | 79 testes; PS1 456→55 L, SH 444→50 L; cadeia wrapper→CLI→config em temp |
+| D009-R4 | Writer TOML do Codex | **DONE** | `e86b1fa` | cópia do config real (181 L); evidência: configs temporários |
+| D009-R5 | doctor, unregister, instruções nativas | **DONE** | `25d348a` | doctor real: 1/9 healthy; captura = TO_REMOVE; evidência: configs temporários |
+| D009-R6 | Wrappers PS1/SH mínimos | **DONE** | `47912f2` | 79 testes; PS1 456→55 L, SH 444→50 L; cadeia wrapper→CLI→config em temp; evidência: configs temporários |
 | D001-R2 | Reconciliar documentos com a verdade do Git | **DONE** | `776d504` | validador nativo: 11 checks, 18 testes |
 | D004-R2 | Identidade canônica na captura | **PARTIAL** | `0664afc` | ingest nativo e identidade canônica implementados; payload de ingestão comprovado até a fronteira do worker; bridge comprovado separadamente contra stores temporárias | matriz por provider |
 | D004-R2W | Entrega via worker real isolado | **PARTIAL** | `eb535f5` | 31 testes; worker descartável, ambiente por allowlist, provider **local sem credencial**, **2 observations reais** com `project` canônico | envelope não sobrevive até a observation (M14) |
@@ -100,7 +104,7 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D004-R1 | Canary runner nativo | **DONE** | `e83d260` | canário sobre dados reais |
 | D006-R1 | Catálogo único | **PARTIAL** | `b9af988` | bloqueado: 4 serviços aspiracionais + post-reboot ausente |
 | D008-R1V | Inventário de jobs validado | **DONE** | `33191e3` | 18 jobs vivos; 1 morto removido |
-| D008-R1B | Backup nativo verificado | **DONE_SYNTHETIC** | `4f22a3c` | run→verify→restore sintético |
+| D008-R1B | Backup nativo verificado | **PARTIAL** | `4f22a3c` | run→verify→restore sintético; evidência: dados sintéticos |
 | DR-001 | Restart policy do Docker | **DONE** | `69632bd` | 7/7 containers `unless-stopped` |
 | **D010-G0** | **Windows Native Migration Readiness** | **NOT_STARTED** | — | gate obrigatório de D010: 15 completos / 8 falhando / 1 parcial de 24 |
 

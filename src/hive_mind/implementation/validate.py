@@ -409,6 +409,44 @@ def check_no_not_started_for_a_closed_delivery(root: Path) -> list[Finding]:
     return findings
 
 
+
+# The only states a delivery or gate may be in. Anything else is a qualifier
+# describing the evidence, and belongs in the evidence column.
+OFFICIAL_STATES = frozenset({
+    "NOT_STARTED", "IN_PROGRESS", "PARTIAL", "BLOCKED", "FAILED", "DONE",
+    "SUPERSEDED",
+})
+
+STATE_TOKEN = re.compile(r"\*\*([A-Z][A-Z_]{3,})\*\*")
+
+
+def check_no_qualifier_used_as_state(root: Path) -> list[Finding]:
+    """A qualifier must not stand in for a state.
+
+    `DONE_SYNTHETIC` looked informative and was not: it hid a PARTIAL behind a
+    word starting with DONE, and a reader scanning the state column saw a
+    finished delivery. The qualifier is real information — it just belongs
+    beside the evidence, not in place of the verdict.
+    """
+    findings = []
+    for relative in (CURRENT_STATE, MATRIX):
+        for number, line in enumerate(_read(root, relative).splitlines(), start=1):
+            if not line.startswith("|"):
+                continue
+            for match in STATE_TOKEN.finditer(line):
+                token = match.group(1)
+                if token in OFFICIAL_STATES or "_" not in token:
+                    continue
+                root_state = token.split("_")[0]
+                if root_state in OFFICIAL_STATES:
+                    findings.append(Finding(
+                        "qualifier-as-state",
+                        f"{relative.name}:{number} uses **{token}** as a state; "
+                        f"the state is **{root_state}** and the rest is evidence",
+                    ))
+    return findings
+
+
 CHECKS = (
     check_dashboard_head,
     check_single_head_per_document,
@@ -420,6 +458,7 @@ CHECKS = (
     check_matrix_deliveries_are_in_the_ledger,
     check_no_done_over_a_failed_gate,
     check_no_not_started_for_a_closed_delivery,
+    check_no_qualifier_used_as_state,
 )
 
 

@@ -127,8 +127,14 @@ class TestChecksDetectTheDriftTheyClaim:
                "| D004 | canários | **PARTIAL** | `abc1234` | prova | — |\n")
         assert check_no_done_over_a_failed_gate(root) == []
 
-    def test_a_qualified_dashboard_state_is_allowed(self, tmp_path):
-        """DONE_SYNTHETIC names what was not proven; plain DONE does not."""
+    def test_a_non_done_dashboard_state_is_allowed(self, tmp_path):
+        """PARTIAL beside a failing gate is the honest pair; DONE is not.
+
+        This used `DONE_SYNTHETIC` as its example until the qualifier rule
+        landed, which was the whole problem in miniature: a state beginning
+        with DONE slipped past a check looking for exactly `DONE`, while
+        reading as finished to a person.
+        """
         root = _docs(tmp_path)
         _write(root, "ACCEPTANCE-MATRIX.md",
                "| X1 | a | operational | FAILED | e | p | D004 |\n")
@@ -306,4 +312,35 @@ class TestHexIsNotAlwaysACommit:
         from hive_mind.implementation.validate import check_referenced_commits_exist
 
         findings = check_referenced_commits_exist(ROOT)
+        assert findings == [], "\n".join(str(f) for f in findings)
+
+
+class TestQualifiersAreNotStates:
+    """`DONE_SYNTHETIC` in the state column reads as DONE to a scanning eye."""
+
+    def test_a_qualifier_in_the_state_column_is_a_finding(self, tmp_path):
+        from hive_mind.implementation.validate import check_no_qualifier_used_as_state
+
+        root = _docs(tmp_path)
+        _write(root, "CURRENT-STATE.md",
+               "| D008 | backup | **DONE_SYNTHETIC** | `abc1234` | p |\n")
+        _write(root, "ACCEPTANCE-MATRIX.md", "")
+        findings = check_no_qualifier_used_as_state(root)
+        assert findings and "PARTIAL" not in str(findings[0]).split("**")[1]
+
+    def test_an_official_state_is_not_a_finding(self, tmp_path):
+        from hive_mind.implementation.validate import check_no_qualifier_used_as_state
+
+        root = _docs(tmp_path)
+        _write(root, "CURRENT-STATE.md",
+               "| D008 | backup | **PARTIAL** | `abc1234` | evidência: sintética |\n"
+               "| D009 | wrappers | **DONE** | `abc1234` | p |\n"
+               "| S1 | x | **SUPERSEDED** | — | p |\n")
+        _write(root, "ACCEPTANCE-MATRIX.md", "")
+        assert check_no_qualifier_used_as_state(root) == []
+
+    def test_the_real_documents_use_only_official_states(self):
+        from hive_mind.implementation.validate import check_no_qualifier_used_as_state
+
+        findings = check_no_qualifier_used_as_state(ROOT)
         assert findings == [], "\n".join(str(f) for f in findings)
