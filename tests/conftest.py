@@ -97,3 +97,23 @@ def sample_graph_file(sample_graph, tmp_path):
     path = tmp_path / "graph.json"
     path.write_text(json.dumps(sample_graph))
     return str(path)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _isolate_capture_identity_store(tmp_path_factory):
+    """Keep the identity store out of the working tree during tests.
+
+    `ingest` opens a default store when none is passed, which in production is
+    what guarantees no event is delivered without a recoverable decision. In a
+    test run that same default wrote a real database into
+    `.hive-mind/state/`, and — being a process singleton — carried session ids
+    from one test into the next, so a suite passed or failed by ordering.
+
+    Pointing it at a temporary path costs nothing and removes both problems.
+    """
+    import os
+
+    os.environ["HIVE_CAPTURE_IDENTITY_DB"] = str(
+        tmp_path_factory.mktemp("capture-identity") / "identities.db")
+    yield
+    os.environ.pop("HIVE_CAPTURE_IDENTITY_DB", None)
