@@ -233,3 +233,36 @@ class TestWhatIsRecorded:
 
         assert posted["id"] == SID
         assert registry.get(SID) is not None
+
+
+class TestDeliveryIsNotTheSameAsNovelty:
+    """`emit` counts new content; POSTED means the session was delivered.
+
+    A real Codex session in D004-M emitted zero — every record already seen —
+    and the observation still arrived. Gating `mark_posted` on the count left
+    that session PENDING forever, so the bridge could never advance it.
+    """
+
+    def test_a_session_with_no_new_content_is_still_marked_posted(
+            self, monkeypatch, registry, seen, project, resolver):
+        from hive_mind.capture import engine
+
+        monkeypatch.setattr(engine, "_post", lambda p, payload: {"stored": True})
+        monkeypatch.setattr(engine, "emit", lambda *a, **k: 0)
+
+        emitted = ingest("codex", _session(project), seen, resolver=resolver,
+                         identity_store=registry)
+        assert emitted == 0
+        assert registry.get(SID).delivery_state is DeliveryState.POSTED
+
+    def test_it_can_then_reach_bridged(self, monkeypatch, registry, seen,
+                                       project, resolver):
+        from hive_mind.capture import engine
+
+        monkeypatch.setattr(engine, "_post", lambda p, payload: {"stored": True})
+        monkeypatch.setattr(engine, "emit", lambda *a, **k: 0)
+        ingest("codex", _session(project), seen, resolver=resolver,
+               identity_store=registry)
+
+        registry.mark_observed(SID)
+        assert registry.mark_bridged(SID).delivery_state is DeliveryState.BRIDGED

@@ -130,7 +130,13 @@ def ingest(
             registry.mark_failed(content_session_id, str(failure))
         raise
 
-    if registry is not None and content_session_id and emitted:
+    if registry is not None and content_session_id:
+        # Not gated on the count. `emit` returns how much content was *new*,
+        # which is a different question from whether the session was
+        # delivered: a session whose records were already seen emits zero and
+        # is still posted. Gating on it left such sessions PENDING forever, so
+        # the bridge could never advance them — found by a real Codex session
+        # in D004-M, where the observation arrived and the state did not move.
         registry.mark_posted(content_session_id)
     return emitted
 
