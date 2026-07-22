@@ -85,7 +85,7 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D009-R6 | Wrappers PS1/SH mínimos | **DONE_TEMP_CONFIG** | `47912f2` | 79 testes; PS1 456→55 L, SH 444→50 L; cadeia wrapper→CLI→config em temp |
 | D001-R2 | Reconciliar documentos com a verdade do Git | **DONE** | `776d504` | validador nativo: 11 checks, 18 testes |
 | D004-R2 | Identidade canônica na captura | **PARTIAL** | `0664afc` | ingest nativo e identidade canônica implementados; payload de ingestão comprovado até a fronteira do worker; bridge comprovado separadamente contra stores temporárias | matriz por provider |
-| D004-R2W | Entrega via worker real isolado | **PARTIAL** | `499768d` | 14 testes; worker descartável, ambiente por allowlist sem credencial, transporte real, `user_prompt` gravado, projeto canônico no log do worker | observation real — exige provider decidido |
+| D004-R2W | Entrega via worker real isolado | **PARTIAL** | `eb535f5` | 31 testes; worker descartável, ambiente por allowlist, provider **local sem credencial**, **2 observations reais** com `project` canônico | envelope não sobrevive até a observation (M14) |
 | **SEC-001** | Credencial de provider exposta na saída | **BLOCKED** | `1cdc7d5` | scanner sem impressão: 0 ocorrências em 14.973 objetos Git, 9.580 arquivos, staged e mensagens | **rotação humana da chave** |
 | D004-M | Matriz por provider | **BLOCKED** | — | — | depende de SEC-001 e de uma observation real |
 | D010-C1 | Remover propriedade legada do capture hook | **NOT_STARTED** | — | writers e paths de config registrados | depende de D004-M |

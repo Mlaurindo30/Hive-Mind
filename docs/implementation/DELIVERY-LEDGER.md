@@ -2290,3 +2290,99 @@ D004-R2W com um launcher de allowlist.
 
 Ler um arquivo de configuração para auditoria é legítimo; **imprimi-lo não
 é**. Auditoria de config lista chaves e reporta presença, nunca valores.
+
+---
+
+## SEC-001 (auditoria) — como o setup-brain configura a chave
+
+Auditoria **somente leitura**. Nenhum arquivo alterado, nenhum segredo impresso.
+
+### O fluxo existente
+
+```
+setup-brain.py            -> grava provider/modelo/credencial no .env do projeto
+sync-claude-mem-provider  -> mapeia para os slots do worker e escreve
+                             ~/.claude-mem/settings.json, preservando as demais
+                             chaves, e reinicia o worker
+```
+
+O claude-mem entende tres slots: `claude` (Anthropic), `gemini`, e
+`openrouter` — um cliente OpenAI-compatible com `BASE_URL` configuravel,
+usado para **qualquer** provider OpenAI-compat.
+
+| Pergunta | Resposta |
+|---|---|
+| entrypoint | `scripts/setup/setup-brain.py` (papel `claude_mem`) |
+| arquivos chamados | `sync-claude-mem-provider.py`, `core/auth.py` |
+| onde o segredo e salvo | `.env` do projeto **e** `~/.claude-mem/settings.json` |
+| usa keychain? | **nao** para chaves de provider. O OAuth do Claude Code usa keychain do sistema, e e outro mecanismo |
+| valida? | `_openai_compatible` / `_usable_by_claude_mem` recusam providers CLI/OAuth antes de escrever |
+| preserva outras credenciais? | **sim** — a escrita e um merge |
+| dry-run | **sim**: `--print` |
+| `--no-restart` | **sim** |
+| exibe segredo? | nao — `_mask_secret` |
+
+### Comando que voce deve usar para rotacionar
+
+Depois de revogar a chave antiga no painel do provedor e gerar uma nova:
+
+```bash
+python scripts/setup/setup-brain.py
+```
+
+Escolher o papel `claude_mem`, o provider, e informar a nova chave. Para
+conferir antes de aplicar:
+
+```bash
+python scripts/setup/sync-claude-mem-provider.py --print
+```
+
+| Item | Valor |
+|---|---|
+| arquivos afetados | `.env` do projeto, `~/.claude-mem/settings.json` |
+| backup | o merge preserva as demais chaves; copie o `settings.json` antes se quiser reverter ponto a ponto |
+| validacao | `--print` antes; depois o worker reinicia com a chave nova |
+| rollback | restaurar a copia do `settings.json` e reiniciar o worker |
+
+**Nao editei nada disso.** A rotacao e sua, pelo mecanismo existente.
+
+### Providers realmente suportados pelo worker
+
+| Opcao | Worker | setup-brain | Exige segredo | Isolavel | Recomendacao |
+|---|:-:|:-:|:-:|:-:|---|
+| **Ollama local** | OK slot OpenAI-compat | OK `PROVIDERS_CONFIG['ollama']`, `base_url http://localhost:11434/v1`, `auth_type ['local']` | **nao** — `_key_for` devolve `local` | OK | **usada na prova** |
+| LM Studio local | OK | OK `auth_type ['local']` | nao | OK | alternativa; nao esta rodando |
+| Anthropic (`claude`) | OK slot nativo | OK | sim | OK | nao usar |
+| Gemini | OK slot nativo | OK | sim | OK | nao usar |
+| OpenRouter / OpenAI-compat remoto | OK | OK | sim | OK | **nao usar** — e a chave comprometida |
+| Claude Code OAuth (default sem provider) | OK | — | usa o login real | NAO | proibido |
+| Antigravity / gemini-cli | NAO `base_url cli://` | OK no Hive | — | — | incompativel com o worker |
+
+Nenhum `UNKNOWN`.
+
+### Modelo local nesta maquina
+
+Ollama respondendo, **7 modelos ja instalados**, nenhum baixado por mim:
+`qwen2.5:3b`, `gemma3:4b`, `granite4.1:8b`, `minicpm-v4.6`,
+`snowflake-arctic-embed2`, `deepseek-ocr`, `minimax-m3:cloud`.
+
+A prova usa `qwen2.5:3b`. A escolha vive **apenas** no `settings.json`
+temporario do teste; a config global do Ollama e o modelo do runtime ativo
+nao foram tocados.
+
+### A prova pode prosseguir sem segredo externo
+
+**Sim, e prosseguiu.** Nao ha gate humano para a observation: nenhuma
+credencial externa e necessaria. O gate humano permanece so para a rotacao
+da chave exposta.
+
+### Nada ativo foi alterado
+
+| Verificacao | Resultado |
+|---|---|
+| `setup-brain.py` / `sync-claude-mem-provider.py` | 0 commits nesta sessao |
+| `~/.claude-mem/settings.json` | mtime **17/07 22:49** — anterior a esta sessao |
+| worker vivo na 37700 | continua escutando |
+| OAuth do Claude Code | nao tocado |
+| modelos do Ollama | 7, inalterados |
+| store viva | nao recebeu o marcador |
