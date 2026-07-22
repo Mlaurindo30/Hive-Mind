@@ -59,15 +59,24 @@ def register_providers(
         for target in spec.configs:
             path = _resolve(target, home, appdata, project_root)
             if target.kind == "toml":
+                from hive_mind.agents.toml_config import (
+                    build_codex_entry,
+                    merge_codex_config,
+                )
+
+                merged_toml = merge_codex_config(
+                    path,
+                    SERVER_NAME,
+                    build_codex_entry(python, server, str(project_root)),
+                    dry_run=dry_run,
+                )
                 results.append(
                     RegistrationResult(
                         provider=spec.id,
-                        path=str(path),
+                        path=merged_toml.path,
                         kind="toml",
-                        changed=False,
-                        supported=False,
-                        note="TOML config registration is not implemented yet; "
-                        "register it with the provider's own CLI for now",
+                        changed=merged_toml.changed,
+                        backup=merged_toml.backup,
                     )
                 )
                 continue

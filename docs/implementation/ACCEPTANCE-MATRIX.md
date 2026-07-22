@@ -69,7 +69,7 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | AG1 | detecção nativa de providers | unit+operational | DONE | `pytest tests/unit/test_agents_detect.py` + `hive-mind agents detect` | 9 passed; detect real 9/13 bate com canário D004 | D009 fatia 1; ADR-013 |
 | AG2 | merge MCP transacional (backup/atomic/dry-run) | unit+operational | DONE | `pytest tests/unit/test_agents_mcp_config.py` + demo em config temp | 10 passed; terceiros preservados, legados removidos, JSON inválido recusado sem clobber, idempotente | D009 fatia 2 |
 | AG2b | `agents register` (mapa provider→config) | unit+operational | PARTIAL | `pytest tests/unit/test_agents_register.py` + dry-run real | 9 passed; dry-run resolveu 11 alvos reais sem escrever nada | D009 fatia 3; `--apply` não executado (decisão do usuário) |
-| AG2c | writer TOML (Codex `config.toml`) | — | NOT_STARTED | — | reportado como SKIP com motivo, não pulado em silêncio | D009 |
+| AG2c | writer TOML (Codex `config.toml`) | unit+operational | DONE | `pytest tests/unit/test_agents_toml_config.py` + merge em cópia do config real | 13 passed; terceiros e comentários preservados, subtabelas substituídas, idempotente, original intocado | D009-R4; tomlkit |
 | AG3 | instalação de instruções | — | NOT_STARTED | — | — | D009 |
 | AG4 | `agents doctor` | — | NOT_STARTED | — | — | D009 |
 | AG5 | wrappers PS1/SH mínimos | — | NOT_STARTED | — | register-mcp.{ps1,sh} → `hive-mind agents register` | D009 |
@@ -114,6 +114,18 @@ workspace_id → sem duplicação. Adapter existir NÃO é evidência.
 | DC7 | integrity_hash | unit | PARTIAL | — | hash existe no frontmatter atual | formato canônico pendente |
 | DC8 | reindex pós-escrita | operational | NOT_STARTED | — | — | — |
 | DC9 | consulta com citação | operational | NOT_STARTED | — | — | — |
+
+## Backup (D008-R1B)
+
+| Gate | Requisito | Tipo de prova | Estado | Comando | Resultado | Evidência |
+|---|---|---|---|---|---|---|
+| BK1 | motor nativo (SQLite backup API) | unit | DONE | `pytest tests/unit/test_maintenance_backup.py` | 25 passed | portado de `backup_databases.py` |
+| BK2 | retenção só após verificação | unit | DONE | `test_a_failed_run_never_prunes` | passed | corrige defeito do motor legado |
+| BK3 | lock de execução única | unit | DONE | `TestLock` | 3 passed | `MaintenanceLock` |
+| BK4 | manifesto + SHA-256 + verify | unit | DONE | `TestManifestAndVerify` | 6 passed | detecta tamper/truncado/ausente |
+| BK5 | restore em diretório alternativo | unit+operational | DONE | `TestRestore` + prova sintética | 500 registros idênticos, `integrity_check ok`, `foreign_key_check` vazio | dados sintéticos |
+| BK6 | backup de dados reais | operational | **NOT_EXECUTED** | — | exige autorização | — |
+| BK7 | restore de dados reais | operational | **NOT_EXECUTED** | — | exige autorização | — |
 
 ## Runtime
 

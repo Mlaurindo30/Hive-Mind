@@ -1456,3 +1456,64 @@ separado e protegido. Nada disso foi implementado nesta entrega.
 
 - nenhum backup real executado; nenhum restore executado; nenhum backup
   existente alterado ou removido; scheduler ativo intocado.
+
+---
+
+## D008-R1B (fechamento) — motor nativo de backup
+
+- estado: **DONE**
+- commits: `53c5233` (motor + testes), `4f22a3c` (manifesto + shim)
+
+Motor portado para `src/hive_mind/maintenance/backup.py`, preservando
+`sqlite3.Connection.backup()` sobre origem `mode=ro` e somando lock,
+finalização atômica, manifesto com SHA-256, verify independente e —
+o defeito mais grave do legado — **retenção só após verificação**.
+
+Prova operacional com dados sintéticos (banco WAL aberto durante a
+cópia): run → verify → restore em diretório alternativo → 500 registros
+idênticos, `integrity_check ok`, `foreign_key_check` vazio. Nenhum banco
+real lido ou escrito.
+
+`backup_databases.py`: 175 L → shim. Manifesto aponta para
+`hive-mind backup run --apply`. Scheduler ativo **não** alterado —
+`HiveMind-Backup` e os timers systemd seguem donos legados até o cutover.
+
+---
+
+## D009-R4 — Native Codex TOML writer
+
+- fase: remediação (P5)
+- estado: **DONE**
+- dependência adicionada: `tomlkit>=0.13` — necessária porque o contrato
+  exige preservar comentários; um writer parse-and-dump destruiria a
+  formatação escrita à mão pelo usuário.
+
+### Implementação
+
+`src/hive_mind/agents/toml_config.py`, espelhando o contrato de segurança
+do caminho JSON: recusa TOML inválido antes de escrever, backup, temp no
+**mesmo volume**, `flush` + `fsync`, `os.replace` atômico, **reparse após
+escrita** com rollback se o resultado não ler limpo.
+
+Particularidade do TOML tratada: a entrada existente pode carregar
+subtabelas (`.env`, `.tools.*`), então a substituição remove a subárvore
+inteira — um update raso deixaria `.tools` obsoleto para trás.
+
+### Prova operacional (cópia do config real, original intocado)
+
+Sobre cópia de `~/.codex/config.toml` (181 linhas, 3 mcp_servers):
+
+- servers de terceiros preservados: `iq-agent-desk`, `node_repl`;
+- chaves de topo preservadas (`model_reasoning_effort`, `sandbox_mode`,
+  `notify`, `[windows]`, `[projects.*]`);
+- subtabela `.tools` obsoleta removida;
+- reparse pós-escrita ok; idempotente na 2ª execução;
+- **`~/.codex/config.toml` nunca foi escrito**.
+
+### Integração
+
+`agents register` deixa de reportar o alvo TOML como SKIP — ele passa a
+ser alvo de primeira classe, com dry-run padrão. O teste que asseverava
+"não suportado" foi substituído por um que exige suporte real.
+
+- `pytest tests/unit`: **1214 passed, 26 skipped, 2 failed** (pré-existentes).

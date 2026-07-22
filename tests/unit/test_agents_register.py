@@ -96,12 +96,33 @@ def test_existing_third_party_servers_survive(tmp_path):
     assert SERVER in data["mcpServers"]
 
 
-def test_toml_target_is_reported_not_silently_skipped(tmp_path):
-    """Codex's config.toml needs a TOML writer; it must be visible, not silent."""
+def test_toml_target_is_registered_natively(tmp_path):
+    """D009-R4: Codex's config.toml is written by the native writer.
+
+    It used to be reported as an unsupported target with a note; now it is a
+    first-class target, so it must be supported and it must actually write.
+    """
     ctx = _ctx(tmp_path)
-    results = register_providers(["codex"], dry_run=True, **ctx)
-    kinds = {r.kind for r in results}
-    assert "toml" in kinds
-    toml_result = next(r for r in results if r.kind == "toml")
-    assert toml_result.supported is False
-    assert toml_result.note
+    dry = next(r for r in register_providers(["codex"], dry_run=True, **ctx)
+               if r.kind == "toml")
+    assert dry.supported is True
+    assert dry.changed is True
+    assert not Path(dry.path).exists(), "dry-run must not write"
+
+    applied = next(r for r in register_providers(["codex"], dry_run=False, **ctx)
+                   if r.kind == "toml")
+    written = Path(applied.path)
+    assert written.is_file()
+
+    import tomlkit
+
+    doc = tomlkit.parse(written.read_text(encoding="utf-8"))
+    assert SERVER in doc["mcp_servers"]
+
+
+def test_toml_registration_is_idempotent(tmp_path):
+    ctx = _ctx(tmp_path)
+    register_providers(["codex"], dry_run=False, **ctx)
+    second = next(r for r in register_providers(["codex"], dry_run=False, **ctx)
+                  if r.kind == "toml")
+    assert second.changed is False
