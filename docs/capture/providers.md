@@ -107,14 +107,26 @@ either one starts calling `attach_project_identity` again.
 | worktree and root are one project | proven, real `git worktree add` |
 | project A isolated from project B | proven |
 | replay does not duplicate | proven |
-| payload the Claude Mem worker would receive | proven, byte for byte |
-| **row existing in a Claude Mem store** | **not proven** — the POST is recorded, not executed |
+| real HTTP to a real worker | proven (D004-R2W) — disposable worker on a free port, no `_post` stub |
+| **row existing in a Claude Mem store** | proven — `project='Hive-Mind'` in the temporary store |
 | bridge → UMC `workspace_id` | proven, production bridge against temporary databases |
 | per-provider matrix | **not started** — one green event proves the path, not 13 providers |
 
-The worker leg is stubbed because the real worker listens on a fixed port and
-writes to the live store, which this work is not permitted to touch. Closing
-it needs a temporary worker process.
+### Running a disposable worker
+
+`resolveDataDir()` returns `CLAUDE_MEM_DATA_DIR` ahead of `settings.json` and
+ahead of `~/.claude-mem`, and the pid file, settings and database all hang off
+that directory. So a second worker isolates completely:
+
+```bash
+CLAUDE_MEM_DATA_DIR=<temp> CLAUDE_MEM_WORKER_PORT=<free> bun worker-service.cjs
+```
+
+The transport follows via `CLAUDE_MEM_WORKER_PORT`; nothing is stubbed.
+
+**The manifest is wrong about this service.** `config/runtime.yaml` declares
+`python -m claude_mem.worker`, which is not importable. The live process is
+bun running `worker-service.cjs` from the plugin cache. Tracked under D006-R2.
 
 ## Related
 

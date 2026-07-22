@@ -1556,7 +1556,7 @@ ser alvo de primeira classe, com dry-run padrão. O teste que asseverava
 | 21 | documentação atualizada | ✅ |
 | 22 | full regression verde | ⚠️ 2 falhas pré-existentes |
 | 23 | worktree limpa | ✅ |
-| 24 | **captura canônica entregando sem outbox** | ⚠️ D004-R2: identidade canônica provada ponta a ponta em destinos temporários com evento novo; POST ao worker gravado, não executado; matriz por provider não iniciada |
+| 24 | **captura canônica entregando sem outbox** | ⚠️ D004-R2W provou a cadeia com worker real isolado e linha existente; falta a matriz por provider (D004-M) |
 
 **9 de 24 critérios pendentes** (15 completos, 7 falhando, 2 parcial). Contagem verificada por `hive-mind implementation validate`.
 
@@ -1565,7 +1565,9 @@ ser alvo de primeira classe, com dry-run padrão. O teste que asseverava
 ```
 D001-R2  reconciliar documentos de controle com a verdade do Git  ← ATUAL
 D009-R6  wrappers PS1/SH mínimos, apply controlado, rollback
-D004-R2  reparar a entrega da captura canônica (18.579 → Claude Mem)
+D004-R2  identidade canônica na captura (PARTIAL)
+D004-R2W identidade provada com worker real isolado ✅
+D004-M   matriz por provider  ← ATUAL
 D002-R1  Dream Cycle operacional sobre project_id real
 D005-R1  E2E real: memória gravada → consultável
 D006-R2  entrypoints nativos de serviço (hive_mind.services.*)
@@ -1573,6 +1575,7 @@ D006-R3  runtime.yaml como catálogo único (depende de D006-R2)
 D008-R2  disparo real de jobs pelo scheduler gerenciado
 D008-R3  journal de cutover e rollback
 D011-A   **implementação do installer nativo** (resolve a circularidade)
+D010-C1  remover a propriedade legada do capture hook
 D010-G0  auditoria final da migração Windows
 D010     cutover controlado
 D011     lifecycle Windows sobre o installer nativo de D011-A
@@ -2093,3 +2096,117 @@ perna do worker Claude Mem continua coberta apenas pelo payload.
 
 A matriz por provider **não** está aprovada por esta prova: um evento verde
 prova o caminho, não os 13 providers. Essa é a próxima etapa da D004.
+
+---
+
+## D004-R2W — Isolated Claude Mem worker delivery
+
+A D004-R2 parou na fronteira do transporte: o POST era gravado, não feito.
+Isso deixava a asserção mais importante sem prova — que existe uma linha na
+store com o projeto canônico, e não só um payload que a teria.
+
+### O worker aceita isolamento sem alteração
+
+Auditoria antes de qualquer execução:
+
+| Aspecto | Achado |
+|---|---|
+| entry point declarado | `python -m claude_mem.worker` no `runtime.yaml` |
+| entry point **real** | `bun.exe .../thedotmack/claude-mem/13.11.0/scripts/worker-service.cjs --daemon` |
+| porta | `CLAUDE_MEM_WORKER_PORT`, viva em 37700 |
+| diretório de dados | `CLAUDE_MEM_DATA_DIR` |
+| banco | `<dataDir>/claude-mem.db` |
+| lock | `<dataDir>/worker.pid` |
+| settings | `<dataDir>/settings.json` |
+
+O decisivo é `resolveDataDir()`: `CLAUDE_MEM_DATA_DIR` tem precedência
+sobre o `settings.json` e sobre o default `~/.claude-mem`. Como o pid, o
+banco e a config saem todos desse diretório, uma segunda instância em porta
+livre **não compartilha lock nem estado** com a viva. Nenhuma alteração no
+worker foi necessária.
+
+**Divergência registrada:** o módulo `claude_mem` não é importável. O
+manifesto nomeia um comando que ninguém executa. Isso não é corrigido aqui
+— pertence à D006-R2, e reforça o achado da D006-R1 sobre serviços
+aspiracionais no catálogo.
+
+### Cadeia real, sem stub
+
+```
+sessão de provider → parser → hive_mind.capture.ingest
+                   → HTTP real → worker real → claude-mem.db temporário
+```
+
+O `_post` **não** é substituído. O transporte é reapontado por
+`CLAUDE_MEM_WORKER_PORT` e o módulo recarregado — configuração, não duplo.
+O teste assevera que `engine.BASE` não contém a porta do runtime.
+
+| Verificação | Resultado |
+|---|---|
+| worker isolado sobe em porta livre com banco próprio | ✅ |
+| evento novo `HM-D004-R2W-*` chega pelo transporte real | ✅ |
+| **linha existe** na store temporária | ✅ `user_prompts`, `session_summaries` |
+| `project` gravado é canônico | ✅ `Hive-Mind` |
+| rótulo livre não virou projeto | ✅ `rotulo-livre-que-nao-vale` ausente |
+| segunda ingestão não duplica | ✅ |
+| marcador ausente da store viva | ✅ |
+| nenhum outbox recebeu o evento | ✅ |
+
+A sessão rodou com `cwd` na **worktree**, e o projeto gravado saiu
+`Hive-Mind` — a correção de `project_name` da D004-R2 verificada através do
+worker real, não só em teste unitário.
+
+Nota sobre `observations`: o worker gravou 0. O SDK respondeu *"No
+observations to record — the provided session marker contains no tool
+executions or activity data"*. É julgamento do modelo sobre uma sessão
+sintética sem atividade real, não falha de pipeline: o sumário e o prompt
+foram gravados, com o projeto correto. Uma prova de `observations` exige
+uma sessão com atividade substantiva, e vem com a matriz por provider.
+
+### O que isto **não** fecha
+
+A matriz por provider. Um evento verde prova o caminho, não os 13
+providers. `D004-R2` permanece **PARTIAL** por isso.
+
+---
+
+## D010-C1 — Remove legacy capture hook ownership (NOT_STARTED)
+
+O runtime ativo continua produzindo backlog nos dois outboxes. Isso é o
+estado **CURRENT**, não a arquitetura TARGET, e não muda nesta fase.
+
+### Writers, com os paths exatos das configurações
+
+| Outbox | Writer | Configuração (path exato) | Providers | Último evento | Estado |
+|---|---|---|---|---|---|
+| `D:\Hive-Mind\logs\capture-outbox.db` | `scripts/capture/capture-hook.py` | `C:\Users\miche\.claude\settings.json` → `hooks.{SessionStart,UserPromptSubmit,PostToolUse,Stop,SessionEnd}` | claude | **agora** | `LEGACY_ACTIVE_WRITER` |
+| `C:\Users\miche\.claude-mem\capture.db` | `scripts/capture/capture-hook.py` | `C:\Users\miche\.codex\hooks.json` → mesmos 5 eventos | codex, antigravity, mimo | 2026-07-20 19:22 | `LEGACY_INACTIVE_WRITER` |
+
+Ambas as configurações invocam o mesmo script:
+
+```
+"D:\Hive-Mind\.venv\Scripts\python.exe" "D:\Hive-Mind\scripts\capture\capture-hook.py"
+    --provider <claude|codex> --event-type <session_start|prompt|tool_result|assistant|session_end>
+```
+
+`capture-hook.py:57` resolve o destino como
+`SINAPSE_HOME/logs/capture-outbox.db`, com override por `HIVE_CAPTURE_DB`.
+O segundo banco é herança de uma configuração em que esse caminho apontava
+para `~/.claude-mem`. Nenhum `UNKNOWN`.
+
+### Critérios
+
+1. snapshot das duas configurações antes de qualquer edição;
+2. remover **somente** os blocos gerenciados pelo Hive-Mind;
+3. hooks de terceiros preservados, verificado por diff;
+4. confirmar que `capture-hook.py` deixa de receber eventos — contador do
+   outbox estável por uma janela de uso real;
+5. confirmar que a captura canônica continua entregando no mesmo período;
+6. rollback das duas configurações a partir do snapshot, provado;
+7. **nenhuma reexecução do backlog** — os 20.649 eventos ficam onde estão.
+
+### Dependências
+
+Depende de D004 (matriz por provider) estar verde: desligar o writer legado
+antes de saber que a captura canônica cobre cada provider trocaria backlog
+não entregue por captura perdida.

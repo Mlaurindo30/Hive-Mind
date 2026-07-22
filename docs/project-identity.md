@@ -177,3 +177,18 @@ A identidade passa a ser decidida dentro do ingest nativo
 
 Ver [capture/providers.md](capture/providers.md).
 
+### O nome, não só o id (D004-R2)
+
+O `project_id` de uma worktree já estava correto — deriva do git common dir,
+que raiz e worktree compartilham. O `project_name` vinha de
+`Path(repository_root).name`, e `repository_root` de uma worktree **é** o
+diretório da worktree:
+
+```
+raiz      id=local/57883d1f7914  name=acme-service
+worktree  id=local/57883d1f7914  name=acme-service-feature
+```
+
+Como o nome é o campo que o Claude Mem indexa, corrigir só o id não corrigia
+nada de visível. `project_name` passa a derivar do git common dir.
+

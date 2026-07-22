@@ -1,14 +1,17 @@
 # Project Status Dashboard
 
 - **branch:** `codex/control-plane-redesign`
-- **HEAD:** `0664afc` — último commit de `git log` no momento em que este
+- **HEAD:** `499768d` — último commit de `git log` no momento em que este
   painel foi escrito. Por construção ele fica atrás do HEAD atual por
   exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
   antes de existir. O validador aceita esse único passo **só** se o commit
   for somente-documentação, e falha para qualquer commit de código.
-- **active delivery:** D004 matriz por provider — depois D002-R1
-- **last completed delivery:** **D009-R6** (registradores MCP reduzidos a
-  wrappers) — `adcac3d`, `47912f2`. Antes dela, D001-R2 — 6 commits, nesta ordem:
+- **active delivery:** D004-M (matriz por provider) — **não iniciar D002-R1 antes**
+- **last completed delivery:** **D004-R2W** (entrega via worker real isolado)
+  — `499768d`. Antes dela: D004-R2 (**PARTIAL**, não fechada), D009-R6
+  (`adcac3d` −442/−430 linhas, `47912f2`, `20adb39`; wrappers com 32 e 22
+  linhas executáveis, zero lógica de produto — evidência verificada) e
+  D001-R2 — 6 commits, nesta ordem:
   1. `7b40e59` `docs(implementation): reconcile project status with current HEAD`
   2. `9bd34f4` `docs(implementation): point the dashboard at the reconciliation commit`
   3. `7fc70dd` `docs(implementation): set dashboard HEAD to 9bd34f4`
@@ -80,7 +83,10 @@ temporária. `IMPLEMENTED_NO_CUTOVER` indica código pronto sem troca de owner.
 | D009-R5 | doctor, unregister, instruções nativas | **DONE_TEMP_CONFIG** | `25d348a` | doctor real: 1/9 healthy; captura = TO_REMOVE |
 | D009-R6 | Wrappers PS1/SH mínimos | **DONE_TEMP_CONFIG** | `47912f2` | 79 testes; PS1 456→55 L, SH 444→50 L; cadeia wrapper→CLI→config em temp |
 | D001-R2 | Reconciliar documentos com a verdade do Git | **DONE** | `776d504` | validador nativo: 11 checks, 18 testes |
-| D004-R2 | Identidade canônica na captura | **DONE_TEMP_STORE** | `989ebee` | 51 testes; evento novo `HM-D004-R2-*` provado ponta a ponta em destinos temporários; bridge grava `workspace_id` canônico |
+| D004-R2 | Identidade canônica na captura | **PARTIAL** | `0664afc` | ingest nativo e identidade canônica implementados; payload de ingestão comprovado até a fronteira do worker; bridge comprovado separadamente contra stores temporárias | matriz por provider |
+| D004-R2W | Entrega via worker real isolado | **DONE** | `499768d` | 8 testes; worker descartável em porta livre, transporte real sem stub, **linha existe** na store temporária com `project` canônico | — |
+| D004-M | Matriz por provider | **NOT_STARTED** | — | — | 9 providers com fonte conhecida |
+| D010-C1 | Remover propriedade legada do capture hook | **NOT_STARTED** | — | writers e paths de config registrados | depende de D004-M |
 | D002-R1 | Dream Cycle operacional sobre project_id real | NOT_STARTED | — | — |
 | D005-R1 | E2E real: memória gravada → consultável | NOT_STARTED | — | — |
 | D006-R2 | Entrypoints nativos de serviço | NOT_STARTED | — | — |
