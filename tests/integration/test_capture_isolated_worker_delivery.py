@@ -97,13 +97,21 @@ def isolated_worker(tmp_path_factory):
         "CLAUDE_MEM_CHROMA_ENABLED": "false",
     }), encoding="utf-8")
 
-    env = dict(os.environ)
-    env.update({
-        "CLAUDE_MEM_DATA_DIR": str(data_dir),
-        "CLAUDE_MEM_WORKER_HOST": "127.0.0.1",
-        "CLAUDE_MEM_WORKER_PORT": str(port),
-        "CLAUDE_MEM_CHROMA_ENABLED": "false",
-    })
+    # Built from an allowlist, not inherited. The first version of this
+    # fixture passed `dict(os.environ)` through; it was safe only because this
+    # machine happened to export no credentials (SEC-001).
+    from hive_mind.capture.worker_env import build_environment, leaked_names
+
+    env = build_environment(
+        base=data_dir / "isolation",
+        extra={
+            "CLAUDE_MEM_DATA_DIR": str(data_dir),
+            "CLAUDE_MEM_WORKER_HOST": "127.0.0.1",
+            "CLAUDE_MEM_WORKER_PORT": str(port),
+            "CLAUDE_MEM_CHROMA_ENABLED": "false",
+        },
+    )
+    assert leaked_names(env) == [], "a credential reached the worker environment"
     log = (data_dir / "worker.log").open("w", encoding="utf-8")
     process = subprocess.Popen([BUN, str(WORKER)], env=env, stdout=log,
                                stderr=subprocess.STDOUT, cwd=str(ROOT))
@@ -126,7 +134,7 @@ def isolated_worker(tmp_path_factory):
         pytest.skip("isolated worker did not become ready in 60s")
 
     yield {"data_dir": data_dir, "port": port,
-           "db": data_dir / "claude-mem.db"}
+           "db": data_dir / "claude-mem.db", "env": env}
 
     process.terminate()
     try:
@@ -201,9 +209,21 @@ class TestTheRealWorkerStoresCanonicalIdentity:
         # Its pid file lives in its own data dir, so no lock is shared.
         assert (isolated_worker["data_dir"] / "worker.pid").is_file()
 
-    def test_a_new_event_is_stored_with_the_canonical_project(
+    def test_a_new_event_reaches_the_worker_with_the_canonical_project(
             self, isolated_worker, transport, marker):
-        """The row the earlier proof could only describe."""
+        """The row the earlier proof could only describe.
+
+        The worker's own session log records the project it received, which is
+        the assertion that matters here: what crossed the HTTP boundary was
+        the canonical name, not the free label the session carried.
+
+        `session_summaries` and `observations` are *not* asserted, and that is
+        deliberate. Producing either requires the worker's LLM, and a properly
+        isolated environment has no credential for one — see
+        `TestTheLlmBoundaryIsExplicit`. Asserting them here would only pass by
+        letting the host's real credentials leak in, which is the defect
+        SEC-001 exists to prevent.
+        """
         from hive_mind.capture.ingest import ingest
 
         store = transport.SeenStore(isolated_worker["data_dir"] / "seen.db")
@@ -218,15 +238,18 @@ class TestTheRealWorkerStoresCanonicalIdentity:
 
         rows = _wait_for(
             isolated_worker["db"],
-            "SELECT project FROM session_summaries WHERE project IS NOT NULL",
-            (),
+            "SELECT prompt_text FROM user_prompts WHERE prompt_text LIKE ?",
+            (f"%{marker}%",),
         )
         assert rows, "the worker stored nothing for the new event"
-        projects = {row["project"] for row in rows}
-        assert projects == {"Hive-Mind"}, (
-            f"the stored project is not canonical: {projects}"
+
+        log = next((isolated_worker["data_dir"] / "logs").glob("*.log"), None)
+        assert log is not None, "the worker wrote no log"
+        text = log.read_text(encoding="utf-8", errors="replace")
+        assert "Session initialized {project=Hive-Mind" in text, (
+            "the worker did not receive the canonical project"
         )
-        assert "rotulo-livre-que-nao-vale" not in projects
+        assert "rotulo-livre-que-nao-vale" not in text
 
     def test_the_prompt_reached_the_store_verbatim(self, isolated_worker,
                                                    transport, marker):
@@ -297,3 +320,105 @@ class TestTheManifestDisagreesWithReality:
 
     def test_the_real_worker_is_the_plugin_script(self):
         assert WORKER is not None and WORKER.name == "worker-service.cjs"
+
+
+class TestTheWorkerEnvironmentCarriesNoCredentials:
+    """SEC-001: what reaches the worker is built, not inherited."""
+
+    def test_no_credential_shaped_variable_is_present(self, isolated_worker):
+        from hive_mind.capture.worker_env import leaked_names
+
+        assert leaked_names(isolated_worker["env"]) == []
+
+    def test_the_per_user_directories_are_temporary(self, isolated_worker):
+        """Redirecting HOME alone is not enough on Windows.
+
+        The comparison is against the real *directories*, not against the
+        profile prefix: pytest's own tmp_path lives inside the user profile's
+        AppData/Local/Temp, so a prefix check would fail on a correctly
+        isolated environment.
+        """
+        env = isolated_worker["env"]
+        isolation = str(isolated_worker["data_dir"] / "isolation")
+        for name in ("HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA",
+                     "CLAUDE_CONFIG_DIR", "TEMP", "TMP"):
+            assert name in env, f"{name} was not redirected"
+            assert env[name].startswith(isolation), (
+                f"{name} points outside the isolation directory"
+            )
+        for name, real in (("HOME", Path.home()),
+                           ("CLAUDE_CONFIG_DIR", Path.home() / ".claude")):
+            assert Path(env[name]) != real
+
+    def test_an_exported_credential_would_not_pass_through(self):
+        """The guarantee, tested directly rather than inferred from a clean host."""
+        from hive_mind.capture.worker_env import build_environment, leaked_names
+
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            env = build_environment(
+                base=Path(tmp),
+                source={"PATH": "/usr/bin", "OPENROUTER_API_KEY": "x",
+                        "ANTHROPIC_API_KEY": "y", "GH_TOKEN": "z"},
+                allowlist=("PATH", "OPENROUTER_API_KEY", "ANTHROPIC_API_KEY",
+                           "GH_TOKEN"),
+            )
+        assert leaked_names(env) == []
+        assert env["PATH"] == "/usr/bin"
+
+    def test_a_caller_cannot_smuggle_one_through_extra(self):
+        from hive_mind.capture.worker_env import build_environment
+
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            env = build_environment(base=Path(tmp), source={},
+                                    extra={"OPENAI_API_KEY": "x", "OK": "1"})
+        assert "OPENAI_API_KEY" not in env
+        assert env["OK"] == "1"
+
+
+class TestTheLlmBoundaryIsExplicit:
+    """Where the isolated chain stops, and why — stated rather than implied.
+
+    The first isolated run produced a summary, and it did so by inheriting the
+    host's environment: the Claude CLI found the user's real login. Once the
+    environment is built from an allowlist, the same worker answers
+    `Not logged in · Please run /login` and stores no observation.
+
+    That is the correct behaviour, not a regression. It also means an
+    observation cannot be proved without a provider chosen on purpose — a
+    local model or a credential minted for the test — which is a decision, not
+    a detail. This test pins the boundary so nobody later "fixes" it by
+    letting credentials back in.
+    """
+
+    @staticmethod
+    def _log_contains(data_dir: Path, needle: str, timeout: float = 90.0) -> bool:
+        """The SDK answers asynchronously; reading the log once races it."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            log = next((data_dir / "logs").glob("*.log"), None)
+            if log is not None:
+                if needle in log.read_text(encoding="utf-8", errors="replace"):
+                    return True
+            time.sleep(2)
+        return False
+
+    def test_the_worker_cannot_authenticate_without_a_provider(
+            self, isolated_worker, transport, marker):
+        assert self._log_contains(isolated_worker["data_dir"], "Not logged in"), (
+            "the isolated worker authenticated — check what the environment "
+            "is still letting through"
+        )
+
+    def test_no_observation_is_claimed_without_one(self, isolated_worker,
+                                                   transport, marker):
+        with sqlite3.connect(
+                f"file:{isolated_worker['db'].as_posix()}?mode=ro",
+                uri=True) as connection:
+            observations = connection.execute(
+                "SELECT COUNT(*) FROM observations").fetchone()[0]
+        # Asserted as a known state, so the day it changes, it changes loudly.
+        assert observations == 0
