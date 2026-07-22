@@ -379,11 +379,63 @@ def _unclassified_identity(
     return project, project_id, metadata, status
 
 
-def _resolve_record_identity(rec: SourceRecord) -> tuple[str, str, dict[str, Any], str]:
+def _recover_recorded_identity(rec: SourceRecord, metadata: dict[str, Any],
+                               cm_conn=None, identity_store=None):
+    """Look up the decision the ingest recorded. Never make a new one.
+
+    The worker generates observations itself and writes NULL metadata (M14-A),
+    so this is the only route by which a canonical `project_id` reaches the
+    UMC for a worker-generated record. It follows the declared foreign key
+    from `memory_session_id` to the session id we sent; it does not read
+    `rec.project`, and it does not resolve anything.
+    """
+    if cm_conn is None or identity_store is None:
+        return None
+    memory_session_id = str(
+        metadata.get("memory_session_id")
+        or metadata.get("source_session") or "").strip()
+    if not memory_session_id:
+        return None
+
+    from hive_mind.capture.observation_identity import (
+        resolve_capture_identity_for_observation,
+    )
+
+    found = resolve_capture_identity_for_observation(
+        memory_session_id=memory_session_id, claude_mem=cm_conn,
+        identity_store=identity_store, metadata=metadata)
+    return found if found.usable else found
+
+
+def _resolve_record_identity(rec: SourceRecord, *, cm_conn=None,
+                             identity_store=None
+                             ) -> tuple[str, str, dict[str, Any], str]:
     """Resolve identity without deriving project IDs from provider labels."""
     metadata = dict(rec.metadata)
     envelope = metadata.get("project_identity")
+
     if envelope is None:
+        # No envelope on the record: recover what the ingest decided, keyed by
+        # the session id the worker preserved. Falls through to legacy when
+        # there is nothing recorded — never to the textual label.
+        recovered = _recover_recorded_identity(rec, metadata, cm_conn,
+                                               identity_store)
+        if recovered is not None and recovered.usable:
+            metadata.update({
+                "project": recovered.project_name,
+                "project_id": recovered.project_id,
+                "project_name": recovered.project_name,
+                "content_session_id": recovered.content_session_id,
+                "identity_status": "canonical",
+                "identity_origin": recovered.origin.value,
+                "legacy_identity": False,
+            })
+            return (recovered.project_name, recovered.project_id, metadata,
+                    "canonical")
+        if recovered is not None:
+            metadata["identity_origin"] = recovered.origin.value
+            return _unclassified_identity(rec, metadata, "legacy",
+                                          recovered.detail or None)
         return _unclassified_identity(rec, metadata, "legacy")
     if not isinstance(envelope, dict):
         return _unclassified_identity(
@@ -453,6 +505,7 @@ def bridge(
     since_epoch: int | None = None,
     until_epoch: int | None = None,
     tables: Iterable[str] = SOURCE_TABLES,
+    identity_store=None,
 ) -> dict[str, Any]:
     """Import claude-mem records into UMC observations.
 
@@ -469,6 +522,18 @@ def bridge(
     hm = get_connection()
     ensure_migrations(hm)
     cm = open_claude_mem(cm_db)
+    # The registry the ingest wrote its decisions to. Opened here rather than
+    # per record, and optional: a run without it degrades to legacy, which is
+    # what every pre-M14 observation is anyway.
+    owns_store = identity_store is None
+    if owns_store:
+        try:
+            from hive_mind.capture.identity_store import IdentityStore
+
+            identity_store = IdentityStore()
+        except Exception:  # noqa: BLE001 - absence is a degraded run, not a crash
+            identity_store = None
+    bridged_sessions: set[str] = set()
     try:
         already = existing_bridged_ids(hm)
         records = fetch_source_records(
@@ -486,15 +551,29 @@ def bridge(
             if rec.observation_id in already:
                 skipped += 1
                 continue
-            project, workspace_id, metadata, identity_status = _resolve_record_identity(rec)
+            project, workspace_id, metadata, identity_status = _resolve_record_identity(
+                rec, cm_conn=cm, identity_store=identity_store)
             if not dry_run:
                 _insert_observation(hm, rec, project, workspace_id, metadata)
+                session_key = metadata.get("content_session_id")
+                if session_key:
+                    bridged_sessions.add(str(session_key))
             already.add(rec.observation_id)
             inserted += 1
             by_source[rec.table] = by_source.get(rec.table, 0) + 1
             by_identity[identity_status] = by_identity.get(identity_status, 0) + 1
         if not dry_run:
             hm.commit()
+            # BRIDGED only after the UMC write is committed. Marking earlier
+            # would claim a delivery that a rollback could still erase.
+            if identity_store is not None:
+                for session_key in bridged_sessions:
+                    try:
+                        identity_store.mark_bridged(session_key)
+                    except Exception:  # noqa: BLE001 - a stale state is not a
+                        # reason to fail a committed bridge run
+                        logger.warning("could not mark %s bridged",
+                                       session_key[:24])
         stats = {
             "scanned": len(records),
             "inserted": inserted,

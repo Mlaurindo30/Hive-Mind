@@ -257,3 +257,55 @@ class TestDeprecatedOutboxStaysUnwired:
             ]
             wired[name] = any("capture-hook" in line or "capture_hook" in line for line in lines)
         assert len(set(wired.values())) == 1, f"installers diverge: {wired}"
+
+
+class TestTheBridgeRecoversAndNeverDecides:
+    """M14 / ADR-014: the ingest decides, the bridge looks it up.
+
+    Having two places decide identity is what produced
+    `preciso-que-verifique-o-por-que-3` as a project name. The bridge reads a
+    recorded decision through a declared foreign key; it does not consult git,
+    the working directory, the alias registry, or the observation's own label.
+    """
+
+    BRIDGE = ROOT / "core" / "knowledge" / "claude_mem_bridge.py"
+    LOOKUP = SRC / "capture" / "observation_identity.py"
+
+    def _bridge_code(self) -> str:
+        return _code_without_docstrings(self.BRIDGE)
+
+    @pytest.mark.parametrize("forbidden", [
+        "ProjectIdentityResolver",
+        "resolve_project_identity",
+        "attach_project_identity",
+        "resolve_identity(",
+    ])
+    def test_the_bridge_never_resolves_identity(self, forbidden):
+        assert forbidden not in self._bridge_code(), (
+            f"the bridge calls {forbidden}; it must recover, not decide"
+        )
+
+    @pytest.mark.parametrize("forbidden", ["subprocess", "os.getcwd", "Path.cwd"])
+    def test_the_bridge_reads_no_environment(self, forbidden):
+        assert forbidden not in self._bridge_code(), (
+            f"the bridge consults {forbidden} — identity is not re-derived here"
+        )
+
+    def test_the_bridge_never_slugs_a_label_into_an_id(self):
+        code = self._bridge_code()
+        for smell in ("_slug(", "slugify(", "project_name.lower()"):
+            assert smell not in code, f"the bridge derives an id from a label: {smell}"
+
+    def test_the_lookup_follows_the_foreign_key(self):
+        """Not the id's shape: a format change must fail loudly, not silently."""
+        code = _code_without_docstrings(self.LOOKUP)
+        assert "FROM sdk_sessions WHERE memory_session_id" in code
+        for smell in (".split(", ".removeprefix(", "re.match", "startswith(\"openrouter"):
+            assert smell not in code, (
+                f"the lookup parses the memory_session_id shape: {smell}"
+            )
+
+    def test_the_lookup_never_reads_the_observation_label(self):
+        code = _code_without_docstrings(self.LOOKUP)
+        assert "observations.project" not in code
+        assert "SELECT project FROM observations" not in code
