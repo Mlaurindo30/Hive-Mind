@@ -91,6 +91,7 @@ começa com DONE, e o leitor que só escaneia a coluna via a entrega fechada.
 | D004-R2 | Identidade canônica na captura | **PARTIAL** | `0664afc` | ingest nativo e identidade canônica implementados; payload de ingestão comprovado até a fronteira do worker; bridge comprovado separadamente contra stores temporárias | matriz por provider |
 | D004-R2W | Entrega via worker real isolado | **PARTIAL** | `eb535f5` | 31 testes; worker descartável, ambiente por allowlist, provider **local sem credencial**, **2 observations reais** com `project` canônico | envelope não sobrevive até a observation (M14) |
 | **SEC-001** | Credencial de provider exposta na saída | **BLOCKED** | `1cdc7d5` | scanner sem impressão: 0 ocorrências em 14.973 objetos Git, 9.580 arquivos, staged e mensagens | **rotação humana da chave** |
+| M14 | Identidade canônica até a observation | **IN_PROGRESS** | — | M14-A mediu a correlação: decisão **B**, registry indexado por `content_session_id` | implementação |
 | D004-M | Matriz por provider | **BLOCKED** | — | — | depende de SEC-001 e de uma observation real |
 | D010-C1 | Remover propriedade legada do capture hook | **NOT_STARTED** | — | writers e paths de config registrados | depende de D004-M |
 | D002-R1 | Dream Cycle operacional sobre project_id real | NOT_STARTED | — | — |

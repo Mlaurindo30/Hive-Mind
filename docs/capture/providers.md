@@ -152,3 +152,28 @@ bun running `worker-service.cjs` from the plugin cache. Tracked under D006-R2.
 
 - [../project-identity.md](../project-identity.md) — the resolver and its precedence chain
 - [../implementation/DELIVERY-LEDGER.md](../implementation/DELIVERY-LEDGER.md) — D004-R2 and its errata
+
+## How an observation is correlated back (M14-A)
+
+The observation Claude Mem stores is **not** the payload we posted. The worker
+generates it with a model from the session, and writes a new row — so there is
+no payload to preserve, and `observations.metadata` is NULL. Measured, not
+assumed: `metadata` is accepted on all three endpoints and never reaches the
+observation.
+
+What does survive is the session identifier we generate ourselves:
+
+```
+observations.memory_session_id
+  -> sdk_sessions.memory_session_id      (declared FK, UNIQUE)
+  -> sdk_sessions.content_session_id     (UNIQUE) = the `sid` in every POST
+```
+
+Both sides of the bridge are UNIQUE-indexed and the relation is a declared
+foreign key, not a convention. `memory_session_id` happens to contain the sid
+as a substring; that is not used, because deriving identity from string shape
+is fragile and the FK is the real relation.
+
+So the identity decision is made once, at ingest, and stored against
+`content_session_id`. The bridge looks it up. The bridge never resolves.
+

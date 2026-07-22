@@ -2386,3 +2386,107 @@ da chave exposta.
 | OAuth do Claude Code | nao tocado |
 | modelos do Ollama | 7, inalterados |
 | store viva | nao recebeu o marcador |
+
+---
+
+## M14-A — Audit Claude Mem observation correlation (medição)
+
+Entrega **exclusivamente de medição**. Nenhuma solução implementada antes da
+conclusão. Banco medido: o temporário produzido por um worker descartável com
+Ollama local e marcador `HM-M14A-*`. Nada real tocado.
+
+### Schema real, lido do banco e não do código
+
+| Tabela | linhas | PK | Session key | Prompt key | Project | Metadata |
+|---|--:|---|---|---|---|---|
+| `sdk_sessions` | 1 | `id` | `content_session_id`, `memory_session_id` | `user_prompt`, `prompt_counter` | sim | **não** |
+| `user_prompts` | 1 | `id` | `content_session_id` | `prompt_number`, `prompt_text` | não | **não** |
+| `observations` | 1 | `id` | `memory_session_id` | `prompt_number` | sim | **sim** |
+| `session_summaries` | 0 | `id` | `memory_session_id` | `prompt_number` | sim | **não** |
+
+**Foreign keys declaradas** (não convencionais):
+
+```
+user_prompts.content_session_id      -> sdk_sessions.content_session_id
+observations.memory_session_id       -> sdk_sessions.memory_session_id
+session_summaries.memory_session_id  -> sdk_sessions.memory_session_id
+```
+
+**Índices UNIQUE em `sdk_sessions`:** `content_session_id`, `memory_session_id`.
+Ambos os lados da ponte são únicos.
+
+### Traço de trás para frente, por IDs reais
+
+```
+observation id=1
+  memory_session_id = openrouter-m14a-HM-M14A-...-1784750259278
+  prompt_number     = 1
+  project           = 'Hive-Mind'      (canônico)
+  metadata          = NULL             <<< o envelope não sobrevive
+        |
+        | FK declarada, coluna UNIQUE
+        v
+sdk_sessions
+  memory_session_id  = openrouter-m14a-HM-M14A-...-1784750259278
+  content_session_id = 'm14a-HM-M14A-1784750259-2b73707e'   <<< o nosso sid
+        |
+        v
+user_prompts (1 linha) por content_session_id, prompt_number=1
+```
+
+**Resposta à pergunta central:** o identificador que sobrevive do POST até a
+observation é o **`contentSessionId`** — que é o `sid` gerado pelo próprio
+ingest.
+
+`memory_session_id` contém o `sid` como substring, mas isso **não** é usado:
+derivar identidade de string é frágil e não é a relação declarada. A ponte é
+a FK.
+
+### Chaves candidatas, medidas
+
+| Candidate key | No POST | Na observation | Único | Estável em retry | Cardinalidade | Decisão |
+|---|:-:|:-:|:-:|:-:|---|---|
+| `contentSessionId` / `content_session_id` | **sim, nos 4** | via FK | **sim** (UNIQUE) | **sim** — gerado pelo ingest, não pelo worker | 1 sessão : N observations | **ACCEPT** |
+| `memory_session_id` | não | **sim**, direto | sim (UNIQUE) | não — criado pelo worker no processamento | 1 : N | ACCEPT como coluna de junção, **não** como chave de gravação |
+| `metadata.project_identity` | sim, nos 4 | **NULL** | — | — | — | **REJECT_NOT_PROPAGATED** |
+| `prompt_number` | não | sim | não isolado | sim dentro da sessão | N por sessão | COMPOSITE_REQUIRED com session |
+| `tool_use_id` | sim, nos observations | não | — | — | — | REJECT_NOT_PROPAGATED |
+| `observations.project` | sim | sim | não | — | — | **proibido** — é label, não identidade |
+| `content_hash` | não | sim | sim por conteúdo | sim | 1 : 1 | não serve — é conteúdo, não identidade |
+
+Nenhum `UNKNOWN`.
+
+### Mecanismos públicos do worker (seção 6)
+
+| Mechanism | Existe | Público/estável | Chega à observation | Uso |
+|---|:-:|:-:|:-:|---|
+| `metadata` no POST | **sim** — aceito em `/api/sessions/{init,observations,summarize}` | sim | **não** | rejeitado |
+| coluna `observations.metadata` | sim | — | escrita como NULL | — |
+| `contentSessionId` | **sim** | **sim**, é UNIQUE e FK | **sim**, via `sdk_sessions` | **usar** |
+| correlation id dedicado | não | — | — | — |
+| hook/callback pós-observation | não encontrado | — | — | — |
+| template de observation | não encontrado | — | — | — |
+
+A razão de o `metadata` não sobreviver é estrutural, não um bug: a observation
+**não é o payload que enviamos**. O worker a gera com o modelo a partir da
+sessão, e escreve uma linha nova. Não há payload a preservar — só a relação.
+
+### Decisão
+
+**B — HIVE_MIND_IDENTITY_REGISTRY.**
+
+O worker preserva uma chave estável (`content_session_id`) e não preserva
+metadata. Então o ingest persiste a decisão canônica indexada por essa chave,
+e o bridge **recupera** — não decide.
+
+A opção A está descartada por medição, não por suposição: o mecanismo de
+metadata existe, é público, e comprovadamente não alcança a observation.
+
+A opção C está descartada porque existe correlação segura: duas colunas
+UNIQUE ligadas por FK declarada, com a chave gerada pelo nosso lado.
+
+### O que isto **não** autoriza
+
+O bridge continua proibido de resolver identidade. `observations.project`
+serve para exibição legacy, diagnóstico, detecção de contradição e auditoria —
+**nunca** como `project_id`, nunca como chave de lookup.
