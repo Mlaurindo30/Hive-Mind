@@ -31,7 +31,9 @@ def _git(cwd: Path, *args: str) -> None:
     )
 
 
-def test_copilot_sqlite_workspace_evidence_resolves_a_local_git_project(tmp_path: Path) -> None:
+def test_copilot_sqlite_workspace_evidence_resolves_a_local_git_project(
+    tmp_path: Path, monkeypatch
+) -> None:
     workspace = tmp_path / "copilot-workspace"
     workspace.mkdir()
     _git(workspace, "init")
@@ -40,6 +42,10 @@ def test_copilot_sqlite_workspace_evidence_resolves_a_local_git_project(tmp_path
     (workspace / "README.md").write_text("identity\n", encoding="utf-8")
     _git(workspace, "add", "README.md")
     _git(workspace, "commit", "-m", "initial")
+    foreign_root = tmp_path / "foreign-project"
+    foreign_root.mkdir()
+    monkeypatch.setenv("HIVE_PROJECT_ROOT", str(foreign_root))
+    monkeypatch.setenv("HIVE_PROJECT_ID", "forced/environment")
 
     database = tmp_path / "session-store.db"
     with sqlite3.connect(database) as connection:
@@ -61,6 +67,8 @@ def test_copilot_sqlite_workspace_evidence_resolves_a_local_git_project(tmp_path
         )
 
     session = _parser().parse(database)[0]
+    monkeypatch.delenv("HIVE_PROJECT_ROOT", raising=False)
+    monkeypatch.delenv("HIVE_PROJECT_ID", raising=False)
     normalized = attach_project_identity(
         "copilot",
         session,
@@ -69,3 +77,6 @@ def test_copilot_sqlite_workspace_evidence_resolves_a_local_git_project(tmp_path
 
     assert normalized["project_id"].startswith("local/")
     assert normalized["project_id"] != "unclassified/copilot"
+    assert normalized["workspace_root"] == str(workspace.resolve())
+    assert normalized["repository_root"] == str(workspace.resolve())
+    assert normalized["resolution_method"] == "official_workspace"
