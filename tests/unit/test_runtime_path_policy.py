@@ -12,6 +12,7 @@ import pytest
 from hive_mind.validation.runtime_paths import (
     RuntimePathReference,
     find_runtime_path_violations,
+    normalize_runtime_value,
 )
 
 
@@ -83,6 +84,43 @@ def test_policy_accepts_canonical_and_unrelated_provider_paths_without_name_fals
     )
 
     assert findings == []
+
+
+def test_policy_accepts_a_canonical_path_whose_separators_were_doubled():
+    """A command line quoted through another shell doubles its backslashes.
+
+    `D:\\\\Hive-Mind` names the same directory as `D:\\Hive-Mind`, and the
+    supervisor launches services through a shell that doubles them. The
+    doubled separator used to survive normalization as `d://hive-mind`, which
+    no longer matched the canonical root, so every service the supervisor
+    started was reported as running outside it — burying real findings.
+    """
+    findings = find_runtime_path_violations(
+        [
+            RuntimePathReference(
+                source="process:30448:command_line",
+                value=r'"D:\\Hive-Mind\\.venv\\Scripts\python.exe"'
+                      r' D:\Hive-Mind\scripts\services\sinapse-mcp.py',
+            )
+        ],
+        canonical_root=r"D:\Hive-Mind",
+    )
+
+    assert findings == []
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (r"\\fileserver\share\worker.py", "//fileserver/share/worker.py"),
+        ("https://example.test/health", "https://example.test/health"),
+        (r"D:\\Hive-Mind\worker.py", "d:/hive-mind/worker.py"),
+        (r"C:\Windows\System32", "c:/windows/system32"),
+    ],
+)
+def test_normalization_keeps_meaningful_double_separators_only(value, expected):
+    """A doubled separator means UNC host or URL authority — never a drive."""
+    assert normalize_runtime_value(value) == expected
 
 
 @pytest.mark.parametrize(

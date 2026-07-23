@@ -38,16 +38,32 @@ class RuntimePathFinding:
 
 
 def normalize_runtime_value(value: str) -> str:
-    """Normalize separators and case without interpreting command syntax."""
+    """Normalize separators and case without interpreting command syntax.
+
+    A doubled separator is kept only where it carries meaning: a UNC host
+    (`//server/share`) or a URL authority (`https://host`). After a drive
+    letter it carries none — `D:\\\\Hive-Mind` is `D:\\Hive-Mind`, and a
+    command line quoted through another shell routinely doubles the
+    backslash. Keeping it there produced `d://hive-mind`, which no longer
+    matched the canonical root, so canonical services were reported as
+    running outside it.
+    """
 
     normalized = value.strip().replace("\\", "/").casefold()
 
     def normalize_separator(match: re.Match[str]) -> str:
-        preceding = normalized[match.start() - 1] if match.start() else ""
-        if len(match.group()) >= 2 and (
-            not preceding or preceding in ":= \t\"'"
-        ):
+        if len(match.group()) < 2:
+            return "/"
+        start = match.start()
+        preceding = normalized[start - 1] if start else ""
+        if not preceding or preceding in "= \t\"'":
             return "//"
+        if preceding == ":":
+            # A single trailing letter is a drive (`d:`); two or more are a
+            # URL scheme (`https:`). Only the scheme takes an authority.
+            scheme = re.search(r"[a-z]+$", normalized[: start - 1])
+            if scheme is not None and len(scheme.group()) >= 2:
+                return "//"
         return "/"
 
     return re.sub(r"/+", normalize_separator, normalized)
