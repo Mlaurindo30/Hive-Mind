@@ -44,6 +44,10 @@ def test_registry_includes_antigravity_desktop_home(monkeypatch, tmp_path):
         ".gemini/antigravity/brain" in p.replace("\\", "/")
         for p in module.ADAPTERS["antigravity"]["sources"]
     )
+    assert any(
+        ".gemini/antigravity/conversations/*.db" in p.replace("\\", "/")
+        for p in module.ADAPTERS["antigravity"]["sources"]
+    )
 
 
 def test_registry_includes_antigravity_ide_windows_storage(monkeypatch, tmp_path):
@@ -110,6 +114,7 @@ def test_copilot_windows_includes_cli_and_ide_session_databases(monkeypatch, tmp
     assert (
         appdata / "Code" / "User" / "globalStorage" / "github.copilot-chat"
     ).as_posix() in watch
+    assert any("workspaceStorage/*/chatSessions/*.jsonl" in source for source in sources)
 
 
 def test_vscode_storage_falls_back_to_roaming_without_appdata(monkeypatch, tmp_path):

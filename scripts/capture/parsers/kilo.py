@@ -38,7 +38,8 @@ def parse(db_path: Path):
             ).fetchall()
             if not msgs:
                 continue
-            prompt, turns, last_text, pending_user = None, [], None, None
+            prompt, prompts, prompt_events = None, [], []
+            turns, last_text, pending_user = [], None, None
             for m in msgs:
                 mid = str(m["id"])
                 role = m["role"]
@@ -51,6 +52,12 @@ def parse(db_path: Path):
                     continue
                 if role == "user":
                     prompt = prompt or txt
+                    prompts.append(txt)
+                    prompt_events.append({
+                        "event_id": mid,
+                        "content": txt,
+                        "source_position": f"{db_path.name}:message:{mid}",
+                    })
                     pending_user = txt
                 elif role == "assistant":
                     last_text = txt
@@ -63,7 +70,9 @@ def parse(db_path: Path):
             if prompt or turns:
                 normalized_path = str(db_path).replace("\\", "/").lower()
                 surface = "cli" if "/.local/share/kilo/" in normalized_path else "ide"
-                out.append({"sid": sid, "prompt": prompt, "turns": turns, "last": last_text,
+                out.append({"sid": sid, "prompt": prompt, "prompts": prompts,
+                            "prompt_events": prompt_events,
+                            "turns": turns, "last": last_text,
                             "source": "kilo", "surface": surface,
                             "official_workspace": directory, "cwd": directory})
     finally:

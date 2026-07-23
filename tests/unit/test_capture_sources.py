@@ -55,6 +55,26 @@ def test_polling_detects_new_file_after_priming(tmp_path: Path):
     ]
 
 
+def test_polling_detects_sqlite_wal_change(tmp_path: Path):
+    database = tmp_path / "session-store.db"
+    wal = tmp_path / "session-store.db-wal"
+    database.write_bytes(b"db")
+    wal.write_bytes(b"first")
+    changes = []
+    source = PollingReconciler(
+        {"copilot": [str(database)]},
+        lambda change: changes.append(change),
+        interval=0,
+    )
+    source.scan_once()
+    wal.write_bytes(b"second revision")
+    source.scan_once()
+
+    assert [(change.provider, change.path) for change in changes] == [
+        ("copilot", database)
+    ]
+
+
 def test_nearest_existing_ancestor_resolves_non_glob_dir(tmp_path: Path):
     base = tmp_path / "sessions"
     base.mkdir()
@@ -62,7 +82,21 @@ def test_nearest_existing_ancestor_resolves_non_glob_dir(tmp_path: Path):
     assert nearest_existing_ancestor(pattern) == base
 
     missing = str(tmp_path / "missing" / "*" / "x.jsonl")
-    assert nearest_existing_ancestor(missing) == tmp_path
+    assert nearest_existing_ancestor(missing) is None
+
+
+def test_watchdog_does_not_watch_broad_parent_for_missing_provider_root(tmp_path: Path):
+    existing = tmp_path / ".qwen" / "projects"
+    existing.mkdir(parents=True)
+    source = WatchdogSource(
+        {
+            "qwen": [str(existing / "**" / "chats" / "*.jsonl")],
+            "missing-provider": [str(tmp_path / ".missing" / "sessions" / "**" / "*.jsonl")],
+        },
+        lambda change: None,
+    )
+
+    assert source.watch_roots() == {existing: ("qwen",)}
 
 
 def test_watchdog_coalesces_burst_into_single_change(tmp_path: Path):

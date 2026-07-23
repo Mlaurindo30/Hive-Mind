@@ -61,7 +61,12 @@ def _workspace_cwd(path: Path) -> str | None:
     workspaceStorage/<hash>/GitHub.copilot-chat/transcripts/<sid>.jsonl; o
     workspace.json irmão (3 níveis acima) mapeia o hash → pasta real."""
     try:
-        ws = path.parents[2] / "workspace.json"   # <hash>/workspace.json
+        ws = next(
+            (parent / "workspace.json" for parent in path.parents if (parent / "workspace.json").is_file()),
+            None,
+        )
+        if ws is None:
+            return None
         folder = (json.loads(ws.read_text()).get("folder") or "")
         parsed = urlsplit(folder)
         if parsed.scheme.lower() != "file":
@@ -76,6 +81,59 @@ def _workspace_cwd(path: Path) -> str | None:
         return uri_path or None
     except Exception:
         return None
+
+
+def _parse_chat_session(path: Path):
+    """Parse current VS Code ``chatSessions`` patch-log JSONL."""
+    sid = path.stem
+    cwd = _workspace_cwd(path)
+    requests: list[dict] = []
+    for line in path.read_text(errors="ignore").splitlines():
+        try:
+            record = json.loads(line)
+        except (TypeError, ValueError):
+            continue
+        kind, key, value = record.get("kind"), record.get("k"), record.get("v")
+        if kind == 0 and isinstance(value, dict):
+            sid = str(value.get("sessionId") or sid)
+            if isinstance(value.get("requests"), list):
+                requests.extend(item for item in value["requests"] if isinstance(item, dict))
+        elif kind == 2 and key == ["requests"] and isinstance(value, list):
+            requests.extend(item for item in value if isinstance(item, dict))
+
+    prompts: list[str] = []
+    prompt_events: list[dict] = []
+    seen_ids: set[str] = set()
+    for index, request in enumerate(requests):
+        message = request.get("message") or {}
+        text = _clean_text(message.get("text") if isinstance(message, dict) else None)
+        if not text:
+            continue
+        event_id = str(request.get("requestId") or index)
+        if event_id in seen_ids:
+            continue
+        seen_ids.add(event_id)
+        prompts.append(text)
+        prompt_events.append({
+            "event_id": event_id,
+            "content": text,
+            "timestamp": request.get("timestamp"),
+            "source_position": f"{path.name}:request:{event_id}",
+        })
+    if not prompts:
+        return []
+    return [{
+        "sid": sid,
+        "prompt": prompts[0],
+        "prompts": prompts,
+        "prompt_events": prompt_events,
+        "turns": [],
+        "last": None,
+        "source": "copilot-vscode",
+        "surface": "ide",
+        "official_workspace": cwd,
+        "cwd": cwd,
+    }]
 
 
 def _parse_transcript(path: Path):
@@ -202,4 +260,8 @@ def _parse_sqlite(db_path: Path):
 
 
 def parse(path: Path):
-    return _parse_sqlite(path) if path.suffix == ".db" else _parse_transcript(path)
+    if path.suffix == ".db":
+        return _parse_sqlite(path)
+    if "chatsessions" in {part.casefold() for part in path.parts}:
+        return _parse_chat_session(path)
+    return _parse_transcript(path)

@@ -77,6 +77,35 @@ def test_copilot_ide_preserves_workspace_as_cwd_without_project(tmp_path: Path) 
     assert "project" not in session
 
 
+def test_copilot_chat_sessions_patch_log_captures_user_prompt(tmp_path: Path) -> None:
+    root = tmp_path / "workspaceStorage" / "hash"
+    transcript = root / "chatSessions" / "copilot-session.jsonl"
+    transcript.parent.mkdir(parents=True)
+    (root / "workspace.json").write_text(
+        json.dumps({"folder": "file:///D:/Hive-Mind"}), encoding="utf-8"
+    )
+    records = [
+        {"kind": 0, "v": {"sessionId": "copilot-session", "requests": []}},
+        {"kind": 2, "k": ["requests"], "v": [{
+            "requestId": "request-1",
+            "timestamp": 1784769928930,
+            "message": {"text": "Quais skills voce tem disponivel ?"},
+        }]},
+    ]
+    transcript.write_text(
+        "\n".join(json.dumps(record) for record in records), encoding="utf-8"
+    )
+
+    session = _load("copilot").parse(transcript)[0]
+
+    assert session["sid"] == "copilot-session"
+    assert session["prompts"] == ["Quais skills voce tem disponivel ?"]
+    assert session["prompt_events"][0]["event_id"] == "request-1"
+    assert session["cwd"] == "D:/Hive-Mind"
+    assert session["source"] == "copilot-vscode"
+    assert session["surface"] == "ide"
+
+
 def test_copilot_sqlite_preserves_available_workspace_identity_columns(
     tmp_path: Path,
 ) -> None:
@@ -155,6 +184,36 @@ def test_copilot_sqlite_accepts_a_schema_without_optional_identity_columns(
     assert "cwd" not in session
     assert "official_workspace" not in session
     assert "git_repo_root" not in session
+
+
+def test_kilo_exposes_pending_and_repeated_user_prompts_as_events(tmp_path: Path) -> None:
+    database = tmp_path / "kilo.db"
+    with sqlite3.connect(database) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE session (id TEXT, title TEXT, directory TEXT, time_updated INTEGER);
+            CREATE TABLE message (id TEXT, session_id TEXT, data TEXT, time_created INTEGER);
+            CREATE TABLE part (message_id TEXT, data TEXT, time_created INTEGER);
+            """
+        )
+        connection.execute(
+            "INSERT INTO session VALUES (?, ?, ?, ?)",
+            ("kilo-session", "test", "D:/Hive-Mind", 9999999999999),
+        )
+        for index, message_id in enumerate(("user-1", "user-2"), start=1):
+            connection.execute(
+                "INSERT INTO message VALUES (?, ?, ?, ?)",
+                (message_id, "kilo-session", json.dumps({"role": "user"}), index),
+            )
+            connection.execute(
+                "INSERT INTO part VALUES (?, ?, ?)",
+                (message_id, json.dumps({"type": "text", "text": "mesma pergunta"}), index),
+            )
+
+    session = _load("kilo").parse(database)[0]
+
+    assert session["prompts"] == ["mesma pergunta", "mesma pergunta"]
+    assert [event["event_id"] for event in session["prompt_events"]] == ["user-1", "user-2"]
 
 
 def test_roo_preserves_official_workspace_without_project(tmp_path: Path) -> None:

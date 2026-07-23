@@ -125,11 +125,13 @@ ADAPTERS = {
             str(HOME / ".copilot"),
             str(VSCODE_USER / "globalStorage/github.copilot-chat"),
             str(VSCODE_USER / "workspaceStorage/*/GitHub.copilot-chat/transcripts"),
+            str(VSCODE_USER / "workspaceStorage/*/chatSessions"),
         ],
         "sources": [
             str(HOME / ".copilot/session-store.db"),
             str(VSCODE_USER / "globalStorage/github.copilot-chat/session-store.db"),
             str(VSCODE_USER / "workspaceStorage/*/GitHub.copilot-chat/transcripts/*.jsonl"),
+            str(VSCODE_USER / "workspaceStorage/*/chatSessions/*.jsonl"),
         ],
     },
     "hermes": {
@@ -145,6 +147,7 @@ ADAPTERS = {
         "owner": "realtime", "mode": "reparse", "parser": _antigravity.parse,
         "watch": [
             str(HOME / ".gemini/antigravity/brain"),                                 # sentinela: detecta novos UUIDs (Desktop)
+            str(HOME / ".gemini/antigravity/conversations"),
             str(HOME / ".gemini/antigravity-ide/brain"),                         # storage real do IDE Windows
             str(HOME / ".gemini/antigravity-ide/conversations"),                 # SQLite real do IDE Windows
             str(HOME / ".gemini/antigravity/brain/*/.system_generated/logs"),        # filtrado por mtime em refresh()
@@ -154,6 +157,7 @@ ADAPTERS = {
         ],
         "sources": [
             str(HOME / ".gemini/antigravity/brain/*/.system_generated/logs/transcript_full.jsonl"),
+            str(HOME / ".gemini/antigravity/conversations/*.db"),
             str(HOME / ".gemini/antigravity-ide/brain/*/.system_generated/logs/transcript_full.jsonl"),
             str(HOME / ".gemini/antigravity-ide/conversations/*.db"),
             str(HOME / ".gemini/antigravity-cli/brain/*/.system_generated/logs/transcript_full.jsonl"),

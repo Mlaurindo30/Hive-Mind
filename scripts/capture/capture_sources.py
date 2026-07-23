@@ -33,6 +33,20 @@ _GLOB_CHARS = ("*", "?", "[")
 Registry = Mapping[str, Sequence[str]]
 
 
+def _file_signature(path: str, stat: os.stat_result) -> tuple[int, ...]:
+    """Include SQLite sidecars so polling sees commits that only touch WAL."""
+    signature = [stat.st_mtime_ns, stat.st_size]
+    if str(path).lower().endswith(".db"):
+        for suffix in ("-wal", "-shm"):
+            try:
+                sidecar = os.stat(f"{path}{suffix}")
+            except OSError:
+                signature.extend((0, 0))
+            else:
+                signature.extend((sidecar.st_mtime_ns, sidecar.st_size))
+    return tuple(signature)
+
+
 @dataclass(frozen=True)
 class SourceChange:
     """A detected change in one provider's capture source."""
@@ -43,11 +57,12 @@ class SourceChange:
 
 
 def nearest_existing_ancestor(pattern: str) -> Path | None:
-    """Return the closest existing directory above the glob part of *pattern*.
+    """Return the literal source root when it already exists.
 
     ``C:/x/sessions/*/rollout-*.jsonl`` resolves to ``C:/x/sessions`` when it
-    exists, otherwise walks up until an existing directory is found. Returns
-    ``None`` when no non-glob ancestor exists at all.
+    exists. Missing provider roots return ``None`` instead of falling back to a
+    broad ancestor such as the user's home directory; polling discovers the
+    source after it is created.
     """
     parts = Path(pattern).parts
     literal_parts: list[str] = []
@@ -61,13 +76,7 @@ def nearest_existing_ancestor(pattern: str) -> Path | None:
     if len(literal_parts) == len(parts) and candidate.is_file():
         # Pattern had no glob at all: watch the parent directory of the file.
         candidate = candidate.parent
-    while True:
-        if candidate.is_dir():
-            return candidate
-        parent = candidate.parent
-        if parent == candidate:
-            return None
-        candidate = parent
+    return candidate if candidate.is_dir() else None
 
 
 class _RootHandler(FileSystemEventHandler):
@@ -198,7 +207,7 @@ class PollingReconciler:
         self._registry = {provider: list(patterns) for provider, patterns in registry.items()}
         self._callback = callback
         self.interval = max(0.0, float(interval))
-        self._seen: dict[str, tuple[int, int]] = {}
+        self._seen: dict[str, tuple[int, ...]] = {}
         self._primed = False
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
@@ -222,7 +231,7 @@ class PollingReconciler:
                             continue
                         key = str(Path(match))
                         alive.add(key)
-                        signature = (stat.st_mtime_ns, stat.st_size)
+                        signature = _file_signature(match, stat)
                         if self._seen.get(key) == signature:
                             continue
                         self._seen[key] = signature
