@@ -28,7 +28,33 @@ PS1 = ROOT / "scripts" / "setup" / "register-mcp.ps1"
 SH = ROOT / "scripts" / "setup" / "register-mcp.sh"
 
 WINDOWS = os.name == "nt"
-BASH = shutil.which("bash")
+
+# Windows ships two `bash.exe` shims that are not a POSIX shell: the WSL
+# launcher in System32 and its WindowsApps alias. Without a registered distro
+# both fail with `execvpe(/bin/bash)`, which reads as a wrapper bug rather than
+# a missing interpreter. Git ships a real bash, so derive it from `git` first
+# and only then fall back to PATH.
+_BASH_SHIM_DIRS = {"system32", "windowsapps"}
+
+
+def _find_bash() -> "str | None":
+    if WINDOWS:
+        git = shutil.which("git")
+        if git:
+            install = Path(git).resolve().parents[1]  # <install>/cmd|bin/git.exe
+            for candidate in (
+                install / "bin" / "bash.exe",
+                install / "usr" / "bin" / "bash.exe",
+            ):
+                if candidate.is_file():
+                    return str(candidate)
+    found = shutil.which("bash")
+    if found and WINDOWS and Path(found).parent.name.lower() in _BASH_SHIM_DIRS:
+        return None
+    return found
+
+
+BASH = _find_bash()
 POWERSHELL = shutil.which("powershell") or shutil.which("pwsh")
 
 

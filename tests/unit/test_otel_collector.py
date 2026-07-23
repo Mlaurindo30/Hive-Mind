@@ -14,7 +14,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 COLLECTOR = ROOT / "scripts" / "services" / "otel_collector.py"
 
 
@@ -130,7 +130,8 @@ class OtelCollectorUnitTests(unittest.TestCase):
             rec = json.loads(lines[0])
             self.assertEqual(rec["name"], "json-test")
             self.assertEqual(rec["attributes"]["k"], "v")
-            self.assertEqual(rec["duration_ms"], 1.0)
+            # 1e9 ns of span is one second, i.e. 1000 ms - not 1.
+            self.assertEqual(rec["duration_ms"], 1000.0)
 
     def test_langfuse_path(self):
         payload = {
@@ -153,7 +154,7 @@ class OtelCollectorUnitTests(unittest.TestCase):
             self.assertEqual(len(lines), 1)
             rec = json.loads(lines[0])
             self.assertEqual(rec["name"], "langfuse-path-test")
-            self.assertEqual(rec["duration_ms"], 2.0)
+            self.assertEqual(rec["duration_ms"], 2000.0)
 
     def test_protobuf_path(self):
         from opentelemetry.proto.collector.trace.v1 import trace_service_pb2
