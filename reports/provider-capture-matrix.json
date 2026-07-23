@@ -1,123 +1,94 @@
 {
-  "run_id": "d004m-1784758516",
-  "head": "59a23c2",
-  "timestamp": "2026-07-22T22:15:16.706048+00:00",
-  "policy": "D004-P: verification is technical proof; acceptance is the gate. Only a Hive-Mind defect yields BLOCK.",
-  "verification_counts": {
-    "PASS": 2,
-    "evidência operacional": 1,
-    "BLOCKED_BY_PROVIDER": 6,
-    "NOT_INSTALLED": 3,
-    "NO_SOURCE": 1
+  "run_id": "d004m-evidence-correction-20260722",
+  "head": "1b721f1",
+  "timestamp": "2026-07-22",
+  "policy": "Historical proof, current source parsing, and fresh end-to-end proof are independent evidence dimensions.",
+  "regression": {
+    "owner": "Hive-Mind code/configuration",
+    "cause": "The live runtime loaded an old capture_adapters.py whose provider source paths pointed at abandoned locations.",
+    "not_provider_limitation": true
   },
-  "acceptance_counts": {
-    "OK": 3,
-    "OK_EXTERNAL": 4,
-    "OK_NOT_REQUIRED": 6
+  "status_counts": {
+    "historically_proven": 6,
+    "source_parses_now": 7,
+    "fresh_chain_pending": 9,
+    "fresh_chain_proven": 0
   },
   "providers": [
     {
+      "provider": "claude",
+      "lane": "native",
+      "historical": "HISTORICALLY_PROVEN",
+      "source_now": "NATIVE_LANE",
+      "fresh_chain": "FRESH_CHAIN_PENDING",
+      "evidence": "Claude Mem native capture operated previously; universal adapter parsing does not apply."
+    },
+    {
       "provider": "codex",
       "lane": "universal",
-      "verification": "PASS",
-      "acceptance": "OK",
-      "evidence": "cadeia completa nesta rodada: sessão de CLI real, fonte nova, observation, workspace_id=local/25bc6535d00d, BRIDGED, dedupe 0"
+      "historical": "HISTORICALLY_PROVEN",
+      "source_now": "NOT_REMEASURED_IN_THIS_CORRECTION",
+      "fresh_chain": "FRESH_CHAIN_PENDING",
+      "evidence": "Prior real automated end-to-end evidence remains historical until a post-staging marker is traced."
     },
     {
       "provider": "qwen",
       "lane": "universal",
-      "verification": "PASS",
-      "acceptance": "OK",
-      "evidence": "cadeia completa nesta rodada: workspace_id=local/f1ce69efa5a3, BRIDGED, dedupe 0"
-    },
-    {
-      "provider": "claude",
-      "lane": "native",
-      "verification": "evidência operacional",
-      "acceptance": "OK",
-      "evidence": "captura nativa do Claude Mem, em uso; não passa pelo adapter universal e não entra no denominador"
-    },
-    {
-      "provider": "kilo",
-      "lane": "universal",
-      "verification": "BLOCKED_BY_PROVIDER",
-      "acceptance": "OK_EXTERNAL",
-      "evidence": "funcionamento confirmado pelo usuário; `kilo run` sem TTY não executa o prompt — limitação da CLI, não da captura"
-    },
-    {
-      "provider": "copilot",
-      "lane": "universal",
-      "verification": "BLOCKED_BY_PROVIDER",
-      "acceptance": "OK_EXTERNAL",
-      "evidence": "funcionamento confirmado pelo usuário; CLI não produz fonte automatizável"
+      "historical": "HISTORICALLY_PROVEN",
+      "source_now": "SOURCE_PARSES_NOW",
+      "fresh_chain": "FRESH_CHAIN_PENDING",
+      "evidence": "Current staging parses the real source; the prior complete canary is not a fresh staging pass."
     },
     {
       "provider": "antigravity",
       "lane": "universal",
-      "verification": "BLOCKED_BY_PROVIDER",
-      "acceptance": "OK_EXTERNAL",
-      "evidence": "funcionamento confirmado pelo usuário; sem CLI, fonte só pela IDE"
+      "historical": "HISTORICALLY_PROVEN",
+      "source_now": "SOURCE_PARSES_NOW",
+      "fresh_chain": "FRESH_CHAIN_PENDING",
+      "evidence": "A real IDE marker was captured previously; staging finds and parses the real Antigravity source."
     },
     {
-      "provider": "kimi",
+      "provider": "copilot",
       "lane": "universal",
-      "verification": "BLOCKED_BY_PROVIDER",
-      "acceptance": "OK_EXTERNAL",
-      "evidence": "sem modelo/login configurado para execução; nenhum defeito demonstrado no adapter"
-    },
-    {
-      "provider": "mimo",
-      "lane": "universal",
-      "verification": "BLOCKED_BY_PROVIDER",
-      "acceptance": "OK_NOT_REQUIRED",
-      "evidence": "ausente do registry e do runtime.yaml — não é provider ativo deste deployment"
+      "historical": "HISTORICALLY_PROVEN",
+      "source_now": "SOURCE_PARSES_NOW",
+      "fresh_chain": "FRESH_CHAIN_PENDING",
+      "evidence": "A real headless invocation exited 0, real SQLite sources exist, and staging parses them."
     },
     {
       "provider": "hermes",
       "lane": "universal",
-      "verification": "BLOCKED_BY_PROVIDER",
-      "acceptance": "OK_NOT_REQUIRED",
-      "evidence": "idem; CLI expõe curator/mcp, sem modo de prompt"
+      "historical": "HISTORICALLY_PROVEN",
+      "source_now": "SOURCE_PARSES_NOW",
+      "fresh_chain": "FRESH_CHAIN_PENDING",
+      "evidence": "Real markers and acknowledgements were persisted in AppData/Local/hermes/state.db; staging parses that source."
     },
     {
-      "provider": "roo",
+      "provider": "kilo",
       "lane": "universal",
-      "verification": "NOT_INSTALLED",
-      "acceptance": "OK_NOT_REQUIRED",
-      "evidence": "não detectado"
+      "historical": "INVOCATION_PROVEN_EXIT_0",
+      "source_now": "SOURCE_PARSES_NOW",
+      "fresh_chain": "FRESH_CHAIN_PENDING",
+      "evidence": "Headless invocation succeeded, but the old Hive-Mind capture chain failed after invocation."
     },
     {
-      "provider": "openclaw",
+      "provider": "mimo",
       "lane": "universal",
-      "verification": "NOT_INSTALLED",
-      "acceptance": "OK_NOT_REQUIRED",
-      "evidence": "não detectado"
+      "historical": "INVOCATION_PROVEN_EXIT_0",
+      "source_now": "SOURCE_PARSES_NOW",
+      "fresh_chain": "FRESH_CHAIN_PENDING",
+      "evidence": "Headless invocation succeeded, but the old Hive-Mind capture chain failed after invocation."
     },
     {
-      "provider": "swarmclaw",
+      "provider": "kimi",
       "lane": "universal",
-      "verification": "NOT_INSTALLED",
-      "acceptance": "OK_NOT_REQUIRED",
-      "evidence": "não detectado"
-    },
-    {
-      "provider": "screenpipe",
-      "lane": "universal",
-      "verification": "NO_SOURCE",
-      "acceptance": "OK_NOT_REQUIRED",
-      "evidence": "adapter sem padrão de fonte; não configurado como fonte ativa"
+      "historical": "REAL_SOURCE_OBSERVED",
+      "source_now": "SOURCE_PARSES_NOW",
+      "fresh_chain": "FRESH_CHAIN_PENDING",
+      "evidence": "Real wire.jsonl exists and the current parser reads it; no login or model conclusion is inferred."
     }
   ],
-  "registration_only": [
-    "cursor",
-    "gemini",
-    "kiro",
-    "opencode",
-    "vscode"
-  ],
-  "hive_mind_defects_fixed": [
-    "mark_posted gated on emit count",
-    "capture_core shim missing SESSION_CUTOFF_MS"
-  ],
-  "open_hive_mind_defects": []
+  "registration_only": ["cursor", "gemini", "kiro", "opencode", "vscode"],
+  "source_parsing_restored_for": ["antigravity", "copilot", "hermes", "kilo", "kimi", "mimo", "qwen"],
+  "open_gate": "Trace a fresh provider marker through source, parser, ingest, Claude Mem, bridge, UMC and dedupe on the staging HEAD."
 }

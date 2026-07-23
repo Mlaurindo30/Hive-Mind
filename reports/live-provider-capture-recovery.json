@@ -1,24 +1,45 @@
 {
-  "delivery": "D004-R3",
+  "delivery": "D004-R3-corrected",
   "status": "IN_PROGRESS",
-  "phase": "root cause isolated; restoration not started",
-  "reported_by": "user",
-  "regression_window": "2026-07-17..2026-07-18",
-  "root_cause": "capture_adapters.py in the live runtime watches source directories the providers abandoned; not a Hive-Mind code defect",
-  "runtime": {"path": "D:/Hive-Mind", "branch": "codex/universal-provider-capture", "head": "3d362c6", "capture_realtime_pid": 27816, "adapters_loaded": 11},
-  "worktree": {"adapters_loaded": 12, "note": "qwen adapter present; antigravity path already fixed to antigravity-ide; never applied to runtime"},
-  "providers": {
-    "claude":      {"expected": true, "live": "WORKING", "last": "2026-07-22T22:14", "lane": "native"},
-    "codex":       {"expected": true, "live": "WORKING", "last": "2026-07-22T21:37"},
-    "antigravity": {"expected": true, "live": "BROKEN", "last": "2026-07-18T00:20", "cause": "provider renamed brain -> antigravity-ide/brain"},
-    "qwen":        {"expected": true, "live": "BROKEN", "last": "2026-07-18T01:25", "cause": "adapter not loaded by runtime"},
-    "kimi":        {"expected": true, "live": "BROKEN", "last": "2026-07-18T00:47", "cause": "watched sessions dir does not exist"},
-    "mimo":        {"expected": true, "live": "BROKEN", "last": "2026-07-17T23:55", "cause": "watch path ok but no live delivery, reverify"},
-    "kilo":        {"expected": true, "live": "BROKEN", "last": "2026-07-17T23:49", "cause": "watched WSL path; real source in .local/share/kilo"},
-    "hermes":      {"expected": true, "live": "SUSPECT", "last": "2026-07-22T15:23", "cause": "watch ~/.hermes; real source AppData/Local/hermes"},
-    "copilot":     {"expected": true, "live": "SUSPECT", "last": "2026-07-22T15:23", "cause": "globalStorage transcript path changed"}
+  "phase": "source-path restoration present in staging; fresh end-to-end canaries pending",
+  "reported_by": "user and reconciled with historical memory",
+  "regression_window": "2026-07-17..2026-07-22",
+  "root_cause": "Hive-Mind live runtime loaded an old capture_adapters.py that watched provider source paths the providers had abandoned.",
+  "hive_mind_code_config_regression": true,
+  "provider_limitation": false,
+  "live_runtime": {
+    "path": "D:/Hive-Mind",
+    "branch": "codex/universal-provider-capture",
+    "head": "3d362c6",
+    "state": "old adapter paths; do not use this state to infer provider capability or configuration"
   },
-  "suspects_ruled_out": ["fef5383", "D004-R2", "M14", "hooks-to-old-code", "realtime-not-running"],
-  "hive_mind_code_defect": false,
-  "restoration": {"started": false, "requires_runtime_edit": true, "requires_user_ide_events": ["antigravity-ide", "copilot"]}
+  "staging": {
+    "path": "D:/Hive-Mind-Consolidation/20260722-201726/repo",
+    "head": "1b721f1",
+    "source_parsing": "SOURCE_PARSES_NOW",
+    "providers": ["antigravity", "copilot", "hermes", "kilo", "kimi", "mimo", "qwen"]
+  },
+  "providers": {
+    "claude": {"historical": "HISTORICALLY_PROVEN", "fresh_chain": "FRESH_CHAIN_PENDING", "lane": "native"},
+    "codex": {"historical": "HISTORICALLY_PROVEN", "fresh_chain": "FRESH_CHAIN_PENDING"},
+    "qwen": {"historical": "HISTORICALLY_PROVEN", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING"},
+    "antigravity": {"historical": "HISTORICALLY_PROVEN", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING", "evidence": "real IDE marker previously captured"},
+    "copilot": {"historical": "HISTORICALLY_PROVEN", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING", "evidence": "headless exit 0 and real SQLite sources"},
+    "hermes": {"historical": "HISTORICALLY_PROVEN", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING", "evidence": "real markers and acknowledgements in AppData/Local/hermes/state.db"},
+    "kilo": {"historical": "INVOCATION_PROVEN_EXIT_0", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING", "previous_failure_owner": "Hive-Mind capture chain"},
+    "mimo": {"historical": "INVOCATION_PROVEN_EXIT_0", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING", "previous_failure_owner": "Hive-Mind capture chain"},
+    "kimi": {"historical": "REAL_SOURCE_OBSERVED", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING", "evidence": "real wire.jsonl and current parser"}
+  },
+  "invalidated_conclusions": [
+    "BLOCKED_BY_PROVIDER",
+    "NOT_CONFIGURED",
+    "OK_EXTERNAL",
+    "OK_NOT_REQUIRED",
+    "the failure was outside Hive-Mind"
+  ],
+  "restoration": {
+    "source_path_code_ready_in_staging": true,
+    "fresh_chain_proven": false,
+    "next_gate": "fresh marker per required provider through source, parser, ingest, Claude Mem, bridge, UMC and dedupe"
+  }
 }
