@@ -15,6 +15,47 @@ from urllib.parse import unquote, urlsplit
 from capture_core import text_content
 
 
+def _clean_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _quoted_identifier(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
+
+
+def _session_identity_columns(connection) -> dict[str, str]:
+    """Return available Copilot session columns by their normalized meaning."""
+    available = {
+        str(row["name"]).casefold(): str(row["name"])
+        for row in connection.execute("PRAGMA table_info(sessions)")
+    }
+    aliases = {
+        "cwd": ("cwd",),
+        "repository": ("repository", "git_repo_root", "repo_root"),
+        "branch": ("branch", "git_branch"),
+        "host_type": ("host_type",),
+    }
+    resolved: dict[str, str] = {}
+    for normalized, candidates in aliases.items():
+        column = next((available[name] for name in candidates if name in available), None)
+        if column is not None:
+            resolved[normalized] = column
+    return resolved
+
+
+def _host_surface(host_type: str | None) -> tuple[str, str]:
+    host = (host_type or "cli").casefold()
+    source = f"copilot-{host}"
+    if host in {"vscode", "visual-studio-code", "ide", "editor"}:
+        return source, "ide"
+    if host == "desktop":
+        return source, "desktop"
+    return source, "cli"
+
+
 def _workspace_cwd(path: Path) -> str | None:
     """cwd da sessão = pasta do workspace do VS Code. O transcript fica em
     workspaceStorage/<hash>/GitHub.copilot-chat/transcripts/<sid>.jsonl; o
@@ -107,7 +148,12 @@ def _parse_sqlite(db_path: Path):
         return out
     try:
         con.row_factory = sqlite3.Row
-        for s in con.execute("SELECT id FROM sessions"):
+        identity_columns = _session_identity_columns(con)
+        select_columns = ["id"] + [
+            f"{_quoted_identifier(column)} AS {_quoted_identifier(normalized)}"
+            for normalized, column in identity_columns.items()
+        ]
+        for s in con.execute(f"SELECT {', '.join(select_columns)} FROM sessions"):
             sid = str(s["id"])
             rows = con.execute(
                 "SELECT turn_index, user_message, assistant_response FROM turns "
@@ -124,8 +170,32 @@ def _parse_sqlite(db_path: Path):
                     "tool_input": {"prompt": (r["user_message"] or "")[:2000]},
                     "tool_response": (resp or "ok")[:4000],
                 })
-            out.append({"sid": sid, "prompt": prompt, "turns": turns, "last": last,
-                        "source": "copilot-cli", "surface": "cli"})
+            row = dict(s)
+            cwd = _clean_text(row.get("cwd"))
+            repository = _clean_text(row.get("repository"))
+            branch = _clean_text(row.get("branch"))
+            host_type = _clean_text(row.get("host_type"))
+            source, surface = _host_surface(host_type)
+            session = {
+                "sid": sid,
+                "prompt": prompt,
+                "turns": turns,
+                "last": last,
+                "source": source,
+                "surface": surface,
+            }
+            if cwd is not None:
+                session["cwd"] = cwd
+                session["official_workspace"] = cwd
+            elif repository is not None:
+                session["official_workspace"] = repository
+            if repository is not None:
+                session["git_repo_root"] = repository
+            if branch is not None:
+                session["git_branch"] = branch
+            if host_type is not None:
+                session["host_type"] = host_type
+            out.append(session)
     finally:
         con.close()
     return out

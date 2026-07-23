@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -74,6 +75,86 @@ def test_copilot_ide_preserves_workspace_as_cwd_without_project(tmp_path: Path) 
     assert session["source"] == "vscode"
     assert session["surface"] == "ide"
     assert "project" not in session
+
+
+def test_copilot_sqlite_preserves_available_workspace_identity_columns(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "session-store.db"
+    with sqlite3.connect(database) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE sessions (
+                id TEXT,
+                cwd TEXT,
+                repository TEXT,
+                branch TEXT,
+                host_type TEXT
+            );
+            CREATE TABLE turns (
+                session_id TEXT,
+                turn_index INTEGER,
+                user_message TEXT,
+                assistant_response TEXT
+            );
+            """
+        )
+        connection.execute(
+            "INSERT INTO sessions VALUES (?, ?, ?, ?, ?)",
+            (
+                "copilot-1",
+                "D:/Work/Example",
+                "D:/Work/Example",
+                "feature/copilot-identity",
+                "vscode",
+            ),
+        )
+        connection.execute(
+            "INSERT INTO turns VALUES (?, ?, ?, ?)",
+            ("copilot-1", 1, "prompt", "answer"),
+        )
+
+    session = _load("copilot").parse(database)[0]
+
+    assert session["cwd"] == "D:/Work/Example"
+    assert session["official_workspace"] == "D:/Work/Example"
+    assert session["git_repo_root"] == "D:/Work/Example"
+    assert session["git_branch"] == "feature/copilot-identity"
+    assert session["host_type"] == "vscode"
+    assert session["source"] == "copilot-vscode"
+    assert session["surface"] == "ide"
+    assert "project" not in session
+
+
+def test_copilot_sqlite_accepts_a_schema_without_optional_identity_columns(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "session-store.db"
+    with sqlite3.connect(database) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE sessions (id TEXT);
+            CREATE TABLE turns (
+                session_id TEXT,
+                turn_index INTEGER,
+                user_message TEXT,
+                assistant_response TEXT
+            );
+            """
+        )
+        connection.execute("INSERT INTO sessions VALUES (?)", ("copilot-1",))
+        connection.execute(
+            "INSERT INTO turns VALUES (?, ?, ?, ?)",
+            ("copilot-1", 1, "prompt", "answer"),
+        )
+
+    session = _load("copilot").parse(database)[0]
+
+    assert session["source"] == "copilot-cli"
+    assert session["surface"] == "cli"
+    assert "cwd" not in session
+    assert "official_workspace" not in session
+    assert "git_repo_root" not in session
 
 
 def test_roo_preserves_official_workspace_without_project(tmp_path: Path) -> None:
