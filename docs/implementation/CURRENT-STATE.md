@@ -1,7 +1,7 @@
 # Project Status Dashboard
 
-- **branch:** `codex/control-plane-redesign`
-- **HEAD:** `c268b9b` — último commit de `git log` no momento em que este
+- **branch:** `codex/runtime-consolidation`
+- **HEAD:** `a4d3260` — último commit de `git log` no momento em que este
   painel foi escrito. Por construção ele fica atrás do HEAD atual por
   exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
   antes de existir. O validador aceita esse único passo **só** se o commit
@@ -147,7 +147,7 @@ Atualizado em: 2026-07-21 (dashboard + D010-G0). O painel acima é a fonte de es
 
 ## Git
 
-- branch: `codex/control-plane-redesign`
+- branch: `codex/runtime-consolidation`
 - HEAD: ver o painel no topo deste documento (fonte única). Esta seção
   descreve camadas, não estado de commit.
 - staged: nenhum
