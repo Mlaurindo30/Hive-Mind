@@ -165,7 +165,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "agents",
         help="multiagent capture canary over real sources and real delivery state",
     )
-    val_agents.add_argument("--only", default=None, help="validate a single provider")
+    val_agents.add_argument(
+        "--only", action="append", default=None,
+        help="validate an explicit provider (repeatable)",
+    )
+    val_agents.add_argument(
+        "--marker", default=None,
+        help="fresh marker already emitted by the provider (does not run it)",
+    )
+    val_agents.add_argument(
+        "--since", type=int, default=None, metavar="EPOCH",
+        help="minimum Unix epoch for --marker evidence",
+    )
     val_agents.add_argument("--json", action="store_true", help="emit as JSON")
 
     backup_cmd = sub.add_parser("backup", help="verified SQLite backup workflow")
@@ -422,7 +433,35 @@ def _validate_agents(args) -> int:
     """Real-data capture canary. Reads only; writes nothing."""
     from hive_mind.validation import canary
 
-    report, outbox, umc = canary.run([args.only] if args.only else None)
+    marker_mode = args.marker is not None or args.since is not None
+    if marker_mode:
+        if args.marker is None or args.since is None or not args.only:
+            print(
+                "--marker requires --since and at least one --only provider",
+                file=sys.stderr,
+            )
+            return 2
+        report = canary.run_fresh_marker(
+            marker=args.marker, since_epoch=args.since, providers=args.only
+        )
+        if args.json:
+            print(json.dumps(
+                {"marker": args.marker, "since_epoch": args.since,
+                 "report": report.to_dict()},
+                ensure_ascii=False, indent=2, default=str,
+            ))
+            return 0 if report.ok else 1
+        print("hive-mind validate agents — fresh marker chain, read-only\n")
+        for result in report.results:
+            mark = {"PASSED": "OK  ", "FAILED": "FAIL", "SKIPPED": "--  ",
+                    "ERROR": "ERR "}[result.status.value]
+            detail = result.reason or f"workspace_id={result.project_id}"
+            print(f"  {mark} {result.provider:<12} {detail}")
+        print(f"\n  {len(report.passed)} passed, {len(report.failed)} failed "
+              f"of {len(report.results)}")
+        return 0 if report.ok else 1
+
+    report, outbox, umc = canary.run(args.only)
 
     if args.json:
         print(json.dumps(
