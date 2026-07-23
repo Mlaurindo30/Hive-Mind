@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -132,6 +133,52 @@ def test_unknown_provider_change_is_ignored(tmp_path: Path):
     daemon = module.RealtimeCapture({}, Store())
     change = SourceChange("ghost", tmp_path / "nope.jsonl", time.time())
     assert daemon.handle_change(change) == 0
+
+
+def test_slow_provider_does_not_block_another_provider(tmp_path: Path, monkeypatch):
+    module = load_capture_realtime()
+    slow_file = tmp_path / "slow.jsonl"
+    fast_file = tmp_path / "fast.jsonl"
+    slow_file.write_text("{}", encoding="utf-8")
+    fast_file.write_text("{}", encoding="utf-8")
+    slow_started = threading.Event()
+    release_slow = threading.Event()
+    fast_finished = threading.Event()
+
+    def slow_parser(_path):
+        slow_started.set()
+        assert release_slow.wait(5)
+        return [{"sid": "slow", "prompt": "slow", "turns": []}]
+
+    def fast_parser(_path):
+        return [{"sid": "fast", "prompt": "fast", "turns": []}]
+
+    monkeypatch.setattr(module.capture, "ingest", lambda *_a, **_k: 1)
+    registry = {
+        "slow": {"parser": slow_parser, "sources": [str(slow_file)]},
+        "fast": {"parser": fast_parser, "sources": [str(fast_file)]},
+    }
+    daemon = module.RealtimeCapture(registry, object())
+    slow_thread = threading.Thread(
+        target=daemon.handle_change,
+        args=(SourceChange("slow", slow_file, time.time()),),
+    )
+    fast_thread = threading.Thread(
+        target=lambda: (
+            daemon.handle_change(SourceChange("fast", fast_file, time.time())),
+            fast_finished.set(),
+        ),
+    )
+
+    slow_thread.start()
+    assert slow_started.wait(2)
+    fast_thread.start()
+    try:
+        assert fast_finished.wait(1), "provider rápido ficou preso atrás do provider lento"
+    finally:
+        release_slow.set()
+        slow_thread.join(5)
+        fast_thread.join(5)
 
 
 def test_sqlite_wal_change_reparses_canonical_database(tmp_path: Path, monkeypatch):

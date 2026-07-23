@@ -19,6 +19,7 @@ import json
 import os
 import re
 import sqlite3
+import threading
 import sys
 import time
 import urllib.request
@@ -153,6 +154,7 @@ class SeenStore:
         self._path = db_path or (DATA_DIR / self._DB_NAME)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._con = sqlite3.connect(str(self._path), timeout=30, check_same_thread=False)
+        self._lock = threading.RLock()
         self._con.execute("PRAGMA journal_mode=WAL")
         self._con.execute("PRAGMA synchronous=NORMAL")
         self._con.execute("PRAGMA busy_timeout=10000")
@@ -228,53 +230,60 @@ class SeenStore:
             _safe_print(f"  ✓ migração JSON→SQLite: {migrated} hashes importados")
 
     def contains(self, platform: str, sid: str, h: str) -> bool:
-        return self._con.execute(
-            "SELECT 1 FROM seen_hashes WHERE platform=? AND sid=? AND hash=? LIMIT 1",
-            (platform, sid, h),
-        ).fetchone() is not None
+        with self._lock:
+            return self._con.execute(
+                "SELECT 1 FROM seen_hashes WHERE platform=? AND sid=? AND hash=? LIMIT 1",
+                (platform, sid, h),
+            ).fetchone() is not None
 
     def add(self, platform: str, sid: str, h: str) -> None:
-        self._con.execute(
-            "INSERT OR IGNORE INTO seen_hashes(platform,sid,hash,ts) VALUES(?,?,?,?)",
-            (platform, sid, h, int(time.time())),
-        )
-        self._con.commit()
+        with self._lock:
+            self._con.execute(
+                "INSERT OR IGNORE INTO seen_hashes(platform,sid,hash,ts) VALUES(?,?,?,?)",
+                (platform, sid, h, int(time.time())),
+            )
+            self._con.commit()
 
     def is_inited(self, platform: str, sid: str) -> bool:
-        row = self._con.execute(
-            "SELECT inited FROM session_meta WHERE platform=? AND sid=? LIMIT 1",
-            (platform, sid),
-        ).fetchone()
-        return bool(row and row[0])
+        with self._lock:
+            row = self._con.execute(
+                "SELECT inited FROM session_meta WHERE platform=? AND sid=? LIMIT 1",
+                (platform, sid),
+            ).fetchone()
+            return bool(row and row[0])
 
     def mark_inited(self, platform: str, sid: str) -> None:
-        self._con.execute(
-            "INSERT INTO session_meta(platform,sid,inited,ts) VALUES(?,?,1,?) "
-            "ON CONFLICT(platform,sid) DO UPDATE SET inited=1, ts=excluded.ts",
-            (platform, sid, int(time.time())),
-        )
-        self._con.commit()
+        with self._lock:
+            self._con.execute(
+                "INSERT INTO session_meta(platform,sid,inited,ts) VALUES(?,?,1,?) "
+                "ON CONFLICT(platform,sid) DO UPDATE SET inited=1, ts=excluded.ts",
+                (platform, sid, int(time.time())),
+            )
+            self._con.commit()
 
     def touch(self, platform: str, sid: str) -> None:
-        self._con.execute(
-            "INSERT INTO session_meta(platform,sid,inited,ts) VALUES(?,?,0,?) "
-            "ON CONFLICT(platform,sid) DO UPDATE SET ts=excluded.ts",
-            (platform, sid, int(time.time())),
-        )
-        self._con.commit()
+        with self._lock:
+            self._con.execute(
+                "INSERT INTO session_meta(platform,sid,inited,ts) VALUES(?,?,0,?) "
+                "ON CONFLICT(platform,sid) DO UPDATE SET ts=excluded.ts",
+                (platform, sid, int(time.time())),
+            )
+            self._con.commit()
 
     def prune(self, cutoff_ts: int) -> int:
-        c1 = self._con.execute(
-            "DELETE FROM seen_hashes WHERE ts < ?", (cutoff_ts,)
-        ).rowcount
-        c2 = self._con.execute(
-            "DELETE FROM session_meta WHERE ts < ?", (cutoff_ts,)
-        ).rowcount
-        self._con.commit()
-        return c1 + c2
+        with self._lock:
+            c1 = self._con.execute(
+                "DELETE FROM seen_hashes WHERE ts < ?", (cutoff_ts,)
+            ).rowcount
+            c2 = self._con.execute(
+                "DELETE FROM session_meta WHERE ts < ?", (cutoff_ts,)
+            ).rowcount
+            self._con.commit()
+            return c1 + c2
 
     def close(self) -> None:
-        self._con.close()
+        with self._lock:
+            self._con.close()
 
 
 # ── motor de ingestão (idempotente por content-hash) ───────────────────────────
@@ -331,6 +340,10 @@ def _emit_body(platform, sess, store, sid, prompt, prompts, turns, last_text) ->
     cwd = sess.get("cwd") or str(Path.cwd())
     identity_metadata = {"project_identity": dict(envelope)}
     capture_audit = (sess.get("metadata") or {}).get("capture")
+    prompt_events = [
+        item for item in (sess.get("prompt_events") or [])
+        if isinstance(item, dict) and str(item.get("content") or "").strip()
+    ]
     if isinstance(capture_audit, dict):
         identity_metadata["capture"] = dict(capture_audit)
 
@@ -348,11 +361,12 @@ def _emit_body(platform, sess, store, sid, prompt, prompts, turns, last_text) ->
         *,
         timestamp=None,
         metadata: dict | None = None,
+        event_key: str | None = None,
     ) -> bool:
         norm = _norm(text)
         if not norm:
             return False
-        h = content_hash(sid, "p", norm)
+        h = content_hash(sid, "p-event", event_key) if event_key else content_hash(sid, "p", norm)
         if store.contains(platform, sid, h):
             return False
         payload = {
@@ -503,24 +517,59 @@ def _emit_body(platform, sess, store, sid, prompt, prompts, turns, last_text) ->
             _safe_print(f"  [ok] {platform}:{sid[:12]} -> {sent} nova(s)")
         return sent
     if not store.is_inited(platform, sid):
-        init_res = _post("/api/sessions/init", with_identity({
+        first_event = prompt_events[0] if prompt_events else None
+        first_event_key = None
+        first_metadata = None
+        if first_event is not None:
+            first_event_key = str(
+                first_event.get("event_id") or first_event.get("source_position") or ""
+            ).strip() or None
+            first_metadata = {
+                "source_event_id": first_event.get("event_id"),
+                "source_position": first_event.get("source_position"),
+            }
+            first_metadata = {key: value for key, value in first_metadata.items() if value is not None}
+        initial_payload = {
             "contentSessionId": sid, "project": proj, "platformSource": platform,
             "prompt": prompt or "(sessão)", "customTitle": f"[{platform}] {(prompt or '')[:60]}",
-        }))
+        }
+        if first_metadata:
+            initial_payload["metadata"] = first_metadata
+        init_res = _post("/api/sessions/init", with_identity(initial_payload))
         if not init_res.get("error") and init_res.get("stored") is not False:
             store.mark_inited(platform, sid)
             if prompt:
-                store.add(platform, sid, content_hash(sid, "p", _norm(prompt)))
+                initial_hash = (
+                    content_hash(sid, "p-event", first_event_key)
+                    if first_event_key else content_hash(sid, "p", _norm(prompt))
+                )
+                store.add(platform, sid, initial_hash)
 
-    for item in prompts:
-        emit_prompt(str(item))
+    if prompt_events:
+        for event in prompt_events:
+            event_id = event.get("event_id")
+            source_position = event.get("source_position")
+            event_key = str(event_id or source_position or "").strip() or None
+            metadata = {
+                "source_event_id": event_id,
+                "source_position": source_position,
+            }
+            emit_prompt(
+                str(event["content"]),
+                timestamp=event.get("timestamp"),
+                metadata={key: value for key, value in metadata.items() if value is not None},
+                event_key=event_key,
+            )
+    else:
+        for item in prompts:
+            emit_prompt(str(item))
 
     sent = 0
     for t in turns:
         if OBS_CAP and sent >= OBS_CAP:
             _safe_print(f"  ⏳ {platform}:{sid[:12]}: cap {OBS_CAP} atingido; resto depois")
             break
-        if isinstance(t.get("tool_input"), dict):
+        if not prompt_events and isinstance(t.get("tool_input"), dict):
             tp = str(t["tool_input"].get("prompt") or "").strip()
             if tp:
                 emit_prompt(tp)

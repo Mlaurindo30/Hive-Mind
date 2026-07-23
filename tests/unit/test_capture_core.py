@@ -146,6 +146,29 @@ def test_prompt_novo_sem_turno_emite_init(capture_posts, store):
     assert novos[0][1]["prompt"] == "segundo"
 
 
+def test_prompt_repetido_com_eventos_distintos_nao_e_descartado(capture_posts, store):
+    """Duas ocorrencias com o mesmo texto continuam sendo dois prompts reais."""
+    session = {
+        **_identified(),
+        "sid": "ses_repeated",
+        "prompt": "mesma pergunta",
+        "prompts": ["mesma pergunta", "mesma pergunta"],
+        "prompt_events": [
+            {"event_id": "step-10", "content": "mesma pergunta"},
+            {"event_id": "step-12", "content": "mesma pergunta"},
+        ],
+    }
+
+    core.emit("antigravity", session, store)
+    inits = [payload for path, payload in capture_posts if path == "/api/sessions/init"]
+
+    assert [payload["prompt"] for payload in inits] == ["mesma pergunta", "mesma pergunta"]
+    assert [payload.get("metadata", {}).get("source_event_id") for payload in inits] == [
+        "step-10",
+        "step-12",
+    ]
+
+
 
 @pytest.mark.parametrize("failed_response", [{"error": "worker offline"}, {"stored": False}])
 def test_init_falha_nao_confirma_prompt_e_reenvia_quando_worker_volta(store, monkeypatch, failed_response):

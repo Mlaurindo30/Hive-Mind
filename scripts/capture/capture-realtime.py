@@ -80,14 +80,16 @@ class RealtimeCapture:
         self._live_max_age_s = float(live_max_age_s)
         self._clock = clock
         self._resolver = resolver or ProjectIdentityResolver()
-        self._lock = threading.Lock()
+        self._provider_locks = {
+            provider: threading.Lock() for provider in self._registry
+        }
 
     def handle_change(self, change: SourceChange) -> int:
         """Re-parse changed sources and deliver new content to Claude-Mem."""
         adapter = self._registry.get(change.provider)
         if not adapter:
             return 0
-        with self._lock:
+        with self._provider_locks[change.provider]:
             now = self._clock()
             core.SESSION_CUTOFF_MS = int((now - self._window_s) * 1000)
             if change.path.is_file() and self._matches_source(change.provider, change.path):
@@ -103,19 +105,18 @@ class RealtimeCapture:
     def catch_up(self) -> int:
         """Startup pass: parse every provider source active inside the window."""
         total = 0
-        with self._lock:
-            now = self._clock()
-            core.SESSION_CUTOFF_MS = int((now - self._window_s) * 1000)
-            cutoff = now - self._window_s
-            for provider, adapter in self._registry.items():
-                targets = [
-                    p for p in self._expand_sources(provider)
-                    if core._src_mtime(p) >= cutoff
-                ]
-                delivered = self._ingest_paths(provider, adapter, targets)
-                if delivered:
-                    log_event("info", "catch_up_provider", provider=provider, delivered=delivered)
-                total += delivered
+        now = self._clock()
+        core.SESSION_CUTOFF_MS = int((now - self._window_s) * 1000)
+        cutoff = now - self._window_s
+        for provider, adapter in self._registry.items():
+            targets = [
+                p for p in self._expand_sources(provider)
+                if core._src_mtime(p) >= cutoff
+            ]
+            delivered = self._ingest_paths(provider, adapter, targets)
+            if delivered:
+                log_event("info", "catch_up_provider", provider=provider, delivered=delivered)
+            total += delivered
         return total
 
     def _ingest_paths(self, provider: str, adapter: dict, targets: list[Path]) -> int:
