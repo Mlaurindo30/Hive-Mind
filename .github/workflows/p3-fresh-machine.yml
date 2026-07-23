@@ -1,0 +1,142 @@
+name: P3 Fresh Machine Validation
+
+# P3-A: proves the candidate installs and runs from the remote alone, on a
+# disposable GitHub-hosted Windows runner. Nothing from the maintainer's host
+# reaches the runner: it checks out origin/codex/runtime-consolidation-final,
+# bootstraps the three pinned components from their own repositories, does a
+# full dependency-resolved `uv sync` (never --no-deps), builds, installs the
+# wheel with its dependencies into a second clean venv, and runs the suites and
+# the isolated-installer + forbidden-path contracts against a throwaway root.
+
+on:
+  workflow_dispatch:
+    inputs:
+      use_cache:
+        description: "Enable uv cache (reproducibility re-run only)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  windows-fresh:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      UV_LINK_MODE: copy
+    steps:
+      - name: "01 · Clean checkout of the candidate"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "02 · Working tree is clean"
+        shell: pwsh
+        run: |
+          $status = git status --porcelain
+          "HEAD = $(git rev-parse HEAD)"
+          if ($status) { $status; throw "checkout is not clean" }
+          "clean"
+
+      - name: "03 · Install Python + uv"
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: ${{ inputs.use_cache }}
+
+      - name: "04 · Install Node"
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: "05 · components.py bootstrap --strict"
+        shell: pwsh
+        run: python scripts/setup/components.py bootstrap --strict
+
+      - name: "06 · components.py verify"
+        shell: pwsh
+        run: python scripts/setup/components.py verify
+
+      - name: "07 · uv sync --frozen --all-groups (full deps, no --no-deps)"
+        shell: pwsh
+        run: uv sync --frozen --all-groups
+
+      - name: "08 · uv build (main + component wheels into wheelhouse)"
+        shell: pwsh
+        run: |
+          uv build --wheel -o wheelhouse
+          uv build --wheel integrations/graphify -o wheelhouse
+          uv build --wheel integrations/neural-memory -o wheelhouse
+          Get-ChildItem wheelhouse | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash, $_.Name
+          }
+
+      - name: "09 · Install the wheel with deps into a second clean venv"
+        shell: pwsh
+        run: |
+          uv venv .venv2 --python 3.12
+          $whl = (Get-ChildItem wheelhouse\hive_mind-*.whl)[0].FullName
+          uv pip install --python .venv2\Scripts\python.exe --find-links wheelhouse $whl
+
+      - name: "10 · hive-mind --version"
+        shell: pwsh
+        run: .venv2\Scripts\hive-mind.exe --version
+
+      - name: "11 · hive-mindd --help"
+        shell: pwsh
+        run: .venv2\Scripts\hive-mindd.exe --help
+
+      - name: "12 · compileall"
+        shell: pwsh
+        run: .venv\Scripts\python.exe -m compileall -q src scripts core
+
+      - name: "13 · pytest tests/unit"
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force reports | Out-Null
+          .venv\Scripts\python.exe -m pytest tests/unit -q --junitxml=reports/pytest-unit.xml
+
+      - name: "14 · npm test"
+        shell: pwsh
+        working-directory: npm
+        run: npm test
+
+      - name: "15 · implementation validate"
+        shell: pwsh
+        run: .venv\Scripts\hive-mind.exe implementation validate
+
+      - name: "16 · Validate PowerShell installer syntax + dry runs"
+        shell: pwsh
+        run: |
+          $tokens = $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "$PWD/install.ps1", [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
+          ./install.ps1 -Profile local-min -DryRun
+          ./install.ps1 -Profile local-full -DryRun
+
+      - name: "17 · Validate wrappers"
+        shell: pwsh
+        run: .venv\Scripts\python.exe scripts/setup/verify_wrappers.py
+
+      - name: "18 · Validate manifests (job/timer parity)"
+        shell: pwsh
+        run: .venv\Scripts\python.exe -m pytest tests/unit/test_manifest_job_parity.py tests/unit/test_cutover_owner_contract.py -q
+
+      - name: "19 · Forbidden runtime paths on the clean runner"
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force reports | Out-Null
+          .venv\Scripts\python.exe scripts/health/audit_runtime_paths_windows.py `
+            --root $PWD | Tee-Object reports/p3-path-audit.json
+
+      - name: "20 · Publish logs and matrices"
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p3-fresh-machine-${{ github.sha }}
+          path: |
+            reports/
+            wheelhouse/
+          if-no-files-found: warn
