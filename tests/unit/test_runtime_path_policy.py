@@ -49,6 +49,50 @@ def test_policy_rejects_forbidden_runtime_path_families(value, family):
     assert findings[0].matched == family
 
 
+@pytest.mark.parametrize(
+    ("value", "matched"),
+    [
+        (r"D:\Hive-Mind\.tmp\capture-3way-test\repo\worker.py", "d:/hive-mind/.tmp"),
+        (r"D:\Hive-Mind\backups\worktrees\old\repo\worker.py", "backups/worktrees"),
+        (r"D:\Hive-Mind\backups\install-20260711\worker.py", "d:/hive-mind/backups"),
+        (r'"D:\Hive-Mind\.venv\Scripts\python.exe" D:\Hive-Mind\.tmp\run.py', "d:/hive-mind/.tmp"),
+    ],
+)
+def test_policy_rejects_canonical_tmp_and_backups_targets(value, matched):
+    """P2-R4: nothing may run from the canonical root's .tmp or backups."""
+    findings = find_runtime_path_violations(
+        [RuntimePathReference(source="scheduled_task:X:arguments", value=value)],
+        canonical_root=r"D:\Hive-Mind",
+    )
+
+    assert len(findings) == 1
+    assert findings[0].reason == "forbidden_path_family"
+    assert findings[0].matched == matched
+
+
+def test_policy_allows_unrelated_external_backups_dir():
+    """A third-party provider writing to its own backups is not our concern."""
+    findings = find_runtime_path_violations(
+        [
+            RuntimePathReference(
+                source="process:provider:command_line",
+                value=r'"C:\Program Files\Provider\provider.exe" --data D:\data\backups',
+            ),
+            RuntimePathReference(
+                source="task:HiveMind-Backup:log",
+                value=r"D:\Hive-Mind\logs\backup\backup-2026.json",
+            ),
+            RuntimePathReference(
+                source="components:lock-backup",
+                value=r"D:\Hive-Mind\config\component-lock-backups\components.lock.json",
+            ),
+        ],
+        canonical_root=r"D:\Hive-Mind",
+    )
+
+    assert findings == []
+
+
 def test_policy_rejects_another_hive_mind_repository_root():
     findings = find_runtime_path_violations(
         [

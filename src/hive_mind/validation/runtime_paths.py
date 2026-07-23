@@ -14,6 +14,16 @@ _FORBIDDEN_FAMILIES = (
     "hive-mind-consolidation",
 )
 
+# Directories that are legitimate on disk but must never host a runtime target.
+# Unlike the families above they are only forbidden *inside the canonical root*:
+# `D:\Hive-Mind\.tmp` is a violation, an unrelated `D:\data\backups` from a
+# third-party provider is not. Matched as whole segments, so `logs/backup` and
+# `config/component-lock-backups` are untouched.
+_FORBIDDEN_CANONICAL_SUBDIRS = (
+    ".tmp",
+    "backups",
+)
+
 
 @dataclass(frozen=True)
 class RuntimePathReference:
@@ -78,6 +88,21 @@ def _contains_path_family(value: str, family: str) -> bool:
     )
 
 
+def _contains_absolute_family(value: str, family: str) -> bool:
+    """Like :func:`_contains_path_family` but for an absolute-path family.
+
+    A canonical subdir (`d:/hive-mind/.tmp`) can appear as a second token on a
+    command line, preceded by a space or quote rather than a `/`, so the leading
+    boundary is widened to any path/whitespace/quote start.
+    """
+    return bool(
+        re.search(
+            rf"(?:^|[/\s\"']){re.escape(family)}(?=/|[\s\"']|$)",
+            value,
+        )
+    )
+
+
 def _hive_mind_roots(value: str) -> Iterable[str]:
     pattern = re.compile(
         r"(?P<root>(?:[a-z]:/|//[^/\s\"']+/[^/\s\"']+/|/)"
@@ -119,6 +144,26 @@ def find_runtime_path_violations(
                     normalized_value=normalized,
                     reason="forbidden_path_family",
                     matched=family,
+                )
+            )
+            continue
+
+        canonical_subdir = next(
+            (
+                f"{canonical}/{subdir}"
+                for subdir in _FORBIDDEN_CANONICAL_SUBDIRS
+                if _contains_absolute_family(normalized, f"{canonical}/{subdir}")
+            ),
+            None,
+        )
+        if canonical_subdir is not None:
+            findings.append(
+                RuntimePathFinding(
+                    source=reference.source,
+                    value=reference.value,
+                    normalized_value=normalized,
+                    reason="forbidden_path_family",
+                    matched=canonical_subdir,
                 )
             )
             continue
