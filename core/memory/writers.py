@@ -38,13 +38,48 @@ def sanitize_slug(title: str, max_len: int = 60) -> str:
     return text or "decision"
 
 
+def read_vault_text(filepath: str, log_fn: Optional[Callable] = None) -> str:
+    """Lê uma nota do vault que pode anteceder o contrato UTF-8.
+
+    Notas antigas gravadas por um console cp1252 carregam bytes soltos como
+    ``0xB7`` (o ``·`` dos separadores) no meio de texto que, no resto do
+    arquivo, já é UTF-8 válido. Decodificar tudo como cp1252 nesse caso
+    reescreveria cada ``·`` correto (``C2 B7``) como ``Â·``; por isso o fallback
+    é ``surrogateescape``, que preserva o byte inválido e o devolve idêntico em
+    :func:`atomic_write` — o arquivo histórico nunca é reescrito nem truncado.
+    """
+    with open(filepath, "rb") as f:
+        raw = f.read()
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raw = raw[3:]
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        if log_fn:
+            log_fn(
+                "warning",
+                "vault_legacy_encoding",
+                file=os.path.basename(filepath),
+                offset=exc.start,
+                byte=f"0x{raw[exc.start]:02X}",
+            )
+        return raw.decode("utf-8", errors="surrogateescape")
+
+
 def atomic_write(filepath: str, content: str) -> bool:
-    """Escreve arquivo atomicamente via temp + rename."""
+    """Escreve arquivo atomicamente via temp + rename.
+
+    ``surrogateescape`` na escrita é o par de :func:`read_vault_text`: conteúdo
+    novo sai em UTF-8 puro e os bytes legados que sobreviveram à leitura voltam
+    ao disco exatamente como estavam.
+    """
     dirname = os.path.dirname(filepath)
     os.makedirs(dirname, exist_ok=True)
     try:
         fd, tmp_path = tempfile.mkstemp(dir=dirname, suffix=".tmp")
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+        with os.fdopen(
+            fd, "w", encoding="utf-8", errors="surrogateescape", newline="\n"
+        ) as f:
             f.write(content)
         os.replace(tmp_path, filepath)
         return True
@@ -246,8 +281,7 @@ def save_learning(
 
     # Verifica duplicação — match de heading exato
     try:
-        with open(patterns_file, "r", encoding="utf-8") as f:
-            existing = f.read()
+        existing = read_vault_text(patterns_file, log_fn)
         if re.search(rf"^## {re.escape(title)} \(", existing, re.MULTILINE):
             if log_fn:
                 log_fn("info", "learning_duplicate_skipped", title=title[:60])
@@ -265,8 +299,7 @@ def save_learning(
     try:
         existing = ""
         try:
-            with open(patterns_file, "r", encoding="utf-8") as f:
-                existing = f.read()
+            existing = read_vault_text(patterns_file, log_fn)
         except FileNotFoundError:
             pass
 
