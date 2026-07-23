@@ -8,7 +8,13 @@ name: P3 Fresh Machine Validation
 # wheel with its dependencies into a second clean venv, and runs the suites and
 # the isolated-installer + forbidden-path contracts against a throwaway root.
 
+# `push` to the feature branch is what actually triggers a run here: a
+# workflow_dispatch workflow is only dispatchable once it exists on the default
+# branch, and P3 must not touch main. Pushing the branch runs it on a disposable
+# runner without any default-branch registration.
 on:
+  push:
+    branches: [codex/runtime-consolidation-final]
   workflow_dispatch:
     inputs:
       use_cache:
