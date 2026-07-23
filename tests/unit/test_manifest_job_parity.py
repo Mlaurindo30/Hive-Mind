@@ -100,17 +100,33 @@ def test_manifest_covers_every_live_windows_scheduled_task():
 
 
 def test_dead_windows_tasks_are_deliberately_excluded():
-    """Documents the jobs intentionally NOT carried over, with the reason.
+    """No Windows task may point at a script that does not exist.
 
     D008-R1V found `scripts/maintenance/backup.py` present only as an untracked
-    file on the maintainer's machine and duplicated by `backup-databases`. It is
-    excluded on purpose; this test fails if it ever becomes real code, forcing a
-    fresh decision instead of a silent gap.
+    file on the maintainer's machine and duplicated by `backup-databases`, and
+    left the task pointing at it — harmless while the untracked file existed,
+    but a silent breakage the moment a cutover replaced the working tree.
+    P2-R1 closed that: `register-windows-jobs.ps1` now registers HiveMind-Backup
+    as the native `hive-mind backup run --apply` command, so no script-path task
+    is left dangling. This test fails if one is reintroduced.
     """
     dead = _windows_task_scripts() - _live(_windows_task_scripts())
-    assert dead == {"scripts/maintenance/backup.py"}, (
+    assert dead == set(), (
         f"the set of dead legacy tasks changed; re-validate the inventory: {dead}"
     )
+
+
+def test_backup_task_uses_the_native_command_not_the_retired_wrapper():
+    """P2-R1: the scheduled backup must survive a cutover.
+
+    The retired wrapper is not in the repository, so a task still pointing at it
+    would start failing the first night after the runtime moved.
+    """
+    text = WINDOWS_JOBS.read_text(encoding="utf-8-sig")
+
+    assert "scripts\\maintenance\\backup.py" not in text
+    assert "backup run --apply" in text
+    assert "hive-mind.exe" in text
 
 
 def test_manifest_covers_every_systemd_timer():
