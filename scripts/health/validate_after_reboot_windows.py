@@ -4,16 +4,22 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "src"
+for import_path in (ROOT, SRC):
+    if str(import_path) not in sys.path:
+        sys.path.insert(0, str(import_path))
 
 try:
     from scripts.health.audit_runtime_paths_windows import audit_runtime_paths
 except ModuleNotFoundError:  # Direct script execution adds scripts/health to sys.path.
     from audit_runtime_paths_windows import audit_runtime_paths
 
-ROOT = Path(__file__).resolve().parents[2]
 REPORT = ROOT / "logs" / "post-reboot-validation.json"
 
 

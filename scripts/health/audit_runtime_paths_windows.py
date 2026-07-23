@@ -8,9 +8,15 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 from typing import Callable, Mapping
 
 import yaml
+
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
 from hive_mind.validation.runtime_paths import (
     RuntimePathReference,
@@ -26,6 +32,7 @@ _REFERENCE_KEYS = {
     "arguments",
     "command",
     "commands",
+    "env",
     "env_file",
     "executable",
     "file",

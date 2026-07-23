@@ -41,9 +41,16 @@ def normalize_runtime_value(value: str) -> str:
     """Normalize separators and case without interpreting command syntax."""
 
     normalized = value.strip().replace("\\", "/").casefold()
-    if normalized.startswith("//"):
-        return "//" + re.sub(r"/{2,}", "/", normalized[2:])
-    return re.sub(r"/{2,}", "/", normalized)
+
+    def normalize_separator(match: re.Match[str]) -> str:
+        preceding = normalized[match.start() - 1] if match.start() else ""
+        if len(match.group()) >= 2 and (
+            not preceding or preceding in ":= \t\"'"
+        ):
+            return "//"
+        return "/"
+
+    return re.sub(r"/+", normalize_separator, normalized)
 
 
 def _contains_path_family(value: str, family: str) -> bool:
@@ -61,6 +68,13 @@ def _hive_mind_roots(value: str) -> Iterable[str]:
         r"(?:[^/\s\"']+/)*hive-mind)(?=/|[\s\"']|$)"
     )
     return (match.group("root").rstrip("/") for match in pattern.finditer(value))
+
+
+def _without_canonical_root(value: str, canonical_root: str) -> str:
+    pattern = re.compile(
+        rf"(?<![a-z0-9_.-]){re.escape(canonical_root)}(?=/|[\s\"']|$)"
+    )
+    return pattern.sub("<canonical-root>", value)
 
 
 def find_runtime_path_violations(
@@ -93,10 +107,8 @@ def find_runtime_path_violations(
             )
             continue
 
-        noncanonical_root = next(
-            (root for root in _hive_mind_roots(normalized) if root != canonical),
-            None,
-        )
+        remaining = _without_canonical_root(normalized, canonical)
+        noncanonical_root = next(iter(_hive_mind_roots(remaining)), None)
         if noncanonical_root is not None:
             findings.append(
                 RuntimePathFinding(

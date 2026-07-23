@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -14,6 +17,7 @@ from hive_mind.validation.runtime_paths import (
 
 ROOT = Path(__file__).resolve().parents[2]
 COLLECTOR_PATH = ROOT / "scripts" / "health" / "audit_runtime_paths_windows.py"
+VALIDATOR_PATH = ROOT / "scripts" / "health" / "validate_after_reboot_windows.py"
 SPEC = importlib.util.spec_from_file_location(
     "audit_runtime_paths_windows", COLLECTOR_PATH
 )
@@ -79,6 +83,35 @@ def test_policy_accepts_canonical_and_unrelated_provider_paths_without_name_fals
     )
 
     assert findings == []
+
+
+@pytest.mark.parametrize(
+    "canonical_root",
+    [
+        r"C:\Program Files\Hive-Mind",
+        "/opt/Hive Mind/Hive-Mind",
+        r"\\server\team share\Hive-Mind",
+    ],
+)
+def test_policy_accepts_canonical_roots_with_spaces_and_still_rejects_other_roots(
+    canonical_root,
+):
+    findings = find_runtime_path_violations(
+        [
+            RuntimePathReference(
+                source="canonical:command",
+                value=f'"{canonical_root}/.venv/python" worker.py',
+            ),
+            RuntimePathReference(
+                source="other:command",
+                value=r'"E:\deploy\Hive-Mind\.venv\Scripts\python.exe" worker.py',
+            ),
+        ],
+        canonical_root=canonical_root,
+    )
+
+    assert [finding.source for finding in findings] == ["other:command"]
+    assert findings[0].matched == "e:/deploy/hive-mind"
 
 
 def test_injected_windows_snapshot_collects_only_operational_fields(tmp_path):
@@ -168,3 +201,70 @@ def test_audit_accepts_injected_collectors_without_live_machine_access(tmp_path)
     assert calls == ["snapshot", ("documents", Path(r"D:\Hive-Mind"))]
     assert findings[0]["source"] == "operational_file:config/runtime.yaml:services[0].working_directory"
     assert findings[0]["reason"] == "forbidden_path_family"
+
+
+def test_operational_environment_dicts_and_lists_are_audited(tmp_path):
+    documents = {
+        "config/runtime.yaml": {
+            "services": [
+                {
+                    "name": "api",
+                    "env": {"SINAPSE_HOME": r"D:\Hive-Mind-Archive\old"},
+                }
+            ]
+        },
+        "logs/supervisor/manifest.json": {
+            "services": [
+                {
+                    "name": "worker",
+                    "env": [r"PYTHONPATH=D:\Hive-Mind-Consolidation\repo\src"],
+                }
+            ]
+        },
+    }
+
+    references = COLLECTOR.collect_runtime_references(
+        tmp_path,
+        snapshot={"processes": [], "scheduled_tasks": [], "services": []},
+        documents=documents,
+    )
+    findings = find_runtime_path_violations(references, r"D:\Hive-Mind")
+
+    assert [finding.source for finding in findings] == [
+        "operational_file:config/runtime.yaml:services[0].env.SINAPSE_HOME",
+        "operational_file:logs/supervisor/manifest.json:services[0].env[0]",
+    ]
+
+
+def test_health_entrypoints_bootstrap_src_without_pythonpath(tmp_path):
+    env = os.environ.copy()
+    env.pop("PYTHONPATH", None)
+
+    audit = subprocess.run(
+        [sys.executable, str(COLLECTOR_PATH), "--help"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    validator = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import runpy; "
+                f"runpy.run_path({str(VALIDATOR_PATH)!r}, "
+                "run_name='validator_import_check')"
+            ),
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert audit.returncode == 0, audit.stderr
+    assert "--root" in audit.stdout
+    assert validator.returncode == 0, validator.stderr
