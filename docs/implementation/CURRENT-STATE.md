@@ -1,7 +1,7 @@
 # Project Status Dashboard
 
-- **branch:** `codex/runtime-consolidation`
-- **HEAD:** `a4d3260` — último commit de `git log` no momento em que este
+- **branch:** `codex/runtime-consolidation-final`
+- **HEAD:** `c4366ae` — último commit de `git log` no momento em que este
   painel foi escrito. Por construção ele fica atrás do HEAD atual por
   exatamente **um** commit: aquele que grava esta linha, cujo SHA não existe
   antes de existir. O validador aceita esse único passo **só** se o commit
