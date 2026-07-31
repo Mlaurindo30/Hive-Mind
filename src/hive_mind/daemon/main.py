@@ -1,16 +1,8 @@
-"""Hive-Mind daemon entry point (F1 stub).
-
-The F1 scope only registers ``hive-mindd --version``,
-``hive-mindd --help``, and ``hive-mindd run`` (which **fails** with
-``EX_UNAVAILABLE=69`` because the daemon is not implemented in F1).
-**No** processes are spawned; **no** services are started; **no**
-manifest is parsed.
-
-Real implementation lands in F3 (daemon) onwards.
-"""
+"""Hive-Mind daemon entry point."""
 from __future__ import annotations
 
 import argparse
+import time
 import sys
 from pathlib import Path
 
@@ -116,29 +108,79 @@ def _run_shadow(args) -> int:
     return 0
 
 
-def _serve(args, state_dir: Path) -> int:
-    """Serve the read-only HTTP loopback and the control socket until
-    interrupted. In shadow ownership the control socket refuses every mutation;
-    no service is ever started."""
+def _run_managed(args) -> int:
+    """Managed runtime: own the service lifecycle via ManagedSupervisor."""
+    from hive_mind.daemon.lock import SingleInstanceLock, SingleInstanceLockError
+    from hive_mind.daemon.managed import ManagedSupervisor
+    from hive_mind.daemon.manifest import load_manifest
+
+    manifest_path, state_dir = _resolve_paths(args)
+    try:
+        manifest = load_manifest(manifest_path)
+    except FileNotFoundError as exc:
+        print(f"hive-mindd: {exc}", file=sys.stderr)
+        return EX_UNAVAILABLE
+
+    try:
+        with SingleInstanceLock(state_dir):
+            supervisor = ManagedSupervisor(manifest, state_dir=state_dir)
+            supervisor.start_all()
+            supervisor.start_monitor()
+            status = supervisor.status()
+            print(
+                f"hive-mindd managed: profile={status['profile']} "
+                f"services={len(status['services'])} "
+                f"-> {state_dir / 'services.managed.json'}"
+            )
+            try:
+                if getattr(args, "serve", False):
+                    return _serve(
+                        args,
+                        state_dir,
+                        mode="managed",
+                        supervisor=supervisor,
+                    )
+                while True:
+                    time.sleep(3600)
+            finally:
+                supervisor.stop_monitor()
+                supervisor.stop_all()
+    except SingleInstanceLockError as exc:
+        print(f"hive-mindd: {exc}", file=sys.stderr)
+        return EX_UNAVAILABLE
+
+
+def _serve(args, state_dir: Path, *, mode: str, supervisor=None) -> int:
+    """Serve the read-only HTTP loopback and the control socket until interrupted."""
     import threading
 
     import uvicorn
 
     from hive_mind.daemon.control import ControlServer
-    from hive_mind.daemon.control_dispatch import ShadowControlDispatcher
+    from hive_mind.daemon.control_dispatch import (
+        ManagedControlDispatcher,
+        ShadowControlDispatcher,
+    )
     from hive_mind.daemon.http_api import (
         DEFAULT_HTTP_HOST,
         DEFAULT_HTTP_PORT,
         create_app,
     )
 
+    if mode == "managed":
+        dispatcher = ManagedControlDispatcher(supervisor=supervisor, state_dir=state_dir)
+    else:
+        dispatcher = ShadowControlDispatcher(state_dir=state_dir)
     control = ControlServer(
-        state_dir=state_dir, dispatch=ShadowControlDispatcher(state_dir=state_dir)
+        state_dir=state_dir, dispatch=dispatcher
     )
     control.start()
     control_thread = threading.Thread(target=control.serve_forever, daemon=True)
     control_thread.start()
-    print("hive-mindd control socket ready (shadow: mutations refused)")
+    if mode == "managed":
+        print("hive-mindd control socket ready (managed)")
+    else:
+        print("hive-mindd control socket ready (shadow: mutations refused)")
 
     host = args.host or DEFAULT_HTTP_HOST
     port = args.port or DEFAULT_HTTP_PORT
@@ -160,9 +202,11 @@ def main(argv: "list[str] | None" = None) -> int:
     if args.command == "run":
         if getattr(args, "shadow", False):
             return _run_shadow(args)
+        if getattr(args, "serve", False):
+            return _run_managed(args)
         print(
             "hive-mindd run (managed) is not implemented yet; "
-            "use --shadow for the passive pass",
+            "use --serve for the managed daemon or --shadow for the passive pass",
             file=sys.stderr,
         )
         return EX_UNAVAILABLE

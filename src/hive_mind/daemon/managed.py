@@ -16,12 +16,14 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from hive_mind.daemon.manifest import RuntimeManifest, ServiceSpec
 
 MANAGED_STATE_FILENAME = "services.managed.json"
 _STOP_GRACE_SECONDS = 10
+_STATE_REFRESH_SECONDS = 60
 
 
 class _Managed:
@@ -48,6 +50,8 @@ class ManagedSupervisor:
         self._lock = threading.RLock()
         self._monitor: threading.Thread | None = None
         self._monitor_stop = threading.Event()
+        self._started_at = datetime.now(timezone.utc)
+        self._last_persist_at = time.monotonic()
 
     # -- ordering -----------------------------------------------------------
     def _startup_order(self) -> list[str]:
@@ -84,15 +88,60 @@ class ManagedSupervisor:
             self._spawn(managed)
             self._persist()
 
+    def _resolve_working_directory(self, spec: ServiceSpec) -> Path | None:
+        if not spec.working_directory:
+            return None
+        return Path(spec.working_directory).resolve()
+
+    def _canonicalize_command(self, spec: ServiceSpec) -> list[str]:
+        command = list(spec.command)
+        if not command:
+            return command
+        executable = command[0]
+        if executable not in {"python", "python3", "hive-mind", "hive-mindd"}:
+            return command
+
+        cwd = self._resolve_working_directory(spec) or Path.cwd()
+        venv_dir = cwd / ".venv"
+        if sys.platform == "win32":
+            bin_dir = venv_dir / "Scripts"
+            replacements = {
+                "python": bin_dir / "python.exe",
+                "python3": bin_dir / "python.exe",
+                "hive-mind": bin_dir / "hive-mind.exe",
+                "hive-mindd": bin_dir / "hive-mindd.exe",
+            }
+        else:
+            bin_dir = venv_dir / "bin"
+            replacements = {
+                "python": bin_dir / "python",
+                "python3": bin_dir / "python3",
+                "hive-mind": bin_dir / "hive-mind",
+                "hive-mindd": bin_dir / "hive-mindd",
+            }
+        candidate = replacements[executable]
+        if sys.platform == "win32" and executable in {"python", "python3"}:
+            command[0] = str(candidate)
+            return command
+        if candidate.exists():
+            command[0] = str(candidate)
+        return command
+
     def _spawn(self, managed: _Managed) -> None:
         spec = managed.spec
         creationflags = 0
         if sys.platform == "win32":
-            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
+            creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
+        cwd = self._resolve_working_directory(spec)
+        environment = {
+            "CLAUDE_MEM_DB": str(Path.home() / ".claude-mem" / "claude-mem.db"),
+            **os.environ,
+            **spec.env,
+        }
         managed.process = subprocess.Popen(  # noqa: S603 - commands come from the trusted manifest
-            spec.command,
-            cwd=spec.working_directory or None,
-            env={**os.environ, **spec.env},
+            self._canonicalize_command(spec),
+            cwd=str(cwd) if cwd is not None else None,
+            env=environment,
             creationflags=creationflags,
         )
         managed.state = "running"
@@ -111,7 +160,16 @@ class ManagedSupervisor:
             managed.intentional_stop = True  # tell the monitor this is not a crash
             proc = managed.process
             if proc is not None and proc.poll() is None:
-                proc.terminate()
+                if sys.platform == "win32":
+                    subprocess.run(
+                        ["taskkill.exe", "/PID", str(proc.pid), "/T", "/F"],
+                        check=False,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        creationflags=subprocess.CREATE_NO_WINDOW,
+                    )
+                else:
+                    proc.terminate()
                 try:
                     proc.wait(timeout=_STOP_GRACE_SECONDS)
                 except subprocess.TimeoutExpired:
@@ -153,7 +211,19 @@ class ManagedSupervisor:
             return False
         if managed.restarts >= managed.spec.restart_limit:
             return False
-        return policy in ("always", "on-failure")
+        if policy == "on-failure":
+            process = managed.process
+            return process is not None and process.returncode not in (None, 0)
+        return policy == "always"
+
+    def _restart_delay_seconds(self, managed: _Managed) -> int:
+        """Return the delay for the next restart, capped exponentially."""
+        base_delay = managed.spec.restart_delay_seconds
+        maximum = managed.spec.restart_max_delay_seconds
+        return min(base_delay * (2 ** managed.restarts), maximum)
+
+    def _needs_state_refresh(self, *, now: float | None = None) -> bool:
+        return (now if now is not None else time.monotonic()) - self._last_persist_at >= _STATE_REFRESH_SECONDS
 
     def _monitor_loop(self, poll_interval: float) -> None:
         while not self._monitor_stop.is_set():
@@ -166,13 +236,18 @@ class ManagedSupervisor:
                     managed.state = "exited"
                     if not self._should_restart(managed):
                         continue
-                    if time.monotonic() < managed.next_restart_at:
+                    now = time.monotonic()
+                    if managed.next_restart_at == 0.0:
+                        managed.next_restart_at = now + self._restart_delay_seconds(managed)
+                        self._persist()
+                        continue
+                    if now < managed.next_restart_at:
                         continue
                     managed.restarts += 1
-                    managed.next_restart_at = (
-                        time.monotonic() + managed.spec.restart_delay_seconds
-                    )
+                    managed.next_restart_at = 0.0
                     self._spawn(managed)
+                    self._persist()
+                if self._needs_state_refresh():
                     self._persist()
             self._monitor_stop.wait(poll_interval)
 
@@ -191,7 +266,14 @@ class ManagedSupervisor:
                     "required": managed.spec.required,
                     "restarts": managed.restarts,
                 }
-            return {"mode": "managed", "profile": self.manifest.profile, "services": services}
+            return {
+                "mode": "managed",
+                "profile": self.manifest.profile,
+                "supervisor_pid": os.getpid(),
+                "started_at": self._started_at.isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "services": services,
+            }
 
     def _persist(self) -> None:
         self.state_dir.mkdir(parents=True, exist_ok=True)
@@ -201,3 +283,4 @@ class ManagedSupervisor:
             json.dumps(self.status(), indent=2, ensure_ascii=False), encoding="utf-8"
         )
         os.replace(tmp, target)
+        self._last_persist_at = time.monotonic()
