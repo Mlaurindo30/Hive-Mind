@@ -24,15 +24,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-PS1 = ROOT / "scripts" / "setup" / "register-mcp.ps1"
-SH = ROOT / "scripts" / "setup" / "register-mcp.sh"
-BASH = shutil.which("bash")
-POWERSHELL = shutil.which("powershell") or shutil.which("pwsh")
-
-WRAPPERS = [
-    pytest.param(SH, marks=pytest.mark.skipif(not BASH, reason="no bash")),
-    pytest.param(PS1, marks=pytest.mark.skipif(not POWERSHELL, reason="no powershell")),
-]
+ENTRY = ROOT / "scripts" / "setup" / "register_mcp.py"
+WRAPPERS = [ENTRY]
 
 THIRD_PARTY = {"command": "somebody-elses-server", "args": ["--keep-me"]}
 
@@ -88,11 +81,7 @@ def _invoke(wrapper: Path, args: list[str], sandbox) -> subprocess.CompletedProc
     env["PROJECT_ROOT"] = str(ROOT)
     args = [*args, "--project-root", str(sandbox["project"])]
 
-    if wrapper.suffix == ".sh":
-        command = [BASH, str(wrapper), *args]
-    else:
-        command = [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass",
-                   "-File", str(wrapper), *args]
+    command = [sys.executable, str(wrapper), *args]
     return subprocess.run(command, capture_output=True, text=True, env=env,
                           encoding="utf-8", errors="replace", timeout=300,
                           cwd=str(ROOT))
@@ -214,9 +203,6 @@ def test_the_real_user_configs_were_never_touched(sandbox):
     watched = [real_home / ".codex" / "config.toml", real_home / ".claude.json",
                real_home / ".qwen" / "settings.json"]
     before = {p: p.stat().st_mtime_ns for p in watched if p.exists()}
-    if BASH:
-        _invoke(SH, ["--only", "qwen", "--apply"], sandbox)
-    if POWERSHELL:
-        _invoke(PS1, ["--only", "codex", "--apply"], sandbox)
+    _invoke(ENTRY, ["--only", "qwen", "--apply"], sandbox)
     after = {p: p.stat().st_mtime_ns for p in watched if p.exists()}
     assert before == after, "a real user config was modified"

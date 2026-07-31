@@ -68,9 +68,15 @@ def test_antigravity_cli_reads_windows_conversation_database(tmp_path: Path) -> 
     sid = "e2f6cb6e-5172-4586-af7b-634d88c52374"
     db = tmp_path / ".gemini" / "antigravity-cli" / "conversations" / f"{sid}.db"
     db.parent.mkdir(parents=True)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / ".git").mkdir()
     con = sqlite3.connect(db)
     con.execute("CREATE TABLE steps (idx INTEGER PRIMARY KEY, step_type INTEGER, step_payload BLOB)")
-    con.execute("INSERT INTO steps VALUES (?,?,?)", (0, 14, _protobuf_blob(19, _protobuf_text(2, "prompt real"))))
+    user = _protobuf_blob(19, _protobuf_text(2, "prompt real")) + _protobuf_text(
+        99, f'{{"AbsolutePath":"{workspace.as_posix()}/README.md"}}'
+    )
+    con.execute("INSERT INTO steps VALUES (?,?,?)", (0, 14, user))
     con.execute("INSERT INTO steps VALUES (?,?,?)", (2, 15, _protobuf_blob(20, _protobuf_text(1, "resposta real"))))
     con.commit()
     con.close()
@@ -85,6 +91,8 @@ def test_antigravity_cli_reads_windows_conversation_database(tmp_path: Path) -> 
         "source_position": f"{sid}.db:step:0",
     }]
     assert session["last"] == "resposta real"
+    assert session["cwd"] == str(workspace)
+    assert session["official_workspace"] == str(workspace)
 
 def test_antigravity_keeps_every_user_input(tmp_path: Path) -> None:
     transcript = _write_transcript(
@@ -114,6 +122,36 @@ def test_antigravity_session_prompt_is_first_user_input(tmp_path: Path) -> None:
 
     assert session["prompt"] == "primeiro pedido"
     assert session["sid"] == "68f4d64e-9de6-4f73-99f7-66f173d38de0"
+
+
+def test_antigravity_transcript_is_skipped_when_db_for_same_session_exists(
+    tmp_path: Path,
+) -> None:
+    parser = _load_parser()
+    sid = "68f4d64e-9de6-4f73-99f7-66f173d38de0"
+    transcript = (
+        tmp_path
+        / ".gemini"
+        / "antigravity-ide"
+        / "brain"
+        / sid
+        / ".system_generated"
+        / "logs"
+        / "transcript_full.jsonl"
+    )
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text(_user_input(1, "prompt fraco"), encoding="utf-8")
+    paired_db = (
+        tmp_path
+        / ".gemini"
+        / "antigravity-ide"
+        / "conversations"
+        / f"{sid}.db"
+    )
+    paired_db.parent.mkdir(parents=True, exist_ok=True)
+    paired_db.write_bytes(b"")
+
+    assert parser.parse(transcript) == []
 
 
 def test_prompt_events_expose_stable_source_positions(tmp_path: Path) -> None:

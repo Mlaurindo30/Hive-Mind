@@ -1,4 +1,4 @@
-"""Testes do install_services — invariantes das units da Memória Viva (doc 08, §14.4-P1).
+"""Testes do runtime_services — invariantes das units da Memória Viva (doc 08, §14.4-P1).
 
 Não instala nada (não toca em systemctl): valida só o conteúdo gerado por
 `unit_definitions()` e a coerência da lista `enabled`. Cobre os contratos que,
@@ -11,25 +11,18 @@ se quebrados, causam regressão silenciosa de reprodutibilidade/segurança:
 - dream NÃO está em `enabled` (go-live gated por M9, §14.4-P2);
 - as 4 cadências da Memória Viva estão definidas (reprodutibilidade).
 """
-import importlib.util
 import os
 import re
 from pathlib import Path
+import sys
 
 import pytest
 
-SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
+ROOT = Path(__file__).resolve().parents[2]
+SCRIPTS = ROOT / "scripts"
+sys.path.insert(0, str(ROOT / "src"))
 
-
-def _load():
-    spec = importlib.util.spec_from_file_location(
-        "install_services", SCRIPTS / "setup" / "install_services.py")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
-
-
-MOD = _load()
+from hive_mind.maintenance import runtime_services as MOD  # noqa: E402
 DEFS = MOD.unit_definitions()
 
 # Cadências da Memória Viva que precisam existir p/ não sumirem num reinstall.
@@ -125,7 +118,9 @@ def test_drift_e_log_only_sem_apply():
 
 def test_dream_definido_mas_nao_auto_habilitado():
     """dream existe (reprodutibilidade) porém fica fora do enabled (gated por M9)."""
-    src = (SCRIPTS / "setup" / "install_services.py").read_text(encoding="utf-8")
+    src = (ROOT / "src" / "hive_mind" / "maintenance" / "runtime_services.py").read_text(
+        encoding="utf-8"
+    )
     m = re.search(r"enabled = \[(.*?)\]", src, re.S)
     assert m, "lista enabled não encontrada"
     enabled_block = m.group(1)

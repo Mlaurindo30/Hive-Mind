@@ -1,6 +1,7 @@
 import os
 import pytest
 from sinapse_memory import _save_decision, _save_learning, _sanitize_slug, _atomic_write, _validate_frontmatter_yaml
+import yaml
 
 
 class TestSanitizeSlug:
@@ -77,6 +78,19 @@ class TestSaveDecision:
         assert "tags:" in content
         assert "status:" in content
         assert "created:" in content
+
+    def test_save_decision_escapes_windows_evidence_path_in_yaml(self, temp_vault, monkeypatch):
+        monkeypatch.setattr("sinapse_memory.DECISIONS_DIR", f"{temp_vault}/work/active")
+        evidence = r"D:\IQ Option\iq-agent-desk\docs\reports\VALIDATION_ACCEPTANCE_MATRIX_2026-07-18.md"
+        path = _save_decision("Test Evidence", "Content", evidence=evidence)
+
+        assert path is not None
+        with open(path, encoding="utf-8") as f:
+            content = f.read()
+        assert _validate_frontmatter_yaml(content) is True
+        frontmatter = content.split("---", 2)[1]
+        parsed = yaml.safe_load(frontmatter)
+        assert parsed["evidence"] == evidence
 
 
 class TestSaveLearning:

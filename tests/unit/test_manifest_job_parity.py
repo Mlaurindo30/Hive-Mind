@@ -13,16 +13,19 @@ manifest cannot drift out of completeness unnoticed.
 """
 from __future__ import annotations
 
+import importlib
 import re
 from pathlib import Path
 
 import pytest
 import yaml
 
+from hive_mind.maintenance.windows_jobs import windows_job_specs
+
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "config" / "runtime.yaml"
-INSTALL_SERVICES = ROOT / "scripts" / "setup" / "install_services.py"
 WINDOWS_JOBS = ROOT / "scripts" / "setup" / "register-windows-jobs.ps1"
+RUNTIME_SERVICES = importlib.import_module("hive_mind.maintenance.runtime_services")
 
 
 def _manifest_jobs() -> dict[str, dict]:
@@ -41,13 +44,8 @@ def _manifest_scripts() -> set[str]:
 
 
 def _systemd_timer_scripts() -> dict[str, str]:
-    """Map unit -> script for each systemd timer in the legacy installer."""
-    source = INSTALL_SERVICES.read_text(encoding="utf-8")
-    blocks = dict(
-        re.findall(
-            r'"(sinapse-[a-z-]+\.(?:timer|service))":\s*f?"""(.*?)"""', source, re.S
-        )
-    )
+    """Map unit -> script for each systemd timer in the native owner."""
+    blocks = RUNTIME_SERVICES.unit_definitions()
     timers = {k[: -len(".timer")] for k in blocks if k.endswith(".timer")}
     mapping: dict[str, str] = {}
     for unit in timers:
@@ -59,10 +57,10 @@ def _systemd_timer_scripts() -> dict[str, str]:
 
 
 def _windows_task_scripts() -> set[str]:
-    text = WINDOWS_JOBS.read_text(encoding="utf-8-sig")
     return {
-        m.replace("\\", "/")
-        for m in re.findall(r"Script='([^']+)'", text)
+        job.source_script.replace("\\", "/")
+        for job in windows_job_specs(ROOT)
+        if job.source_script
     }
 
 
@@ -122,11 +120,11 @@ def test_backup_task_uses_the_native_command_not_the_retired_wrapper():
     The retired wrapper is not in the repository, so a task still pointing at it
     would start failing the first night after the runtime moved.
     """
-    text = WINDOWS_JOBS.read_text(encoding="utf-8-sig")
+    backup = next(job for job in windows_job_specs(ROOT) if job.name == "HiveMind-Backup")
 
-    assert "scripts\\maintenance\\backup.py" not in text
-    assert "backup run --apply" in text
-    assert "hive-mind.exe" in text
+    assert "maintenance\\backup.py" not in (backup.source_script or "")
+    assert backup.arguments == "backup run --apply"
+    assert backup.execute.endswith(r".venv\Scripts\hive-mind.exe")
 
 
 def test_manifest_covers_every_systemd_timer():

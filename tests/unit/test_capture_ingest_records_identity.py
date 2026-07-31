@@ -9,6 +9,7 @@ about delivery. The operational proof runs the real worker.
 """
 from __future__ import annotations
 
+import sqlite3
 import pytest
 
 from hive_mind.capture.identity_store import (
@@ -185,6 +186,145 @@ class TestAfterThePost:
 
         assert retried.created_at == first.created_at, "a second decision was made"
         assert retried.delivery_state is DeliveryState.POSTED
+
+    def test_it_updates_a_stale_unclassified_sdk_session_project(
+            self, monkeypatch, registry, seen, project, resolver, tmp_path):
+        from hive_mind.capture import engine
+        import hive_mind.capture.ingest as ingest_module
+
+        db = tmp_path / "claude-mem.db"
+        conn = sqlite3.connect(db)
+        conn.executescript(
+            """
+            CREATE TABLE sdk_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_session_id TEXT NOT NULL,
+                memory_session_id TEXT,
+                project TEXT NOT NULL,
+                platform_source TEXT NOT NULL DEFAULT 'claude'
+            );
+            INSERT INTO sdk_sessions (content_session_id, memory_session_id, project, platform_source)
+            VALUES ('session-under-test', 'mem-1', 'Unclassified (codex)', 'codex');
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        monkeypatch.setattr(engine, "_post", lambda p, payload: {"stored": True})
+        monkeypatch.setattr(ingest_module, "CLAUDE_MEM_DB", db)
+
+        ingest("codex", _session(project), seen, resolver=resolver,
+               identity_store=registry)
+
+        conn = sqlite3.connect(db)
+        project_name = conn.execute(
+            "SELECT project FROM sdk_sessions WHERE content_session_id = ?",
+            (SID,),
+        ).fetchone()[0]
+        conn.close()
+        assert project_name == "acme"
+
+    def test_it_bridges_the_just_posted_session_without_waiting_for_cron(
+            self, monkeypatch, registry, seen, project, resolver, tmp_path):
+        from hive_mind.capture import engine
+        import hive_mind.capture.ingest as ingest_module
+        import core.knowledge.claude_mem_bridge as bridge_module
+
+        db = tmp_path / "claude-mem.db"
+        conn = sqlite3.connect(db)
+        conn.executescript(
+            """
+            CREATE TABLE sdk_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_session_id TEXT NOT NULL,
+                memory_session_id TEXT,
+                project TEXT NOT NULL,
+                platform_source TEXT NOT NULL DEFAULT 'claude'
+            );
+            CREATE TABLE session_summaries (
+                id INTEGER PRIMARY KEY,
+                memory_session_id TEXT
+            );
+            INSERT INTO sdk_sessions (content_session_id, memory_session_id, project, platform_source)
+            VALUES ('session-under-test', 'mem-1', 'acme', 'codex');
+            INSERT INTO session_summaries (id, memory_session_id)
+            VALUES (7, 'mem-1');
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        called = {}
+
+        def fake_bridge(**kwargs):
+            called["cm_db"] = kwargs.get("cm_db")
+            called["source_ids"] = kwargs.get("source_ids")
+            called["identity_store"] = kwargs.get("identity_store")
+            return {"inserted": 1, "skipped": 0, "scanned": 1}
+
+        monkeypatch.setattr(engine, "_post", lambda p, payload: {"stored": True})
+        monkeypatch.setattr(ingest_module, "CLAUDE_MEM_DB", db)
+        monkeypatch.setattr(bridge_module, "bridge", fake_bridge)
+
+        ingest("codex", _session(project), seen, resolver=resolver,
+               identity_store=registry)
+
+        assert called["cm_db"] == db
+        assert called["identity_store"] is registry
+        assert called["source_ids"] == ["claude-mem:session_summaries:7"]
+        assert registry.get(SID).delivery_state is DeliveryState.BRIDGED
+
+    def test_it_schedules_a_background_bridge_retry_when_rows_arrive_late(
+            self, monkeypatch, registry, seen, project, resolver, tmp_path):
+        from hive_mind.capture import engine
+        import hive_mind.capture.ingest as ingest_module
+        import core.knowledge.claude_mem_bridge as bridge_module
+
+        db = tmp_path / "claude-mem.db"
+        conn = sqlite3.connect(db)
+        conn.executescript(
+            """
+            CREATE TABLE sdk_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_session_id TEXT NOT NULL,
+                memory_session_id TEXT,
+                project TEXT NOT NULL,
+                platform_source TEXT NOT NULL DEFAULT 'claude'
+            );
+            CREATE TABLE session_summaries (
+                id INTEGER PRIMARY KEY,
+                memory_session_id TEXT
+            );
+            INSERT INTO sdk_sessions (content_session_id, memory_session_id, project, platform_source)
+            VALUES ('session-under-test', 'mem-1', 'acme', 'codex');
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        scheduled = {}
+
+        def fake_bridge(**kwargs):
+            scheduled["bridge_called"] = True
+            return {"inserted": 0, "skipped": 0, "scanned": 0}
+
+        def fake_schedule(**kwargs):
+            scheduled["content_session_id"] = kwargs.get("content_session_id")
+            scheduled["provider"] = kwargs.get("provider")
+            scheduled["identity_store"] = kwargs.get("identity_store")
+
+        monkeypatch.setattr(engine, "_post", lambda p, payload: {"stored": True})
+        monkeypatch.setattr(ingest_module, "CLAUDE_MEM_DB", db)
+        monkeypatch.setattr(bridge_module, "bridge", fake_bridge)
+        monkeypatch.setattr(ingest_module, "_schedule_bridge_retry", fake_schedule)
+
+        ingest("codex", _session(project), seen, resolver=resolver,
+               identity_store=registry)
+
+        assert scheduled["content_session_id"] == SID
+        assert scheduled["provider"] == "codex"
+        assert scheduled["identity_store"] is registry
+        assert registry.get(SID).delivery_state is DeliveryState.POSTED
 
 
 class TestWhatIsRecorded:

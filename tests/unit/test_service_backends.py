@@ -13,9 +13,9 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "scripts" / "setup"))
+sys.path.insert(0, str(ROOT / "src"))
 
-import install_services as isvc  # noqa: E402
+from hive_mind.maintenance import runtime_services as isvc  # noqa: E402
 
 
 def test_specs_cover_core_daemons():

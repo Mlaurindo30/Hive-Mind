@@ -1,9 +1,10 @@
 """D006-R1 — the manifest must become the only service/job catalog.
 
-Three independent catalogs still exist: config/runtime.yaml,
-scripts/setup/install_services.py::unit_definitions() and npm/lib/services.js.
+The remaining independent catalogs are config/runtime.yaml and
+scripts/setup/install_services.py::unit_definitions(). npm/lib/services.js
+must stay a wrapper over the manifest instead of becoming a third source.
 Before any generator can be pointed at the manifest, the manifest has to
-cover what the legacy catalogs actually run — otherwise a cutover silently
+cover what the legacy catalog actually runs — otherwise a cutover silently
 stops whatever it forgot.
 
 These tests compare by **executed script**, not by name, because the two
@@ -14,13 +15,15 @@ from __future__ import annotations
 import importlib.util
 import re
 from pathlib import Path
+import sys
 
 import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "config" / "runtime.yaml"
-INSTALL_SERVICES = ROOT / "scripts" / "setup" / "install_services.py"
+SERVICES_JS = ROOT / "npm" / "lib" / "services.js"
+sys.path.insert(0, str(ROOT / "src"))
 
 # Responsibilities the manifest does not express yet. Each entry is a real
 # unit the legacy catalog runs; leaving one here is a deliberate, visible gap,
@@ -58,11 +61,13 @@ def _manifest_scripts() -> set[str]:
 
 
 def _unit_definitions() -> dict[str, str]:
-    spec = importlib.util.spec_from_file_location("_install_services", INSTALL_SERVICES)
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
-    return module.unit_definitions()
+    module = importlib.util.find_spec("hive_mind.maintenance.runtime_services")
+    assert module is not None
+    runtime_services = __import__(
+        "hive_mind.maintenance.runtime_services",
+        fromlist=["unit_definitions"],
+    )
+    return runtime_services.unit_definitions()
 
 
 def _systemd_scripts() -> set[str]:
@@ -86,15 +91,7 @@ def _manifest_modules() -> dict[str, str]:
     return modules
 
 
-# Services the manifest declares as native modules that do not exist yet.
-# The manifest is describing the TARGET here, not the CURRENT state: systemd
-# actually runs the legacy scripts. Starting one of these would fail instantly.
-ASPIRATIONAL_SERVICE_MODULES = {
-    "hive_mind.services.api",
-    "hive_mind.services.otel",
-    "hive_mind.services.mcp_http",
-    "hive_mind.services.capture_realtime",
-}
+ASPIRATIONAL_SERVICE_MODULES: set[str] = set()
 
 
 def _importable(module: str) -> bool:
@@ -147,17 +144,10 @@ def test_manifest_covers_every_systemd_unit_script():
     excluded here: systemd runs the legacy script today, and the mapping is
     tracked by the aspirational tests above.
     """
-    aspirational_scripts = {
-        "scripts/services/sinapse-api.py",
-        "scripts/services/sinapse-mcp-http.py",
-        "scripts/services/otel_collector.py",
-        "scripts/capture/capture-realtime.py",
-    }
     missing = (
         _systemd_scripts()
         - _manifest_scripts()
         - KNOWN_MANIFEST_GAPS
-        - aspirational_scripts
         - PORTED_TO_NATIVE
     )
     assert missing == set(), (
@@ -188,25 +178,44 @@ def test_post_reboot_validation_runs_on_both_platforms():
     """
     assert (ROOT / "scripts/health/validate_after_reboot.py").is_file()
     assert (ROOT / "scripts/health/validate_after_reboot_windows.py").is_file()
-    windows_task = ROOT / "scripts" / "setup" / "register-windows-runtime.ps1"
-    assert "validate_after_reboot_windows.py" in windows_task.read_text(
-        encoding="utf-8-sig"
-    )
+    native_owner = ROOT / "src" / "hive_mind" / "maintenance" / "windows_runtime.py"
+    native_text = native_owner.read_text(encoding="utf-8")
+    assert "hive-mind-post-rebootw" in native_text
+    assert "windows_runtime_specs" in native_text
 
 
 def test_only_one_catalog_is_authoritative_eventually():
-    """Records the duplication so it cannot be forgotten (A-06).
+    """Records the remaining duplication so it cannot be forgotten (A-06).
 
-    This asserts the current, honest state: more than one catalog exists.
-    When D006-R1 completes, this test flips to asserting a single source.
+    This asserts the current, honest state: the Python generator still
+    duplicates the manifest. When D006-R1 completes, this test flips to
+    asserting a single source.
     """
     catalogs = {
         "manifest": MANIFEST.is_file(),
-        "unit_definitions": INSTALL_SERVICES.is_file(),
-        "services.js": (ROOT / "npm" / "lib" / "services.js").is_file(),
+        "unit_definitions": True,
     }
     live = [name for name, present in catalogs.items() if present]
     assert "manifest" in live
     assert len(live) > 1, (
         "only the manifest remains — update this test to assert single-source"
     )
+
+
+def test_services_js_derives_managed_units_from_manifest():
+    """Node service control must wrap the manifest, not own a catalog.
+
+    Reintroducing a hardcoded unit list would silently fork the source of truth
+    again, so this test pins the wrapper contract directly.
+    """
+    text = SERVICES_JS.read_text(encoding="utf-8")
+    assert "const SYSTEMD_UNITS = [" not in text
+    assert "supervisor.loadManifest()" in text
+    assert "supervisor.runnableServices(manifest)" in text
+
+
+def test_supervisor_js_uses_native_daemon_and_native_manifest():
+    text = (ROOT / "npm" / "lib" / "supervisor.js").read_text(encoding="utf-8")
+    assert "scripts/setup/install_services.py" not in text
+    assert "'-m', 'hive_mind.cli', 'service', 'manifest', '--json'" in text
+    assert "'-m', 'hive_mind.daemon.main', 'run', '--project-root'" in text

@@ -12,7 +12,12 @@ from pathlib import Path
 
 import pytest
 
-from hive_mind.validation.delivery import inspect_outbox, inspect_umc
+from hive_mind.validation.delivery import (
+    inspect_legacy_recovery,
+    inspect_outbox,
+    inspect_umc,
+    inspect_umc_legacy,
+)
 from hive_mind.validation.models import CanaryReport, CanaryResult, CanaryStatus
 from hive_mind.validation.sources import SourceInventory
 
@@ -136,6 +141,17 @@ class TestOutboxInspection:
         ])
         assert dict(inspect_outbox(db).by_provider) == {"codex": 2, "mimo": 1}
 
+    def test_records_oldest_and_newest_undelivered(self, tmp_path):
+        db = tmp_path / "capture.db"
+        self._outbox(db, [
+            ("codex", "2026-01-01", None, None),
+            ("codex", "2026-01-03", None, None),
+            ("codex", "2026-01-02", "2026-01-05", None),
+        ])
+        state = inspect_outbox(db)
+        assert state.oldest_undelivered == "2026-01-01"
+        assert state.newest_undelivered == "2026-01-03"
+
     def test_missing_database_is_reported_not_raised(self, tmp_path):
         state = inspect_outbox(tmp_path / "absent.db")
         assert state.exists is False
@@ -181,6 +197,213 @@ class TestUmcInspection:
         db = tmp_path / "umc.db"
         self._umc(db, ["", "hive-mind"])
         assert inspect_umc(db).legacy == 1
+
+
+class TestUmcLegacyInspection:
+    def test_breaks_default_and_unclassified_legacy_apart(self, tmp_path):
+        db = tmp_path / "umc.db"
+        conn = sqlite3.connect(db)
+        conn.execute(
+            "CREATE TABLE observations (id TEXT PRIMARY KEY, workspace_id TEXT,"
+            " project TEXT, archived INTEGER)"
+        )
+        conn.executemany(
+            "INSERT INTO observations (id, workspace_id, project, archived)"
+            " VALUES (?, ?, ?, ?)",
+            [
+                ("a", "default", "Hive-Mind", 0),
+                ("b", "default", "ins", 0),
+                ("c", "", "legacy-empty", 0),
+                ("d", "unclassified/legacy", "Raju Trader", 0),
+                ("e", "unclassified/legacy", "Hive-Mind", 0),
+                ("f", "default", "archived-default", 2),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        state = inspect_umc_legacy(db)
+        assert state.default_workspace == 3
+        assert state.empty_workspace == 1
+        assert state.unclassified_legacy == 2
+        assert state.archived_quarantine == 1
+        assert dict(state.default_active_by_project) == {"Hive-Mind": 1, "ins": 1}
+        assert dict(state.unclassified_active_by_project) == {
+            "Raju Trader": 1, "Hive-Mind": 1
+        }
+
+    def test_legacy_recovery_counts_bridged_sessions(self, tmp_path):
+        umc = tmp_path / "umc.db"
+        conn = sqlite3.connect(umc)
+        conn.execute(
+            "CREATE TABLE observations (id TEXT PRIMARY KEY, workspace_id TEXT,"
+            " metadata TEXT, archived INTEGER)"
+        )
+        conn.executemany(
+            "INSERT INTO observations (id, workspace_id, metadata, archived)"
+            " VALUES (?, ?, ?, ?)",
+            [
+                ("a", "unclassified/legacy", json.dumps({"source_session": "sid-1"}), 0),
+                ("b", "unclassified/legacy", json.dumps({"source_session": "sid-2"}), 0),
+                ("c", "unclassified/legacy", json.dumps({"source_session": "sid-3"}), 0),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        identity = tmp_path / "capture-identities.db"
+        conn = sqlite3.connect(identity)
+        conn.execute(
+            "CREATE TABLE capture_identity_decisions (content_session_id TEXT PRIMARY KEY,"
+            " project_id TEXT, delivery_state TEXT)"
+        )
+        conn.executemany(
+            "INSERT INTO capture_identity_decisions VALUES (?, ?, ?)",
+            [
+                ("sid-1", "hive-mind", "BRIDGED"),
+                ("sid-2", "unclassified/other", "BRIDGED"),
+                ("sid-3", "hive-mind", "POSTED"),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        state = inspect_legacy_recovery(umc, identity_db=identity)
+        assert state.legacy_source_sessions == 3
+        assert state.decisions_found == 3
+        assert state.bridged_recoverable == 1
+        assert dict(state.bridged_by_project) == {"hive-mind": 1}
+
+    def test_legacy_recovery_measures_sessionstore_signal_without_reclassifying(self, monkeypatch, tmp_path):
+        umc = tmp_path / "umc.db"
+        conn = sqlite3.connect(umc)
+        conn.execute(
+            "CREATE TABLE observations (id TEXT PRIMARY KEY, workspace_id TEXT,"
+            " metadata TEXT, archived INTEGER)"
+        )
+        conn.executemany(
+            "INSERT INTO observations (id, workspace_id, metadata, archived)"
+            " VALUES (?, ?, ?, ?)",
+            [
+                ("a", "unclassified/legacy", json.dumps({"source_session": "sid-1"}), 0),
+                ("b", "unclassified/legacy", json.dumps({"source_session": "sid-2"}), 0),
+                ("c", "unclassified/legacy", json.dumps({"source_session": "sid-3"}), 0),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        identity = tmp_path / "capture-identities.db"
+        conn = sqlite3.connect(identity)
+        conn.execute(
+            "CREATE TABLE capture_identity_decisions (content_session_id TEXT PRIMARY KEY,"
+            " project_id TEXT, delivery_state TEXT)"
+        )
+        conn.executemany(
+            "INSERT INTO capture_identity_decisions VALUES (?, ?, ?)",
+            [
+                ("sid-1", "hive-mind", "BRIDGED"),
+                ("sid-2", "unclassified/other", "BRIDGED"),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        claude_mem = tmp_path / "claude-mem.db"
+        conn = sqlite3.connect(claude_mem)
+        conn.execute(
+            "CREATE TABLE sdk_sessions (memory_session_id TEXT PRIMARY KEY, project TEXT)"
+        )
+        conn.executemany(
+            "INSERT INTO sdk_sessions VALUES (?, ?)",
+            [
+                ("sid-1", "Hive-Mind"),
+                ("sid-2", "Raju Trader"),
+            ],
+        )
+        conn.commit()
+        conn.close()
+        monkeypatch.setenv("CLAUDE_MEM_DB", str(claude_mem))
+
+        state = inspect_legacy_recovery(umc, identity_db=identity)
+        assert state.claude_mem_exists is True
+        assert state.session_rows_found == 2
+        assert state.session_project_signals == 2
+        assert state.canonical_alias_matches == 2
+        assert dict(state.canonical_signal_by_project) == {
+            "hive-mind": 1,
+            "local/75a99723f2d2": 1,
+        }
+        assert dict(state.unmapped_session_projects) == {}
+
+    def test_legacy_recovery_includes_default_workspace_rows(self, monkeypatch, tmp_path):
+        umc = tmp_path / "umc.db"
+        conn = sqlite3.connect(umc)
+        conn.execute(
+            "CREATE TABLE observations (id TEXT PRIMARY KEY, workspace_id TEXT,"
+            " metadata TEXT, archived INTEGER)"
+        )
+        conn.executemany(
+            "INSERT INTO observations (id, workspace_id, metadata, archived)"
+            " VALUES (?, ?, ?, ?)",
+            [
+                ("a", "default", json.dumps({"memory_session_id": "sid-1"}), 0),
+                ("b", "default", json.dumps({"memory_session_id": "sid-2"}), 0),
+                ("c", "unclassified/legacy", json.dumps({"source_session": "sid-3"}), 0),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        identity = tmp_path / "capture-identities.db"
+        conn = sqlite3.connect(identity)
+        conn.execute(
+            "CREATE TABLE capture_identity_decisions (content_session_id TEXT PRIMARY KEY,"
+            " project_id TEXT, delivery_state TEXT)"
+        )
+        conn.executemany(
+            "INSERT INTO capture_identity_decisions VALUES (?, ?, ?)",
+            [
+                ("sid-1", "hive-mind", "BRIDGED"),
+                ("sid-2", "unclassified/other", "POSTED"),
+                ("sid-3", "hive-mind", "BRIDGED"),
+            ],
+        )
+        conn.commit()
+        conn.close()
+
+        claude_mem = tmp_path / "claude-mem.db"
+        conn = sqlite3.connect(claude_mem)
+        conn.execute(
+            "CREATE TABLE sdk_sessions (memory_session_id TEXT PRIMARY KEY, project TEXT)"
+        )
+        conn.executemany(
+            "INSERT INTO sdk_sessions VALUES (?, ?)",
+            [
+                ("sid-1", "Hive-Mind"),
+                ("sid-2", "ins"),
+                ("sid-3", "Raju Trader"),
+            ],
+        )
+        conn.commit()
+        conn.close()
+        monkeypatch.setenv("CLAUDE_MEM_DB", str(claude_mem))
+
+        state = inspect_legacy_recovery(umc, identity_db=identity)
+
+        assert state.source_workspaces == ("unclassified/legacy", "default")
+        assert state.legacy_source_sessions == 3
+        assert state.decisions_found == 3
+        assert state.bridged_recoverable == 2
+        assert dict(state.bridged_by_project) == {"hive-mind": 2}
+        assert state.session_rows_found == 3
+        assert state.session_project_signals == 3
+        assert state.canonical_alias_matches == 2
+        assert dict(state.canonical_signal_by_project) == {
+            "hive-mind": 1,
+            "local/75a99723f2d2": 1,
+        }
+        assert dict(state.unmapped_session_projects) == {"ins": 1}
 
 
 class TestNoSyntheticData:
@@ -262,6 +485,42 @@ class TestProviderSourceSelection:
         assert result.status is CanaryStatus.PASSED
         assert result.project_id == "hive-mind"
         assert parsed_sources == [newest, older]
+
+    def test_legacy_outbox_backlog_does_not_fail_the_provider(self, monkeypatch, tmp_path):
+        from hive_mind.validation import canary
+        from hive_mind.validation.delivery import OutboxState
+
+        newest = tmp_path / "session-history.jsonl"
+        newest.write_text("provider-owned", encoding="utf-8")
+        monkeypatch.setattr(
+            canary.sources,
+            "inventory",
+            lambda provider: SourceInventory(provider, (newest,), newest, 2.0),
+        )
+        monkeypatch.setattr(
+            canary.sources, "parse_sessions",
+            lambda provider, source: [{"session_id": "real-session"}],
+        )
+        monkeypatch.setattr(
+            canary,
+            "_attach_identity",
+            lambda provider, session, resolver, surface: {"project_id": "hive-mind"},
+        )
+
+        result = canary.run_provider(
+            "codex",
+            resolver=object(),
+            outbox=OutboxState(
+                path=str(tmp_path / "capture.db"),
+                exists=True,
+                total=100,
+                delivered=0,
+                undelivered=100,
+                by_provider=(("codex", 100),),
+            ),
+        )
+
+        assert result.status is CanaryStatus.PASSED
 
     def test_reports_all_attempted_sources_when_every_source_is_empty(self, monkeypatch, tmp_path):
         from hive_mind.validation import canary
@@ -420,3 +679,15 @@ class TestFreshMarkerChain:
         assert args.marker == self.MARKER
         assert args.since == 100
         assert args.only == ["codex", "hermes"]
+
+    def test_cli_accepts_validate_delivery(self):
+        from hive_mind.cli import _build_parser
+
+        args = _build_parser().parse_args([
+            "validate", "delivery", "--outbox-db", "capture.db", "--hive-db", "hive_mind.db", "--json",
+        ])
+
+        assert args.validate_command == "delivery"
+        assert args.outbox_db == "capture.db"
+        assert args.hive_db == "hive_mind.db"
+        assert args.json is True

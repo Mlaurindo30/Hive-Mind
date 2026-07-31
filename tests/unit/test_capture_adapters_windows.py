@@ -186,3 +186,11 @@ def test_qwen_includes_current_project_chats(monkeypatch, tmp_path):
 
     assert any(".qwen/projects/**/chats/*.jsonl" in path for path in sources)
     assert any(".qwen/projects" in path for path in watch)
+
+
+def test_codex_keeps_incremental_rollout_capture(monkeypatch, tmp_path):
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+    module = reload_capture_adapters()
+
+    assert module.ADAPTERS["codex"]["mode"] == "tail"

@@ -37,15 +37,7 @@ POWERSHELL = shutil.which("powershell") or shutil.which("pwsh")
 
 
 def _wrapper_command() -> list[str]:
-    if os.name == "nt":
-        if not POWERSHELL:
-            pytest.skip("powershell not available")
-        return [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass",
-                "-File", "scripts/setup/register-mcp.ps1", "--check"]
-    if not BASH:
-        pytest.skip("bash not available")
-    return [BASH, "scripts/setup/register-mcp.sh", "--check"]
-
+    return [sys.executable, "scripts/setup/register_mcp.py", "--check"]
 
 def _run(command: list[str]) -> subprocess.CompletedProcess:
     env = dict(os.environ)

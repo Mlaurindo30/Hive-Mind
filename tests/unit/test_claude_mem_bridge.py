@@ -210,6 +210,97 @@ def test_bridge_marks_legacy_identity_unclassified_without_inference(hm_path, cm
     assert stats["by_identity"] == {"legacy": 1}
 
 
+def test_bridge_heals_posted_registry_when_row_already_exists_in_umc(
+    hm_path, cm_path, tmp_path
+):
+    from hive_mind.capture.identity_store import DeliveryState, IdentityStore
+
+    content_session_id = "sid-bridge-heal"
+    memory_session_id = "memory-bridge-heal"
+
+    hm = _connect(hm_path)
+    hm.execute("ALTER TABLE observations ADD COLUMN workspace_id TEXT")
+    hm.execute(
+        """
+        INSERT INTO observations (
+            id, session_id, project, type, title, content, created_at, metadata, archived, workspace_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "cm-h-comfy",
+            None,
+            "Canonical Project",
+            "decision",
+            "Node",
+            "node novo",
+            "2026-06-10",
+            "{}",
+            0,
+            "root/canonical-2fbe6cbe9d3a",
+        ),
+    )
+    hm.commit()
+    hm.close()
+
+    cm = _connect(cm_path)
+    cm.execute("ALTER TABLE observations ADD COLUMN metadata TEXT")
+    cm.execute("ALTER TABLE observations ADD COLUMN memory_session_id TEXT")
+    cm.execute(
+        """
+        CREATE TABLE sdk_sessions (
+            id INTEGER PRIMARY KEY,
+            content_session_id TEXT UNIQUE NOT NULL,
+            memory_session_id TEXT UNIQUE NOT NULL,
+            project TEXT
+        )
+        """
+    )
+    cm.execute(
+        "UPDATE observations SET memory_session_id=?, metadata=? WHERE id=1",
+        (memory_session_id, "{}"),
+    )
+    cm.execute(
+        """
+        INSERT INTO sdk_sessions(content_session_id, memory_session_id, project)
+        VALUES (?, ?, ?)
+        """,
+        (content_session_id, memory_session_id, "Canonical Project"),
+    )
+    cm.commit()
+    cm.close()
+
+    store = IdentityStore(path=tmp_path / "capture-identities.db")
+    envelope = _identity_envelope(
+        provider="codex",
+        surface="cli",
+        project_id="root/canonical-2fbe6cbe9d3a",
+        project_name="Canonical Project",
+    )
+    store.record_pending(
+        content_session_id=content_session_id,
+        provider="codex",
+        surface="cli",
+        project_id="root/canonical-2fbe6cbe9d3a",
+        project_name="Canonical Project",
+        identity=envelope,
+    )
+    store.mark_posted(content_session_id)
+
+    stats = br.bridge(
+        cm_db=cm_path,
+        identity_store=store,
+        source_ids=["claude-mem:observations:1"],
+    )
+
+    assert stats["inserted"] == 0
+    assert stats["skipped"] == 1
+    healed = store.get(content_session_id)
+    assert healed is not None
+    assert healed.delivery_state is DeliveryState.BRIDGED
+    assert healed.observed_at is not None
+    assert healed.bridged_at is not None
+
+
 def test_bridge_rejects_explicit_default_project_before_opening_databases(
     cm_path, monkeypatch
 ):

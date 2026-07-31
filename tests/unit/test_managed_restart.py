@@ -17,6 +17,7 @@ from hive_mind.daemon.managed import ManagedSupervisor
 
 # Exits immediately with a failure code.
 FAIL_FAST = [sys.executable, "-c", "raise SystemExit(1)"]
+SUCCESS_FAST = [sys.executable, "-c", "raise SystemExit(0)"]
 # Idles until killed.
 IDLE = [sys.executable, "-c", "import time\nwhile True: time.sleep(0.1)"]
 
@@ -67,6 +68,57 @@ def test_never_policy_is_not_restarted(tmp_path):
         time.sleep(1.0)
         assert sup.restart_count("oneshot") == 0
         assert sup.status()["services"]["oneshot"]["state"] in {"exited", "stopped"}
+    finally:
+        sup.stop_monitor()
+        sup.stop_all()
+
+
+def test_on_failure_does_not_restart_a_clean_exit(tmp_path):
+    manifest = _manifest(
+        [_svc("oneshot", SUCCESS_FAST, 1, restart_policy="on-failure",
+              restart_delay_seconds=0, restart_limit=5)]
+    )
+    sup = ManagedSupervisor(manifest, state_dir=tmp_path)
+    sup.start_all()
+    sup.start_monitor(poll_interval=0.05)
+    try:
+        time.sleep(0.4)
+        assert sup.restart_count("oneshot") == 0
+        assert sup.status()["services"]["oneshot"]["returncode"] == 0
+    finally:
+        sup.stop_monitor()
+        sup.stop_all()
+
+
+def test_restart_delay_uses_capped_exponential_backoff(tmp_path):
+    manifest = _manifest(
+        [_svc("flaky", FAIL_FAST, 1, restart_policy="always",
+              restart_delay_seconds=2, restart_max_delay_seconds=5,
+              restart_limit=5)]
+    )
+    sup = ManagedSupervisor(manifest, state_dir=tmp_path)
+    managed = sup._services["flaky"]
+
+    assert sup._restart_delay_seconds(managed) == 2
+    managed.restarts = 1
+    assert sup._restart_delay_seconds(managed) == 4
+    managed.restarts = 2
+    assert sup._restart_delay_seconds(managed) == 5
+
+
+def test_first_restart_waits_the_configured_initial_delay(tmp_path):
+    manifest = _manifest(
+        [_svc("flaky", FAIL_FAST, 1, restart_policy="always",
+              restart_delay_seconds=1, restart_max_delay_seconds=5,
+              restart_limit=5)]
+    )
+    sup = ManagedSupervisor(manifest, state_dir=tmp_path)
+    sup.start_all()
+    sup.start_monitor(poll_interval=0.02)
+    try:
+        time.sleep(0.25)
+        assert sup.restart_count("flaky") == 0
+        assert _wait_for(lambda: sup.restart_count("flaky") >= 1, timeout=2.0)
     finally:
         sup.stop_monitor()
         sup.stop_all()

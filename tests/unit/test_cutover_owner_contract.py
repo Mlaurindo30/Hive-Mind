@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from hive_mind.maintenance.windows_jobs import windows_job_specs
 from hive_mind.validation.runtime_paths import (
     RuntimePathReference,
     find_runtime_path_violations,
@@ -45,29 +46,33 @@ def test_runtime_manifest_has_no_forbidden_targets():
 
 
 def test_windows_job_definitions_have_no_forbidden_targets():
-    text = (ROOT / "scripts" / "setup" / "register-windows-jobs.ps1").read_text(encoding="utf-8-sig")
-    ref = RuntimePathReference(source="register-windows-jobs.ps1", value=text)
-
-    findings = find_runtime_path_violations([ref], CANONICAL)
-
-    assert findings == [], [f.to_dict() for f in findings]
-
-
-def test_supervisor_launcher_has_no_forbidden_targets():
-    launcher = ROOT / "scripts" / "setup" / "start-windows-supervisor.ps1"
-    ref = RuntimePathReference(source="start-windows-supervisor.ps1", value=launcher.read_text(encoding="utf-8-sig"))
-
-    findings = find_runtime_path_violations([ref], CANONICAL)
+    spec_refs = [
+        RuntimePathReference(
+            source=f"windows_job:{job.name}",
+            value=" ".join(
+                part for part in (job.execute, job.arguments, job.working_directory, job.source_script or "")
+                if part
+            ),
+        )
+        for job in windows_job_specs(ROOT)
+    ]
+    findings = find_runtime_path_violations(spec_refs, CANONICAL)
 
     assert findings == [], [f.to_dict() for f in findings]
+
+
+def test_supervisor_runtime_has_no_forbidden_targets():
+    source = (ROOT / "src" / "hive_mind" / "maintenance" / "windows_runtime.py").read_text(encoding="utf-8")
+    ref = RuntimePathReference(source="windows_runtime.py", value=source)
+    assert find_runtime_path_violations([ref], str(ROOT)) == []
 
 
 def test_backup_job_owner_is_the_native_command():
     """The one owner P2-R1 actually rewrote, checked end to end here."""
-    text = (ROOT / "scripts" / "setup" / "register-windows-jobs.ps1").read_text(encoding="utf-8-sig")
+    backup = next(job for job in windows_job_specs(ROOT) if job.name == "HiveMind-Backup")
 
-    assert ".venv\\Scripts\\hive-mind.exe" in text
-    assert "backup run --apply" in text
+    assert backup.execute.endswith(r".venv\Scripts\hive-mind.exe")
+    assert backup.arguments == "backup run --apply"
 
 
 def test_contract_document_exists_and_names_the_one_live_violation():

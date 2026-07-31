@@ -136,6 +136,70 @@ class TestRecordingADecision:
         with pytest.raises(IdentityConflict):
             record(store, envelope={**ENVELOPE, "resolution_method": "guessing"})
 
+    def test_a_matching_replay_reopens_a_conflict_quarantine(self, store):
+        record(store)
+        with pytest.raises(IdentityConflict):
+            record(store, envelope={**ENVELOPE, "project_id": "different"})
+
+        replayed = record(store)
+
+        assert replayed.delivery_state is DeliveryState.PENDING
+        assert replayed.last_error is None
+
+    def test_a_classified_replay_replaces_an_old_unclassified_fallback(self, store):
+        degraded = {
+            "project_id": "unclassified/antigravity",
+            "project_name": "Unclassified (antigravity)",
+            "resolution_method": "unclassified_provider",
+            "provider": "antigravity",
+            "surface": "cli",
+        }
+        improved = {
+            **degraded,
+            "project_id": "local/75a99723f2d2",
+            "project_name": "Raju Trader",
+            "resolution_method": "official_workspace",
+            "workspace_root": r"D:\Raju Trader\Docs\impement",
+            "repository_root": r"D:\Raju Trader",
+        }
+
+        first = record(store, sid="session-upgrade", envelope=degraded)
+        assert first.project_id == "unclassified/antigravity"
+
+        upgraded = record(store, sid="session-upgrade", envelope=improved)
+
+        assert upgraded.delivery_state is DeliveryState.PENDING
+        assert upgraded.project_id == "local/75a99723f2d2"
+        assert upgraded.project_name == "Raju Trader"
+        assert upgraded.identity["resolution_method"] == "official_workspace"
+        assert upgraded.last_error is None
+
+    def test_same_project_id_replay_does_not_quarantine_when_envelope_gets_richer(self, store):
+        transcript_only = {
+            "project_id": "unclassified/antigravity",
+            "project_name": "Unclassified (antigravity)",
+            "resolution_method": "unclassified_provider",
+            "provider": "antigravity",
+            "surface": "cli",
+        }
+        sqlite_replay = {
+            **transcript_only,
+            "workspace_root": r"C:\Users\miche\AppData\Local\Comfy-Desktop\ComfyUI-Installs\ComfyUI",
+            "provider": "antigravity",
+            "surface": "ide",
+        }
+
+        first = record(store, sid="session-same-project", envelope=transcript_only)
+        assert first.delivery_state is DeliveryState.PENDING
+
+        replayed = record(store, sid="session-same-project", envelope=sqlite_replay)
+
+        assert replayed.delivery_state is DeliveryState.PENDING
+        assert replayed.project_id == "unclassified/antigravity"
+        assert replayed.identity["workspace_root"].endswith("ComfyUI")
+        assert replayed.surface == "ide"
+        assert replayed.last_error is None
+
     def test_an_empty_session_id_is_refused(self, store):
         with pytest.raises(IdentityStoreError):
             record(store, sid="")
@@ -180,8 +244,17 @@ class TestTheStateMachine:
         store.mark_posted("session-1")
         store.mark_observed("session-1")
         store.mark_bridged("session-1")
-        with pytest.raises(InvalidTransition):
-            store.mark_posted("session-1")
+        replayed = store.mark_posted("session-1")
+        assert replayed.delivery_state is DeliveryState.BRIDGED
+
+    def test_observed_replay_does_not_reopen_a_bridged_session(self, store):
+        record(store)
+        store.mark_posted("session-1")
+        store.mark_observed("session-1")
+        store.mark_bridged("session-1")
+
+        replayed = store.mark_observed("session-1")
+        assert replayed.delivery_state is DeliveryState.BRIDGED
 
     def test_quarantined_is_terminal(self, store):
         record(store)
@@ -242,6 +315,37 @@ class TestSafety:
 
 
 class TestConcurrency:
+    def test_one_store_serializes_transactions_across_provider_threads(self, tmp_path):
+        """One daemon shares this store across provider workers."""
+        path = tmp_path / "shared-connection.db"
+        errors: list[Exception] = []
+        start = threading.Barrier(12)
+
+        with IdentityStore(path) as opened:
+            def writer(index: int):
+                try:
+                    start.wait()
+                    for attempt in range(20):
+                        sid = f"provider-{index}-session-{attempt}"
+                        record(opened, sid=sid)
+                        opened.mark_posted(sid)
+                except Exception as caught:  # noqa: BLE001 - reported below
+                    errors.append(caught)
+
+            threads = [
+                threading.Thread(target=writer, args=(index,))
+                for index in range(12)
+            ]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+
+            assert errors == [], errors
+            assert opened._connection.execute(
+                "SELECT COUNT(*) FROM capture_identity_decisions"
+            ).fetchone()[0] == 240
+
     def test_two_writers_do_not_create_two_rows(self, tmp_path):
         path = tmp_path / "concurrent.db"
         with IdentityStore(path):

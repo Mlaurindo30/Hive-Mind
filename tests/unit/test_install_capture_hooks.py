@@ -144,6 +144,48 @@ def test_install_covers_codex_hooks_surface(tmp_path):
     written = json.loads(hooks_path.read_text(encoding="utf-8"))
     commands = _commands(written, "UserPromptSubmit")
     assert any(
-        "capture-hook.py" in command and "--provider codex" in command
+        "hive-mind-capture-hookw.exe" in command
+        and "capture-hook.py" not in command
+        and "--provider codex" in command
         for command in commands
     )
+
+
+def test_codex_legacy_hook_is_not_reported_as_installed(tmp_path):
+    codex_dir = tmp_path / ".codex"
+    codex_dir.mkdir()
+    hooks_path = codex_dir / "hooks.json"
+    hooks_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "UserPromptSubmit": [
+                        {
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": (
+                                        '"D:\\\\Hive-Mind\\\\.venv\\\\Scripts\\\\python.exe" '
+                                        '"D:\\\\Hive-Mind\\\\scripts\\\\capture\\\\capture-hook.py" '
+                                        "--provider codex --event-type prompt"
+                                    ),
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert module.check_providers(home=tmp_path, root=ROOT)["codex"] == "missing"
+
+
+def test_codex_gui_hook_is_reported_as_installed(tmp_path):
+    codex_dir = tmp_path / ".codex"
+    codex_dir.mkdir()
+
+    module.install_providers(home=tmp_path, root=ROOT)
+
+    assert module.check_providers(home=tmp_path, root=ROOT)["codex"] == "installed"

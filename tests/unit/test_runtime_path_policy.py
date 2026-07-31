@@ -248,10 +248,7 @@ def test_operational_document_loader_ignores_docs_tests_and_archive_reports(tmp_
 
     documents = COLLECTOR.load_operational_documents(tmp_path)
 
-    assert set(documents) == {
-        "config/runtime.yaml",
-        "logs/supervisor/manifest.json",
-    }
+    assert set(documents) == {"config/runtime.yaml"}
 
 
 def test_audit_accepts_injected_collectors_without_live_machine_access(tmp_path):

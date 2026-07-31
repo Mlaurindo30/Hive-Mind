@@ -271,6 +271,45 @@ def test_seen_store_sobrevive_restart(capture_posts, tmp_path):
     assert len(capture_posts) == n_first, "reinício re-emitiu conteúdo já visto"
 
 
+def test_seen_store_importa_checkpoint_sqlite_legado_sem_reemitir(tmp_path):
+    """O cutover do data dir preserva hashes e sessões já capturados."""
+    import sqlite3
+
+    legacy_db = tmp_path / "legacy" / "capture-state.db"
+    legacy_db.parent.mkdir()
+    with sqlite3.connect(legacy_db) as legacy:
+        legacy.executescript(
+            """
+            CREATE TABLE session_meta (
+                platform TEXT NOT NULL,
+                sid TEXT NOT NULL,
+                inited INTEGER NOT NULL DEFAULT 0,
+                ts INTEGER NOT NULL,
+                PRIMARY KEY (platform, sid)
+            );
+            CREATE TABLE seen_hashes (
+                platform TEXT NOT NULL,
+                sid TEXT NOT NULL,
+                hash TEXT NOT NULL,
+                ts INTEGER NOT NULL,
+                PRIMARY KEY (platform, sid, hash)
+            );
+            INSERT INTO session_meta VALUES ('codex', 'session-1', 1, 10);
+            INSERT INTO seen_hashes VALUES ('codex', 'session-1', 'hash-1', 10);
+            """
+        )
+
+    store = core.SeenStore(
+        db_path=tmp_path / "canonical" / "capture-state.db",
+        legacy_db_path=legacy_db,
+    )
+    try:
+        assert store.is_inited("codex", "session-1")
+        assert store.contains("codex", "session-1", "hash-1")
+    finally:
+        store.close()
+
+
 def test_seen_store_prune(tmp_path):
     """prune() remove hashes antigos sem afetar os recentes."""
     import time

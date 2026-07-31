@@ -55,6 +55,20 @@ def test_apply_writes_the_config(tmp_path):
     assert any(r.changed for r in results)
 
 
+def test_project_venv_python_is_preferred_over_caller_runtime(tmp_path):
+    ctx = _ctx(tmp_path)
+    venv_python = ctx["project_root"] / ".venv" / "Scripts" / "python.exe"
+    venv_python.parent.mkdir(parents=True, exist_ok=True)
+    venv_python.write_text("", encoding="utf-8")
+    ctx["python"] = "D:/Hive-Mind/.venv/bin/python"
+
+    register_providers(["qwen"], dry_run=False, **ctx)
+
+    target = ctx["home"] / ".qwen" / "settings.json"
+    data = json.loads(target.read_text(encoding="utf-8"))
+    assert data["mcpServers"][SERVER]["command"] == str(venv_python)
+
+
 def test_vscode_uses_servers_root_key_and_stdio_type(tmp_path):
     ctx = _ctx(tmp_path)
     register_providers(["vscode"], dry_run=False, **ctx)

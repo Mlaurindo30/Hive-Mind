@@ -38,8 +38,8 @@ def _executable_lines(path: Path) -> list[str]:
     return lines
 
 
-def test_register_mcp_ps1_does_not_wire_the_outbox_pipeline():
-    script = SETUP / "register-mcp.ps1"
+def test_register_mcp_python_entry_does_not_wire_the_outbox_pipeline():
+    script = SETUP / "register_mcp.py"
     offenders = [
         (n, line)
         for n, line in enumerate(_executable_lines(script), 1)
@@ -47,7 +47,7 @@ def test_register_mcp_ps1_does_not_wire_the_outbox_pipeline():
         if token in line
     ]
     assert offenders == [], (
-        "register-mcp.ps1 must not register the deprecated outbox delivery "
+        "register_mcp.py must not register the deprecated outbox delivery "
         f"path, found: {offenders}"
     )
 
@@ -55,10 +55,9 @@ def test_register_mcp_ps1_does_not_wire_the_outbox_pipeline():
 @pytest.mark.parametrize(
     "relative",
     [
-        "scripts/setup/register-windows-runtime.ps1",
-        "scripts/setup/register-windows-jobs.ps1",
+        "scripts/setup/register_mcp.py",
         "scripts/setup/install_services.py",
-        "install.ps1",
+        "install.bat",
     ],
 )
 def test_runtime_entrypoints_do_not_reference_capture_queue(relative):

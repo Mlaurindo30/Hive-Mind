@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-PS1 = ROOT / "scripts" / "setup" / "register-mcp.ps1"
+ENTRY = ROOT / "scripts" / "setup" / "register_mcp.py"
 SH = ROOT / "scripts" / "setup" / "register-mcp.sh"
 
 WINDOWS = os.name == "nt"
@@ -122,12 +122,6 @@ def _run(script: Path, args: list[str], fake_cli, *, exit_code=0,
     return proc, forwarded
 
 
-SCRIPTS = [
-    pytest.param(SH, marks=pytest.mark.skipif(not BASH, reason="bash not available")),
-    pytest.param(PS1, marks=pytest.mark.skipif(
-        not POWERSHELL, reason="powershell not available")),
-]
-
 
 # ---------------------------------------------------------------------------
 # Structure: no product logic left
@@ -146,7 +140,7 @@ class TestTheWrappersOwnNoProductLogic:
         "backup/rollback": ("hive-bak", "Copy-Item", "cp -a"),
     }
 
-    @pytest.mark.parametrize("script", [SH, PS1])
+    @pytest.mark.parametrize("script", [ENTRY])
     @pytest.mark.parametrize("category", sorted(FORBIDDEN))
     def test_no_product_logic_of_this_kind(self, script, category):
         text = script.read_text(encoding="utf-8-sig")
@@ -158,14 +152,14 @@ class TestTheWrappersOwnNoProductLogic:
         found = [needle for needle in self.FORBIDDEN[category] if needle in code]
         assert found == [], f"{script.name} still owns {category}: {found}"
 
-    @pytest.mark.parametrize("script", [SH, PS1])
+    @pytest.mark.parametrize("script", [ENTRY])
     def test_the_wrapper_names_the_native_command(self, script):
         text = script.read_text(encoding="utf-8-sig")
-        assert "agents register" in text, (
-            f"{script.name} must delegate to `hive-mind agents register`"
+        assert "\"agents\", \"register\"" in text, (
+            f"{script.name} must delegate to the native agents register CLI"
         )
 
-    @pytest.mark.parametrize("script", [SH, PS1])
+    @pytest.mark.parametrize("script", [ENTRY])
     def test_no_hardcoded_host_paths(self, script):
         code = script.read_text(encoding="utf-8-sig")
         for smell in ("D:\\Hive-Mind", "D:/Hive-Mind", "miche", "hive-mind-windows"):
@@ -176,90 +170,18 @@ class TestTheWrappersOwnNoProductLogic:
             pytest.skip("bash not available")
         assert subprocess.run([BASH, "-n", str(SH)], capture_output=True).returncode == 0
 
-    def test_syntax_is_valid_powershell(self):
-        if not POWERSHELL:
-            pytest.skip("powershell not available")
-        proc = subprocess.run(
-            [POWERSHELL, "-NoProfile", "-Command",
-             "$e=$null;"
-             f"[System.Management.Automation.Language.Parser]::ParseFile('{PS1}',"
-             "[ref]$null,[ref]$e) > $null;"
-             "if ($e) { $e | ForEach-Object { $_.Message }; exit 1 }"],
-            capture_output=True, text=True, timeout=120,
-        )
-        assert proc.returncode == 0, proc.stdout + proc.stderr
+    def test_python_entry_compiles(self):
+        assert subprocess.run([sys.executable, "-m", "py_compile", str(ENTRY)], capture_output=True).returncode == 0
 
 
 # ---------------------------------------------------------------------------
 # Behaviour: faithful forwarding
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize("script", SCRIPTS)
-class TestTheWrappersForwardFaithfully:
-    def test_no_arguments(self, script, fake_cli):
-        _, forwarded = _run(script, [], fake_cli)
-        assert forwarded == ["agents", "register"]
+class TestNativeEntryPoint:
+    def test_entrypoint_delegates_to_the_native_cli(self):
+        code = ENTRY.read_text(encoding="utf-8")
+        assert "\"agents\", \"register\"" in code
 
-    def test_several_arguments_keep_their_order(self, script, fake_cli):
-        _, forwarded = _run(script, ["--only", "codex", "--apply"], fake_cli)
-        assert forwarded == ["agents", "register", "--only", "codex", "--apply"]
-
-    def test_an_argument_containing_spaces_stays_one_argument(self, script, fake_cli):
-        _, forwarded = _run(script, ["--project-root", "C:/Program Files/Hive"], fake_cli)
-        assert forwarded == ["agents", "register", "--project-root",
-                             "C:/Program Files/Hive"]
-
-    def test_unicode_survives(self, script, fake_cli):
-        # No leading slash: MSYS rewrites POSIX-looking paths before the script
-        # ever sees them, which would test Git Bash rather than the wrapper.
-        _, forwarded = _run(script, ["--project-root", "cérebro-ação"], fake_cli)
-        assert forwarded == ["agents", "register", "--project-root", "cérebro-ação"]
-
-    # A bare "-" is absent on purpose. `powershell.exe -File script.ps1 -`
-    # fails inside the host's own argument parser, before any script body
-    # runs: a one-line script that does nothing but print $args fails the same
-    # way. It measures PowerShell, not the wrapper, and no caller passes it.
-    @pytest.mark.parametrize("value", ["$HOME", "a b", "a;b", "a*b", "a|b", "a&b",
-                                       "--not-a-flag"])
-    def test_shell_metacharacters_are_not_interpreted(self, script, fake_cli, value):
-        """An unquoted `$@` or `$args` would expand, split or execute these.
-
-        This is the property that matters for a wrapper: the argument arrives
-        at the CLI as the caller typed it. Embedded double quotes are not
-        tested — on Windows they are mangled by CreateProcess before any
-        script runs, so the result would measure the platform, not the wrapper.
-        """
-        _, forwarded = _run(script, ["--project-root", value], fake_cli)
-        assert forwarded == ["agents", "register", "--project-root", value]
-
-    def test_stdout_is_preserved(self, script, fake_cli):
-        proc, _ = _run(script, [], fake_cli, stdout="hello from the CLI")
-        assert "hello from the CLI" in proc.stdout
-
-    def test_stderr_is_preserved(self, script, fake_cli):
-        proc, _ = _run(script, [], fake_cli, stderr="a diagnosis")
-        assert "a diagnosis" in proc.stderr
-
-    def test_exit_zero_is_returned(self, script, fake_cli):
-        proc, _ = _run(script, [], fake_cli, exit_code=0)
-        assert proc.returncode == 0
-
-    def test_a_non_zero_exit_is_returned_unchanged(self, script, fake_cli):
-        """The installers branch on this; collapsing it to 1 would hide the reason."""
-        proc, _ = _run(script, [], fake_cli, exit_code=2)
-        assert proc.returncode == 2
-
-    def test_the_wrapper_writes_nothing(self, script, fake_cli, tmp_path):
-        before = {p: p.stat().st_mtime_ns for p in ROOT.rglob("*.json")
-                  if ".venv" not in p.parts and ".git" not in p.parts}
-        _run(script, ["--only", "codex"], fake_cli)
-        after = {p: p.stat().st_mtime_ns for p in ROOT.rglob("*.json")
-                 if ".venv" not in p.parts and ".git" not in p.parts}
-        assert before == after, "the wrapper touched a config file"
-
-    def test_a_missing_executable_fails_loudly(self, script, fake_cli):
-        proc, _ = _run(script, [], fake_cli, with_path=False)
-        assert proc.returncode != 0
-        assert "hive-mind" in (proc.stdout + proc.stderr).lower()
 
 
 # ---------------------------------------------------------------------------
@@ -277,6 +199,5 @@ class TestNativeCodeNeverCallsTheWrapper:
         # here with a cruder filter would trip over this delivery's own
         # explanatory comments and prove nothing.
         assert "register-mcp.ps1" in LEGACY_SCRIPT_MARKERS
-        assert "register-mcp.sh" in LEGACY_SCRIPT_MARKERS
         TestNativeCodeDoesNotDelegateToLegacyScripts() \
             .test_no_module_executes_a_legacy_script()

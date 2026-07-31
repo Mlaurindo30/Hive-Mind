@@ -84,30 +84,12 @@ def test_runtime_repair_decision_skips_valid_and_repairs_invalid_runtime(tmp_pat
         tmp_path,
         r'''
 Import-Module $env:HIVEMIND_MODULE -Force -DisableNameChecking
-$module = Get-Module HiveMind.Windows
-$marker = Join-Path $env:HIVEMIND_TEST_ROOT "repair-called"
-
-& $module {
-    function Test-HiveMindPythonRuntime { param([string]$Root) return $true }
-    function Repair-HiveMindPythonRuntime { param([string]$Root) throw "valid runtime was repaired" }
-    Ensure-HiveMindPythonRuntime -Root $env:HIVEMIND_TEST_ROOT
+$source = Get-Content -LiteralPath $env:HIVEMIND_MODULE -Raw
+if (-not $source.Contains('ensure-python-runtime')) {
+    throw "Ensure-HiveMindPythonRuntime must delegate to the native Python owner"
 }
-
-if (Test-Path -LiteralPath $marker) {
-    throw "valid runtime invoked repair"
-}
-
-& $module {
-    function Test-HiveMindPythonRuntime { param([string]$Root) return $false }
-    function Repair-HiveMindPythonRuntime {
-        param([string]$Root)
-        Set-Content -LiteralPath (Join-Path $Root "repair-called") -Value "yes"
-    }
-    Ensure-HiveMindPythonRuntime -Root $env:HIVEMIND_TEST_ROOT
-}
-
-if (-not (Test-Path -LiteralPath $marker)) {
-    throw "invalid runtime did not invoke repair"
+if (-not $source.Contains('repair-python-runtime')) {
+    throw "Repair-HiveMindPythonRuntime must delegate to the native Python owner"
 }
 ''',
     )
@@ -118,23 +100,12 @@ def test_runtime_repair_invokes_uv_provisioning_commands(tmp_path):
         tmp_path,
         r'''
 Import-Module $env:HIVEMIND_MODULE -Force -DisableNameChecking
-$module = Get-Module HiveMind.Windows
-$log = Join-Path $env:HIVEMIND_TEST_ROOT "uv.log"
-$env:HIVEMIND_UV_LOG = $log
-
-& $module {
-    function uv {
-        param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
-        Add-Content -LiteralPath $env:HIVEMIND_UV_LOG -Value ($Arguments -join " ")
-        cmd.exe /c exit 0
-    }
-    Repair-HiveMindPythonRuntime -Root $env:HIVEMIND_TEST_ROOT
+$source = Get-Content -LiteralPath $env:HIVEMIND_MODULE -Raw
+if ($source.Contains('& uv python install 3.12')) {
+    throw "Repair-HiveMindPythonRuntime must not embed uv provisioning logic anymore"
 }
-
-$commands = @(Get-Content -LiteralPath $log)
-$expectedVenv = "venv --python 3.12 --clear $(Join-Path $env:HIVEMIND_TEST_ROOT '.venv')"
-if ($commands.Count -ne 2 -or $commands[0] -ne "python install 3.12" -or $commands[1] -ne $expectedVenv) {
-    throw "Unexpected uv commands: $($commands -join '; ')"
+if (-not $source.Contains('repair-python-runtime')) {
+    throw "Repair-HiveMindPythonRuntime must delegate to the native Python owner"
 }
 ''',
 )

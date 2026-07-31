@@ -135,6 +135,127 @@ def test_unknown_provider_change_is_ignored(tmp_path: Path):
     assert daemon.handle_change(change) == 0
 
 
+def test_main_starts_live_sources_before_running_startup_catch_up(monkeypatch):
+    """A locked historical post must not leave new prompts unwatched."""
+    module = load_capture_realtime()
+    live_started = threading.Event()
+
+    class FakeStore:
+        def close(self):
+            pass
+
+    class FakeDaemon:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def catch_up(self):
+            assert live_started.is_set()
+            return 0
+
+        def handle_change(self, _change):
+            return 0
+
+    class FakeWatcher:
+        def __init__(self, *_args):
+            pass
+
+        def start(self):
+            live_started.set()
+
+        def stop(self):
+            pass
+
+        def watch_roots(self):
+            return []
+
+    class FakeReconciler:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def scan_once(self):
+            pass
+
+        def start(self):
+            pass
+
+        def stop(self):
+            pass
+
+    monkeypatch.setattr(module.core, "SeenStore", FakeStore)
+    monkeypatch.setattr(module, "RealtimeCapture", FakeDaemon)
+    monkeypatch.setattr(module, "WatchdogSource", FakeWatcher)
+    monkeypatch.setattr(module, "PollingReconciler", FakeReconciler)
+    monkeypatch.setattr(module, "_write_pid_file", lambda: None)
+    monkeypatch.setattr(module, "_remove_pid_file", lambda: None)
+    monkeypatch.setattr(
+        module.time, "sleep", lambda _seconds: (_ for _ in ()).throw(
+            KeyboardInterrupt
+        )
+    )
+
+    assert module.main() == 0
+
+
+def test_catch_up_reparses_all_reparse_sources_even_when_old(tmp_path: Path, monkeypatch):
+    module = load_capture_realtime()
+    old_file = tmp_path / "historic.db"
+    old_file.write_text("placeholder", encoding="utf-8")
+    old = time.time() - (5 * 3600)
+    os.utime(old_file, (old, old))
+
+    parsed_paths: list[Path] = []
+    delivered: list[str] = []
+
+    def parser(path):
+        parsed_paths.append(Path(path))
+        return [{"sid": "historic-session", "prompt": "old", "turns": []}]
+
+    def ingest(provider, session, *_args, **_kwargs):
+        delivered.append(f"{provider}:{session['sid']}")
+        return 1
+
+    monkeypatch.setattr(module.capture, "ingest", ingest)
+    registry = {
+        "antigravity": {
+            "owner": "realtime",
+            "mode": "reparse",
+            "parser": parser,
+            "sources": [str(old_file)],
+        }
+    }
+    daemon = module.RealtimeCapture(registry, object(), clock=time.time)
+
+    assert daemon.catch_up() == 1
+    assert parsed_paths == [old_file]
+    assert delivered == ["antigravity:historic-session"]
+
+
+def test_catch_up_drops_parser_time_cutoff_for_reparse_sources(tmp_path: Path, monkeypatch):
+    module = load_capture_realtime()
+    old_file = tmp_path / "historic.db"
+    old_file.write_text("placeholder", encoding="utf-8")
+
+    seen_cutoffs: list[int] = []
+
+    def parser(_path):
+        seen_cutoffs.append(module.core.SESSION_CUTOFF_MS)
+        return [{"sid": "historic-session", "prompt": "old", "turns": []}]
+
+    monkeypatch.setattr(module.capture, "ingest", lambda *_a, **_k: 1)
+    registry = {
+        "kilo": {
+            "owner": "realtime",
+            "mode": "reparse",
+            "parser": parser,
+            "sources": [str(old_file)],
+        }
+    }
+    daemon = module.RealtimeCapture(registry, object(), clock=time.time)
+
+    assert daemon.catch_up() == 1
+    assert seen_cutoffs == [0]
+
+
 def test_slow_provider_does_not_block_another_provider(tmp_path: Path, monkeypatch):
     module = load_capture_realtime()
     slow_file = tmp_path / "slow.jsonl"
@@ -229,6 +350,68 @@ def test_sqlite_wal_change_reparses_canonical_database(tmp_path: Path, monkeypat
 
     assert daemon.handle_change(SourceChange("copilot", wal, time.time())) == 1
     assert parsed_paths == [database]
+
+
+def test_main_primes_reconciler_only_after_catch_up(monkeypatch):
+    module = load_capture_realtime()
+    events: list[str] = []
+
+    class FakeStore:
+        def close(self):
+            events.append("store.close")
+
+    class FakeDaemon:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def catch_up(self):
+            events.append("catch_up")
+            return 0
+
+        def handle_change(self, _change):
+            return 0
+
+    class FakeWatcher:
+        def __init__(self, *_args):
+            pass
+
+        def start(self):
+            events.append("watcher.start")
+
+        def stop(self):
+            events.append("watcher.stop")
+
+        def watch_roots(self):
+            return []
+
+    class FakeReconciler:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def scan_once(self):
+            events.append("reconciler.scan_once")
+
+        def start(self):
+            events.append("reconciler.start")
+
+        def stop(self):
+            events.append("reconciler.stop")
+
+    monkeypatch.setattr(module.core, "SeenStore", FakeStore)
+    monkeypatch.setattr(module, "RealtimeCapture", FakeDaemon)
+    monkeypatch.setattr(module, "WatchdogSource", FakeWatcher)
+    monkeypatch.setattr(module, "PollingReconciler", FakeReconciler)
+    monkeypatch.setattr(module, "_write_pid_file", lambda: None)
+    monkeypatch.setattr(module, "_remove_pid_file", lambda: None)
+    monkeypatch.setattr(
+        module.time, "sleep", lambda _seconds: (_ for _ in ()).throw(
+            KeyboardInterrupt
+        )
+    )
+
+    assert module.main() == 0
+    assert events.index("catch_up") < events.index("reconciler.scan_once")
+    assert events.index("reconciler.scan_once") < events.index("reconciler.start")
 
 def test_structured_log_is_safe_on_strict_cp1252_console(monkeypatch):
     module = load_capture_realtime()

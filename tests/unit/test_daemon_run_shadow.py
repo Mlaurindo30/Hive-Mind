@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from hive_mind.daemon.main import main
+from hive_mind.daemon import lock as daemon_lock
 
 MANIFEST = """\
 schema_version: 3
@@ -23,6 +24,22 @@ def _write_manifest(tmp_path: Path) -> Path:
     path = tmp_path / "runtime.yaml"
     path.write_text(MANIFEST, encoding="utf-8")
     return path
+
+
+class _NoopLock:
+    def __init__(self, state_dir):
+        self.state_dir = state_dir
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return None
+
+
+@pytest.fixture(autouse=True)
+def _isolate_host_lock(monkeypatch):
+    monkeypatch.setattr(daemon_lock, "SingleInstanceLock", _NoopLock)
 
 
 def test_run_shadow_exits_zero_and_writes_state(tmp_path, capsys):

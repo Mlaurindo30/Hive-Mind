@@ -1,4 +1,5 @@
 import importlib.util
+import datetime
 from pathlib import Path
 
 
@@ -27,3 +28,15 @@ def test_runtime_updates_usam_claude_mem_global():
         data_dir / "transcript-watch.json"
     )
     assert str(mod.ROOT / "claude-mem" / "data") not in "\n".join(updates.values())
+
+
+def test_recent_auth_error_recognizes_current_403(tmp_path, monkeypatch):
+    mod = _load()
+    monkeypatch.setattr(mod, "WORKER_LOG_DIR", tmp_path)
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+    (tmp_path / f"claude-mem-{datetime.date.today().isoformat()}.log").write_text(
+        f"[{timestamp}] [ERROR] OpenRouter auth error (status 403)\n",
+        encoding="utf-8",
+    )
+
+    assert mod._recent_auth_error() is True
