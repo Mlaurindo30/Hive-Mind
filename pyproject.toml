@@ -79,6 +79,11 @@ reranker = [
 hive-mind = "hive_mind.cli:main"
 hive-mindd = "hive_mind.daemon.main:main"
 
+[project.gui-scripts]
+hive-mind-supervisorw = "hive_mind.windows.entrypoints:supervisor_main"
+hive-mind-post-rebootw = "hive_mind.windows.entrypoints:post_reboot_main"
+hive-mind-capture-hookw = "hive_mind.windows.entrypoints:capture_hook_main"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0",
@@ -91,5 +96,3 @@ dev = [
 package = true
 
 [tool.uv.sources]
-graphifyy = { path = "integrations/graphify", editable = true }
-neural-memory = { path = "integrations/neural-memory", editable = true }

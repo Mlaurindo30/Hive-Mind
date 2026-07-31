@@ -5,15 +5,6 @@ const { spawnSync } = require('child_process');
 const supervisor = require('./supervisor');
 const { homeDir } = require('./platform');
 
-const SYSTEMD_UNITS = [
-  'sinapse-claude-mem.service',
-  'sinapse-sqlite-vec.service',
-  'sinapse-graphify-watch.service',
-  'sinapse-api.service',
-  'sinapse-capture-realtime.service',
-  'hive-otel-collector.service',
-];
-
 function backend() {
   if (process.env.HIVE_MIND_SUPERVISOR === '1') return 'supervisor';
   if (process.platform === 'win32') return 'supervisor';
@@ -26,15 +17,29 @@ function sh(cmd, args) {
   return r.status ?? 1;
 }
 
+function managedUnits() {
+  const manifest = supervisor.loadManifest();
+  return supervisor.runnableServices(manifest).map((service) => `${service.name}.service`);
+}
+
 function systemd(action) {
+  const units = managedUnits();
   if (action === 'status') {
-    return sh('systemctl', ['--user', 'list-units', 'sinapse*', 'hive-otel*', '--no-pager']);
+    if (!units.length) {
+      console.log('no managed Hive-Mind systemd units in manifest');
+      return 0;
+    }
+    return sh('systemctl', ['--user', 'list-units', ...units, '--no-pager']);
   }
-  return sh('systemctl', ['--user', action, ...SYSTEMD_UNITS]);
+  if (!units.length) {
+    console.log('no managed Hive-Mind systemd units in manifest');
+    return 0;
+  }
+  return sh('systemctl', ['--user', action, ...units]);
 }
 
 function launchd(action) {
-  const labels = SYSTEMD_UNITS.map(
+  const labels = managedUnits().map(
     (u) => `com.hivemind.${u.replace('.service', '')}`
   );
   if (action === 'status') {
@@ -71,4 +76,4 @@ function dispatch(action) {
   return systemd(action === 'start' ? 'restart' : action);
 }
 
-module.exports = { dispatch, backend, homeDir };
+module.exports = { dispatch, backend, homeDir, managedUnits };

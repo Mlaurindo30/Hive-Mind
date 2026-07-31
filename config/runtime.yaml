@@ -20,7 +20,7 @@ services:
     required: true                 # gate de doctor
     profiles: [local-min, local-full]
     ownership: legacy              # legacy | shadow | managed
-    command: ["python", "-m", "claude_mem.worker"]
+    command: ["python", "-m", "hive_mind.services.claude_mem_launcher"]
     working_directory: .
     env_file: .env
     env:
@@ -49,7 +49,7 @@ services:
     required: false
     profiles: [local-min, local-full]
     ownership: legacy
-    command: ["python", "-m", "hive_mind.services.otel", "--host", "127.0.0.1"]
+    command: ["python", "scripts/services/otel_collector.py", "--host", "127.0.0.1"]
     working_directory: .
     env:
       HIVE_OTEL_PORT: "3100"
@@ -115,7 +115,7 @@ services:
     required: false
     profiles: [local-min, local-full]
     ownership: legacy
-    command: ["python", "-m", "hive_mind.services.api"]
+    command: ["python", "scripts/services/sinapse-api.py"]
     working_directory: .
     env_file: .env
     env:
@@ -141,7 +141,7 @@ services:
     required: false
     profiles: [local-min, local-full]
     ownership: legacy
-    command: ["python", "-m", "hive_mind.services.mcp_http"]
+    command: ["python", "scripts/services/sinapse-mcp-http.py"]
     working_directory: .
     env_file: .env
     env:
@@ -167,7 +167,7 @@ services:
     required: true
     profiles: [local-min, local-full]
     ownership: legacy
-    command: ["python", "-m", "hive_mind.services.capture_realtime"]
+    command: ["python", "scripts/capture/capture-realtime.py"]
     working_directory: .
     env_file: .env
     env:

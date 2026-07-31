@@ -167,7 +167,13 @@ def _select_rows(
     if where:
         sql += " WHERE " + " AND ".join(where)
     order_col = "created_at_epoch" if "created_at_epoch" in cols else "id"
-    sql += f" ORDER BY {order_col} ASC"
+    order_dir = "ASC"
+    if limit is not None and not ids:
+        # Operational priority: when a bounded batch runs against a large
+        # backlog, process the freshest rows first so real-time capture reaches
+        # the UMC instead of waiting behind historical imports.
+        order_dir = "DESC"
+    sql += f" ORDER BY {order_col} {order_dir}"
     if limit is not None:
         sql += " LIMIT ?"
         params.append(int(limit))
@@ -550,6 +556,18 @@ def bridge(
         for rec in records:
             if rec.observation_id in already:
                 skipped += 1
+                if not dry_run and identity_store is not None:
+                    try:
+                        recovered = _recover_recorded_identity(
+                            rec,
+                            dict(rec.metadata),
+                            cm_conn=cm,
+                            identity_store=identity_store,
+                        )
+                    except Exception:
+                        recovered = None
+                    if recovered is not None and recovered.usable and recovered.content_session_id:
+                        bridged_sessions.add(str(recovered.content_session_id))
                 continue
             project, workspace_id, metadata, identity_status = _resolve_record_identity(
                 rec, cm_conn=cm, identity_store=identity_store)
@@ -568,6 +586,10 @@ def bridge(
             # would claim a delivery that a rollback could still erase.
             if identity_store is not None:
                 for session_key in bridged_sessions:
+                    try:
+                        identity_store.mark_observed(session_key)
+                    except Exception:
+                        pass
                     try:
                         identity_store.mark_bridged(session_key)
                     except Exception:  # noqa: BLE001 - a stale state is not a

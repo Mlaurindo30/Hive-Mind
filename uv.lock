@@ -558,7 +558,7 @@ wheels = [
 [[package]]
 name = "graphifyy"
 version = "0.8.49"
-source = { editable = "integrations/graphify" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "networkx" },
     { name = "numpy" },
@@ -590,115 +590,14 @@ dependencies = [
     { name = "tree-sitter-verilog" },
     { name = "tree-sitter-zig" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/2d/2d/7537794fb34bc6b098700809d63fbb3b1274882b0662f0a6d3c27dfabd97/graphifyy-0.8.49.tar.gz", hash = "sha256:bbffd7da6e0e9ec3e9edb40f32e0c7bc119ff6db7dcbd5bb9a0ad9a7d5d3ba87", size = 1130406, upload-time = "2026-06-25T09:03:49.249Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/64/5118c81109008757fa3f5604b515b6829a2389d54a7e55b01f975452347f/graphifyy-0.8.49-py3-none-any.whl", hash = "sha256:d16d4a4997cfb38ff9f7b48ae11558888a175db98d00d32128e891ccc18dca85", size = 920220, upload-time = "2026-06-25T09:03:46.054Z" },
+]
 
 [package.optional-dependencies]
 watch = [
     { name = "watchdog" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "anthropic", marker = "extra == 'all'" },
-    { name = "anthropic", marker = "extra == 'anthropic'" },
-    { name = "boto3", marker = "extra == 'all'" },
-    { name = "boto3", marker = "extra == 'bedrock'" },
-    { name = "falkordb", marker = "extra == 'all'" },
-    { name = "falkordb", marker = "extra == 'falkordb'" },
-    { name = "faster-whisper", marker = "python_full_version >= '3.11' and extra == 'all'" },
-    { name = "faster-whisper", marker = "python_full_version >= '3.11' and extra == 'video'" },
-    { name = "graspologic", marker = "python_full_version < '3.13' and extra == 'all'" },
-    { name = "graspologic", marker = "python_full_version < '3.13' and extra == 'leiden'" },
-    { name = "jieba", marker = "extra == 'all'" },
-    { name = "jieba", marker = "extra == 'chinese'" },
-    { name = "markdownify", marker = "extra == 'all'" },
-    { name = "markdownify", marker = "extra == 'pdf'" },
-    { name = "matplotlib", marker = "extra == 'all'" },
-    { name = "matplotlib", marker = "extra == 'svg'" },
-    { name = "mcp", marker = "extra == 'all'" },
-    { name = "mcp", marker = "extra == 'mcp'" },
-    { name = "neo4j", marker = "extra == 'all'" },
-    { name = "neo4j", marker = "extra == 'neo4j'" },
-    { name = "networkx", specifier = ">=3.4" },
-    { name = "numpy", specifier = ">=1.21" },
-    { name = "numpy", marker = "python_full_version >= '3.13' and extra == 'all'", specifier = ">=2.0" },
-    { name = "numpy", marker = "python_full_version >= '3.13' and extra == 'svg'", specifier = ">=2.0" },
-    { name = "openai", marker = "extra == 'all'" },
-    { name = "openai", marker = "extra == 'gemini'" },
-    { name = "openai", marker = "extra == 'kimi'" },
-    { name = "openai", marker = "extra == 'ollama'" },
-    { name = "openai", marker = "extra == 'openai'" },
-    { name = "openpyxl", marker = "extra == 'all'" },
-    { name = "openpyxl", marker = "extra == 'google'" },
-    { name = "openpyxl", marker = "extra == 'office'" },
-    { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'" },
-    { name = "pypdf", marker = "extra == 'all'", specifier = ">=6.12.0" },
-    { name = "pypdf", marker = "extra == 'pdf'", specifier = ">=6.12.0" },
-    { name = "python-docx", marker = "extra == 'all'" },
-    { name = "python-docx", marker = "extra == 'office'" },
-    { name = "rapidfuzz", specifier = ">=3.0" },
-    { name = "starlette", marker = "extra == 'all'", specifier = ">=1.3.1" },
-    { name = "starlette", marker = "extra == 'mcp'", specifier = ">=1.3.1" },
-    { name = "tiktoken", marker = "extra == 'all'" },
-    { name = "tiktoken", marker = "extra == 'gemini'" },
-    { name = "tiktoken", marker = "extra == 'kimi'" },
-    { name = "tiktoken", marker = "extra == 'openai'" },
-    { name = "tree-sitter", specifier = ">=0.23.0,<0.26" },
-    { name = "tree-sitter-bash", specifier = ">=0.23,<0.27" },
-    { name = "tree-sitter-c", specifier = ">=0.23,<0.25" },
-    { name = "tree-sitter-c-sharp", specifier = ">=0.23,<0.25" },
-    { name = "tree-sitter-cpp", specifier = ">=0.23,<0.25" },
-    { name = "tree-sitter-dm", marker = "extra == 'all'" },
-    { name = "tree-sitter-dm", marker = "extra == 'dm'" },
-    { name = "tree-sitter-elixir", specifier = ">=0.3,<0.5" },
-    { name = "tree-sitter-fortran", specifier = ">=0.6,<0.8" },
-    { name = "tree-sitter-go", specifier = ">=0.23,<0.26" },
-    { name = "tree-sitter-groovy", specifier = ">=0.1,<0.3" },
-    { name = "tree-sitter-hcl", marker = "extra == 'all'" },
-    { name = "tree-sitter-hcl", marker = "extra == 'terraform'" },
-    { name = "tree-sitter-java", specifier = ">=0.23,<0.25" },
-    { name = "tree-sitter-javascript", specifier = ">=0.23,<0.26" },
-    { name = "tree-sitter-json", specifier = ">=0.23,<0.26" },
-    { name = "tree-sitter-julia", specifier = ">=0.23,<0.25" },
-    { name = "tree-sitter-kotlin", specifier = ">=1.0,<2.0" },
-    { name = "tree-sitter-lua", specifier = ">=0.2,<0.6" },
-    { name = "tree-sitter-objc", specifier = ">=3.0,<4.0" },
-    { name = "tree-sitter-php", specifier = ">=0.23,<0.25" },
-    { name = "tree-sitter-powershell", specifier = ">=0.26,<0.28" },
-    { name = "tree-sitter-python", specifier = ">=0.23,<0.26" },
-    { name = "tree-sitter-ruby", specifier = ">=0.23,<0.25" },
-    { name = "tree-sitter-rust", specifier = ">=0.23,<0.25" },
-    { name = "tree-sitter-scala", specifier = ">=0.23,<0.27" },
-    { name = "tree-sitter-sql", marker = "extra == 'all'" },
-    { name = "tree-sitter-sql", marker = "extra == 'sql'" },
-    { name = "tree-sitter-swift", specifier = ">=0.7,<0.9" },
-    { name = "tree-sitter-typescript", specifier = ">=0.23,<0.25" },
-    { name = "tree-sitter-verilog", specifier = ">=1.0,<2.0" },
-    { name = "tree-sitter-zig", specifier = ">=1.0,<2.0" },
-    { name = "watchdog", marker = "extra == 'all'" },
-    { name = "watchdog", marker = "extra == 'watch'" },
-    { name = "yt-dlp", marker = "extra == 'all'", specifier = ">=2026.6.9" },
-    { name = "yt-dlp", marker = "extra == 'video'", specifier = ">=2026.6.9" },
-]
-provides-extras = ["mcp", "neo4j", "falkordb", "pdf", "watch", "svg", "leiden", "office", "google", "postgres", "video", "kimi", "ollama", "bedrock", "anthropic", "gemini", "openai", "chinese", "sql", "dm", "terraform", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "bandit", specifier = ">=1.9.4" },
-    { name = "build", specifier = ">=1.5.0" },
-    { name = "hypothesis", specifier = ">=6.152.7" },
-    { name = "nuitka", specifier = ">=4.1" },
-    { name = "patchelf", marker = "sys_platform != 'win32'", specifier = ">=0.17.2.4" },
-    { name = "pip-audit", specifier = ">=2.10.0" },
-    { name = "pre-commit", specifier = ">=4.6.0" },
-    { name = "pyright", specifier = ">=1.1.409" },
-    { name = "pytest", specifier = ">=9.0.3" },
-    { name = "pytest-cov", specifier = ">=7.1.0" },
-    { name = "ruff", specifier = ">=0.15.13" },
-    { name = "safety", specifier = ">=3.7.0" },
-    { name = "setuptools", specifier = ">=82.0.1" },
-    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0" },
-    { name = "tree-sitter-hcl", specifier = ">=1.2.0" },
-    { name = "wheel", specifier = ">=0.47.0" },
 ]
 
 [[package]]
@@ -881,14 +780,14 @@ requires-dist = [
     { name = "falkordb", specifier = ">=1.1.2,<2.0.0" },
     { name = "fastapi", specifier = ">=0.100.0" },
     { name = "fastembed", specifier = ">=0.2" },
-    { name = "graphifyy", extras = ["watch"], editable = "integrations/graphify" },
+    { name = "graphifyy", extras = ["watch"] },
     { name = "graphiti-core", specifier = ">=0.29.0" },
     { name = "hnswlib", specifier = ">=0.8.0" },
     { name = "httpx", specifier = ">=0.23.0" },
     { name = "lightrag-hku", specifier = ">=1.0.0" },
     { name = "llama-index", specifier = ">=0.12" },
     { name = "mss", specifier = ">=9.0" },
-    { name = "neural-memory", extras = ["pro"], editable = "integrations/neural-memory" },
+    { name = "neural-memory", extras = ["pro"] },
     { name = "numpy", specifier = ">=1.24" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.20" },
     { name = "opentelemetry-sdk", specifier = ">=1.20" },
@@ -1445,7 +1344,7 @@ wheels = [
 [[package]]
 name = "neural-memory"
 version = "4.59.0"
-source = { editable = "integrations/neural-memory" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "aiosqlite" },
@@ -1455,6 +1354,10 @@ dependencies = [
     { name = "typer" },
     { name = "typing-extensions" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/94/da/b35434cdda08a1449d7b1fcbe6e0760bb285694e6b61c0c00f2bc5aab26c/neural_memory-4.59.0.tar.gz", hash = "sha256:e65f798dd5166b2455db808acfc84bfe4b422a5ff5069c3504cf93cc79fc7ac4", size = 1913244, upload-time = "2026-06-23T19:39:47.692Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8b/26/208d5e588001cf9e663d6e57d83558092262ab693abe50f46eab7a5a1bce/neural_memory-4.59.0-py3-none-any.whl", hash = "sha256:0a2ee93474701488bfbf94fa26ab44a0d1853447e5b3ce89b68a23d1bed5bd0f", size = 2199908, upload-time = "2026-06-23T19:39:45.585Z" },
+]
 
 [package.optional-dependencies]
 pro = [
@@ -1463,66 +1366,6 @@ pro = [
     { name = "numpy" },
     { name = "sortedcontainers" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.9.0" },
-    { name = "aiosqlite", specifier = ">=0.19.0" },
-    { name = "asyncpg", marker = "extra == 'postgres'", specifier = ">=0.29.0" },
-    { name = "beautifulsoup4", marker = "extra == 'extract'", specifier = ">=4.12" },
-    { name = "chromadb", marker = "extra == 'chromadb'", specifier = ">=0.4.0" },
-    { name = "click", marker = "extra == 'dev'", specifier = ">=8.0" },
-    { name = "cognee", marker = "extra == 'cognee'", specifier = ">=0.1.0" },
-    { name = "cryptography", marker = "extra == 'encryption'", specifier = ">=46.0.5" },
-    { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.100" },
-    { name = "google-genai", marker = "extra == 'embeddings-gemini'", specifier = ">=1.0" },
-    { name = "graphiti-core", marker = "extra == 'graphiti'", specifier = ">=0.1.0" },
-    { name = "hnswlib", marker = "extra == 'pro'", specifier = ">=0.8.0" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.24" },
-    { name = "httpx", marker = "extra == 'server'", specifier = ">=0.24" },
-    { name = "llama-index-core", marker = "extra == 'llamaindex'", specifier = ">=0.10.0" },
-    { name = "markdownify", marker = "extra == 'extract'", specifier = ">=0.11" },
-    { name = "mem0ai", marker = "extra == 'mem0'", specifier = ">=0.1.0" },
-    { name = "mike", marker = "extra == 'docs'", specifier = ">=2.0" },
-    { name = "mkdocs", marker = "extra == 'docs'", specifier = ">=1.5" },
-    { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.5" },
-    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.24" },
-    { name = "msgpack", marker = "extra == 'pro'", specifier = ">=1.0.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.5" },
-    { name = "networkx", specifier = ">=3.0" },
-    { name = "neural-memory", extras = ["chromadb", "mem0"], marker = "extra == 'integration'" },
-    { name = "neural-memory", extras = ["nlp-en", "nlp-vi"], marker = "extra == 'nlp'" },
-    { name = "neural-memory", extras = ["server", "nlp", "integration"], marker = "extra == 'all'" },
-    { name = "numpy", marker = "extra == 'pro'", specifier = ">=1.24.0" },
-    { name = "openai", marker = "extra == 'embeddings-openai'", specifier = ">=1.0" },
-    { name = "openai", marker = "extra == 'embeddings-openrouter'", specifier = ">=1.0" },
-    { name = "openpyxl", marker = "extra == 'extract'", specifier = ">=3.1" },
-    { name = "pgvector", marker = "extra == 'postgres'", specifier = ">=0.2.0" },
-    { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.0" },
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "pymupdf4llm", marker = "extra == 'extract'", specifier = ">=0.0.10" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
-    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.2" },
-    { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.5" },
-    { name = "python-docx", marker = "extra == 'extract'", specifier = ">=1.0" },
-    { name = "python-multipart", marker = "extra == 'server'", specifier = ">=0.0.22" },
-    { name = "python-pptx", marker = "extra == 'extract'", specifier = ">=0.6.23" },
-    { name = "pyvi", marker = "extra == 'nlp-vi'", specifier = ">=0.1" },
-    { name = "rich", specifier = ">=13.0.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
-    { name = "sentence-transformers", marker = "extra == 'embeddings'", specifier = ">=2.0" },
-    { name = "sentence-transformers", marker = "extra == 'reranker'", specifier = ">=2.2.0" },
-    { name = "sortedcontainers", marker = "extra == 'pro'", specifier = ">=2.0" },
-    { name = "spacy", marker = "extra == 'nlp-en'", specifier = ">=3.6" },
-    { name = "typer", specifier = ">=0.9.0" },
-    { name = "typing-extensions", specifier = ">=4.0" },
-    { name = "underthesea", marker = "extra == 'nlp-vi'", specifier = ">=6.0" },
-    { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.23" },
-    { name = "watchdog", marker = "extra == 'watch'", specifier = ">=4.0.0" },
-]
-provides-extras = ["pro", "server", "postgres", "encryption", "nlp-en", "nlp-vi", "nlp", "chromadb", "mem0", "cognee", "graphiti", "llamaindex", "watch", "extract", "reranker", "embeddings", "embeddings-openai", "embeddings-openrouter", "embeddings-gemini", "integration", "all", "dev", "docs"]
 
 [[package]]
 name = "nltk"

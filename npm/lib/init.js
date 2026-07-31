@@ -38,12 +38,12 @@ const path = require('path');
 const os = require('os');
 
 function windowsInstallerArgs(options = {}, root = path.resolve(__dirname, '..', '..')) {
-  const args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'install.ps1')];
-  args.push('-Profile', options.profile || 'local-min');
-  if (options.withTests) args.push('-WithTests');
-  if (options.nonInteractive) args.push('-NonInteractive');
-  if (options.installPrerequisites) args.push('-InstallPrerequisites');
-  if (options.dryRun) args.push('-DryRun');
+  const args = [path.join(root, 'scripts', 'setup', 'windows_install_entry.py'), '--root', root];
+  args.push('--profile', options.profile || 'local-min');
+  if (options.withTests) args.push('--with-tests');
+  if (options.nonInteractive) args.push('--non-interactive');
+  if (options.installPrerequisites) args.push('--install-prerequisites');
+  if (options.dryRun) args.push('--dry-run');
   return args;
 }
 
@@ -57,13 +57,13 @@ function mergeMcpConfig(file, servers) {
 }
 
 function nativeWindowsInit(dest, options = {}) {
-  console.log('Windows native mode — delegating to install.ps1.');
-  if (!fs.existsSync(path.join(dest, 'install.ps1'))) {
+  console.log('Windows native mode — delegating to the Python installer.');
+  if (!fs.existsSync(path.join(dest, 'scripts', 'setup', 'windows_install_entry.py'))) {
     console.log(`Cloning Hive-Mind into ${dest}...`);
     const code = run('git', ['clone', '--depth', '1', REPO_URL, dest]);
     if (code !== 0) return code;
   }
-  return run('powershell.exe', windowsInstallerArgs(options, dest), { cwd: dest });
+  return run('py.exe', ['-3', ...windowsInstallerArgs(options, dest)], { cwd: dest });
 }
 function init(options) {
   const { profile = 'local-min', withTests = false, nonInteractive = true, env = {} } = options;

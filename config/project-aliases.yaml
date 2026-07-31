@@ -6,7 +6,6 @@ projects:
       - https://github.com/Mlaurindo30/Hive-Mind.git
     roots:
       - 'D:\Hive-Mind'
-      - 'D:\Hive-Mind\backups\worktrees\hive-mind-windows-zero-install'
     git_common_dirs:
       - 'D:\Hive-Mind\.git'
     aliases:
@@ -17,3 +16,11 @@ projects:
       - all:
           - config/sinapse.yaml
           - scripts/services/sinapse-mcp.py
+  - project_id: local/75a99723f2d2
+    project_name: Raju Trader
+    roots:
+      - 'D:\Raju Trader'
+    git_common_dirs:
+      - 'D:\Raju Trader\.git'
+    aliases:
+      - Raju Trader

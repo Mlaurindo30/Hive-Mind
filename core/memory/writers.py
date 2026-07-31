@@ -14,6 +14,7 @@ import tempfile
 import unicodedata
 from datetime import datetime, timedelta
 from typing import Any, Callable, List, Optional
+import yaml
 
 
 # Validade temporal por nota (federated-memory): toda nota promovida carrega
@@ -143,6 +144,21 @@ def validate_frontmatter_yaml(content: str) -> bool:
         return False
 
 
+def yaml_scalar_line(key: str, value: str) -> str:
+    """Render a single YAML scalar line safely for frontmatter.
+
+    Important for Windows evidence paths like ``D:\\Foo\\Bar``: interpolating
+    those inside double quotes produces invalid YAML escape sequences.
+    """
+    dumped = yaml.safe_dump(
+        {key: value},
+        allow_unicode=True,
+        default_flow_style=False,
+        sort_keys=False,
+    ).strip()
+    return dumped + "\n"
+
+
 # ---------------------------------------------------------------------------
 # Writers
 # ---------------------------------------------------------------------------
@@ -204,7 +220,7 @@ def save_decision(
         return None
 
     confidence = "verified" if evidence else "hypothesis"
-    evidence_line = f"evidence: \"{evidence}\"\n" if evidence else ""
+    evidence_line = yaml_scalar_line("evidence", evidence) if evidence else ""
     integrity_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
     note = (
         f"---\n"

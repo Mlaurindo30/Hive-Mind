@@ -140,7 +140,10 @@ def _tables(connection: sqlite3.Connection) -> set[str]:
 
 def _columns(connection: sqlite3.Connection, table: str) -> set[str]:
     escaped = table.replace('"', '""')
-    return {row[1] for row in connection.execute(f'PRAGMA table_info("{escaped}")')}
+    try:
+        return {row[1] for row in connection.execute(f'PRAGMA table_info("{escaped}")')}
+    except sqlite3.OperationalError:
+        return set()
 
 
 def _decode_json(value: Any) -> Mapping[str, Any]:
@@ -233,7 +236,10 @@ def _scan_observation_vectors(
     observation_labels: Mapping[str, tuple[str, ...]],
     inventory: _Inventory,
 ) -> None:
-    columns = _columns(connection, "vec_observations")
+    try:
+        columns = _columns(connection, "vec_observations")
+    except sqlite3.OperationalError:
+        return
     identifier = "id" if "id" in columns else "rowid"
     try:
         rows = connection.execute(f'SELECT "{identifier}" FROM "vec_observations"')

@@ -16,8 +16,9 @@ import json
 import os
 import sqlite3
 import sys
+import threading
 import time
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import HTTPServer, BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -57,6 +58,8 @@ DIMENSIONS = int(os.environ.get("VEC_EMBED_DIM", "1024"))
 # Remaining vectors are synced lazily on each /api/context/semantic request.
 STARTUP_SYNC_LIMIT = int(os.environ.get("VEC_STARTUP_SYNC_LIMIT", "500"))
 TOP_K = 10
+LOCK_RETRY_ATTEMPTS = int(os.environ.get("VEC_DB_LOCK_RETRY_ATTEMPTS", "6"))
+LOCK_RETRY_BASE_SECONDS = float(os.environ.get("VEC_DB_LOCK_RETRY_BASE_SECONDS", "0.05"))
 
 
 # ---------------------------------------------------------------------------
@@ -119,6 +122,7 @@ def embed(text: str) -> list[float]:
 # ---------------------------------------------------------------------------
 
 _db: sqlite3.Connection | None = None
+_db_lock = threading.RLock()
 
 
 def get_db() -> sqlite3.Connection:
@@ -126,9 +130,10 @@ def get_db() -> sqlite3.Connection:
     if _db is None:
         if not os.path.isfile(CLAUDE_MEM_DB):
             raise RuntimeError(f"claude-mem DB not found: {CLAUDE_MEM_DB}")
-        conn = sqlite3.connect(CLAUDE_MEM_DB)
+        conn = sqlite3.connect(CLAUDE_MEM_DB, timeout=15, check_same_thread=False)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA busy_timeout=15000")
         conn.enable_load_extension(True)
         try:
             import sqlite_vec
@@ -152,6 +157,7 @@ def _ensure_schema(conn: sqlite3.Connection):
                     distance_metric=cosine
             )
         """)
+        conn.commit()
     except Exception as e:
         print(f"[vec-worker] Schema error: {e}", flush=True)
 
@@ -187,6 +193,29 @@ def _upsert_vec_observation(conn: sqlite3.Connection, row_id: int, vec: list[flo
     )
 
 
+def _is_locked(error: BaseException) -> bool:
+    return isinstance(error, sqlite3.OperationalError) and "locked" in str(error).lower()
+
+
+def _write_with_retry(conn: sqlite3.Connection, operation):
+    """Execute a short SQLite write without turning a transient writer into data loss.
+
+    Claude Mem and this worker are independent processes. WAL allows readers to
+    proceed, but SQLite still permits only one writer. Retrying a bounded,
+    rollback-clean transaction converts that normal contention into backpressure.
+    """
+    for attempt in range(LOCK_RETRY_ATTEMPTS):
+        try:
+            result = operation()
+            conn.commit()
+            return result
+        except Exception as exc:
+            conn.rollback()
+            if not _is_locked(exc) or attempt == LOCK_RETRY_ATTEMPTS - 1:
+                raise
+            time.sleep(LOCK_RETRY_BASE_SECONDS * (2 ** attempt))
+
+
 def sync_vectors(conn: sqlite3.Connection, *, limit: int | None = None) -> int:
     """Make vec_observations match the current observations table.
 
@@ -195,10 +224,10 @@ def sync_vectors(conn: sqlite3.Connection, *, limit: int | None = None) -> int:
     reconcile rows that arrived after startup.
     """
     try:
-        deleted = conn.execute("""
+        deleted = _write_with_retry(conn, lambda: conn.execute("""
             DELETE FROM vec_observations
             WHERE rowid NOT IN (SELECT id FROM observations)
-        """).rowcount
+        """).rowcount)
     except Exception as exc:
         print(f"[vec-worker] WARNING: stale vector cleanup failed: {exc}", flush=True)
         deleted = 0
@@ -222,14 +251,18 @@ def sync_vectors(conn: sqlite3.Connection, *, limit: int | None = None) -> int:
             print(f"[vec-worker] WARNING: embed failed for observation {row_id}: {exc}", flush=True)
             continue
         try:
-            _upsert_vec_observation(conn, row_id, vec)
+            _write_with_retry(
+                conn, lambda: _upsert_vec_observation(conn, row_id, vec)
+            )
+            # Release the Claude Mem write lock before the next network-bound
+            # embedding call. A slow/unavailable embedder must never block
+            # live prompt ingestion.
             count += 1
         except Exception as exc:
             print(f"[vec-worker] WARNING: vector upsert failed for observation {row_id}: {exc}", flush=True)
 
         if count % 100 == 0:
             print(f"[vec-worker]  ... synced {count} embeddings", flush=True)
-            conn.commit()
 
     conn.commit()
     if count or deleted:
@@ -238,6 +271,25 @@ def sync_vectors(conn: sqlite3.Connection, *, limit: int | None = None) -> int:
             flush=True,
         )
     return count
+
+
+def start_startup_sync(conn: sqlite3.Connection) -> threading.Thread:
+    """Backfill vectors after readiness instead of delaying the health endpoint."""
+    def _sync() -> None:
+        try:
+            with _db_lock:
+                synced = sync_vectors(conn, limit=STARTUP_SYNC_LIMIT)
+                count = _vector_count(conn)
+            if synced:
+                print(f"[vec-worker] vec_observations synced at startup: {count} entries", flush=True)
+            else:
+                print(f"[vec-worker] vec_observations: {count} entries", flush=True)
+        except Exception as exc:
+            print(f"[vec-worker] WARNING: startup vector sync failed: {exc}", flush=True)
+
+    thread = threading.Thread(target=_sync, name="sqlite-vec-startup-sync", daemon=True)
+    thread.start()
+    return thread
 
 
 # ---------------------------------------------------------------------------
@@ -273,23 +325,24 @@ class VecHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            db = get_db()
+            with _db_lock:
+                db = get_db()
 
-            sync_vectors(db)
+                sync_vectors(db)
 
-            # Embed query
-            vec = embed(query)
-            vec_json = json.dumps(vec)
+                # Embed query
+                vec = embed(query)
+                vec_json = json.dumps(vec)
 
-            # Search via sqlite-vec
-            rows = db.execute(f"""
-                SELECT v.rowid, o.narrative, o.text, o.type, o.title, o.created_at, distance
-                FROM vec_observations v
-                JOIN observations o ON v.rowid = o.id
-                WHERE v.embedding MATCH ?
-                    AND k = ?
-                ORDER BY distance
-            """, (vec_json, TOP_K)).fetchall()
+                # Search via sqlite-vec
+                rows = db.execute(f"""
+                    SELECT v.rowid, o.narrative, o.text, o.type, o.title, o.created_at, distance
+                    FROM vec_observations v
+                    JOIN observations o ON v.rowid = o.id
+                    WHERE v.embedding MATCH ?
+                        AND k = ?
+                    ORDER BY distance
+                """, (vec_json, TOP_K)).fetchall()
 
             if not rows:
                 self._json({"context": "", "count": 0, "items": [], "strategy": "sqlite-vec"})
@@ -333,7 +386,7 @@ class VecHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-class ThreadedHTTPServer(HTTPServer):
+class ThreadedHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = True
     daemon_threads = True
 
@@ -350,17 +403,13 @@ def main():
     print(f"[vec-worker] Pre-loading embedding model...", flush=True)
     get_embedder()
 
-    # Verify DB
+    # Verify DB and make the health endpoint available before a potentially
+    # slow backfill. The supervisor must not mistake embedding latency for a
+    # dead service.
     db = get_db()
-    synced = sync_vectors(db, limit=STARTUP_SYNC_LIMIT)
-    count = _vector_count(db)
-    if synced:
-        print(f"[vec-worker] vec_observations synced at startup: {count} entries", flush=True)
-    else:
-        print(f"[vec-worker] vec_observations: {count} entries", flush=True)
-
     server = ThreadedHTTPServer(("127.0.0.1", PORT), VecHandler)
     print(f"[vec-worker] Ready on http://127.0.0.1:{PORT}", flush=True)
+    start_startup_sync(db)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
