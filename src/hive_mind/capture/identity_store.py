@@ -23,6 +23,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
@@ -32,6 +33,7 @@ from typing import Any, Optional
 SCHEMA_VERSION = 1
 
 DEFAULT_FILENAME = "capture-identities.db"
+_UNCLASSIFIED_PREFIX = "unclassified/"
 
 
 class DeliveryState(str, Enum):
@@ -84,6 +86,14 @@ class InvalidTransition(IdentityStoreError):
         super().__init__(f"cannot move from {current.value} to {target.value}")
 
 
+_STATE_ORDER: dict[DeliveryState, int] = {
+    DeliveryState.PENDING: 0,
+    DeliveryState.POSTED: 1,
+    DeliveryState.OBSERVED: 2,
+    DeliveryState.BRIDGED: 3,
+}
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds")
 
@@ -96,6 +106,27 @@ def canonical_json(envelope: dict[str, Any]) -> str:
 
 def identity_hash(envelope: dict[str, Any]) -> str:
     return hashlib.sha256(canonical_json(envelope).encode("utf-8")).hexdigest()
+
+
+def _is_unclassified(project_id: str | None) -> bool:
+    return str(project_id or "").startswith(_UNCLASSIFIED_PREFIX)
+
+
+def _identity_score(envelope: dict[str, Any]) -> int:
+    """Richer identities win when the project id is already the same.
+
+    Multiple capture surfaces may describe the same session with the same
+    canonical project id but different envelope detail (for example, a
+    transcript-only source without workspace data and a later SQLite source
+    with concrete workspace/repository fields). That is not a contradiction.
+    """
+    score = 0
+    for key in ("workspace_root", "repository_root", "git_common_dir", "branch"):
+        if envelope.get(key):
+            score += 1
+    if envelope.get("resolution_method") and envelope.get("resolution_method") != "unclassified_provider":
+        score += 1
+    return score
 
 
 @dataclass(frozen=True)
@@ -190,6 +221,7 @@ class IdentityStore:
         self._connection.execute("PRAGMA synchronous=NORMAL")
         self._connection.execute("PRAGMA busy_timeout=15000")
         self._connection.execute("PRAGMA foreign_keys=ON")
+        self._connection_lock = threading.RLock()
         self._migrate()
 
     # -- lifecycle ---------------------------------------------------------
@@ -213,7 +245,8 @@ class IdentityStore:
                 )
 
     def close(self) -> None:
-        self._connection.close()
+        with self._connection_lock:
+            self._connection.close()
 
     def __enter__(self) -> "IdentityStore":
         return self
@@ -222,28 +255,42 @@ class IdentityStore:
         self.close()
 
     class _Transaction:
-        def __init__(self, connection: sqlite3.Connection) -> None:
+        def __init__(self, connection: sqlite3.Connection,
+                     lock: threading.RLock) -> None:
             self._connection = connection
+            self._lock = lock
 
         def __enter__(self):
-            self._connection.execute("BEGIN IMMEDIATE")
-            return self._connection
+            self._lock.acquire()
+            try:
+                self._connection.execute("BEGIN IMMEDIATE")
+                return self._connection
+            except BaseException:
+                self._lock.release()
+                raise
 
         def __exit__(self, exc_type, exc, tb):
-            if exc_type is None:
-                self._connection.execute("COMMIT")
-            else:
-                self._connection.execute("ROLLBACK")
-            return False
+            try:
+                if exc_type is None:
+                    self._connection.execute("COMMIT")
+                else:
+                    self._connection.execute("ROLLBACK")
+                return False
+            finally:
+                self._lock.release()
 
     def _transaction(self) -> "_Transaction":
-        return IdentityStore._Transaction(self._connection)
+        return IdentityStore._Transaction(
+            self._connection, self._connection_lock
+        )
 
     # -- reads -------------------------------------------------------------
     def get(self, content_session_id: str) -> Optional[IdentityDecision]:
-        row = self._connection.execute(
-            "SELECT * FROM capture_identity_decisions WHERE content_session_id=?",
-            (content_session_id,)).fetchone()
+        with self._connection_lock:
+            row = self._connection.execute(
+                "SELECT * FROM capture_identity_decisions"
+                " WHERE content_session_id=?",
+                (content_session_id,)).fetchone()
         return self._decision(row) if row else None
 
     @staticmethod
@@ -270,11 +317,13 @@ class IdentityStore:
 
     def counts(self) -> dict[str, int]:
         """State histogram, for health. Never exposes content."""
-        rows = self._connection.execute(
-            "SELECT delivery_state, COUNT(*) n FROM capture_identity_decisions "
-            "GROUP BY delivery_state")
-        counted = {state.value: 0 for state in DeliveryState}
-        counted.update({row["delivery_state"]: row["n"] for row in rows})
+        with self._connection_lock:
+            rows = self._connection.execute(
+                "SELECT delivery_state, COUNT(*) n"
+                " FROM capture_identity_decisions GROUP BY delivery_state"
+            ).fetchall()
+            counted = {state.value: 0 for state in DeliveryState}
+            counted.update({row["delivery_state"]: row["n"] for row in rows})
         return counted
 
     # -- writes ------------------------------------------------------------
@@ -311,6 +360,56 @@ class IdentityStore:
                     (content_session_id, provider, surface, project_id,
                      project_name, canonical_json(identity), digest,
                      raw_project_label, DeliveryState.PENDING.value, now, now))
+            elif (
+                _is_unclassified(row["project_id"])
+                and not _is_unclassified(project_id)
+            ):
+                # A previous degraded fallback is not authoritative when a
+                # later replay brings concrete workspace evidence for the same
+                # session. Promote the better answer and let delivery restart.
+                connection.execute(
+                    "UPDATE capture_identity_decisions SET provider=?, surface=?,"
+                    " project_id=?, project_name=?, identity_json=?,"
+                    " identity_hash=?, raw_project_label=?, delivery_state=?,"
+                    " updated_at=?, last_error=? WHERE content_session_id=?",
+                    (provider, surface, project_id, project_name,
+                     canonical_json(identity), digest, raw_project_label,
+                     DeliveryState.PENDING.value, now, None,
+                     content_session_id))
+            elif row["project_id"] == project_id and _is_unclassified(project_id):
+                stored_identity = json.loads(row["identity_json"])
+                preferred = identity
+                preferred_digest = digest
+                preferred_provider = provider
+                preferred_surface = surface
+                preferred_label = raw_project_label
+                if _identity_score(stored_identity) > _identity_score(identity):
+                    preferred = stored_identity
+                    preferred_digest = row["identity_hash"]
+                    preferred_provider = row["provider"]
+                    preferred_surface = row["surface"]
+                    preferred_label = row["raw_project_label"]
+                should_reopen = (
+                    row["delivery_state"] == DeliveryState.QUARANTINED.value
+                    and row["last_error"] == "identity conflict on the same content_session_id"
+                )
+                if (
+                    row["identity_hash"] != preferred_digest
+                    or row["provider"] != preferred_provider
+                    or row["surface"] != preferred_surface
+                    or row["raw_project_label"] != preferred_label
+                    or should_reopen
+                ):
+                    connection.execute(
+                        "UPDATE capture_identity_decisions SET provider=?, surface=?,"
+                        " identity_json=?, identity_hash=?, raw_project_label=?,"
+                        " delivery_state=?, updated_at=?, last_error=?"
+                        " WHERE content_session_id=?",
+                        (preferred_provider, preferred_surface,
+                         canonical_json(preferred), preferred_digest,
+                         preferred_label, DeliveryState.PENDING.value, now,
+                         None, content_session_id)
+                    )
             elif row["identity_hash"] != digest or row["project_id"] != project_id:
                 connection.execute(
                     "UPDATE capture_identity_decisions SET delivery_state=?,"
@@ -323,6 +422,19 @@ class IdentityStore:
                 # detected and unrecorded — the worst of both.
                 conflict = IdentityConflict(content_session_id,
                                             row["project_id"], project_id)
+            elif (
+                row["delivery_state"] == DeliveryState.QUARANTINED.value
+                and row["last_error"] == "identity conflict on the same content_session_id"
+            ):
+                # If a later replay lands on the exact same recorded identity,
+                # the transient contradiction has disappeared. Leaving the row
+                # terminal would wedge capture permanently for a session whose
+                # stable answer is now clear again.
+                connection.execute(
+                    "UPDATE capture_identity_decisions SET delivery_state=?,"
+                    " updated_at=?, last_error=? WHERE content_session_id=?",
+                    (DeliveryState.PENDING.value, now, None, content_session_id)
+                )
 
         if conflict is not None:
             raise conflict
@@ -345,13 +457,20 @@ class IdentityStore:
                 raise IdentityStoreError(
                     f"no decision recorded for {content_session_id[:24]}…")
             current = DeliveryState(row["delivery_state"])
+            effective_target = target
             if current is target:
                 pass  # idempotent
+            elif (
+                current in _STATE_ORDER
+                and target in _STATE_ORDER
+                and _STATE_ORDER[current] > _STATE_ORDER[target]
+            ):
+                effective_target = current  # monotonic replay; keep furthest state
             elif target not in ALLOWED_TRANSITIONS[current]:
                 raise InvalidTransition(current, target)
 
             sets = ["delivery_state=?", "updated_at=?"]
-            values: list[Any] = [target.value, now]
+            values: list[Any] = [effective_target.value, now]
             if column:
                 sets.append(f"{column}=COALESCE({column}, ?)")
                 values.append(now)
@@ -393,22 +512,29 @@ class IdentityStore:
     def verify(self) -> list[str]:
         """Problems found, as sentences. Empty means the store is sound."""
         problems: list[str] = []
-        integrity = self._connection.execute("PRAGMA integrity_check").fetchone()[0]
-        if integrity != "ok":
-            problems.append(f"integrity_check: {integrity}")
-        for row in self._connection.execute("PRAGMA foreign_key_check"):
-            problems.append(f"foreign_key_check: {tuple(row)}")
-        for row in self._connection.execute(
-                "SELECT content_session_id, identity_json, identity_hash"
-                " FROM capture_identity_decisions"):
-            try:
-                envelope = json.loads(row["identity_json"])
-            except json.JSONDecodeError:
-                problems.append(f"{row['content_session_id'][:24]}…: unreadable JSON")
-                continue
-            if identity_hash(envelope) != row["identity_hash"]:
-                problems.append(
-                    f"{row['content_session_id'][:24]}…: identity hash mismatch")
+        with self._connection_lock:
+            integrity = self._connection.execute(
+                "PRAGMA integrity_check"
+            ).fetchone()[0]
+            if integrity != "ok":
+                problems.append(f"integrity_check: {integrity}")
+            for row in self._connection.execute("PRAGMA foreign_key_check"):
+                problems.append(f"foreign_key_check: {tuple(row)}")
+            for row in self._connection.execute(
+                    "SELECT content_session_id, identity_json, identity_hash"
+                    " FROM capture_identity_decisions"):
+                try:
+                    envelope = json.loads(row["identity_json"])
+                except json.JSONDecodeError:
+                    problems.append(
+                        f"{row['content_session_id'][:24]}…: unreadable JSON"
+                    )
+                    continue
+                if identity_hash(envelope) != row["identity_hash"]:
+                    problems.append(
+                        f"{row['content_session_id'][:24]}…:"
+                        " identity hash mismatch"
+                    )
         return problems
 
 

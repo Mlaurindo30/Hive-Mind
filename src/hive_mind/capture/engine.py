@@ -150,8 +150,17 @@ class SeenStore:
     _DB_NAME = "capture-state.db"
     _SENTINEL = "capture-state/.migrated-to-sqlite"
 
-    def __init__(self, db_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        db_path: Path | None = None,
+        legacy_db_path: Path | None = None,
+    ) -> None:
         self._path = db_path or (DATA_DIR / self._DB_NAME)
+        self._legacy_db_path = (
+            legacy_db_path
+            if legacy_db_path is not None
+            else HOME / ".claude-mem" / self._DB_NAME
+        )
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._con = sqlite3.connect(str(self._path), timeout=30, check_same_thread=False)
         self._lock = threading.RLock()
@@ -176,7 +185,71 @@ class SeenStore:
             CREATE INDEX IF NOT EXISTS seen_hashes_ts ON seen_hashes(ts);
         """)
         self._con.commit()
+        self._migrate_from_legacy_sqlite()
         self._migrate_from_json()
+
+    def _migrate_from_legacy_sqlite(self) -> None:
+        legacy = self._legacy_db_path
+        if not legacy.is_file() or legacy.resolve() == self._path.resolve():
+            return
+        try:
+            with sqlite3.connect(f"file:{legacy.as_posix()}?mode=ro", uri=True) as source:
+                tables = {
+                    row[0]
+                    for row in source.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table'"
+                    )
+                }
+            if not {"session_meta", "seen_hashes"}.issubset(tables):
+                return
+            self._con.execute("ATTACH DATABASE ? AS legacy_state", (str(legacy),))
+            try:
+                self._con.execute(
+                    """
+                    INSERT OR IGNORE INTO seen_hashes(platform, sid, hash, ts)
+                    SELECT platform, sid, hash, ts FROM legacy_state.seen_hashes
+                    """
+                )
+                self._con.execute(
+                    """
+                    INSERT OR IGNORE INTO session_meta(platform, sid, inited, ts)
+                    SELECT platform, sid, inited, ts FROM legacy_state.session_meta
+                    """
+                )
+                self._con.execute(
+                    """
+                    UPDATE session_meta
+                    SET inited = MAX(
+                            inited,
+                            COALESCE((
+                                SELECT legacy.inited
+                                FROM legacy_state.session_meta AS legacy
+                                WHERE legacy.platform = session_meta.platform
+                                  AND legacy.sid = session_meta.sid
+                            ), inited)
+                        ),
+                        ts = MAX(
+                            ts,
+                            COALESCE((
+                                SELECT legacy.ts
+                                FROM legacy_state.session_meta AS legacy
+                                WHERE legacy.platform = session_meta.platform
+                                  AND legacy.sid = session_meta.sid
+                            ), ts)
+                        )
+                    WHERE EXISTS (
+                        SELECT 1
+                        FROM legacy_state.session_meta AS legacy
+                        WHERE legacy.platform = session_meta.platform
+                          AND legacy.sid = session_meta.sid
+                    )
+                    """
+                )
+                self._con.commit()
+            finally:
+                self._con.execute("DETACH DATABASE legacy_state")
+        except (OSError, sqlite3.Error) as exc:
+            _safe_print(f"  ⚠ migração do checkpoint legado ignorada: {exc}")
 
     def _migrate_from_json(self) -> None:
         # Sentinel lives next to the DB, not in DATA_DIR — prevents test runs

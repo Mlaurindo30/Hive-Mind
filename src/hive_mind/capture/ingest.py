@@ -13,7 +13,12 @@ anything is written, so there is no half-delivered state to reconcile.
 """
 from __future__ import annotations
 
+import os
+import sqlite3
+import threading
+import time
 from typing import Any, Callable, Optional
+from pathlib import Path
 
 from hive_mind.capture import engine
 from hive_mind.capture.identity import apply_identity, resolve_identity
@@ -25,6 +30,13 @@ _resolver_singleton = None
 
 
 _identity_store_singleton = None
+_bridge_retry_lock = threading.Lock()
+_bridge_retry_sessions: set[tuple[str, str]] = set()
+
+
+CLAUDE_MEM_DB = Path(
+    os.environ.get("CLAUDE_MEM_DB", str(Path.home() / ".claude-mem" / "claude-mem.db"))
+)
 
 
 def default_identity_store():
@@ -55,6 +67,164 @@ def default_resolver():
 
         _resolver_singleton = ProjectIdentityResolver()
     return _resolver_singleton
+
+
+def _sync_sdk_session_project(*, content_session_id: str, provider: str,
+                              project_name: str) -> None:
+    """Keep Claude Mem's session grouping aligned with the canonical identity.
+
+    The worker can reuse an existing `sdk_sessions` row for the same
+    `content_session_id`. When that row was first created from degraded
+    evidence, some Claude Mem builds keep the old `project` label even after a
+    later replay arrives with a canonical workspace-backed identity. Updating
+    the row here makes the grouping deterministic from the side that already
+    knows the canonical answer.
+    """
+    if not content_session_id or not project_name or not CLAUDE_MEM_DB.exists():
+        return
+    conn = sqlite3.connect(CLAUDE_MEM_DB, timeout=5)
+    try:
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute(
+            """
+            UPDATE sdk_sessions
+               SET project = ?
+             WHERE content_session_id = ?
+               AND COALESCE(NULLIF(platform_source, ''), 'claude') = ?
+               AND (project IS NULL OR project = '' OR project LIKE 'Unclassified (%)')
+            """,
+            (project_name, content_session_id, provider),
+        )
+        conn.commit()
+    except sqlite3.Error:
+        conn.rollback()
+    finally:
+        conn.close()
+
+
+def _collect_bridge_source_ids(*, content_session_id: str, provider: str,
+                               deadline_seconds: float) -> list[str]:
+    source_ids: list[str] = []
+    deadline = time.monotonic() + max(0.0, deadline_seconds)
+    while True:
+        conn = sqlite3.connect(CLAUDE_MEM_DB, timeout=5)
+        try:
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA busy_timeout=5000")
+            rows = conn.execute(
+                """
+                SELECT DISTINCT memory_session_id
+                  FROM sdk_sessions
+                 WHERE content_session_id = ?
+                   AND COALESCE(NULLIF(platform_source, ''), 'claude') = ?
+                   AND COALESCE(memory_session_id, '') <> ''
+                """,
+                (content_session_id, provider),
+            ).fetchall()
+            memory_session_ids = [str(row["memory_session_id"]).strip()
+                                  for row in rows if row["memory_session_id"]]
+            if memory_session_ids:
+                placeholders = ",".join("?" for _ in memory_session_ids)
+                for table in ("observations", "discoveries", "session_summaries"):
+                    table_exists = conn.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                        (table,),
+                    ).fetchone()
+                    if table_exists is None:
+                        continue
+                    columns = {
+                        row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+                    }
+                    if "memory_session_id" not in columns:
+                        continue
+                    for row in conn.execute(
+                        f"SELECT id FROM {table} WHERE memory_session_id IN ({placeholders})",
+                        tuple(memory_session_ids),
+                    ).fetchall():
+                        source_ids.append(f"claude-mem:{table}:{row['id']}")
+        except sqlite3.Error:
+            return []
+        finally:
+            conn.close()
+
+        if source_ids or time.monotonic() >= deadline:
+            break
+        time.sleep(0.25)
+    return list(dict.fromkeys(source_ids))
+
+
+def _bridge_recent_session_into_umc(*, content_session_id: str, provider: str,
+                                    identity_store=None,
+                                    deadline_seconds: float = 5.0) -> bool:
+    """Promote the just-posted session into the UMC without waiting for cron.
+
+    The runtime scheduler is passive on this host and the Windows bridge task
+    is periodic, so newly captured summaries can remain absent from the UMC
+    until the next scheduled run. This bridges only the rows already tied to
+    the current `content_session_id`, keeping the hot path narrow and
+    idempotent.
+    """
+    if not content_session_id or not CLAUDE_MEM_DB.exists():
+        return False
+    source_ids = _collect_bridge_source_ids(
+        content_session_id=content_session_id,
+        provider=provider,
+        deadline_seconds=deadline_seconds,
+    )
+    if not source_ids:
+        return False
+
+    try:
+        from core.knowledge.claude_mem_bridge import bridge as bridge_claude_mem
+
+        stats = bridge_claude_mem(
+            cm_db=CLAUDE_MEM_DB,
+            limit=len(source_ids),
+            source_ids=source_ids,
+            identity_store=identity_store,
+        )
+        if identity_store is not None and (stats.get("inserted") or stats.get("skipped")):
+            try:
+                identity_store.mark_observed(content_session_id)
+                identity_store.mark_bridged(content_session_id)
+            except Exception:
+                pass
+            return True
+    except Exception:
+        return False
+    return False
+
+
+def _schedule_bridge_retry(*, content_session_id: str, provider: str,
+                           identity_store=None, delay_seconds: float = 1.0,
+                           deadline_seconds: float = 90.0) -> None:
+    if not content_session_id:
+        return
+    key = (provider, content_session_id)
+    with _bridge_retry_lock:
+        if key in _bridge_retry_sessions:
+            return
+        _bridge_retry_sessions.add(key)
+
+    def _worker() -> None:
+        try:
+            if delay_seconds > 0:
+                time.sleep(delay_seconds)
+            _bridge_recent_session_into_umc(
+                content_session_id=content_session_id,
+                provider=provider,
+                identity_store=identity_store,
+                deadline_seconds=deadline_seconds,
+            )
+        finally:
+            with _bridge_retry_lock:
+                _bridge_retry_sessions.discard(key)
+
+    threading.Thread(
+        target=_worker,
+        name=f"hive-bridge-{provider}-{content_session_id[:8]}",
+        daemon=True,
+    ).start()
 
 
 def ingest(
@@ -138,6 +308,23 @@ def ingest(
         # the bridge could never advance them — found by a real Codex session
         # in D004-M, where the observation arrived and the state did not move.
         registry.mark_posted(content_session_id)
+    if content_session_id:
+        _sync_sdk_session_project(
+            content_session_id=content_session_id,
+            provider=identity.provider,
+            project_name=identity.project_name,
+        )
+        bridged = _bridge_recent_session_into_umc(
+            content_session_id=content_session_id,
+            provider=identity.provider,
+            identity_store=registry,
+        )
+        if not bridged:
+            _schedule_bridge_retry(
+                content_session_id=content_session_id,
+                provider=identity.provider,
+                identity_store=registry,
+            )
     return emitted
 
 

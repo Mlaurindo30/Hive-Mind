@@ -590,6 +590,29 @@ class ProjectIdentityResolver:
                 method="marker", confidence=0.80, references=references,
             )
 
+        entry = next(
+            (self.registry.by_alias(reference) for reference in references
+             if self.registry.by_alias(reference) is not None),
+            None,
+        )
+        if entry is not None:
+            return self._identity(
+                entry=entry, workspace=workspace, git=None,
+                provider=provider_key, surface=surface_key,
+                method="reference_alias", confidence=0.78,
+                references=references,
+            )
+
+        if len(references) == 1:
+            entry = self.registry.by_alias(references[0])
+            if entry is not None:
+                return self._identity(
+                    entry=entry, workspace=workspace, git=None,
+                    provider=provider_key, surface=surface_key,
+                    method="reference_alias", confidence=0.78,
+                    references=references,
+                )
+
         if (
             semantic_activation
             and semantic_score is not None

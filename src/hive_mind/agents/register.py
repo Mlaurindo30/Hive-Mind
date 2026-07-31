@@ -4,9 +4,6 @@ Maps each provider to its config target(s) — ported from the per-provider
 registrars in register-mcp.ps1 — and applies the transactional merge from
 `mcp_config`. Defaults to dry-run at every call site that inspects, so nothing
 is mutated unless the caller explicitly asks.
-
-TOML targets (Codex's `config.toml`) are reported as unsupported rather than
-skipped silently; a TOML writer is a separate slice.
 """
 from __future__ import annotations
 
@@ -40,6 +37,25 @@ def _resolve(target: ConfigTarget, home: Path, appdata: Path, project_root: Path
     return base / target.path
 
 
+def _canonical_project_python(project_root: Path, fallback: str) -> str:
+    """Prefer the project's own venv runtime over the caller's interpreter.
+
+    Windows background integrations use ``.venv\\Scripts\\pythonw.exe`` while
+    POSIX wrappers use ``.venv/bin/python``. Writing whichever interpreter
+    happened to launch ``hive-mind agents register`` can corrupt the persisted
+    MCP entry on Windows if the command was invoked from a POSIX-flavoured
+    shell. The registration contract is the project runtime, not the shell.
+    """
+    for candidate in (
+        project_root / ".venv" / "Scripts" / "pythonw.exe",
+        project_root / ".venv" / "Scripts" / "python.exe",
+        project_root / ".venv" / "bin" / "python",
+    ):
+        if candidate.exists():
+            return str(candidate)
+    return fallback
+
+
 def register_providers(
     provider_ids: Iterable[str],
     *,
@@ -52,6 +68,7 @@ def register_providers(
 ) -> list[RegistrationResult]:
     """Register the MCP server for each provider. Dry-run by default."""
     home, appdata, project_root = Path(home), Path(appdata), Path(project_root)
+    python = _canonical_project_python(project_root, python)
     results: list[RegistrationResult] = []
 
     for provider_id in provider_ids:
