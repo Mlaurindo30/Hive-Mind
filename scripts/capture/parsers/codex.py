@@ -61,6 +61,7 @@ def parse(path: Path):
         return []
 
     sid = cwd = source = None
+    primary_session_meta_seen = False
     first_prompt = last_text = None
     prompts: list[str] = []
     turns: list[dict] = []
@@ -80,9 +81,12 @@ def parse(path: Path):
         pl = d.get("payload", {})
 
         if t == "session_meta":
+            if primary_session_meta_seen:
+                continue
             sid = pl.get("id")
             cwd = pl.get("cwd") or cwd
             source = pl.get("source") or source
+            primary_session_meta_seen = True
 
         elif t == "response_item":
             role = pl.get("role")

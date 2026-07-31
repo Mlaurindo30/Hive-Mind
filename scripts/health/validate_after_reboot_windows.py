@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Windows post-reboot validation; never depends on systemd or procfs."""
+"""Compatibility entry point for packaged Windows post-reboot validation."""
 from __future__ import annotations
 
 import json
@@ -15,97 +15,87 @@ for import_path in (ROOT, SRC):
     if str(import_path) not in sys.path:
         sys.path.insert(0, str(import_path))
 
+from hive_mind.validation.post_reboot_windows import validate_live_runtime
+
 try:
     from scripts.health.audit_runtime_paths_windows import audit_runtime_paths
-except ModuleNotFoundError:  # Direct script execution adds scripts/health to sys.path.
+except ModuleNotFoundError:
     from audit_runtime_paths_windows import audit_runtime_paths
 
 REPORT = ROOT / "logs" / "post-reboot-validation.json"
+_BOOT_CONVERGENCE_SECONDS = 90
+_BOOT_POLL_SECONDS = 3
 
 
 def task_exists(name: str) -> bool:
+    """Compatibility Scheduler observation, hidden if a fallback is needed."""
+
     return subprocess.run(
-        ["schtasks", "/Query", "/TN", name], capture_output=True, text=True
+        ["schtasks", "/Query", "/TN", name],
+        capture_output=True,
+        text=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     ).returncode == 0
 
 
-def load_state(root: Path = ROOT, timeout: int = 120) -> dict:
-    path = root / "logs" / "supervisor" / "state.json"
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            state = json.loads(path.read_text())
-            if state:
-                return state
-        except Exception:
-            pass
-        time.sleep(2)
-    return {}
-
-
-def installation_profile(root: Path = ROOT) -> str:
-    try:
-        for line in (root / ".env").read_text(encoding="utf-8", errors="replace").splitlines():
-            if line.startswith("HIVE_MIND_PROFILE="):
-                return line.split("=", 1)[1].strip().strip('"\'') or "local-min"
-    except OSError:
-        pass
-    return "local-min"
-
-
-def load_manifest(root: Path = ROOT) -> dict:
-    try:
-        return json.loads((root / "logs" / "supervisor" / "manifest.json").read_text())
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def required_service_names(manifest: dict, profile: str) -> list[str]:
-    return [
-        service["name"]
-        for service in manifest.get("services", [])
-        if service.get("required")
-        and profile in service.get("enabled_profiles", ["local-min", "local-full"])
-    ]
-
-
-def assess_required_services(state: dict, required_services: list[str]) -> tuple[bool, list[str]]:
-    unhealthy = [
-        name for name in required_services if state.get(name, {}).get("state") != "healthy"
-    ]
-    return not unhealthy, unhealthy
-
-
-def main() -> int:
-    state = load_state()
-    manifest = load_manifest()
-    profile = installation_profile()
-    required_services = required_service_names(manifest, profile)
-    services_healthy, unhealthy_services = assess_required_services(
-        state, required_services
+def _transient_boot_failure(failures: tuple[str, ...]) -> bool:
+    """Return whether a report can become healthy while logon is settling."""
+    return bool(failures) and all(
+        failure == "stale_managed_state"
+        or failure == "dead_supervisor"
+        or failure.startswith("dead_child:")
+        or failure.startswith("missing_child_pid:")
+        or failure.startswith("unhealthy_required_service:")
+        for failure in failures
     )
-    runtime_path_findings = audit_runtime_paths(ROOT)
-    checks = {
-        "scheduled_supervisor": task_exists("HiveMind-Supervisor"),
-        "supervisor_state_present": bool(state),
-        "supervisor_manifest_present": bool(manifest),
-        "required_services_declared": bool(required_services),
-        "services_healthy": services_healthy,
-        "canonical_runtime_paths": not runtime_path_findings,
-    }
+
+
+def _validate_after_boot_converges(
+    root: Path,
+    *,
+    wait_seconds: float = _BOOT_CONVERGENCE_SECONDS,
+    poll_seconds: float = _BOOT_POLL_SECONDS,
+    sleep: object = time.sleep,
+):
+    """Wait only for the Supervisor's fresh live state at logon.
+
+    The two GUI tasks share the same logon trigger.  The validation task can
+    therefore start first; retrying the live check avoids reporting the prior
+    boot's PID as a failure while retaining a bounded failure for real faults.
+    """
+    runtime = validate_live_runtime(root)
+    deadline = time.monotonic() + wait_seconds
+    while (
+        runtime.status != "pass"
+        and _transient_boot_failure(tuple(runtime.failures))
+        and time.monotonic() < deadline
+    ):
+        sleep(poll_seconds)
+        runtime = validate_live_runtime(root)
+    return runtime
+
+
+def main(root: Path = ROOT) -> int:
+    """Write a report based on fresh packaged validation, not legacy files."""
+
+    runtime = _validate_after_boot_converges(root)
+    runtime_path_findings = audit_runtime_paths(root)
+    checks = dict(runtime.checks)
+    checks["canonical_runtime_paths"] = not runtime_path_findings
     report = {
         "platform": "windows",
         "validated_at": datetime.now(timezone.utc).isoformat(),
-        "profile": profile,
         "checks": checks,
-        "required_services": required_services,
-        "unhealthy_required_services": unhealthy_services,
-        "services": state,
+        "failures": list(runtime.failures),
+        "supervisor_pid": runtime.supervisor_pid,
+        "services": list(runtime.services),
+        "managed_state_path": runtime.state_path,
         "runtime_path_findings": runtime_path_findings,
-        "status": "pass" if all(checks.values()) else "fail",
+        "status": "pass" if runtime.status == "pass" and not runtime_path_findings else "fail",
     }
-    REPORT.parent.mkdir(parents=True, exist_ok=True)
-    REPORT.write_text(json.dumps(report, indent=2) + "\n")
+    report_path = REPORT if root == ROOT else root / "logs" / "post-reboot-validation.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     return 0 if report["status"] == "pass" else 1
 
 

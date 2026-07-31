@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-"""Compatibility shim for the native Hive-Mind service installer."""
-
 from __future__ import annotations
 
 import sys
@@ -12,7 +9,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from hive_mind.maintenance.runtime_services import *  # noqa: F401,F403
+from hive_mind.install.windows import main  # noqa: E402
 
 
 if __name__ == "__main__":

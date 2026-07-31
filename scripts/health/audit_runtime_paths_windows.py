@@ -26,7 +26,6 @@ from hive_mind.validation.runtime_paths import (
 
 _OPERATIONAL_DOCUMENTS = (
     ("config/runtime.yaml", "yaml"),
-    ("logs/supervisor/manifest.json", "json"),
 )
 _REFERENCE_KEYS = {
     "arguments",
@@ -80,6 +79,7 @@ $services = @(Get-CimInstance Win32_Service | Select-Object Name, PathName)
         capture_output=True,
         text=True,
         check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     payload = json.loads(completed.stdout)
     return {

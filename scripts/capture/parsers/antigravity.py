@@ -20,6 +20,40 @@ import re
 import sqlite3
 from pathlib import Path
 
+_PAYLOAD_PATH_RE = re.compile(
+    r'"(?:Cwd|DirectoryPath|SearchPath|AbsolutePath)"\s*:\s*"([^"]+)"'
+)
+
+
+def _payload_workspace(payload: bytes | None) -> str | None:
+    if not isinstance(payload, (bytes, bytearray)):
+        return None
+    text = bytes(payload).decode("utf-8", errors="ignore")
+    candidates = [
+        value.replace("\\/", "/")
+        for value in _PAYLOAD_PATH_RE.findall(text)
+    ]
+    for raw in candidates:
+        candidate = raw.strip()
+        if not candidate:
+            continue
+        if re.match(r"^[A-Za-z]:/[^/]+$", candidate):
+            continue
+        path = Path(candidate)
+        probe = path if path.suffix == "" else path.parent
+        git_dir = probe / ".git"
+        if git_dir.is_dir() or git_dir.is_file():
+            return str(probe)
+    for raw in candidates:
+        candidate = raw.strip()
+        if not candidate:
+            continue
+        path = Path(candidate)
+        if path.suffix:
+            return str(path.parent)
+        return str(path)
+    return None
+
 
 def _read_varint(data: bytes, offset: int) -> tuple[int, int]:
     value = 0
@@ -90,6 +124,23 @@ def _storage_identity(path: Path) -> tuple[str, str]:
     return "antigravity", "desktop"
 
 
+def _paired_database(path: Path) -> Path | None:
+    sid = next((p for p in path.parts if re.fullmatch(r"[0-9a-f-]{36}", p)), None)
+    if not sid:
+        return None
+    text = str(path).replace("\\", "/")
+    if "/.gemini/antigravity-cli/" in text:
+        base = path.parents[4]
+        return base / "conversations" / f"{sid}.db"
+    if "/.gemini/antigravity-ide/" in text:
+        base = path.parents[4]
+        return base / "conversations" / f"{sid}.db"
+    if "/.gemini/antigravity/" in text:
+        base = path.parents[4]
+        return base / "conversations" / f"{sid}.db"
+    return None
+
+
 def _parse_database(path: Path) -> list[dict]:
     sid = path.stem if re.fullmatch(r"[0-9a-f-]{36}", path.stem) else None
     if not sid:
@@ -103,11 +154,14 @@ def _parse_database(path: Path) -> list[dict]:
     turns: list[dict] = []
     last_text = None
     pending_user = None
+    workspace = None
     try:
         rows = con.execute(
             "SELECT idx, step_type, step_payload FROM steps ORDER BY idx ASC"
         ).fetchall()
         for idx, step_type, payload in rows:
+            if workspace is None:
+                workspace = _payload_workspace(payload)
             if step_type == 14:
                 text = _step_text(payload, 19, 2)
                 if not text:
@@ -137,7 +191,7 @@ def _parse_database(path: Path) -> list[dict]:
     if not prompts and not last_text:
         return []
     source, surface = _storage_identity(path)
-    return [{
+    session = {
         "sid": sid,
         "source": source,
         "surface": surface,
@@ -146,10 +200,17 @@ def _parse_database(path: Path) -> list[dict]:
         "prompt_events": prompt_events,
         "turns": turns,
         "last": last_text,
-    }]
+    }
+    if workspace is not None:
+        session["cwd"] = workspace
+        session["official_workspace"] = workspace
+    return [session]
 
 
 def _parse_transcript(path: Path) -> list[dict]:
+    paired = _paired_database(path)
+    if paired is not None and paired.is_file():
+        return []
     sid = next((p for p in path.parts if re.fullmatch(r"[0-9a-f-]{36}", p)), None)
     prompts: list[str] = []
     prompt_events: list[dict] = []

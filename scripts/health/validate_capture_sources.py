@@ -63,10 +63,37 @@ def _service_active(name: str) -> bool:
         return False
 
 
+def _legacy_supervisor_service_state(name: str) -> str | None:
+    path = ROOT / "logs" / "supervisor" / "state.json"
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None
+    record = state.get(name)
+    if not isinstance(record, dict):
+        return None
+    raw = record.get("state")
+    return str(raw) if raw is not None else None
+
+
+def _capture_realtime_status() -> dict[str, str]:
+    service = "sinapse-capture-realtime.service"
+    if os.name == "nt":
+        state = _legacy_supervisor_service_state("sinapse-capture-realtime")
+        return {
+            "status": "OK" if state == "healthy" else "WARN",
+            "service": "legacy-supervisor:sinapse-capture-realtime",
+        }
+    return {
+        "status": "OK" if _service_active(service) else "WARN",
+        "service": service,
+    }
+
+
 def _glob_existing(patterns: list[str]) -> list[Path]:
     paths: list[Path] = []
     for pattern in patterns:
-        for raw in glob.glob(pattern):
+        for raw in glob.glob(pattern, recursive=True):
             path = Path(raw)
             if path.exists():
                 paths.append(path)
@@ -177,10 +204,7 @@ def run(max_sources: int) -> dict[str, Any]:
         worker_status = "FAIL"
     return {
         "worker": {"status": worker_status, "url": core.BASE},
-        "capture_realtime": {
-            "status": "OK" if _service_active("sinapse-capture-realtime.service") else "WARN",
-            "service": "sinapse-capture-realtime.service",
-        },
+        "capture_realtime": _capture_realtime_status(),
         "platforms": platforms,
         "healthy": not failures and worker_status != "FAIL",
     }

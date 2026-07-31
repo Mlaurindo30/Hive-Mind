@@ -42,7 +42,7 @@ from scripts.capture.capture_sources import (              # noqa: E402
 
 ADAPTERS = adapters_by_owner("realtime")
 
-WINDOW_S = 2 * 3600          # só sessões ativas nesta janela no catch-up
+WINDOW_S = 2 * 3600          # só sessões ativas nesta janela no catch-up "tail"
 LIVE_MAX_AGE_S = 120.0       # em evento ao vivo, só re-parseia fontes recém-tocadas
 RECONCILE_INTERVAL_S = 5.0   # varredura de reconciliação (recupera eventos perdidos)
 PID_FILE = ROOT / "logs" / "capture-realtime.pid"
@@ -103,17 +103,33 @@ class RealtimeCapture:
             return self._ingest_paths(change.provider, adapter, targets)
 
     def catch_up(self) -> int:
-        """Startup pass: parse every provider source active inside the window."""
+        """Startup pass.
+
+        Reparse adapters replay their full durable sources on startup so a
+        parser/identity fix can recover older sessions without waiting for a new
+        filesystem touch. Tail adapters keep the time window because replaying
+        their whole transcript history would be unnecessarily expensive.
+        """
         total = 0
         now = self._clock()
         core.SESSION_CUTOFF_MS = int((now - self._window_s) * 1000)
         cutoff = now - self._window_s
         for provider, adapter in self._registry.items():
-            targets = [
-                p for p in self._expand_sources(provider)
-                if core._src_mtime(p) >= cutoff
-            ]
-            delivered = self._ingest_paths(provider, adapter, targets)
+            targets = self._expand_sources(provider)
+            parser_cutoff_ms = core.SESSION_CUTOFF_MS
+            if adapter.get("mode") == "reparse":
+                parser_cutoff_ms = 0
+            else:
+                targets = [
+                    p for p in targets
+                    if core._src_mtime(p) >= cutoff
+                ]
+            previous_cutoff_ms = core.SESSION_CUTOFF_MS
+            core.SESSION_CUTOFF_MS = parser_cutoff_ms
+            try:
+                delivered = self._ingest_paths(provider, adapter, targets)
+            finally:
+                core.SESSION_CUTOFF_MS = previous_cutoff_ms
             if delivered:
                 log_event("info", "catch_up_provider", provider=provider, delivered=delivered)
             total += delivered
@@ -142,6 +158,10 @@ class RealtimeCapture:
                             "warning", "project_identity_refused",
                             provider=provider, reason=refused.reason,
                             detail=refused.detail,
+                        ),
+                        on_conflict=lambda problem: log_event(
+                            "warning", "project_identity_conflict",
+                            provider=provider, error=str(problem),
                         ),
                     )
             except Exception as exc:
@@ -194,9 +214,6 @@ def main() -> int:
         pid_file=str(PID_FILE),
     )
 
-    delivered = daemon.catch_up()
-    log_event("info", "catch_up_complete", delivered=delivered)
-
     watch_registry = {
         provider: list(adapter.get("watch") or []) + list(adapter.get("sources") or [])
         for provider, adapter in registry.items()
@@ -207,11 +224,7 @@ def main() -> int:
     }
     watcher = WatchdogSource(watch_registry, daemon.handle_change)
     reconciler = PollingReconciler(source_registry, daemon.handle_change, interval=RECONCILE_INTERVAL_S)
-    # Prime the reconciler baseline right after catch-up so its first real
-    # cycle only reports genuinely new changes.
-    reconciler.scan_once()
     watcher.start()
-    reconciler.start()
     log_event(
         "info", "sources_started",
         watch_roots=[str(root) for root in watcher.watch_roots()],
@@ -219,6 +232,12 @@ def main() -> int:
     )
 
     try:
+        delivered = daemon.catch_up()
+        log_event("info", "catch_up_complete", delivered=delivered)
+        # Prime the reconciler baseline right after catch-up so its first real
+        # cycle only reports genuinely new changes.
+        reconciler.scan_once()
+        reconciler.start()
         while True:
             time.sleep(30)
     except KeyboardInterrupt:

@@ -14,6 +14,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 HOME = Path.home()
+_REDACTED_SECRET_SENTINELS = {
+    "[REDACTED:env-backup-secret]",
+}
 
 
 @dataclass(frozen=True)
@@ -62,6 +65,11 @@ def _dir_stats(directory: Path) -> dict:
     }
 
 
+def _is_meaningful_secret_value(value: str) -> bool:
+    normalized = value.strip().strip('"').strip("'")
+    return bool(normalized) and normalized not in _REDACTED_SECRET_SENTINELS
+
+
 def _secret_hits(root: Path) -> list[dict]:
     secret_name = re.compile(r"(API_KEY|TOKEN|PASSWORD|SECRET)$")
     hits: list[dict] = []
@@ -81,7 +89,7 @@ def _secret_hits(root: Path) -> list[dict]:
                 key, value = line.split("=", 1)
                 if not secret_name.search(key.strip()):
                     continue
-                if value.strip().strip('"').strip("'"):
+                if _is_meaningful_secret_value(value):
                     hits.append(
                         {
                             "file": str(file_path),
@@ -103,7 +111,7 @@ def _secret_hits(root: Path) -> list[dict]:
                 continue
             if not secret_name.search(key):
                 continue
-            if value.strip():
+            if _is_meaningful_secret_value(value):
                 hits.append(
                     {
                         "file": str(file_path),

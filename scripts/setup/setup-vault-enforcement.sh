@@ -28,13 +28,13 @@ set -euo pipefail
 
 # Platforms: Linux (useradd/setfacl, tested) and macOS (sysadminctl/chmod +a,
 # BETA — validated on paper, not yet on hardware). Windows native uses the
-# PowerShell sibling: scripts/setup/setup-vault-enforcement.ps1 (icacls, BETA).
+# PowerShell sibling: scripts/setup/vault_enforcement.py (icacls, BETA).
 OS_NAME="$(uname -s)"
 case "$OS_NAME" in
     Linux|Darwin) ;;
     *)
         echo "ERROR: unsupported platform '$OS_NAME'." >&2
-        echo "Windows native: run scripts/setup/setup-vault-enforcement.ps1 as Administrator." >&2
+        echo "Windows native: run .venv/Scripts/python.exe scripts/setup/vault_enforcement.py as Administrator." >&2
         exit 1
         ;;
 esac

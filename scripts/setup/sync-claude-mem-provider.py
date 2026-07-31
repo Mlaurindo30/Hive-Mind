@@ -186,6 +186,27 @@ def _recent_quota_error(minutes: int = 30) -> bool:
     return False
 
 
+def _recent_auth_error(minutes: int = 30) -> bool:
+    """True when the current provider was rejected with HTTP 401 or 403."""
+    today = datetime.date.today().isoformat()
+    log_file = WORKER_LOG_DIR / f"claude-mem-{today}.log"
+    if not log_file.exists():
+        return False
+    cutoff = datetime.datetime.now() - datetime.timedelta(minutes=minutes)
+    try:
+        for line in reversed(log_file.read_text(errors="replace").splitlines()):
+            if "auth error" not in line.lower() or not ("status 401" in line or "status 403" in line):
+                continue
+            try:
+                timestamp = datetime.datetime.strptime(line[1:24], "%Y-%m-%d %H:%M:%S.%f")
+            except ValueError:
+                continue
+            return timestamp >= cutoff
+    except OSError:
+        pass
+    return False
+
+
 def apply(updates: dict) -> None:
     """Aplica via a MESMA API que a UI do claude-mem usa (POST /api/settings →
     tabela viewer_settings). É a fonte única que a geração lê ao vivo — evita o
@@ -251,13 +272,19 @@ def main() -> int:
               "(HIVE_CLAUDE_MEM/DREAMER PROVIDER/MODEL ausentes). Nada a sincronizar.")
         return 0
 
-    # Fallback automático: detecta quota esgotada nos logs e usa HIVE_CLAUDE_MEM_FALLBACK_*
+    # Fallback automático: quota ou credencial/endpoint rejeitado usam o modelo local.
     force_fallback = "--fallback" in sys.argv
-    if force_fallback or _recent_quota_error():
+    quota_error = _recent_quota_error()
+    auth_error = _recent_auth_error()
+    if force_fallback or quota_error or auth_error:
         fb_p = env.get("HIVE_CLAUDE_MEM_FALLBACK_PROVIDER", "").strip()
         fb_m = env.get("HIVE_CLAUDE_MEM_FALLBACK_MODEL", "").strip()
         if fb_p and fb_m and fb_p.lower() != provider.lower():
-            reason = "--fallback" if force_fallback else "quota esgotada (429) recente"
+            reason = (
+                "--fallback" if force_fallback else
+                "quota esgotada (429) recente" if quota_error else
+                "autenticação/endpoint rejeitado (401/403) recente"
+            )
             print(f"  ! {reason} em '{provider}'; aplicando fallback '{fb_p}/{fb_m}'")
             provider, model = fb_p, fb_m
         elif force_fallback:
@@ -292,7 +319,7 @@ def main() -> int:
 
     apply(updates)
     print("OK aplicado via /api/settings (live) + seed global ~/.claude-mem")
-    if "CLAUDE_MEM_OPENROUTER_BASE_URL" in updates:
+    if "CLAUDE_MEM_OPENROUTER_BASE_URL" in updates and "--no-restart" not in sys.argv:
         restart_worker()
         print("OK worker reiniciado (base_url do slot OpenAI-compat aplicado)")
 

@@ -56,6 +56,22 @@ def _host_surface(host_type: str | None) -> tuple[str, str]:
     return source, "cli"
 
 
+def _repository_references(repository: str | None) -> tuple[str, ...]:
+    text = _clean_text(repository)
+    if text is None:
+        return ()
+    normalized = text.replace("\\", "/").strip("/")
+    tail = normalized.rsplit("/", 1)[-1]
+    if tail.casefold().endswith(".git"):
+        tail = tail[:-4]
+    refs: list[str] = []
+    for candidate in (text, tail):
+        clean = _clean_text(candidate)
+        if clean and clean.casefold() not in {item.casefold() for item in refs}:
+            refs.append(clean)
+    return tuple(refs)
+
+
 def _workspace_cwd(path: Path) -> str | None:
     """cwd da sessão = pasta do workspace do VS Code. O transcript fica em
     workspaceStorage/<hash>/GitHub.copilot-chat/transcripts/<sid>.jsonl; o
@@ -234,6 +250,8 @@ def _parse_sqlite(db_path: Path):
             branch = _clean_text(row.get("branch"))
             host_type = _clean_text(row.get("host_type"))
             source, surface = _host_surface(host_type)
+            if surface == "ide" and cwd is None and repository is None:
+                continue
             session = {
                 "sid": sid,
                 "prompt": prompt,
@@ -249,6 +267,7 @@ def _parse_sqlite(db_path: Path):
                 session["official_workspace"] = repository
             if repository is not None:
                 session["git_repo_root"] = repository
+                session["referenced_projects"] = _repository_references(repository)
             if branch is not None:
                 session["git_branch"] = branch
             if host_type is not None:

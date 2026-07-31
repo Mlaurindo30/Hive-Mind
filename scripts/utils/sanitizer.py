@@ -17,6 +17,8 @@ import re
 import sys
 from typing import Any
 
+from core.redactor import redact_for_export
+
 # ---------------------------------------------------------------------------
 # Padrões de redação (ordem importa: do mais específico para o mais genérico)
 # ---------------------------------------------------------------------------
@@ -106,7 +108,7 @@ def _sanitize_string(text: str) -> str:
     for pattern, replacement in _COMPILED:
         text = pattern.sub(replacement, text)
 
-    return text
+    return redact_for_export(text)
 
 
 # ---------------------------------------------------------------------------

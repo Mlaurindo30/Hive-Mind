@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+import re
 import sqlite3
 import sys
 from pathlib import Path
@@ -46,6 +47,12 @@ _LIFECYCLE_FALLBACK = {
     "session_start": "session started",
     "session_end": "session ended",
 }
+_COMPACT_LIMIT = 500
+_AUDIT_TRIGGER = re.compile(
+    r"(?i)(Bearer\s+[A-Za-z0-9\-._~+/=]+|"
+    r"HIVE_MIND_API_KEY\s*=|OPENAI_API_KEY\s*=|ANTHROPIC_API_KEY\s*=|"
+    r"AIza[0-9A-Za-z_\-]{0,80}|sk-[A-Za-z0-9_\-]{8,80})"
+)
 
 
 def default_db_path() -> Path:
@@ -263,13 +270,22 @@ def _as_text(value) -> str:
         return str(value)
 
 
+def _compact_legacy_text(label: str, text: str) -> str:
+    if not isinstance(text, str):
+        return text
+    if len(text) <= _COMPACT_LIMIT and not _AUDIT_TRIGGER.search(text):
+        return text
+    digest = hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:12]
+    return f"[REDACTED:legacy-capture-{label} len={len(text)} sha256={digest}]"
+
+
 def build_content(event_type: str, payload: dict) -> str:
     """Map Claude/Codex-style and generic hook fields to event content."""
     if event_type in ("prompt", "session_start"):
         text = _first_string(payload, _PROMPT_KEYS)
         if not text:
             text = _LIFECYCLE_FALLBACK.get(event_type, "")
-        return text
+        return _compact_legacy_text("prompt", text)
 
     if event_type in ("tool_use", "tool_result"):
         parts: dict[str, str] = {}
@@ -285,12 +301,15 @@ def build_content(event_type: str, payload: dict) -> str:
                 parts["tool_response"] = _as_text(tool_response)
         if not parts:
             return ""
-        return json.dumps(parts, ensure_ascii=False, separators=(",", ":"))
+        return _compact_legacy_text(
+            "tool-event",
+            json.dumps(parts, ensure_ascii=False, separators=(",", ":")),
+        )
 
     text = _first_string(payload, _ASSISTANT_KEYS)
     if not text:
         text = _LIFECYCLE_FALLBACK.get(event_type, "")
-    return text
+    return _compact_legacy_text("assistant", text)
 
 
 def _first_native_id(payload: dict) -> str | None:
@@ -336,7 +355,10 @@ def _event_metadata(payload: dict) -> dict[str, object] | None:
     metadata: dict[str, object] = {}
     for key in ("tool_name", "tool_input", "tool_response", "tool_use_id"):
         if key in payload and payload[key] is not None:
-            metadata[key] = payload[key]
+            if key == "tool_name":
+                metadata[key] = payload[key]
+            else:
+                metadata[key] = _compact_legacy_text(key, _as_text(payload[key]))
     native = _first_native_id(payload)
     if native:
         metadata["native_event_id"] = native

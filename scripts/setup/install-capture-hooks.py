@@ -24,6 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 HOOK_SCRIPT_NAME = "capture-hook.py"
+CODEX_GUI_LAUNCHER_NAME = "hive-mind-capture-hookw.exe"
 
 # Hook events installed per provider, mapped to the settings surface key.
 EVENT_SURFACE = {
@@ -80,6 +81,9 @@ def project_python(root: Path) -> Path:
 
 
 def hook_command(root: Path, provider: str, event_type: str) -> str:
+    if provider == "codex" and os.name == "nt":
+        launcher = root / ".venv" / "Scripts" / CODEX_GUI_LAUNCHER_NAME
+        return f'"{launcher}" --provider {provider} --event-type {event_type}'
     python = project_python(root)
     hook = root / "scripts" / "capture" / HOOK_SCRIPT_NAME
     return (
@@ -93,8 +97,9 @@ def _event_type_from_command(command: str) -> str | None:
 
 
 def _is_owned(command: str, provider: str, event_type: str) -> bool:
+    is_codex_gui = provider == "codex" and CODEX_GUI_LAUNCHER_NAME in command
     return (
-        HOOK_SCRIPT_NAME in command
+        (HOOK_SCRIPT_NAME in command or is_codex_gui)
         and f"--provider {provider}" in command
         and _event_type_from_command(command) == event_type
     )
@@ -153,8 +158,8 @@ def _load_settings(path: Path) -> dict | None:
     return loaded if isinstance(loaded, dict) else None
 
 
-def _owned_commands(settings: dict, provider: str) -> set[str]:
-    found: set[str] = set()
+def _owned_commands(settings: dict, provider: str) -> dict[str, set[str]]:
+    found: dict[str, set[str]] = {}
     hooks = settings.get("hooks")
     if not isinstance(hooks, dict):
         return found
@@ -168,14 +173,10 @@ def _owned_commands(settings: dict, provider: str) -> set[str]:
                 if not isinstance(record, dict):
                     continue
                 command = record.get("command", "")
-                if (
-                    isinstance(command, str)
-                    and HOOK_SCRIPT_NAME in command
-                    and f"--provider {provider}" in command
-                ):
+                if isinstance(command, str):
                     event_type = _event_type_from_command(command)
-                    if event_type:
-                        found.add(event_type)
+                    if event_type and _is_owned(command, provider, event_type):
+                        found.setdefault(event_type, set()).add(command)
     return found
 
 
@@ -186,7 +187,11 @@ def _provider_status(provider: str, home: Path, root: Path) -> str:
     settings = _load_settings(home / spec["settings"])
     if settings is None:
         return "unreadable"
-    if set(INSTALLED_EVENTS) <= _owned_commands(settings, provider):
+    owned = _owned_commands(settings, provider)
+    if all(
+        hook_command(root, provider, event_type) in owned.get(event_type, set())
+        for event_type in INSTALLED_EVENTS
+    ):
         return "installed"
     return "missing"
 

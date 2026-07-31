@@ -54,7 +54,7 @@ function Get-HiveMindPython {
     }
 
     if (-not $AllowSystem) {
-        throw "Project Python was not found at $venvPython. Run install.ps1 first."
+        throw "Project Python was not found at $venvPython. Run install.bat first."
     }
 
     $py = Get-Command py -ErrorAction SilentlyContinue
@@ -88,23 +88,10 @@ function Test-HiveMindPythonRuntime {
         [Parameter(Mandatory = $true)]
         [string]$Root
     )
-
-    $python = Join-Path $Root ".venv\Scripts\python.exe"
-    if (-not (Test-Path -LiteralPath $python)) {
-        return $false
-    }
-
-    try {
-        $version = & $python --version 2>&1
-    } catch {
-        return $false
-    }
-
-    if ($LASTEXITCODE -ne 0) {
-        return $false
-    }
-
-    return Test-HiveMindPythonVersion -Version ($version -join "`n")
+    $payload = Invoke-HiveMindNativeWindowsSupport -Root $Root -Arguments @("test-python-runtime", "--root", $Root)
+    if ([string]::IsNullOrWhiteSpace($payload)) { return $false }
+    $decoded = $payload | ConvertFrom-Json
+    return [bool]$decoded.Ready
 }
 
 function Repair-HiveMindPythonRuntime {
@@ -112,16 +99,7 @@ function Repair-HiveMindPythonRuntime {
         [Parameter(Mandatory = $true)]
         [string]$Root
     )
-
-    & uv python install 3.12
-    if ($LASTEXITCODE -ne 0) {
-        throw "uv could not provision Python 3.12"
-    }
-
-    & uv venv --python 3.12 --clear (Join-Path $Root ".venv")
-    if ($LASTEXITCODE -ne 0) {
-        throw "uv could not create the project virtual environment"
-    }
+    Invoke-HiveMindNativeWindowsSupport -Root $Root -Arguments @("repair-python-runtime", "--root", $Root) | Out-Null
 }
 
 function Ensure-HiveMindPythonRuntime {
@@ -129,10 +107,7 @@ function Ensure-HiveMindPythonRuntime {
         [Parameter(Mandatory = $true)]
         [string]$Root
     )
-
-    if (-not (Test-HiveMindPythonRuntime -Root $Root)) {
-        Repair-HiveMindPythonRuntime -Root $Root
-    }
+    Invoke-HiveMindNativeWindowsSupport -Root $Root -Arguments @("ensure-python-runtime", "--root", $Root) | Out-Null
 }
 
 function Invoke-HiveMindPython {
@@ -162,6 +137,26 @@ function Invoke-HiveMindPython {
     } finally {
         [Environment]::SetEnvironmentVariable("PYTHONUTF8", $oldPythonUtf8, "Process")
         [Environment]::SetEnvironmentVariable("PYTHONIOENCODING", $oldPythonIoEncoding, "Process")
+        Pop-Location
+    }
+}
+
+function Invoke-HiveMindNativeWindowsSupport {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments,
+
+        [string]$Root = (Get-HiveMindRoot)
+    )
+
+    $moduleRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    $python = Get-HiveMindPython -Root $moduleRoot -AllowSystem
+    Push-Location -LiteralPath $moduleRoot
+    try {
+        $output = & $python -m hive_mind.install.windows_support @Arguments 2>&1
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        return ($output -join "`n")
+    } finally {
         Pop-Location
     }
 }
@@ -228,35 +223,12 @@ function Apply-HiveMindProfileContract {
         [switch]$DryRun
     )
 
-    if (-not (Test-Path -LiteralPath $ProfileContract)) {
-        throw "Profile contract was not found: $ProfileContract"
-    }
-
-    $applied = @()
-    foreach ($line in Get-Content -LiteralPath $ProfileContract) {
-        $trimmed = $line.Trim()
-        if ($trimmed.Length -eq 0 -or $trimmed.StartsWith("#")) { continue }
-
-        $parts = $trimmed -split "=", 2
-        if ($parts.Count -ne 2) { continue }
-
-        $name = $parts[0].Trim()
-        $value = $parts[1].Trim()
-        if ([string]::IsNullOrWhiteSpace($name)) { continue }
-
-        # A profile contract must only contain non-secret defaults. Keep this
-        # guard so a future template mistake cannot replace an operator secret.
-        if ($name -match '(?i)(api[_-]?key|token|secret|password|credential)') {
-            continue
-        }
-
-        $applied += $name
-        if (-not $DryRun) {
-            Set-HiveMindDotEnvValue -Root $Root -Name $name -Value $value
-        }
-    }
-
-    return $applied
+    $args = @("apply-profile-contract", "--root", $Root, "--profile-contract", $ProfileContract)
+    if ($DryRun) { $args += "--dry-run" }
+    $payload = Invoke-HiveMindNativeWindowsSupport -Root $Root -Arguments $args
+    if ([string]::IsNullOrWhiteSpace($payload)) { return @() }
+    $decoded = $payload | ConvertFrom-Json
+    return @($decoded)
 }
 function Set-HiveMindDotEnvValue {
     param(
@@ -269,28 +241,12 @@ function Set-HiveMindDotEnvValue {
         [string]$Root = (Get-HiveMindRoot)
     )
 
-    $envPath = Join-Path $Root ".env"
-    $lines = @()
-    if (Test-Path -LiteralPath $envPath) {
-        $lines = @(Get-Content -LiteralPath $envPath)
-    }
-
-    $pattern = "^\s*$([regex]::Escape($Name))\s*="
-    $updated = $false
-    $next = foreach ($line in $lines) {
-        if ($line -match $pattern) {
-            $updated = $true
-            "$Name=$Value"
-        } else {
-            $line
-        }
-    }
-
-    if (-not $updated) {
-        $next += "$Name=$Value"
-    }
-
-    Set-Content -LiteralPath $envPath -Value $next -Encoding UTF8
+    Invoke-HiveMindNativeWindowsSupport -Root $Root -Arguments @(
+        "set-dotenv-value",
+        "--root", $Root,
+        "--name", $Name,
+        "--value", $Value
+    ) | Out-Null
 }
 
 function Import-HiveMindDotEnv {
@@ -298,7 +254,8 @@ function Import-HiveMindDotEnv {
         [string]$Root = (Get-HiveMindRoot)
     )
 
-    $values = Read-HiveMindDotEnv -Root $Root
+    $payload = Invoke-HiveMindNativeWindowsSupport -Root $Root -Arguments @("read-dotenv", "--root", $Root)
+    $values = if ([string]::IsNullOrWhiteSpace($payload)) { @{} } else { $payload | ConvertFrom-Json -AsHashtable }
     foreach ($key in $values.Keys) {
         [Environment]::SetEnvironmentVariable($key, [string]$values[$key], "Process")
     }
@@ -326,26 +283,7 @@ function Sync-HiveMindVaultTemplates {
         [string]$Root
     )
 
-    $templateVault = Join-Path $Root "templates\vault"
-    if (-not (Test-Path -LiteralPath $templateVault -PathType Container)) {
-        throw "Shipped vault template directory was not found: $templateVault"
-    }
-
-    $vault = Join-Path $Root "cerebro"
-    Ensure-HiveMindDirectory -Path $vault
-    foreach ($source in Get-ChildItem -LiteralPath $templateVault -Recurse -Force) {
-        $relative = $source.FullName.Substring($templateVault.Length + 1)
-        $destination = Join-Path $vault $relative
-        if ($source.PSIsContainer) {
-            Ensure-HiveMindDirectory -Path $destination
-            continue
-        }
-
-        if (-not (Test-Path -LiteralPath $destination)) {
-            Ensure-HiveMindDirectory -Path (Split-Path -Path $destination -Parent)
-            Copy-Item -LiteralPath $source.FullName -Destination $destination
-        }
-    }
+    Invoke-HiveMindNativeWindowsSupport -Root $Root -Arguments @("sync-vault-templates", "--root", $Root) | Out-Null
 }
 function Ensure-HiveMindDirectory {
     param(
