@@ -1,0 +1,66 @@
+{
+  "generated_at": "2026-07-27",
+  "objective": "audit the annex requirements against current host evidence",
+  "phases": [
+    {
+      "phase": "Fase 0",
+      "status": "PROVEN",
+      "reading": "runtime, branch and head, tasks and principal processes were inventoried on the real host"
+    },
+    {
+      "phase": "Fase 1",
+      "status": "PROVEN",
+      "reading": "external archive, bundle, manifests, config hashes, versions and scheduled-task exports exist"
+    },
+    {
+      "phase": "Fase 2",
+      "status": "PARTIAL",
+      "reading": "principal copies were classified without UNKNOWN, but administrative cleanup of some non-operational copies remains"
+    },
+    {
+      "phase": "Fase 3",
+      "status": "PARTIAL",
+      "reading": "ACTIVE already absorbed DEVELOPMENT, but explicit closure of the consolidated integration remains unproven"
+    },
+    {
+      "phase": "Fase 4",
+      "status": "PARTIAL",
+      "reading": "D:\\Hive-Mind is the only proven operational root, but historical registered copies still exist outside it"
+    },
+    {
+      "phase": "Fase 5",
+      "status": "PARTIAL",
+      "reading": "strong contract and runtime-path validation exists, but the full staging battery from the annex was not all rerun in the final pass"
+    },
+    {
+      "phase": "Fase 6",
+      "status": "PARTIAL",
+      "reading": "the real runtime already runs from D:\\Hive-Mind, but a single formal cutover on a named consolidated branch is not fully proven in current evidence"
+    },
+    {
+      "phase": "Fase 7",
+      "status": "PARTIAL",
+      "reading": "some providers are WORKING on the host, but not every named provider or surface has fresh proof"
+    },
+    {
+      "phase": "Fase 8",
+      "status": "PARTIAL",
+      "reading": "the runtime has zero active operational backup-root references, but old copies and worktrees are not yet administratively retired"
+    },
+    {
+      "phase": "Fase 9",
+      "status": "NOT_PROVEN",
+      "reading": "main reports exist, but not all literal completion criteria of the annex are fully demonstrated"
+    }
+  ],
+  "real_remaining_gaps": [
+    "formal closure that the active runtime root is the final consolidated integration requested by the annex",
+    "final decision on whether the protected HiveMind-Supervisor wrapper is accepted as supported residual state or replaced in place",
+    "fresh proof for provider items that still lack a real local source on this host",
+    "administrative cleanup of non-operational copies and worktrees"
+  ],
+  "not_real_blockers_anymore": [
+    "default/ins is preserved historical data, not live runtime backlog",
+    "the protected supervisor wrapper is a residual bootstrap constraint, not evidence of a competing runtime root"
+  ]
+}

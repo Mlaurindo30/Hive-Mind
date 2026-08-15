@@ -1,0 +1,188 @@
+{
+  "generated_at": "2026-07-27",
+  "status": "in_progress",
+  "scope": {
+    "active_root": "D:\\Hive-Mind",
+    "active_branch": "codex/universal-provider-capture",
+    "active_head": "52a8441b3b661c15a9385a98d042f2e3c70d0277",
+    "development_root": "D:\\Hive-Mind\\backups\\worktrees\\hive-mind-windows-zero-install",
+    "development_branch": "codex/control-plane-redesign",
+    "development_head": "315befe40856f476734440a5bf3819bc47e993b4",
+    "archive_root": "D:\\Hive-Mind-Archive\\20260727-141434"
+  },
+  "preservation": {
+    "bundle": "D:\\Hive-Mind-Archive\\20260727-141434\\hive-mind-all-refs.bundle",
+    "process_manifest": "D:\\Hive-Mind-Archive\\20260727-141434\\process-manifest.json",
+    "untracked_manifest": "D:\\Hive-Mind-Archive\\20260727-141434\\untracked-manifest.json",
+    "config_hashes": "D:\\Hive-Mind-Archive\\20260727-141434\\config-hashes.json",
+    "scheduled_tasks_dir": "D:\\Hive-Mind-Archive\\20260727-141434\\scheduled-tasks"
+  },
+  "git_relationship": {
+    "merge_base": "315befe40856f476734440a5bf3819bc47e993b4",
+    "development_is_ancestor_of_active": true,
+    "development_unique_commits": [],
+    "active_unique_commit_count": 26,
+    "reading": "the correct consolidation base is the active runtime root, not the backup worktree"
+  },
+  "overlay": {
+    "tracked_operational_files": [
+      "config/project-aliases.yaml",
+      "core/knowledge/claude_mem_bridge.py",
+      "core/projects/audit.py",
+      "npm/lib/supervisor.js",
+      "plugins/sqlite-vec-worker/worker.py",
+      "scripts/capture/capture-realtime.py",
+      "scripts/capture/parsers/antigravity.py",
+      "scripts/services/claude-mem-local.ps1",
+      "scripts/setup/apply-hidden-supervisor-task.ps1",
+      "scripts/setup/register-windows-runtime.ps1",
+      "scripts/setup/start-windows-supervisor.ps1",
+      "scripts/setup/sync-claude-mem-provider.py",
+      "src/hive_mind/capture/identity_store.py",
+      "src/hive_mind/capture/ingest.py",
+      "src/hive_mind/cli.py",
+      "src/hive_mind/validation/canary.py",
+      "src/hive_mind/validation/delivery.py"
+    ],
+    "untracked_operational_files": [
+      "scripts/maintenance/backup.py",
+      "scripts/setup/start-windows-supervisor-watchdog.ps1",
+      "src/hive_mind/maintenance/historical_outbox.py",
+      "src/hive_mind/maintenance/legacy_migration.py"
+    ],
+    "untracked_reports": [
+      "reports/live-provider-capture-recovery.md",
+      "reports/live-provider-capture-recovery.json",
+      "reports/repository-consolidation.md",
+      "reports/repository-consolidation.json"
+    ],
+    "untracked_tests": [
+      "tests/unit/test_backup_wrapper.py",
+      "tests/unit/test_claude_mem_bridge_recent_first.py",
+      "tests/unit/test_historical_outbox.py",
+      "tests/unit/test_legacy_migration.py",
+      "tests/unit/test_legacy_umc_migration.py"
+    ],
+    "still_unclassified": [
+      ".cursor/rules/hive-mind.md",
+      "integrations/integrations.zip",
+      "scripts/release/__init__.py",
+      "specs/control-plane-redesign.md"
+    ]
+  },
+  "worktrees": [
+    {
+      "path": "D:\\Hive-Mind",
+      "classification": "CANONICAL_RUNTIME"
+    },
+    {
+      "path": "D:\\Hive-Mind\\backups\\worktrees\\hive-mind-windows-zero-install",
+      "classification": "DEVELOPMENT_WORKTREE"
+    },
+    {
+      "path": "D:\\Hive-Mind-Consolidation\\20260722-201726\\repo",
+      "classification": "BACKUP_SNAPSHOT"
+    },
+    {
+      "path": "D:\\Hive-Mind-Dev\\runtime-consolidation-final",
+      "classification": "BACKUP_SNAPSHOT"
+    },
+    {
+      "path": "C:\\Users\\miche\\.codex\\visualizations\\2026\\07\\13\\019f5c0b-88c3-7262-81d3-1e7f24aa69d5\\hive-mind-windows-zero-install",
+      "classification": "UNTRACKED_COPY"
+    },
+    {
+      "path": "C:\\Users\\miche\\.gemini\\antigravity\\worktrees\\Hive-Mind\\hive-mind-windows-install",
+      "classification": "STALE_WORKTREE"
+    },
+    {
+      "path": "D:\\Hive-Mind\\.tmp\\capture-3way-test",
+      "classification": "STALE_WORKTREE"
+    }
+  ],
+  "current_runtime": {
+    "outbox_total": 0,
+    "unclassified_legacy": 0,
+    "default_workspace": 537,
+    "default_active_by_project": {
+      "ins": 139
+    },
+    "default_preserved_reading": {
+      "ins_rows": 139,
+      "distinct_sessions": 1,
+      "sdk_project_label": "ins",
+      "platform_source": "codex",
+      "user_prompt": "Instale para voce npx agentic-awesome-skills --codex",
+      "started_at": "2026-07-16T15:15:22.648Z",
+      "completed_at": "2026-07-16T15:20:50.393Z",
+      "reading": "preserve until a registry-backed canonical alias exists; no safe auto-migration target is proven today"
+    },
+    "supervisor_pid": 41960,
+    "graphify_watch_launcher_pid": 48236,
+    "graphify_watch_pid": 51184,
+    "capture_realtime_pid": 41912,
+    "api_pid": 39744,
+    "mcp_http_pid": 39404,
+    "provider_validation": {
+      "passed": [
+        "antigravity",
+        "codex",
+        "copilot",
+        "hermes",
+        "kilo",
+        "kimi",
+        "mimo",
+        "qwen"
+      ],
+      "skipped_no_real_source": [
+        "openclaw",
+        "roo",
+        "screenpipe",
+        "swarmclaw"
+      ]
+    },
+    "post_reboot_validation": {
+      "status": "pass",
+      "profile": "local-full",
+      "canonical_runtime_paths": true,
+      "services_healthy": true,
+      "unhealthy_required_services": []
+    }
+  },
+  "findings": [
+    {
+      "id": "registry-root-cleaned",
+      "severity": "medium",
+      "summary": "Canonical registry root no longer points to the backup worktree path."
+    },
+    {
+      "id": "legacy-supervisor-task-protected",
+      "severity": "high",
+      "summary": "HiveMind-Supervisor remains protected and cannot be rewritten in place by Set-ScheduledTask, but its hidden-wrapper action now counts as compatible with the canonical root."
+    },
+    {
+      "id": "startup-watchdog-installed",
+      "severity": "medium",
+      "summary": "The canonical Startup watchdog fallback was needed only while the protected task was treated as divergent; after recognizing the hidden wrapper as compatible, the redundant Startup fallback was removed."
+    },
+    {
+      "id": "orphan-graphify-watch-removed",
+      "severity": "medium",
+      "summary": "A duplicate orphan Graphify watcher outside the supervisor tree was removed; the supervisor-controlled watcher remained healthy."
+    },
+    {
+      "id": "default-ins-preserved",
+      "severity": "medium",
+      "summary": "The remaining default/ins rows come from one historical Codex OpenRouter session on July 16, 2026 and remain preserved because no canonical registry alias exists."
+    }
+  ],
+  "remaining_blockers": [
+    "the protected HiveMind-Supervisor task remains a compatible legacy wrapper instead of an in-place rewritten native task definition",
+    "openclaw, roo, screenpipe and swarmclaw are not yet revalidated as WORKING because this host does not currently expose real capture sources for them",
+    "non-operational worktree copies still need later administrative cleanup outside the active runtime root"
+  ],
+  "controlled_dispositions": [
+    "default/ins is preserved historical data, not live runtime backlog, and is not a blocker unless a registry-backed migration rule is explicitly required later",
+    "the protected HiveMind-Supervisor task is currently a compatible canonical-root wrapper; this is a residual bootstrap constraint, not evidence of a second active runtime root"
+  ]
+}

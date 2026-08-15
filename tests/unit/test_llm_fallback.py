@@ -174,7 +174,7 @@ class TestLLMFallbackClassification:
             call_count["n"] += 1
             raise _TransientError("connection timed out")
 
-        monkeypatch.setattr(dream_module, "call_llm_structured", _always_transient)
+        monkeypatch.setattr(dream_module, "call_llm_role", _always_transient)
         monkeypatch.setattr(dream_module, "guardrails", {"validation": {"max_retries": 2}})
 
         # Substitui time.sleep para não aguardar nos testes
@@ -216,7 +216,7 @@ class TestLLMFallbackClassification:
             providers_used.append(getattr(dream_module, "LLM_PROVIDER", "unknown"))
             raise _TransientError("5xx server error")
 
-        monkeypatch.setattr(dream_module, "call_llm_structured", _track_provider)
+        monkeypatch.setattr(dream_module, "call_llm_role", _track_provider)
         monkeypatch.setattr(dream_module, "guardrails", {"validation": {"max_retries": 2}})
         monkeypatch.setattr("time.sleep", lambda _: None)
 
@@ -264,7 +264,7 @@ class TestLLMFallbackClassification:
             call_count["n"] += 1
             raise _AuthError("401 Unauthorized — invalid API key")
 
-        monkeypatch.setattr(dream_module, "call_llm_structured", _always_auth_error)
+        monkeypatch.setattr(dream_module, "call_llm_role", _always_auth_error)
         monkeypatch.setattr(dream_module, "guardrails", {"validation": {"max_retries": 2}})
         monkeypatch.setattr("time.sleep", lambda _: None)
 
@@ -297,7 +297,7 @@ class TestLLMFallbackClassification:
         def _insufficient_funds(*args, **kwargs):
             raise _AuthError("402 Payment Required — insufficient credits")
 
-        monkeypatch.setattr(dream_module, "call_llm_structured", _insufficient_funds)
+        monkeypatch.setattr(dream_module, "call_llm_role", _insufficient_funds)
         monkeypatch.setattr(dream_module, "guardrails", {"validation": {"max_retries": 2}})
         monkeypatch.setattr("time.sleep", lambda _: None)
 
@@ -341,7 +341,7 @@ class TestLLMFallbackClassification:
             providers_called.append(getattr(dream_module, "LLM_PROVIDER", "unknown"))
             raise _PydanticError("Falha de validação Pydantic no retorno da LLM: ...")
 
-        monkeypatch.setattr(dream_module, "call_llm_structured", _pydantic_error)
+        monkeypatch.setattr(dream_module, "call_llm_role", _pydantic_error)
         monkeypatch.setattr(dream_module, "guardrails", {"validation": {"max_retries": 2}})
         monkeypatch.setattr("time.sleep", lambda _: None)
 
@@ -381,7 +381,7 @@ class TestLLMFallbackClassification:
                 fallback_was_called["flag"] = True
             raise _PydanticError("validation error")
 
-        monkeypatch.setattr(dream_module, "call_llm_structured", _pydantic_error)
+        monkeypatch.setattr(dream_module, "call_llm_role", _pydantic_error)
         monkeypatch.setattr(dream_module, "guardrails", {"validation": {"max_retries": 2}})
         monkeypatch.setenv("HIVE_DREAMER_FALLBACK_PROVIDER", "ollama")
         monkeypatch.setenv("HIVE_DREAMER_FALLBACK_MODEL", "llama3.2")

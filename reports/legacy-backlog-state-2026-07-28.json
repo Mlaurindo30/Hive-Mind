@@ -1,0 +1,55 @@
+{
+  "date": "2026-07-28",
+  "status": "controlled_preserved_legacy_only",
+  "commands": [
+    "python -m hive_mind.cli validate delivery --json",
+    "python -m hive_mind.cli projects migrate-legacy --source-workspace default --json"
+  ],
+  "outbox": {
+    "total": 0,
+    "delivered": 0,
+    "dead_letter": 0,
+    "historical_backlog_live": false
+  },
+  "umc": {
+    "observations": 3278,
+    "canonical": 2741,
+    "legacy": 537
+  },
+  "legacy": {
+    "default_workspace": 537,
+    "unclassified_legacy": 0,
+    "default_active_by_project": {
+      "ins": 139
+    }
+  },
+  "recovery": {
+    "legacy_source_sessions": 1,
+    "session_rows_found": 1,
+    "canonical_alias_matches": 0,
+    "unmapped_session_projects": {
+      "ins": 1
+    },
+    "migrate_legacy_default": {
+      "scanned": 139,
+      "candidates": 0,
+      "updated": 0,
+      "unmapped_rows_by_label": {
+        "ins": 139
+      }
+    }
+  },
+  "preserved_session": {
+    "memory_session_id": "openrouter-019f6b7a-98a8-7e22-85b8-661bbcee3d91-1784228743493",
+    "content_session_id": "019f6b7a-98a8-7e22-85b8-661bbcee3d91",
+    "project": "ins",
+    "active_rows": 139,
+    "latest_observation_date": "2026-07-16"
+  },
+  "conclusion": {
+    "historical_outbox_backlog_live": false,
+    "unclassified_legacy_live": false,
+    "default_ins_recoverable_now": false,
+    "default_ins_should_remain_preserved": true
+  }
+}

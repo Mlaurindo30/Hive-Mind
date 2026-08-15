@@ -1,0 +1,138 @@
+{
+  "generated_at": "2026-07-27",
+  "status": "current_host_snapshot",
+  "evidence": {
+    "validate_agents": "D:\\Hive-Mind\\.venv\\Scripts\\python.exe -m hive_mind.cli validate agents --json",
+    "agents_detect": "D:\\Hive-Mind\\.venv\\Scripts\\python.exe -m hive_mind.cli agents detect --json",
+    "claude_mem_reading": "read-only query of %USERPROFILE%\\.claude-mem\\claude-mem.db",
+    "historical_matrix": "D:\\Hive-Mind\\reports\\provider-capture-matrix.json"
+  },
+  "providers": [
+    {
+      "provider": "claude",
+      "lane": "native",
+      "detected": true,
+      "status": "WORKING",
+      "reason": "native lane with current claude platform_source activity in claude-mem.db"
+    },
+    {
+      "provider": "codex",
+      "lane": "universal",
+      "detected": true,
+      "status": "WORKING",
+      "reason": "validate agents passed"
+    },
+    {
+      "provider": "qwen",
+      "lane": "universal",
+      "detected": true,
+      "status": "WORKING",
+      "reason": "validate agents passed"
+    },
+    {
+      "provider": "kimi",
+      "lane": "universal",
+      "detected": true,
+      "status": "WORKING",
+      "reason": "validate agents passed"
+    },
+    {
+      "provider": "kilo",
+      "lane": "universal",
+      "detected": true,
+      "status": "WORKING",
+      "reason": "validate agents passed"
+    },
+    {
+      "provider": "copilot",
+      "lane": "universal",
+      "detected": true,
+      "status": "WORKING",
+      "reason": "validate agents passed"
+    },
+    {
+      "provider": "antigravity",
+      "lane": "universal",
+      "detected": true,
+      "status": "WORKING",
+      "reason": "validate agents passed"
+    },
+    {
+      "provider": "hermes",
+      "lane": "universal",
+      "detected": true,
+      "status": "WORKING",
+      "reason": "validate agents passed"
+    },
+    {
+      "provider": "mimo",
+      "lane": "universal",
+      "detected": true,
+      "status": "WORKING",
+      "reason": "validate agents passed"
+    },
+    {
+      "provider": "openclaw",
+      "lane": "universal",
+      "detected": false,
+      "status": "NOT_INSTALLED",
+      "reason": "no real source file on this host"
+    },
+    {
+      "provider": "roo",
+      "lane": "universal",
+      "detected": false,
+      "status": "NOT_INSTALLED",
+      "reason": "no real source file on this host"
+    },
+    {
+      "provider": "screenpipe",
+      "lane": "universal",
+      "detected": false,
+      "status": "NOT_CONFIGURED",
+      "reason": "timer or REST adapter exists but no live local source was proven on this host"
+    },
+    {
+      "provider": "swarmclaw",
+      "lane": "universal",
+      "detected": false,
+      "status": "NOT_INSTALLED",
+      "reason": "no real source file on this host"
+    },
+    {
+      "provider": "gemini",
+      "lane": "registration-only",
+      "detected": true,
+      "status": "NOT_A_CAPTURE_SOURCE",
+      "reason": "registration target in the current architecture, not a separate universal canary source"
+    },
+    {
+      "provider": "kiro",
+      "lane": "registration-only",
+      "detected": true,
+      "status": "NOT_A_CAPTURE_SOURCE",
+      "reason": "registration target in the current architecture, not a separate universal canary source"
+    },
+    {
+      "provider": "cursor",
+      "lane": "registration-only",
+      "detected": true,
+      "status": "NOT_A_CAPTURE_SOURCE",
+      "reason": "registration target in the current architecture, not a separate universal canary source"
+    },
+    {
+      "provider": "vscode",
+      "lane": "registration-only",
+      "detected": true,
+      "status": "NOT_A_CAPTURE_SOURCE",
+      "reason": "registration target in the current architecture, not a separate universal canary source"
+    },
+    {
+      "provider": "opencode",
+      "lane": "registration-only",
+      "detected": false,
+      "status": "NOT_INSTALLED",
+      "reason": "registration target absent on this host"
+    }
+  ]
+}

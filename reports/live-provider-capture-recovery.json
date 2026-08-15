@@ -1,45 +1,198 @@
 {
-  "delivery": "D004-R3-corrected",
-  "status": "IN_PROGRESS",
-  "phase": "source-path restoration present in staging; fresh end-to-end canaries pending",
-  "reported_by": "user and reconciled with historical memory",
-  "regression_window": "2026-07-17..2026-07-22",
-  "root_cause": "Hive-Mind live runtime loaded an old capture_adapters.py that watched provider source paths the providers had abandoned.",
-  "hive_mind_code_config_regression": true,
-  "provider_limitation": false,
-  "live_runtime": {
-    "path": "D:/Hive-Mind",
-    "branch": "codex/universal-provider-capture",
-    "head": "3d362c6",
-    "state": "old adapter paths; do not use this state to infer provider capability or configuration"
+  "generated_at": "2026-07-27",
+  "status": "in_progress",
+  "scope": {
+    "canonical_root": "D:\\Hive-Mind",
+    "active_branch": "codex/universal-provider-capture",
+    "active_head": "52a8441b3b661c15a9385a98d042f2e3c70d0277"
   },
-  "staging": {
-    "path": "D:/Hive-Mind-Consolidation/20260722-201726/repo",
-    "head": "1b721f1",
-    "source_parsing": "SOURCE_PARSES_NOW",
-    "providers": ["antigravity", "copilot", "hermes", "kilo", "kimi", "mimo", "qwen"]
+  "delivery": {
+    "outbox_total": 0,
+    "outbox_dead_letter": 0,
+    "umc_observations": 2612,
+    "umc_canonical": 2075,
+    "umc_legacy": 537,
+    "unclassified_legacy": 0,
+    "default_workspace": 537,
+    "default_active_by_project": {
+      "ins": 139
+    },
+    "default_preserved_reading": {
+      "ins_rows": 139,
+      "distinct_sessions": 1,
+      "sdk_project_label": "ins",
+      "platform_source": "codex",
+      "user_prompt": "Instale para voce npx agentic-awesome-skills --codex",
+      "started_at": "2026-07-16T15:15:22.648Z",
+      "completed_at": "2026-07-16T15:20:50.393Z",
+      "reading": "historical free-label session preserved on purpose; no canonical registry alias exists, so controlled migration must not guess"
+    }
   },
-  "providers": {
-    "claude": {"historical": "HISTORICALLY_PROVEN", "fresh_chain": "FRESH_CHAIN_PENDING", "lane": "native"},
-    "codex": {"historical": "HISTORICALLY_PROVEN", "fresh_chain": "FRESH_CHAIN_PENDING"},
-    "qwen": {"historical": "HISTORICALLY_PROVEN", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING"},
-    "antigravity": {"historical": "HISTORICALLY_PROVEN", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING", "evidence": "real IDE marker previously captured"},
-    "copilot": {"historical": "HISTORICALLY_PROVEN", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING", "evidence": "headless exit 0 and real SQLite sources"},
-    "hermes": {"historical": "HISTORICALLY_PROVEN", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING", "evidence": "real markers and acknowledgements in AppData/Local/hermes/state.db"},
-    "kilo": {"historical": "INVOCATION_PROVEN_EXIT_0", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING", "previous_failure_owner": "Hive-Mind capture chain"},
-    "mimo": {"historical": "INVOCATION_PROVEN_EXIT_0", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING", "previous_failure_owner": "Hive-Mind capture chain"},
-    "kimi": {"historical": "REAL_SOURCE_OBSERVED", "source_now": "SOURCE_PARSES_NOW", "fresh_chain": "FRESH_CHAIN_PENDING", "evidence": "real wire.jsonl and current parser"}
+  "providers_validate": {
+    "command": "D:\\Hive-Mind\\.venv\\Scripts\\python.exe -m hive_mind.cli validate agents --json",
+    "ok": true,
+    "summary": {
+      "total": 12,
+      "passed": 8,
+      "failed": 0
+    },
+    "passed": {
+      "antigravity": {
+        "project_id": "local/75a99723f2d2",
+        "inserted": 1
+      },
+      "codex": {
+        "project_id": "hive-mind",
+        "inserted": 1
+      },
+      "copilot": {
+        "project_id": "git/omniroute-55c65437f06b",
+        "inserted": 1
+      },
+      "hermes": {
+        "project_id": "root/referenced-chatgpt-conversation-this-is-untrusted-45dfd61711b9",
+        "inserted": 22
+      },
+      "kilo": {
+        "project_id": "hive-mind",
+        "inserted": 7
+      },
+      "kimi": {
+        "project_id": "hive-mind",
+        "inserted": 1
+      },
+      "mimo": {
+        "project_id": "hive-mind",
+        "inserted": 3
+      },
+      "qwen": {
+        "project_id": "root/qwen-73189b58f34d",
+        "inserted": 1
+      }
+    },
+    "skipped": {
+      "openclaw": "no real source file on this host",
+      "roo": "no real source file on this host",
+      "screenpipe": "no real source file on this host",
+      "swarmclaw": "no real source file on this host"
+    },
+    "source_inventory": {
+      "antigravity": {
+        "found": true,
+        "real_source_count": 5
+      },
+      "codex": {
+        "found": true,
+        "real_source_count": 5
+      },
+      "copilot": {
+        "found": true,
+        "real_source_count": 5
+      },
+      "hermes": {
+        "found": true,
+        "real_source_count": 1
+      },
+      "kilo": {
+        "found": true,
+        "real_source_count": 1
+      },
+      "kimi": {
+        "found": true,
+        "real_source_count": 5
+      },
+      "mimo": {
+        "found": true,
+        "real_source_count": 1
+      },
+      "openclaw": {
+        "found": false,
+        "real_source_count": 0,
+        "host_reading": "provider home exists but runs.sqlite is absent"
+      },
+      "qwen": {
+        "found": true,
+        "real_source_count": 5
+      },
+      "roo": {
+        "found": false,
+        "real_source_count": 0
+      },
+      "screenpipe": {
+        "found": false,
+        "real_source_count": 0,
+        "host_reading": "timer/REST adapter with no live source proven on this host"
+      },
+      "swarmclaw": {
+        "found": false,
+        "real_source_count": 0
+      }
+    }
   },
-  "invalidated_conclusions": [
-    "BLOCKED_BY_PROVIDER",
-    "NOT_CONFIGURED",
-    "OK_EXTERNAL",
-    "OK_NOT_REQUIRED",
-    "the failure was outside Hive-Mind"
-  ],
-  "restoration": {
-    "source_path_code_ready_in_staging": true,
-    "fresh_chain_proven": false,
-    "next_gate": "fresh marker per required provider through source, parser, ingest, Claude Mem, bridge, UMC and dedupe"
+  "runtime_process_snapshot": {
+    "supervisor_pid": 41960,
+    "capture_realtime_pid": 41912,
+    "api_pid": 39744,
+    "mcp_http_pid": 39404,
+    "graphify_watch_launcher_pid": 48236,
+    "graphify_watch_pid": 51184
+  },
+  "scheduled_tasks_snapshot": {
+    "HiveMind-PostRebootValidation": {
+      "execute": "D:\\Hive-Mind\\.venv\\Scripts\\python.exe",
+      "arguments": "\"D:\\Hive-Mind\\scripts\\health\\validate_after_reboot_windows.py\"",
+      "working_directory": "D:\\Hive-Mind"
+    },
+    "HiveMind-Supervisor": {
+      "execute": "C:\\WINDOWS\\System32\\wscript.exe",
+      "arguments": "\"D:\\Hive-Mind\\scripts\\setup\\start-windows-supervisor-hidden.vbs\" \"D:\\Hive-Mind\"",
+      "working_directory": "D:\\Hive-Mind"
+    },
+    "HiveMind-Supervisor-Watchdog": {
+      "execute": "powershell.exe",
+      "arguments": "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"D:\\Hive-Mind\\scripts\\setup\\start-windows-supervisor-watchdog.ps1\" -Root \"D:\\Hive-Mind\"",
+      "working_directory": "D:\\Hive-Mind"
+    }
+  },
+  "post_reboot_validation": {
+    "report_path": "D:\\Hive-Mind\\logs\\post-reboot-validation.json",
+    "validated_at": "2026-07-27T20:44:07.595538+00:00",
+    "profile": "local-full",
+    "status": "pass",
+    "checks": {
+      "scheduled_supervisor": true,
+      "supervisor_state_present": true,
+      "supervisor_manifest_present": true,
+      "required_services_declared": true,
+      "services_healthy": true,
+      "canonical_runtime_paths": true
+    },
+    "unhealthy_required_services": []
+  },
+  "bootstrap_state": {
+    "legacy_task": {
+      "task_name": "HiveMind-Supervisor",
+      "execute": "C:\\WINDOWS\\System32\\wscript.exe",
+      "arguments": "\"D:\\Hive-Mind\\scripts\\setup\\start-windows-supervisor-hidden.vbs\" \"D:\\Hive-Mind\"",
+      "status": "protected_compatible_hidden_wrapper"
+    },
+    "watchdog_task": {
+      "task_name": "HiveMind-Supervisor-Watchdog",
+      "execute": "powershell.exe",
+      "arguments": "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"D:\\Hive-Mind\\scripts\\setup\\start-windows-supervisor-watchdog.ps1\" -Root \"D:\\Hive-Mind\""
+    },
+    "startup_fallback": {
+      "path": "C:\\Users\\miche\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\HiveMind-Supervisor-Watchdog.cmd",
+      "installed": false,
+      "points_to_root": "D:\\Hive-Mind"
+    }
+  },
+  "operational_reading": {
+    "fresh_capture_chain": "proven for validate agents passed providers",
+    "legacy_backlog_blocking_runtime": false,
+    "remaining_bootstrap_blocker": "legacy protected HiveMind-Supervisor task still cannot be rewritten in place, but its hidden wrapper now counts as compatible with the canonical root and no redundant Startup fallback remains",
+    "remaining_provider_scope_gap": "openclaw, roo, screenpipe and swarmclaw remain not proven as WORKING because validate agents found no real source file on this host",
+    "default_workspace_reading": "the remaining default/ins block is a preserved historical Codex session from 2026-07-16, not an active runtime backlog",
+    "runtime_path_reading": "the Windows runtime path auditor and post-reboot validator both report zero operational references to noncanonical Hive-Mind roots"
   }
 }

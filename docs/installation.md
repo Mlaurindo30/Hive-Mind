@@ -79,7 +79,7 @@ Linux tooling — see the README's platform table.
 ```powershell
 git clone <repo-url> Hive-Mind
 cd Hive-Mind
-./install.ps1 -Profile local-min
+install.bat --profile local-min
 ```
 
 Useful switches: `-Profile local-min|local-full`, `-WithTests`, `-WithRealTests`,
@@ -88,10 +88,10 @@ Useful switches: `-Profile local-min|local-full`, `-WithTests`, `-WithRealTests`
 `powershell.exe -ExecutionPolicy Bypass`. Register/re-register MCP for a single agent with:
 
 ```powershell
-./scripts/setup/register-mcp.ps1 --claude-only --apply   # or --codex-only, or neither for every detected agent
+python scripts/setup/register_mcp.py --claude-only --apply   # or --codex-only, or neither for every detected agent
 ```
 
-Both `register-mcp.ps1` and `register-mcp.sh` are wrappers over
+The Python entrypoint and `register-mcp.sh` are adapters over
 `hive-mind agents register` (D009-R6) — same implementation, same option set,
 same results on either platform. See [agents.md](agents.md).
 

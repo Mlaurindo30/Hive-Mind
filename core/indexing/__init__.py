@@ -6,6 +6,7 @@ from collections.abc import Iterable
 
 from core.database import get_embedder, serialize_f32
 from core.hnsw_index import upsert_vectors
+from core.indexing.embed_text import embedding_text
 
 
 def upsert_search_vec(conn, neuron_id: str, embedding_blob) -> None:
@@ -29,7 +30,7 @@ def index_neuron_ids(conn, neuron_ids: Iterable[str], *, commit: bool = True) ->
     placeholders = ",".join("?" for _ in ids)
     rows = conn.execute(
         f"""
-        SELECT id, COALESCE(content, label, '') AS text
+        SELECT id, label, content
         FROM neurons
         WHERE id IN ({placeholders})
         ORDER BY id
@@ -39,13 +40,15 @@ def index_neuron_ids(conn, neuron_ids: Iterable[str], *, commit: bool = True) ->
     if not rows:
         return 0
 
+    # FASE 1.1: texto de embedding canônico (label + body, nunca à mão).
+    texts = [embedding_text(row["label"], row["content"]) for row in rows]
+
     embedder = get_embedder()
     if embedder is None:
         raise RuntimeError(
             "Nenhum backend de embedding disponível. "
             "Instale fastembed ou configure EMBED_BACKEND=ollama."
         )
-    texts = [row["text"][:5000] for row in rows]
     vectors = [list(vector) for vector in embedder.embed(texts)]
     if len(vectors) != len(rows):
         raise RuntimeError(f"embedding count mismatch: {len(vectors)} != {len(rows)}")

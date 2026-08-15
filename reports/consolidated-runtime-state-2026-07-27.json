@@ -1,0 +1,165 @@
+{
+  "generated_at": "2026-07-27",
+  "active_root": "D:\\Hive-Mind",
+  "active_branch": "codex/universal-provider-capture",
+  "active_head": "52a8441b3b661c15a9385a98d042f2e3c70d0277",
+  "post_reboot_validation": {
+    "report_path": "D:\\Hive-Mind\\logs\\post-reboot-validation.json",
+    "validated_at": "2026-07-27T20:44:07.595538+00:00",
+    "profile": "local-full",
+    "status": "pass",
+    "checks": {
+      "scheduled_supervisor": true,
+      "supervisor_state_present": true,
+      "supervisor_manifest_present": true,
+      "required_services_declared": true,
+      "services_healthy": true,
+      "canonical_runtime_paths": true
+    },
+    "unhealthy_required_services": []
+  },
+  "delivery_validation": {
+    "outbox_total": 0,
+    "outbox_dead_letter": 0,
+    "umc_observations": 2612,
+    "umc_canonical": 2075,
+    "umc_legacy": 537,
+    "unclassified_legacy": 0,
+    "default_workspace": 537,
+    "default_active_by_project": {
+      "ins": 139
+    }
+  },
+  "agent_validation": {
+    "passed": [
+      "antigravity",
+      "codex",
+      "copilot",
+      "hermes",
+      "kilo",
+      "kimi",
+      "mimo",
+      "qwen"
+    ],
+    "skipped_no_real_source": [
+      "openclaw",
+      "roo",
+      "screenpipe",
+      "swarmclaw"
+    ]
+  },
+  "bootstrap_state": {
+    "legacy_supervisor_task": "protected_compatible_hidden_wrapper",
+    "watchdog_task": "canonical",
+    "startup_fallback_present": false,
+    "scheduled_tasks_snapshot": {
+      "HiveMind-PostRebootValidation": {
+        "execute": "D:\\Hive-Mind\\.venv\\Scripts\\python.exe",
+        "arguments": "\"D:\\Hive-Mind\\scripts\\health\\validate_after_reboot_windows.py\"",
+        "working_directory": "D:\\Hive-Mind"
+      },
+      "HiveMind-Supervisor": {
+        "execute": "C:\\WINDOWS\\System32\\wscript.exe",
+        "arguments": "\"D:\\Hive-Mind\\scripts\\setup\\start-windows-supervisor-hidden.vbs\" \"D:\\Hive-Mind\"",
+        "working_directory": "D:\\Hive-Mind"
+      },
+      "HiveMind-Supervisor-Watchdog": {
+        "execute": "powershell.exe",
+        "arguments": "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"D:\\Hive-Mind\\scripts\\setup\\start-windows-supervisor-watchdog.ps1\" -Root \"D:\\Hive-Mind\"",
+        "working_directory": "D:\\Hive-Mind"
+      }
+    }
+  },
+  "baseline_reading": {
+    "active_runtime_is_consolidated_operational_baseline": true,
+    "reason": "the active root passes post-reboot validation, has zero runtime path findings, and the development worktree is not ahead in commits"
+  },
+  "runtime_path_audit": {
+    "findings": []
+  },
+  "remaining_completion_gaps": [
+    "formal decision whether the protected HiveMind-Supervisor wrapper is accepted as the final supported state or must be replaced in place",
+    "explicit closure that the active runtime root already is the final consolidated integration requested by the annex",
+    "providers without real host sources cannot be marked WORKING without new evidence"
+  ],
+  "worktrees_still_registered": [
+    "C:\\Users\\miche\\.codex\\visualizations\\2026\\07\\13\\019f5c0b-88c3-7262-81d3-1e7f24aa69d5\\hive-mind-windows-zero-install",
+    "C:\\Users\\miche\\.gemini\\antigravity\\worktrees\\Hive-Mind\\hive-mind-windows-install",
+    "D:\\Hive-Mind\\.tmp\\capture-3way-test",
+    "D:\\Hive-Mind\\backups\\worktrees\\hive-mind-windows-zero-install",
+    "D:\\Hive-Mind-Consolidation\\20260722-201726\\repo",
+    "D:\\Hive-Mind-Dev\\runtime-consolidation-final"
+  ],
+  "worktree_inventory": [
+    {
+      "path": "D:\\Hive-Mind",
+      "exists": true,
+      "branch": "codex/universal-provider-capture",
+      "head": "52a8441b3b661c15a9385a98d042f2e3c70d0277",
+      "dirty_lines": 47,
+      "classification": "CANONICAL_RUNTIME"
+    },
+    {
+      "path": "D:\\Hive-Mind\\backups\\worktrees\\hive-mind-windows-zero-install",
+      "exists": true,
+      "branch": "codex/control-plane-redesign",
+      "head": "315befe40856f476734440a5bf3819bc47e993b4",
+      "dirty_lines": 0,
+      "classification": "DEVELOPMENT_WORKTREE"
+    },
+    {
+      "path": "D:\\Hive-Mind-Consolidation\\20260722-201726\\repo",
+      "exists": true,
+      "branch": "codex/runtime-consolidation",
+      "head": "c4366aea6c962e28d3370d30350f3b5e79697e9f",
+      "dirty_lines": 23,
+      "classification": "BACKUP_SNAPSHOT"
+    },
+    {
+      "path": "D:\\Hive-Mind-Dev\\runtime-consolidation-final",
+      "exists": true,
+      "branch": "codex/runtime-consolidation-final",
+      "head": "52a8441b3b661c15a9385a98d042f2e3c70d0277",
+      "dirty_lines": 0,
+      "classification": "BACKUP_SNAPSHOT"
+    },
+    {
+      "path": "D:\\Hive-Mind\\.tmp\\capture-3way-test",
+      "exists": true,
+      "branch": null,
+      "head": "c2df042c62cd584c85297ad4c8552e969363028e",
+      "dirty_lines": 21,
+      "classification": "STALE_WORKTREE"
+    },
+    {
+      "path": "C:\\Users\\miche\\.codex\\visualizations\\2026\\07\\13\\019f5c0b-88c3-7262-81d3-1e7f24aa69d5\\hive-mind-windows-zero-install",
+      "exists": true,
+      "branch": "codex/windows-zero-install",
+      "head": "aa9435ed1da1bca3fd1de234c3270a37cf471d9e",
+      "dirty_lines": 0,
+      "classification": "UNTRACKED_COPY"
+    },
+    {
+      "path": "C:\\Users\\miche\\.gemini\\antigravity\\worktrees\\Hive-Mind\\hive-mind-windows-install",
+      "exists": false,
+      "classification": "STALE_WORKTREE"
+    }
+  ],
+  "worktree_disposition": {
+    "preserve_active": [
+      "D:\\Hive-Mind"
+    ],
+    "preserve_historical": [
+      "D:\\Hive-Mind\\backups\\worktrees\\hive-mind-windows-zero-install",
+      "D:\\Hive-Mind-Dev\\runtime-consolidation-final",
+      "C:\\Users\\miche\\.codex\\visualizations\\2026\\07\\13\\019f5c0b-88c3-7262-81d3-1e7f24aa69d5\\hive-mind-windows-zero-install"
+    ],
+    "administrative_review_later": [
+      "D:\\Hive-Mind-Consolidation\\20260722-201726\\repo",
+      "D:\\Hive-Mind\\.tmp\\capture-3way-test"
+    ],
+    "stale_registration_cleanup_later": [
+      "C:\\Users\\miche\\.gemini\\antigravity\\worktrees\\Hive-Mind\\hive-mind-windows-install"
+    ]
+  }
+}

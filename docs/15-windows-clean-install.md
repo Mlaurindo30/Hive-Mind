@@ -15,7 +15,7 @@ not become healthy.
 ## Clean machine procedure
 
 1. Clone the repository to a writable local path and open PowerShell.
-2. Run `./install.ps1 -Profile local-min -InstallPrerequisites` for the
+2. Run `install.bat --profile local-min --install-prerequisites` for the
    baseline installation, or select `local-full` when Docker-backed services
    are required.
 3. Confirm `node npm/bin/hive-mind.js services status` exits zero. It prints
@@ -39,8 +39,8 @@ Run the following before a release candidate:
 ```powershell
 python scripts/release/validate_package.py --source-root .
 ./tests/install/test_windows_bootstrap.ps1
-./install.ps1 -Profile local-min -DryRun
-./install.ps1 -Profile local-full -DryRun
+install.bat --profile local-min --dry-run
+install.bat --profile local-full --dry-run
 node --test npm/test/supervisor.test.js npm/test/doctor.test.js
 ```
 

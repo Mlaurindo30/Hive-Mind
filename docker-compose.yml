@@ -1,0 +1,174 @@
+# Hive-Mind — orquestração unificada (greenfield).
+#
+# `docker compose up -d`            -> núcleo local: FalkorDB + app
+# `docker compose --profile full up -d` -> adiciona Milvus + RAGFlow (produção)
+#
+# O núcleo (local-min) é SQLite + sqlite-vec + claude-mem + graphify + graphiti
+# (FalkorDB). Milvus e RAGFlow são órgãos/adaptadores opcionais (local-full).
+name: hive-mind
+
+services:
+  # ── Grafo temporal (Graphiti) ─────────────────────────────────────────────
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: sinapse-falkordb
+    restart: unless-stopped
+    ports:
+      - "${FALKORDB_PORT:-6379}:6379"
+    volumes:
+      - falkordb-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -h localhost ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # ── App (control-plane + REST API) ────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hive-mind-app
+    restart: unless-stopped
+    depends_on:
+      falkordb:
+        condition: service_healthy
+    environment:
+      SINAPSE_HOME: /app
+      FALKORDB_URL: redis://falkordb:6379
+      HIVE_MIND_API_KEY: ${HIVE_MIND_API_KEY:-}
+    ports:
+      - "37702:37702"
+      - "37780:37780"
+    volumes:
+      - ./cerebro:/app/cerebro
+      - hive-mind-data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config:ro
+    # O .env (secrets/credenciais) é montado somente se existir no host.
+    env_file:
+      - path: .env
+        required: false
+
+  # ── Milvus (vetor de produção, local-full) ────────────────────────────────
+  milvus:
+    image: milvusdb/milvus:v2.5.14
+    container_name: hive-mind-milvus
+    profiles: ["full"]
+    restart: unless-stopped
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_USE_EMBED: "true"
+      COMMON_STORAGETYPE: "local"
+      LOG_LEVEL: "info"
+    ports:
+      - "${MILVUS_PORT:-19530}:19530"
+      - "${MILVUS_METRICS_PORT:-9091}:9091"
+    volumes:
+      - milvus-data:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9091/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  # ── RAGFlow stack (documentos, local-full) ────────────────────────────────
+  # Serviços: mysql + elasticsearch + redis + minio + ragflow. O Redis do
+  # RAGFlow NÃO expõe porta no host (uso interno); o FalkorDB acima detém a
+  # 6379 do host sem conflito.
+  ragflow-mysql:
+    image: mysql:8.0.33
+    container_name: hive-mind-ragflow-mysql
+    profiles: ["full"]
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${RAGFLOW_MYSQL_PASSWORD:-infini_rag_flow}
+      MYSQL_DATABASE: rag_flow
+      MYSQL_USER: rag_flow
+      MYSQL_PASSWORD: ${RAGFLOW_MYSQL_PASSWORD:-infini_rag_flow}
+    volumes:
+      - ragflow-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  ragflow-es:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3
+    container_name: hive-mind-ragflow-es
+    profiles: ["full"]
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - ragflow-es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  ragflow-redis:
+    image: redis:7.2-alpine
+    container_name: hive-mind-ragflow-redis
+    profiles: ["full"]
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${RAGFLOW_REDIS_PASSWORD:-infini_rag_flow}"]
+
+  ragflow-minio:
+    image: quay.io/minio/minio:latest
+    container_name: hive-mind-ragflow-minio
+    profiles: ["full"]
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${RAGFLOW_MINIO_USER:-rag_flow}
+      MINIO_ROOT_PASSWORD: ${RAGFLOW_MINIO_PASSWORD:-infini_rag_flow}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ragflow-minio-data:/data
+
+  ragflow:
+    image: infiniflow/ragflow:v0.26.1
+    container_name: hive-mind-ragflow
+    profiles: ["full"]
+    restart: unless-stopped
+    depends_on:
+      ragflow-mysql:
+        condition: service_healthy
+      ragflow-es:
+        condition: service_healthy
+      ragflow-redis:
+        condition: service_started
+      ragflow-minio:
+        condition: service_started
+    ports:
+      - "9380:9380"
+    environment:
+      RAGFLOW_DB_HOST: ragflow-mysql
+      RAGFLOW_DB_PORT: "3306"
+      RAGFLOW_DB_NAME: rag_flow
+      RAGFLOW_DB_USER: rag_flow
+      RAGFLOW_DB_PASSWORD: ${RAGFLOW_MYSQL_PASSWORD:-infini_rag_flow}
+      RAGFLOW_ES_HOST: ragflow-es
+      RAGFLOW_REDIS_HOST: ragflow-redis
+      RAGFLOW_REDIS_PASSWORD: ${RAGFLOW_REDIS_PASSWORD:-infini_rag_flow}
+      RAGFLOW_MINIO_HOST: ragflow-minio
+      RAGFLOW_MINIO_PORT: "9000"
+      RAGFLOW_MINIO_USER: ${RAGFLOW_MINIO_USER:-rag_flow}
+      RAGFLOW_MINIO_PASSWORD: ${RAGFLOW_MINIO_PASSWORD:-infini_rag_flow}
+
+volumes:
+  falkordb-data:
+  hive-mind-data:
+  milvus-data:
+  ragflow-mysql-data:
+  ragflow-es-data:
+  ragflow-minio-data:

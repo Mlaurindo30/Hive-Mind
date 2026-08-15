@@ -1,0 +1,35 @@
+{
+  "generated_at": "2026-07-27",
+  "status": "controlled_preserved_legacy_only",
+  "source_command": "D:\\Hive-Mind\\.venv\\Scripts\\python.exe -m hive_mind.cli validate delivery --json",
+  "outbox": {
+    "total": 0,
+    "delivered": 0,
+    "dead_letter": 0
+  },
+  "umc": {
+    "observations": 2612,
+    "canonical": 2075,
+    "legacy": 537
+  },
+  "legacy": {
+    "default_workspace": 537,
+    "unclassified_legacy": 0,
+    "default_active_by_project": {
+      "ins": 139
+    }
+  },
+  "recovery": {
+    "legacy_source_sessions": 0,
+    "decisions_found": 0,
+    "bridged_recoverable": 0,
+    "session_rows_found": 0,
+    "canonical_alias_matches": 0
+  },
+  "reading": {
+    "historical_outbox_backlog_live": false,
+    "unclassified_legacy_live": false,
+    "default_ins_requires_registry_backed_rule": true,
+    "safe_auto_migration_proven_today": false
+  }
+}

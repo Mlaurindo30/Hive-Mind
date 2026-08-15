@@ -1,0 +1,29 @@
+{
+  "generated_at": "2026-07-27",
+  "status": "rollback_testable_for_local_git_and_sqlite",
+  "git_bundle": {
+    "path": "D:\\Hive-Mind-Archive\\20260727-141434\\hive-mind-all-refs.bundle",
+    "verified": true,
+    "reading": "bundle records a complete history"
+  },
+  "backup_manifest": {
+    "path": "D:\\Hive-Mind\\backups\\backup-manifest-2026-07-27.json",
+    "verified": true,
+    "artifact": {
+      "name": "hive_mind",
+      "path": "D:\\Hive-Mind\\backups\\hive_mind.2026-07-27.db",
+      "sha256": "515d704d744d7a392d0b100561e3a4f9a3b0e25592c4b9205bc8423eb578ceea",
+      "size_bytes": 67375104
+    }
+  },
+  "restore_check": {
+    "destination": "D:\\Hive-Mind-Archive\\20260727-141434\\restore-check\\hive_mind.db",
+    "ok": true,
+    "sha256": "515d704d744d7a392d0b100561e3a4f9a3b0e25592c4b9205bc8423eb578ceea",
+    "size_bytes": 67375104
+  },
+  "scope_limits": [
+    "does not prove coordinated service snapshots for Milvus, FalkorDB or RAGFlow",
+    "does not prove full environment replay of every external component"
+  ]
+}

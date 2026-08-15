@@ -27,19 +27,19 @@ D010-G0.**
 
 | Arquivo | L | Função atual | Owner | Destino | Estado | Delivery | Remoção |
 |---|--:|---|---|---|---|---|---|
-| `install.ps1` | 568 | instalação completa, Docker, MCP, perfis | script | `hive-mind install` | **LEGACY_OWNER** | D011 | D014 |
-| `scripts/lib/HiveMind.Windows.psm1` | 388 | utilidades Windows compartilhadas | script | `hive_mind.platform` | **LEGACY_OWNER** | D011 | D014 |
-| `scripts/setup/bootstrap-prerequisites.ps1` | 178 | pré-requisitos, Docker, downloads | script | `hive-mind install` | **LEGACY_OWNER** | D011 | D014 |
-| `scripts/setup/install_services.py` | 1232 | **catálogo de serviços** (`unit_definitions`) | script | `config/runtime.yaml` | **LEGACY_OWNER** | D006-R1 | D014 |
-| `npm/lib/services.js` | 74 | **catálogo de serviços** (Node) | Node | `config/runtime.yaml` | **LEGACY_OWNER** | D006-R1 | D014 |
-| `npm/lib/supervisor.js` | 438 | **supervisor concorrente** | Node | `hive-mindd` | **LEGACY_OWNER** | D010 | D014 |
-| `scripts/setup/register-windows-jobs.ps1` | 17 | **catálogo de jobs** + Task Scheduler | script | `hive-mindd` | **LEGACY_OWNER** | D010 | D014 |
-| `scripts/setup/register-windows-runtime.ps1` | 14 | **catálogo de tarefas** de runtime | script | `hive-mindd` | **LEGACY_OWNER** | D010 | D014 |
+| `install.bat` | 12 | bootstrap que resolve Python e delega para o owner nativo | `src/hive_mind/install/windows.py` | `hive-mind install` | **THIN_WRAPPER** | D011 | D014 |
+| `scripts/lib/HiveMind.Windows.psm1` | 388 | camada PowerShell de compatibilidade; owners reais portados para `hive_mind.install.windows_support` | `src/hive_mind/install/windows_support.py` | `hive_mind.platform` | **THIN_WRAPPER** | D011 | D014 |
+| `scripts/setup/bootstrap-prerequisites.ps1` | 178 | shim PowerShell que delega pré-requisitos ao owner Python nativo | `src/hive_mind/install/windows_prereqs.py` | `hive-mind install` | **THIN_WRAPPER** | D011 | D014 |
+| `scripts/setup/install_services.py` | 12 | shim Python que reexporta o owner nativo de serviços | `src/hive_mind/maintenance/runtime_services.py` | `config/runtime.yaml` | **THIN_WRAPPER** | D006-R1 | D014 |
+| `npm/lib/services.js` | 72 | wrapper Node que deriva units/labels do manifest via supervisor | `npm/lib/supervisor.js` + `config/runtime.yaml` | `config/runtime.yaml` | **THIN_WRAPPER** | D006-R1 | D014 |
+| `npm/lib/supervisor.js` | 279 | wrapper Node do `hive-mindd` gerenciado; ainda mantém start/stop/wait do daemon | `hive_mind.daemon.*` | `hive-mindd` | **PORT_IN_PROGRESS** | D010 | D014 |
+| `scripts/setup/register-windows-jobs.ps1` | 18 | wrapper fino que delega para `hive_mind.cli service windows-jobs` | `src/hive_mind/maintenance/windows_jobs.py` | `hive-mindd` | **THIN_WRAPPER** | D010 | D014 |
+| `scripts/setup/register-windows-runtime.ps1` | 13 | wrapper fino que delega para `hive_mind.cli service windows-runtime` | `src/hive_mind/maintenance/windows_runtime.py` | `hive-mindd` | **THIN_WRAPPER** | D010 | D014 |
 | `scripts/setup/install-capture-hooks.py` | — | instalação de captura (outbox deprecada) | script | `hive_mind.agents` | **TO_REMOVE** | D009-R5 | D014 |
 | `scripts/setup/backup-install-state.ps1` | 77 | snapshot de estado de instalação | script | `hive-mind install` | LEGACY_OWNER | D011 | D014 |
-| `scripts/setup/fullstack-readiness.ps1` | 77 | readiness da stack | script | `hive-mindd` readiness | LEGACY_OWNER | D010 | D014 |
-| `scripts/setup/setup-vault-enforcement.ps1` | 101 | ACL do vault | script | `hive_mind.install.vault` | LEGACY_OWNER | D011 | D014 |
-| `scripts/maintenance/install-backup-cron.ps1` | 26 | agendamento de backup | script | `hive-mindd` scheduler | LEGACY_OWNER | D010 | D014 |
+| `scripts/setup/fullstack-readiness.ps1` | 77 | shim PowerShell de compatibilidade que delega o readiness para o owner Python nativo | `src/hive_mind/install/fullstack_readiness.py` | `hive-mindd` readiness | THIN_WRAPPER | D010 | D014 |
+| `scripts/setup/vault_enforcement.py` | Python | ACL do vault | script | `hive_mind.install.vault` | NATIVE | D011 | D014 |
+| `scripts/maintenance/install_backup_tasks.py` | Python | agendamento de backup | script | Task Scheduler | NATIVE | D010 | D014 |
 | `scripts/maintenance/backup-audit-daily.ps1` | 15 | auditoria de backup (dormente) | script | `hive-mind backup audit` | TO_REMOVE | D009-R6 | D014 |
 | `scripts/maintenance/backup-prune-weekly.ps1` | 19 | poda de backup (dormente) | script | `hive-mind backup prune` | TO_REMOVE | D009-R6 | D014 |
 
@@ -55,6 +55,7 @@ D010-G0.**
 | merge MCP JSON | `hive_mind.agents.mcp_config` | **NATIVE** | D009 ✅ |
 | writer TOML (Codex) | `hive_mind.agents.toml_config` | **NATIVE** | D009-R4 ✅ |
 | manifesto declarativo | `hive_mind.daemon.manifest` | **NATIVE** | D006 ✅ |
+| catálogo/manifesto operacional de serviços | `hive_mind.maintenance.runtime_services` | **NATIVE** (shim legado em `scripts/setup/install_services.py`) | D006-R1 ✅ |
 | lock, shadow supervisor, HTTP, control socket, managed supervisor, scheduler | `hive_mind.daemon.*` | **NATIVE** (sem cutover) | D007, D008 ✅ |
 
 ## Scripts sem lógica de produto (lançadores)
@@ -78,21 +79,21 @@ formais ou são removidos junto do respectivo componente.
 
 | Arquivo | Função | Estado | Delivery |
 |---|---|---|---|
-| `npm/lib/supervisor.js` (438 L) | supervisor concorrente | **LEGACY_OWNER** | D010 |
-| `npm/lib/services.js` (74 L) | catálogo de serviços | **LEGACY_OWNER** | D006-R1 |
+| `npm/lib/supervisor.js` (279 L) | wrapper Node do daemon gerenciado | **PORT_IN_PROGRESS** | D010 |
+| `npm/lib/services.js` (72 L) | wrapper de dispatch derivado do manifest | **THIN_WRAPPER** | D006-R1 |
 | `npm/lib/{init,platform,wizard}.js` | bootstrap npm | THIN_WRAPPER | D014 |
 | `npm/bin/hive-mind.js` | entry npm | THIN_WRAPPER | D014 |
 
-## Task Scheduler (owners legados ativos)
+## Task Scheduler (owners nativos declarativos)
 
-| Tarefa | Trigger | Owner futuro | Estado |
+| Tarefa | Trigger | Owner atual | Estado |
 |---|---|---|---|
-| `HiveMind-Supervisor` | AtLogon | `hive-mindd` | **LEGACY_OWNER** |
-| `HiveMind-PostRebootValidation` | AtLogon | `hive-mindd` post-reboot | **LEGACY_OWNER** |
-| `HiveMind-DreamCycle` | Daily | `hive-mindd` scheduler | **LEGACY_OWNER** |
-| `HiveMind-ClaudeMemBridge` | Daily | `hive-mindd` scheduler | **LEGACY_OWNER** |
-| `HiveMind-KnowledgeHealth` | Daily | `hive-mindd` scheduler | **LEGACY_OWNER** |
-| `HiveMind-Backup` | Daily | `hive-mindd` scheduler | **LEGACY_OWNER** (roda auditoria, não backup — ver [backup.md](../backup.md)) |
+| `HiveMind-Supervisor` | AtLogon | `src/hive_mind/maintenance/windows_runtime.py` | **PORT_IN_PROGRESS** |
+| `HiveMind-PostRebootValidation` | AtLogon | `src/hive_mind/maintenance/windows_runtime.py` | **NATIVE** |
+| `HiveMind-DreamCycle` | Daily | `src/hive_mind/maintenance/windows_jobs.py` | **NATIVE** |
+| `HiveMind-ClaudeMemBridge` | Daily | `src/hive_mind/maintenance/windows_jobs.py` | **NATIVE** |
+| `HiveMind-KnowledgeHealth` | Daily | `src/hive_mind/maintenance/windows_jobs.py` | **NATIVE** |
+| `HiveMind-Backup` | Daily | `src/hive_mind/maintenance/windows_jobs.py` | **NATIVE** (`hive-mind.exe backup run --apply`; ver [backup.md](../backup.md)) |
 
 **WinSW**: não encontrado no repositório nem em uso — `EXTERNAL_COMPONENT`,
 não aplicável nesta instalação.
@@ -108,9 +109,9 @@ não aplicável nesta instalação.
 | Categoria | Contagem |
 |---|---:|
 | NATIVE (portado) | 9 componentes |
-| LEGACY_OWNER (bloqueiam D010) | **16** |
+| LEGACY_OWNER (bloqueiam D010) | **0** |
 | TO_REMOVE | 3 |
-| THIN_WRAPPER | ~24 (inclui os 2 registradores, D009-R6) |
+| THIN_WRAPPER | ~26 (inclui `install.ps1`, `scripts/setup/install_services.py`, `npm/lib/services.js`, os 3 registradores e D009-R6) |
 | EXTERNAL_COMPONENT | Docker, WinSW |
 | **UNKNOWN** | **0** |
 

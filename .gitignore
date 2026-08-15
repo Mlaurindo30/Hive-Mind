@@ -208,3 +208,12 @@ Optional*
 /dict[tuple*
 # Daemon runtime state (D007+) — never committed
 .hive-mind/
+
+# ── Fase 00 (total-delivery-2026-07): artefatos gerados que nunca vao para o repo.
+# Backups automaticos escritos pelo registrador de agentes ao reescrever configs:
+*.hive-bak
+# Arquivos de distribuicao/empacotamento (Hive-Mind.zip tinha 129 MB):
+*.zip
+# Auditorias de vault escritas em runtime:
+.vault-audit.json
+tmp_vault_audit.json

@@ -21,7 +21,7 @@ question regardless of platform.
 ./scripts/setup/register-mcp.sh --only codex --apply     # POSIX
 ```
 ```powershell
-./scripts/setup/register-mcp.ps1 --only codex --apply    # Windows
+python scripts/setup/register_mcp.py --only codex --apply    # Windows
 ```
 ```bash
 hive-mind agents register --only codex --apply           # the actual command

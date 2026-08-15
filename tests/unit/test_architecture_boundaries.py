@@ -69,6 +69,25 @@ RECOGNITION_ALLOWANCES = {
 }
 
 
+# Migração nativa Windows (P2-R1/P2-R4) legitima processos: os installers
+# pilotam winget/pip, o service manager pilota systemctl/launchctl/powershell,
+# o job registrar pilota schtasks, o runtime gerencia tarefas e o claude-mem
+# launcher supervisiona o worker. São donos documentados, não free-for-all.
+WINDOWS_NATIVE_PROCESS_MODULES = {
+    "install/fullstack_readiness.py",
+    "install/windows.py",
+    "install/windows_launchers.py",
+    "install/windows_prereqs.py",
+    "install/windows_support.py",
+    "maintenance/runtime_services.py",
+    "maintenance/topology_archive.py",
+    "maintenance/windows_jobs.py",
+    "maintenance/windows_runtime.py",
+    "services/claude_mem_launcher.py",
+    "validation/topology.py",
+}
+
+
 class TestNativeCodeDoesNotDelegateToLegacyScripts:
     def test_no_module_executes_a_legacy_script(self):
         offenders = []
@@ -100,16 +119,17 @@ class TestNativeCodeDoesNotDelegateToLegacyScripts:
     def test_no_module_spawns_powershell_or_bash(self):
         offenders = []
         for path in _python_sources():
+            rel = path.relative_to(SRC).as_posix()
             code = _code_without_docstrings(path).lower()
             for shell in ("powershell", "pwsh.exe", "bash -c", "cmd.exe"):
-                if shell in code:
+                if shell in code and rel not in WINDOWS_NATIVE_PROCESS_MODULES:
                     offenders.append(f"{path.relative_to(ROOT)}: {shell}")
         assert offenders == []
 
     def test_only_the_supervisor_spawns_processes(self):
         """subprocess is not a free-for-all.
 
-        Two modules may use it, for different and documented reasons:
+        Two module families may use it, for different and documented reasons:
 
         - `daemon/managed.py` supervises services declared in the manifest;
         - `projects/identity.py` invokes `git` to read repository facts
@@ -122,11 +142,13 @@ class TestNativeCodeDoesNotDelegateToLegacyScripts:
         - `security/secret_scan.py` invokes `git` to read the object store
           while auditing a leaked credential. It reads blobs *through* git
           precisely so the secret never becomes a command-line argument, which
-          is what `git grep <secret>` would do.
+          is what `git grep <secret>` would do;
+        - the Windows-native install/maintenance modules drive winget/pip,
+          schtasks, systemctl/launchctl/powershell and the claude-mem worker.
 
         The prohibitions that matter are enforced separately and still hold
         for every module: no legacy script is executed, and no shell
-        (powershell/pwsh/bash/cmd) is spawned.
+        (powershell/pwsh/bash/cmd) is spawned outside the documented owners.
         """
         allowed = {
             "daemon/managed.py",
@@ -134,6 +156,7 @@ class TestNativeCodeDoesNotDelegateToLegacyScripts:
             "implementation/validate.py",
             "implementation/status.py",
             "security/secret_scan.py",
+            *WINDOWS_NATIVE_PROCESS_MODULES,
         }
         offenders = []
         for path in _python_sources():
@@ -230,7 +253,7 @@ class TestDeprecatedOutboxStaysUnwired:
     second delivery owner alive on POSIX.
     """
 
-    @pytest.mark.parametrize("script_name", ["register-mcp.ps1", "register-mcp.sh"])
+    @pytest.mark.parametrize("script_name", ["register_mcp.py", "register-mcp.sh"])
     def test_installer_does_not_install_capture_hooks(self, script_name):
         script = ROOT / "scripts" / "setup" / script_name
         executable = [
@@ -249,7 +272,7 @@ class TestDeprecatedOutboxStaysUnwired:
         """The two installers must not diverge on delivery ownership."""
         setup = ROOT / "scripts" / "setup"
         wired = {}
-        for name in ("register-mcp.ps1", "register-mcp.sh"):
+        for name in ("register_mcp.py", "register-mcp.sh"):
             lines = [
                 line
                 for line in (setup / name).read_text(encoding="utf-8-sig").splitlines()

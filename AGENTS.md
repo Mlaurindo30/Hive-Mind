@@ -1,4 +1,4 @@
-﻿# Hive-Mind â€” AGENTS.md
+# Hive-Mind â€” AGENTS.md
 
 > Guide for AI agents working **in this repository**.
 > Cross-agent format: Hermes, Claude Code, Codex CLI, Kilo Code, OpenClaw, Copilot, Gemini CLI.
@@ -482,17 +482,17 @@ revisit a stale note and it still holds, re-save it (or update it) so its
   this is how the project brain evolves between sessions.
 <!-- END HIVE-MIND SINAPSE -->
 
-<!-- BEGIN HIVE-MIND SINAPSE (auto-managed by register-mcp.ps1 -- do not edit) -->
-# Hive-Mind Protocol (sinapse-memory) â€” MANDATORY
+<!-- BEGIN HIVE-MIND SINAPSE (auto-managed by hive-mind -- do not edit) -->
+# Hive-Mind Protocol (sinapse-memory) — MANDATORY
 
 You have the 15 `sinapse_*` tools and `search_memories`. This is the working
 protocol; always follow it, without exception. The raw backends (NeuralMemory, claude-mem,
 Graphify, Graphiti/FalkorDB, UMC, sqlite-vec, filesystem) are federated inside
 sinapse via `sinapse_query` (Context Fusion with circuit breaker
-and 8s timeout) â€” **never call them directly**.
+and 8s timeout) — **never call them directly**.
 
 ## 0. Pre-check (once at the start of the session)
-- `sinapse_health()` â€” confirm that all backends are operational
+- `sinapse_health()` — confirm that all backends are operational
   before working. If any fail, report and use `sinapse_temporal_search`
   or `search_memories` in `text` mode as a fallback.
 
@@ -500,7 +500,7 @@ and 8s timeout) â€” **never call them directly**.
 | Need | Tool |
 |------|------|
 | Project state/history, decisions, patterns, code/vault, and general context | `sinapse_query("<topic>")` (canonical hybrid search: fuses UMC + NeuralMemory + sqlite-vec + claude-mem + Graphify + Graphiti + filesystem) |
-| Recent activity from conversations, prompts, sessions, and raw claude-mem observations | `sinapse_temporal_search("<short specific terms>")` â†’ `sinapse_temporal_timeline(anchor=<id>)` â†’ `sinapse_temporal_get_observations(ids=[...])` |
+| Recent activity from conversations, prompts, sessions, and raw claude-mem observations | `sinapse_temporal_search("<short specific terms>")` → `sinapse_temporal_timeline(anchor=<id>)` → `sinapse_temporal_get_observations(ids=[...])` |
 | Backend health/check | `sinapse_health()` |
 
 **Rule:** never claim anything about the project state/history without having
@@ -515,13 +515,13 @@ consulted first.
    `"setup-brain modelos"`,
    `"Hive-Mind projeto LLM roles fallback"`, `"Model Configuration Not Persisting"`.
 3. If `sinapse_temporal_search` returns empty, do not conclude there is no memory:
-   reduce the query to 2â€“5 exact terms, try the title returned by
+   reduce the query to 2–5 exact terms, try the title returned by
    `sinapse_query`, or go back to `sinapse_query` to retrieve consolidated context.
 4. Do not use long phrases, full questions, or many mixed filters in
    `sinapse_temporal_search`; it is best as a textual/timeline search for
    claude-mem, not as a hybrid orchestrator.
 5. For raw temporal memory, follow the native `claude-mem` flow:
-   `search â†’ timeline â†’ get_observations`.
+   `search → timeline → get_observations`.
    - `sinapse_temporal_search` is the compact index: find IDs/titles.
    - `sinapse_temporal_timeline` shows chronological context around an ID
      or an anchor query.
@@ -533,7 +533,7 @@ consulted first.
 | Need | Tool |
 |------|------|
 | Neurons/notes by semantic similarity (HNSW + FTS) | `search_memories(query, top_k, project, mode)` |
-| Facts/decisions with temporal validity (valid_at/invalid_at edges) | `sinapse_temporal_graph_search("<topic>", num_results)` (deprecated â€” use `sinapse_query`) |
+| Facts/decisions with temporal validity (valid_at/invalid_at edges) | `sinapse_temporal_graph_search("<topic>", num_results)` (deprecated — use `sinapse_query`) |
 | Textual search in the global claude-mem index (`~/.claude-mem`) | `sinapse_temporal_search("<short terms>")` |
 | Chronological context around a temporal result | `sinapse_temporal_timeline(anchor=<id>)` or `sinapse_temporal_timeline(query="<terms>")` |
 | Full detail of already-filtered temporal observations | `sinapse_temporal_get_observations(ids=[...])` |
@@ -546,7 +546,7 @@ consulted first.
 | Agent question | Use | Practical note |
 |----------------|-----|----------------|
 | "What is the project state/history?" | `sinapse_query` | First choice. Crosses vault, UMC, claude-mem, Graphify, Graphiti, sqlite-vec, and filesystem. |
-| "Which recent prompt/session talked about this?" | `sinapse_temporal_search` â†’ `sinapse_temporal_timeline` â†’ `sinapse_temporal_get_observations` | Use short/exact terms, pick IDs, read the temporal window, and only then hydrate details. |
+| "Which recent prompt/session talked about this?" | `sinapse_temporal_search` → `sinapse_temporal_timeline` → `sinapse_temporal_get_observations` | Use short/exact terms, pick IDs, read the temporal window, and only then hydrate details. |
 | "Which consolidated neurons exist on this topic?" | `search_memories` | Use `project` when you know the project; `mode="text"` for literal search. |
 | "I need multi-hop relations between already-indexed entities." | `sinapse_rag_query` | Depends on LightRAG being populated; if it returns empty, fall back to `sinapse_query`. |
 | "I need temporal/causal facts from Graphiti." | `sinapse_query` | `sinapse_temporal_graph_search` exists for compatibility, but the canonical brain query is `sinapse_query`. |
@@ -559,36 +559,36 @@ consulted first.
 |------|------|
 | Decision (choice between alternatives + reason) | `sinapse_save_decision(title, content, evidence?)` |
 | Reusable pattern/insight/lesson | `sinapse_save_learning(title, content, evidence?)` |
-| Large goal â†’ atomic steps (Intent Memory) | `sinapse_plan_goal(goal, context?)` |
-| Monolithic note (Patterns.md) â†’ atomic Zettelkasten notes | `sinapse_zettelkasten_split(source_file, output_dir?)` |
+| Large goal → atomic steps (Intent Memory) | `sinapse_plan_goal(goal, context?)` |
+| Monolithic note (Patterns.md) → atomic Zettelkasten notes | `sinapse_zettelkasten_split(source_file, output_dir?)` |
 | Capture a screenshot of bug/visual progress (not in loop!) | `sinapse_capture_screen(description, monitor?)` |
 | Raw temporal observation (kind=change/decision/learning/event) | `sinapse_temporal_save(content, kind?)` |
 
 **Epistemic discipline (verified vs hypothesis):** when saving a decision or
 learning, pass `evidence` (the command you ran, the test that passed, the file
-you read) whenever the claim was actually verified â€” the note is stamped
+you read) whenever the claim was actually verified — the note is stamped
 `confidence: verified`. Without evidence the note is a `hypothesis`: it still
 gets saved, but the RetrievalRouter demotes it in ranking until validated, and
 the audit lists it for review. If a hypothesis is later refuted, correct the
-note instead of leaving it â€” a refuted hypothesis left in place poisons future
+note instead of leaving it — a refuted hypothesis left in place poisons future
 retrieval.
 
 **Review TTL (staleness):** every decision/learning is stamped with
 `review_date` and `next_review` (default `REVIEW_TTL_DAYS=90`). Once
 `next_review` passes, the RetrievalRouter flags the note `stale` and applies
-`HIVE_STALENESS_PENALTY` (default `0.85`) to its ranking score â€” same
+`HIVE_STALENESS_PENALTY` (default `0.85`) to its ranking score — same
 demotion mechanism as an unverified hypothesis, but time-based instead of
 evidence-based. The note is never deleted or excluded, only demoted. If you
 revisit a stale note and it still holds, re-save it (or update it) so its
 `next_review` window resets.
 
 ## 4. Consolidate when finished
-- `sinapse_session_end(summary)` â€” updates `brain/Current State.md` and
+- `sinapse_session_end(summary)` — updates `brain/Current State.md` and
   records the closing observation in the UMC.
 
 ## Usage rules
 - **Use ONLY the `sinapse_*` tools and `search_memories`.** Never call
-  `nmem`, `claude-mem`, `graphify`, or `falkordb` directly â€” sinapse
+  `nmem`, `claude-mem`, `graphify`, or `falkordb` directly — sinapse
   already federates and deduplicates them via Context Fusion.
 - RTK is not a memory tool or a `sinapse_query` backend; it is only the
   shell command optimization layer. When you need to configure RTK, use
@@ -600,14 +600,14 @@ revisit a stale note and it still holds, re-save it (or update it) so its
   `sinapse_query` (which fuses Graphiti together with the other 6 organs).
 - `sinapse_health()` returns the status of all backends; use it for
   diagnosis when a query returns empty unexpectedly.
-- `sinapse_capture_screen` only on explicit request â€” never in loop or
+- `sinapse_capture_screen` only on explicit request — never in loop or
   monitoring. Requires `description` (reason) and `monitor` in multi-monitor setups.
 - `sinapse_zettelkasten_split` requires local Ollama running (qwen2.5-coder:3b).
 - **Vault write enforcement:** on hosts where `setup-vault-enforcement`
   has been applied, `cerebro/` is owned by a dedicated service user and the
   agent only has direct write access to `cerebro/90-intake/`. If a direct
   vault write is denied, `sinapse_save_decision`/`sinapse_save_learning`
-  fall back automatically to the intake area â€” this is expected behavior,
+  fall back automatically to the intake area — this is expected behavior,
   not a failure to report or retry. The Dream Cycle later promotes intake
   content into the vault proper via `sinapse_promote_knowledge`.
 - Consulting before acting and recording anything reusable is not optional:

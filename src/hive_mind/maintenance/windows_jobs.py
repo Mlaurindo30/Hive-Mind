@@ -75,6 +75,9 @@ class WindowsJobsReport:
 def windows_job_specs(root: str | Path) -> list[WindowsJobSpec]:
     root = Path(root).resolve()
     python = root / ".venv" / "Scripts" / "pythonw.exe"
+    # Comando nativo (P2-R1): o backup é o dono canônico da tarefa agendada e
+    # usa o executável instalado, não o wrapper pythonw -m hive_mind.cli.
+    hive_mind_exe = root / ".venv" / "Scripts" / "hive-mind.exe"
     jobs: list[WindowsJobSpec] = []
 
     def _script_job(name: str, rel_script: str) -> WindowsJobSpec:
@@ -105,10 +108,10 @@ def windows_job_specs(root: str | Path) -> list[WindowsJobSpec]:
     jobs.append(
         WindowsJobSpec(
             name="HiveMind-Backup",
-            execute=str(python),
-            arguments="-m hive_mind.cli backup run --apply",
+            execute=str(hive_mind_exe),
+            arguments="backup run --apply",
             working_directory=str(root),
-            exists=python.exists(),
+            exists=hive_mind_exe.exists(),
         )
     )
 

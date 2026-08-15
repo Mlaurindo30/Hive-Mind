@@ -47,7 +47,7 @@ curl -fsSL https://cdn.jsdelivr.net/gh/Mlaurindo30/Hive-Mind@main/install.sh | b
 |---|---|---|---|
 | Linux / WSL2 | ✅ stable (clean-machine tested) | systemd `--user` | ✅ tested (`setup-vault-enforcement.sh`) |
 | macOS | 🧪 experimental | launchd (`install_services.py launchd`) | 🚧 beta (same script, Darwin branch) |
-| Windows native | 🚧 beta — `npx hive-sinapse-mind init` runs natively (uv sync, vault, `.env`, MCP configs, supervisor); host agents connect directly | `hive-mind services` supervisor | 🚧 beta (`setup-vault-enforcement.ps1`, icacls) |
+| Windows native | 🚧 beta — `npx hive-sinapse-mind init` runs natively (uv sync, vault, `.env`, MCP configs, supervisor); host agents connect directly | `hive-mind services` supervisor | 🚧 beta (`vault_enforcement.py`, icacls) |
 
 > Windows: native mode is the default so host agents (Claude Code, Cursor,
 > Copilot) reach the memory directly — a WSL2-only install lives in another

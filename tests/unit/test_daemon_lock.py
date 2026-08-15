@@ -6,14 +6,30 @@ typed error and never corrupts the first holder's ownership.
 from __future__ import annotations
 
 import sys
+import uuid
 from pathlib import Path
 
 import pytest
 
+import hive_mind.daemon.lock as lock_mod
 from hive_mind.daemon.lock import (
     SingleInstanceLock,
     SingleInstanceLockError,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_windows_mutex(monkeypatch):
+    """Windows: o lock de produção usa um named mutex host-wide.
+
+    Num host com um hive-mindd real rodando, o teste colidiria com o mutex
+    global. Cada teste ganha um kernel object name próprio, preservando o
+    comportamento testado sem depender de não haver daemon ativo.
+    """
+    if sys.platform == "win32":
+        monkeypatch.setattr(
+            lock_mod, "_MUTEX_NAME", f"Local\\Hive-Mind-test-{uuid.uuid4().hex}"
+        )
 
 
 def test_acquire_then_release_is_reusable(tmp_path):

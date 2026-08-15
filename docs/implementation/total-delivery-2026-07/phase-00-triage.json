@@ -1,0 +1,1474 @@
+{
+  "total": 244,
+  "counts": {
+    "COMMIT": 195,
+    "DELETE_CONFIRMED": 39,
+    "GITIGNORE": 10
+  },
+  "paths": [
+    {
+      "status": " M",
+      "path": ".github/copilot-instructions.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": ".superpowers/sdd/task-3-report.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "AGENTS.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "README.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "config/project-aliases.yaml",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "config/runtime.yaml",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "core/knowledge/claude_mem_bridge.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "core/memory/writers.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "core/projects/audit.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "docs/15-windows-clean-install.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "docs/agents.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "docs/implementation/WINDOWS-NATIVE-MIGRATION.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "docs/installation.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "install.bat",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " D",
+      "path": "install.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "integrations/claude-mem-plugins/install.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " M",
+      "path": "npm/lib/init.js",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "npm/lib/services.js",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "npm/lib/supervisor.js",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "plugins/sqlite-vec-worker/worker.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "pyproject.toml",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "reports/live-provider-capture-recovery.json",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "scripts/capture/capture-hook.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "scripts/capture/capture-realtime.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " D",
+      "path": "scripts/capture/claude-mem-hook.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/capture/copilot-wrapper.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " M",
+      "path": "scripts/capture/parsers/antigravity.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "scripts/capture/parsers/codex.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "scripts/capture/parsers/copilot.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " D",
+      "path": "scripts/claude-mem-local.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/graph/build-graph.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/graph/serve-graph.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " M",
+      "path": "scripts/health/audit_runtime_paths_windows.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "scripts/health/backup_audit.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "scripts/health/validate_after_reboot_windows.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "scripts/health/validate_capture_sources.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "scripts/lib/HiveMind.Windows.psm1",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " D",
+      "path": "scripts/maintenance/backup-audit-daily.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/maintenance/backup-prune-weekly.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/maintenance/install-backup-cron.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/maintenance/integrations-update.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/maintenance/sync-diario.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/services/claude-mem-local.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/services/claude-mem-watchdog.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/services/mcp-server.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/services/neural-memory-local.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/services/start-claude-mem-mcp.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/services/start-claude-mem.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/services/start-rtk.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/services/start-watcher.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/setup/apply-hidden-supervisor-task.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/setup/backup-install-state.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/setup/bootstrap-prerequisites.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/setup/fullstack-readiness.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " M",
+      "path": "scripts/setup/install-capture-hooks.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "scripts/setup/install_services.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " D",
+      "path": "scripts/setup/register-mcp.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/setup/register-windows-jobs.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/setup/register-windows-runtime.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/setup/setup-brain.bat",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/setup/setup-brain.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/setup/setup-vault-enforcement.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " M",
+      "path": "scripts/setup/setup-vault-enforcement.sh",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " D",
+      "path": "scripts/setup/start-windows-supervisor-hidden.vbs",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "scripts/setup/start-windows-supervisor.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " M",
+      "path": "scripts/setup/sync-claude-mem-provider.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " D",
+      "path": "scripts/utils/recover.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " M",
+      "path": "scripts/utils/sanitizer.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "setup-brain.bat",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "src/hive_mind/agents/register.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "src/hive_mind/capture/engine.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "src/hive_mind/capture/identity_store.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "src/hive_mind/capture/ingest.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "src/hive_mind/cli.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "src/hive_mind/daemon/control_dispatch.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "src/hive_mind/daemon/http_api.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "src/hive_mind/daemon/main.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "src/hive_mind/daemon/managed.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "src/hive_mind/projects/identity.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "src/hive_mind/validation/canary.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "src/hive_mind/validation/delivery.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " D",
+      "path": "tests/install/run-clean-install-test-local.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "tests/install/run-clean-install-test.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "tests/install/test_windows_bootstrap.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " M",
+      "path": "tests/integration/test_register_mcp_check.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/integration/test_registration_through_wrappers.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " D",
+      "path": "tests/run_all.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "tests/run_real_knowledge.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " D",
+      "path": "tests/smoke/test_smoke.ps1",
+      "bucket": "DELETE_CONFIRMED",
+      "reason": "remocao intencional de owner legado (.ps1/.vbs/.bat)"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_agents_register.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_antigravity_parser.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_capture_adapters_windows.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_capture_core.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_capture_identity_store.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_capture_ingest_records_identity.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_capture_realtime.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_claude_mem_bridge.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_cli_service_status.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_codex_parser.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_control_dispatch.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_cutover_owner_contract.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_daemon_run_shadow.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_implementation_validation.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_install_capture_hooks.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_install_services.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_managed_restart.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_managed_supervisor.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_manifest_job_parity.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_outbox_delivery_isolated.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_projects_audit.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_registration_wrappers.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_runtime_path_policy.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_service_backends.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_service_catalog_parity.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_sqlite_vec_worker.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_sync_claude_mem_provider.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_validate_after_reboot_windows.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_validation_canary.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_windows_backup_task_migration.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_windows_install_contract.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_windows_runtime_contract.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "tests/unit/test_write_helpers.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": " M",
+      "path": "uv.lock",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": ".cursor/rules/hive-mind.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": ".cursor/rules/hive-mind.md.hive-bak",
+      "bucket": "GITIGNORE",
+      "reason": "artefato gerado/backup automatico, nao e codigo-fonte"
+    },
+    {
+      "status": "??",
+      "path": ".github/copilot-instructions.md.hive-bak",
+      "bucket": "GITIGNORE",
+      "reason": "artefato gerado/backup automatico, nao e codigo-fonte"
+    },
+    {
+      "status": "??",
+      "path": ".mcp.json.hive-bak",
+      "bucket": "GITIGNORE",
+      "reason": "artefato gerado/backup automatico, nao e codigo-fonte"
+    },
+    {
+      "status": "??",
+      "path": ".vault-audit.json",
+      "bucket": "GITIGNORE",
+      "reason": "artefato gerado/backup automatico, nao e codigo-fonte"
+    },
+    {
+      "status": "??",
+      "path": "AGENTS.md.hive-bak",
+      "bucket": "GITIGNORE",
+      "reason": "artefato gerado/backup automatico, nao e codigo-fonte"
+    },
+    {
+      "status": "??",
+      "path": "CLAUDE.md.hive-bak",
+      "bucket": "GITIGNORE",
+      "reason": "artefato gerado/backup automatico, nao e codigo-fonte"
+    },
+    {
+      "status": "??",
+      "path": "GEMINI.md.hive-bak",
+      "bucket": "GITIGNORE",
+      "reason": "artefato gerado/backup automatico, nao e codigo-fonte"
+    },
+    {
+      "status": "??",
+      "path": "Hive-Mind.zip",
+      "bucket": "GITIGNORE",
+      "reason": "artefato gerado/backup automatico, nao e codigo-fonte"
+    },
+    {
+      "status": "??",
+      "path": "docs/implementation/total-delivery-2026-07/FASE-00-reprodutibilidade.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/implementation/total-delivery-2026-07/FASE-01-zero-janelas.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/implementation/total-delivery-2026-07/FASE-02-erradicacao-shell.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/implementation/total-delivery-2026-07/FASE-03-falhas-silenciosas.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/implementation/total-delivery-2026-07/FASE-04-contratos-testes.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/implementation/total-delivery-2026-07/FASE-05-captura-universal.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/implementation/total-delivery-2026-07/FASE-06-saude-conhecimento.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/implementation/total-delivery-2026-07/FASE-07-clean-install.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/implementation/total-delivery-2026-07/FASE-08-observabilidade.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/implementation/total-delivery-2026-07/FASE-09-documentacao-viva.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/implementation/total-delivery-2026-07/FASE-10-endurecimento.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/implementation/total-delivery-2026-07/README.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/implementation/total-delivery-2026-07/phase-00-secret-scan.json",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/superpowers/plans/2026-07-30-hivemind-windows-console.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "docs/superpowers/specs/2026-07-30-hivemind-windows-console-design.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "integrations/claude-mem-plugins/install.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "integrations/integrations.zip",
+      "bucket": "GITIGNORE",
+      "reason": "artefato gerado/backup automatico, nao e codigo-fonte"
+    },
+    {
+      "status": "??",
+      "path": "reports/annex-requirements-matrix-2026-07-27.json",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/annex-requirements-matrix-2026-07-27.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/claude-mem-capture-recovery-2026-07-29.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/completion-audit-2026-07-27.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/consolidated-baseline-2026-07-27.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/consolidated-runtime-state-2026-07-27.json",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/g4-install-services-cutover-2026-07-28.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/g4-powershell-cutover-2026-07-28.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/g4-services-js-cutover-2026-07-28.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/g4-windows-runtime-cutover-2026-07-28.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/legacy-backlog-state-2026-07-27.json",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/legacy-backlog-state-2026-07-27.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/legacy-backlog-state-2026-07-28.json",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/legacy-backlog-state-2026-07-28.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/live-provider-capture-recovery.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/provider-host-status-2026-07-27.json",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/provider-host-status-2026-07-27.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/repository-consolidation.json",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/repository-consolidation.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/rollback-evidence-2026-07-27.json",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/rollback-evidence-2026-07-27.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/runtime-gates-state-2026-07-28.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/security-state-2026-07-28.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/topology-cleanup-state-2026-07-28.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/vault-state-2026-07-28.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/worktree-disposition-2026-07-27.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "reports/worktree-inventory-2026-07-27.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "scripts/graph/build_graph.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "scripts/graph/serve_graph.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "scripts/maintenance/backup.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "scripts/maintenance/install_backup_tasks.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "scripts/maintenance/maintenance_tasks.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "scripts/release/__init__.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "scripts/services/start_rtk.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "scripts/setup/native_windows_install.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "scripts/setup/register_mcp.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "scripts/setup/vault_enforcement.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "scripts/setup/windows_install_entry.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "specs/control-plane-redesign.md",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/daemon/state.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/install/__init__.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/install/fullstack_readiness.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/install/snapshot.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/install/windows.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/install/windows_launchers.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/install/windows_prereqs.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/install/windows_support.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/maintenance/historical_outbox.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/maintenance/legacy_migration.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/maintenance/runtime_services.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/maintenance/scrub_capture_outbox.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/maintenance/scrub_env_backups.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/maintenance/scrub_runtime_artifacts.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/maintenance/topology_archive.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/maintenance/vault_encoding.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/maintenance/vault_frontmatter.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/maintenance/vault_project_id.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/maintenance/windows_jobs.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/maintenance/windows_runtime.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/services/__init__.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/services/claude_mem_launcher.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/validation/post_reboot_windows.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/validation/topology.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/validation/vault.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/windows/__init__.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "src/hive_mind/windows/entrypoints.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/install/run_clean_install_test.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/install/run_clean_install_test_local.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/install/test_windows_bootstrap.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/install/test_windows_gui_entrypoints.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/run_all.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/run_real_knowledge.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/smoke/test_smoke.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_backup_wrapper.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_claude_mem_bridge_recent_first.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_claude_mem_launcher.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_cli_windows_runtime.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_daemon_state.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_historical_outbox.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_legacy_migration.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_legacy_umc_migration.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_scrub_capture_outbox.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_scrub_env_backups.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_scrub_runtime_artifacts.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_topology_archive.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_topology_inventory.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_vault_audit.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_vault_encoding_repair.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_vault_frontmatter_repair.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_vault_project_id_repair.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_windows_entrypoints.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_windows_gui_launchers.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_windows_runtime_transaction.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tests/unit/test_windows_support_runtime.py",
+      "bucket": "COMMIT",
+      "reason": "codigo/teste/config/doc do runtime vivo"
+    },
+    {
+      "status": "??",
+      "path": "tmp_vault_audit.json",
+      "bucket": "GITIGNORE",
+      "reason": "artefato gerado/backup automatico, nao e codigo-fonte"
+    }
+  ]
+}

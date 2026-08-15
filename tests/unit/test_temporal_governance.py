@@ -60,7 +60,10 @@ class WriterFrontmatterTests(unittest.TestCase):
         )
         text = Path(path).read_text(encoding="utf-8")
         self.assertIn("confidence: verified", text)
-        self.assertIn('evidence: "pytest tests/unit -x passou"', text)
+        # yaml_scalar_line usa yaml.safe_dump: o valor pode vir sem aspas quando
+        # é um plain scalar válido. O que importa é o conteúdo estar presente.
+        self.assertIn("evidence:", text)
+        self.assertIn("pytest tests/unit -x passou", text)
 
     def test_decision_has_integrity_hash_of_content(self):
         content = "A decisão precisa ter integridade verificável."
