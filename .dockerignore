@@ -1,0 +1,40 @@
+# ── Runtime artifacts — nunca entram na imagem (segredos/estado) ──
+.git
+.gitignore
+.venv
+.uv
+node_modules
+.env
+.env.*
+hive_mind.db
+*.db
+*.db-shm
+*.db-wal
+
+# Vault e memória (montados como volume em runtime)
+cerebro
+claude-mem
+.hive-mind
+logs
+backups
+data
+
+# Cache / build
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Não necessário no runtime container
+tests
+docs
+reports
+specs
+integrations/rtk/target
+integrations/crsqlite/*.so
+integrations/crsqlite/*.dylib
+integrations/crsqlite/*.dll

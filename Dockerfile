@@ -44,8 +44,14 @@ COPY templates ./templates
 # Vault é volume (não copiado na imagem)
 RUN mkdir -p /app/cerebro /app/logs /app/.hive-mind/state
 
+# Entrypoint materializa templates/vault -> cerebro na primeira execução do
+# volume (replica o materialize_vault() do install.sh), depois sobe o daemon.
+COPY docker/entrypoint.sh /usr/local/bin/hive-mind-entrypoint
+RUN chmod +x /usr/local/bin/hive-mind-entrypoint
+
 EXPOSE 37702 37780
 
 # Daemon control-plane em modo managed + HTTP loopback.
 # O vault e o hive_mind.db são montados pelo docker-compose.
+ENTRYPOINT ["hive-mind-entrypoint"]
 CMD ["uv", "run", "hive-mindd", "run", "--serve", "--host", "0.0.0.0", "--port", "37780"]
