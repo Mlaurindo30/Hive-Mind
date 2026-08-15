@@ -105,9 +105,22 @@ class ModelCapabilities:
     json_schema: bool = False
     regex_schema: bool = False
     ebnf_schema: bool = False
+    # F1.1 (2026-08-13): modelo de RACIOCÍNIO (chain-of-thought treinado), ex.:
+    # deepseek-r1, o1/o3, claude thinking, qwen3-thinking, gpt-oss (reasoning).
+    # Distingue "reasoning" (julgamento/verificação/síntese) de "instruct"
+    # (extração/transcrição/classificação). Sem esta flag, o gateway não
+    # consegue rotear por thinking — ver cerebro-model-architecture.md.
+    reasoning: bool = False
 
 
 _CAPABILITY_FIELDS = set(ModelCapabilities.__dataclass_fields__)
+
+# Papéis cujo modelo é SEMPRE de raciocínio (chain-of-thought), independente do
+# modelo concreto configurado no .env. O Dreamer é a base de herança; Validator
+# e Synthesis herdam essa natureza reasoning. Distiller/Router são instruct
+# local e NÃO entram aqui. Decisão: dec-153a8a4478f01aa9 (Distiller/Router =
+# instruct local; Validator/Synthesis = reasoning API).
+REASONING_ROLES = frozenset({"dreamer", "validator", "synthesis"})
 
 
 @dataclass
@@ -391,6 +404,7 @@ class ModelRegistry:
         capabilities = ModelCapabilities(
             chat=True,
             structured_output=adapter_hint != "native",
+            reasoning=role in REASONING_ROLES,
         )
 
         profile_id = f"{role}/{provider}/{model}/{level}"

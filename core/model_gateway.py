@@ -485,25 +485,36 @@ class ModelGateway:
                 )
                 continue
 
-            start = time.monotonic()
-            try:
-                adapter = _adapter_for(candidate.provider)
-                fn = getattr(adapter, capability)
-                response = fn(candidate, *args, **kwargs)
-            except Exception as exc:
-                response = self._error_response(
-                    capability, candidate, f"adapter_exception:{_mask_error(str(exc))}"
-                )
-            elapsed_ms = (time.monotonic() - start) * 1000.0
-            if not response.latency_ms:
-                response.latency_ms = elapsed_ms
-            response.error = _mask_error(response.error)
+            # Modelos de raciocínio (qwen3.5:397b, gpt-oss-120b) são
+            # não-determinísticos no structured output mesmo com
+            # reasoning_effort=none: uma tentativa pode devolver markdown/CoT.
+            # Retry no MESMO candidato em falhas de qualidade (não-transitórias
+            # de rede) antes de desistir do chain.
+            max_retries = int(getattr(self.registry.defaults, "max_retries", 0) or 0)
+            retryable = {"structured_output_not_json", "schema_invalid"}
+            for attempt in range(max_retries + 1):
+                start = time.monotonic()
+                try:
+                    adapter = _adapter_for(candidate.provider)
+                    fn = getattr(adapter, capability)
+                    response = fn(candidate, *args, **kwargs)
+                except Exception as exc:
+                    response = self._error_response(
+                        capability, candidate, f"adapter_exception:{_mask_error(str(exc))}"
+                    )
+                elapsed_ms = (time.monotonic() - start) * 1000.0
+                if not response.latency_ms:
+                    response.latency_ms = elapsed_ms
+                response.error = _mask_error(response.error)
 
-            if response.ok and validate_fn is not None:
-                valid, reason = validate_fn(response)
-                if not valid:
-                    response.ok = False
-                    response.error = _mask_error(f"schema_invalid:{reason}")
+                if response.ok and validate_fn is not None:
+                    valid, reason = validate_fn(response)
+                    if not valid:
+                        response.ok = False
+                        response.error = _mask_error(f"schema_invalid:{reason}")
+
+                if response.ok or response.error not in retryable or attempt >= max_retries:
+                    break
 
             if idx > 0:
                 fallback_used = True

@@ -251,6 +251,13 @@ def call_llm_structured(prompt: str, system_prompt: str, response_model: Any,
                 payload["response_format"] = {"type": "json_object"}
                 payload["messages"][0]["content"] += f"\n\nOUTPUT MUST MATCH THIS JSON SCHEMA EXACTLY:\n{json.dumps(schema)}"
 
+            # Modelos de raciocínio (qwen3.5:397b, gpt-oss-120b) em ollama-cloud/nvidia
+            # gastam tokens no campo `reasoning` (chain-of-thought) e devolvem content
+            # vazio / "Thinking Process" / JSON truncado → Pydantic falha. Desabilita o
+            # CoT para extração/validação estruturada: o JSON volta limpo em `content`.
+            if provider in ("ollama-cloud", "nvidia"):
+                payload["reasoning_effort"] = "none"
+
             resp = requests.post(url, json=payload, headers=headers, timeout=120)
             if resp.status_code in [401, 403] and auth_creds['type'] == "oauth":
                 return None

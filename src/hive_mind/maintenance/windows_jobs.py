@@ -26,6 +26,10 @@ class WindowsJobSpec:
     schedule_time: str = TASK_TIME
     source_script: str | None = None
     exists: bool = True
+    # ISO-8601 duration of the intra-day repetition (e.g. "PT4H"). When set,
+    # the task fires at schedule_time and repeats every repeat_interval for the
+    # rest of the day — matches the runtime.yaml cron (ex.: dream-cycle "0 */4 * * *").
+    repeat_interval: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -84,7 +88,18 @@ def windows_job_specs(root: str | Path) -> list[WindowsJobSpec]:
             exists=target.exists() and python.exists(),
         )
 
-    jobs.append(_script_job("HiveMind-DreamCycle", r"scripts\dream\dream_cycle.py"))
+    jobs.append(
+        WindowsJobSpec(
+            name="HiveMind-DreamCycle",
+            execute=str(python),
+            arguments=f'"{root / "scripts" / "dream" / "dream_cycle.py"}"',
+            working_directory=str(root),
+            source_script=r"scripts\dream\dream_cycle.py",
+            exists=python.exists() and (root / "scripts" / "dream" / "dream_cycle.py").exists(),
+            # runtime.yaml: dream-cycle cron "0 */4 * * *" (a cada 4h).
+            repeat_interval="PT4H",
+        )
+    )
     jobs.append(_script_job("HiveMind-ClaudeMemBridge", r"scripts\services\claude_mem_bridge.py"))
     jobs.append(_script_job("HiveMind-KnowledgeHealth", r"scripts\health\audit_memory.py"))
     jobs.append(
@@ -96,6 +111,30 @@ def windows_job_specs(root: str | Path) -> list[WindowsJobSpec]:
             exists=python.exists(),
         )
     )
+
+    # P1-I (2026-08-12): registrar os jobs da cadência hierárquica e manutenção
+    # declarados no runtime.yaml mas nunca registrados no Task Scheduler. Sem
+    # eles, frontal/cerebelo/diencéfalo ficam vazios — só o DreamCycle, o
+    # bridge, o audit e o backup rodavam. Cada job abaixo é um script Python
+    # com schedule próprio no runtime.yaml (a task XML usa TASK_TIME como
+    # horário default; o disparo real é governado pelo próprio script/daemon).
+    _cadence_jobs = [
+        ("HiveMind-DailyWriter", r"scripts\dream\daily_writer.py"),
+        ("HiveMind-WeeklySynthesizer", r"scripts\dream\weekly_synthesizer.py"),
+        ("HiveMind-HealthDashboard", r"scripts\health\health_dashboard.py"),
+        ("HiveMind-AlertDispatcher", r"scripts\health\alert_dispatcher.py"),
+        ("HiveMind-DecisionPromoter", r"scripts\knowledge\decision_promoter.py"),
+        ("HiveMind-ProjectSynthesizer", r"scripts\knowledge\project_synthesizer.py"),
+        ("HiveMind-WorkTracker", r"scripts\knowledge\work_tracker.py"),
+        ("HiveMind-PatternDistiller", r"scripts\knowledge\pattern_distiller.py"),
+        ("HiveMind-ConflictDetector", r"scripts\knowledge\conflict_detector.py"),
+        ("HiveMind-TopicConsolidator", r"scripts\knowledge\topic_consolidator.py"),
+        ("HiveMind-ReviewWriter", r"scripts\knowledge\review_writer.py"),
+        ("HiveMind-DriftDetector", r"scripts\knowledge\drift_detector.py"),
+        ("HiveMind-CaptureMaintenance", r"scripts\capture\capture_maintenance.py"),
+    ]
+    for name, rel in _cadence_jobs:
+        jobs.append(_script_job(name, rel))
     return jobs
 
 
@@ -141,6 +180,11 @@ def _task_xml(job: WindowsJobSpec) -> str:
     ET.SubElement(cal, "Enabled").text = "true"
     sched = ET.SubElement(cal, "ScheduleByDay")
     ET.SubElement(sched, "DaysInterval").text = "1"
+    if job.repeat_interval:
+        rep = ET.SubElement(cal, "Repetition")
+        ET.SubElement(rep, "Interval").text = job.repeat_interval
+        ET.SubElement(rep, "Duration").text = "P1D"
+        ET.SubElement(rep, "StopAtDurationEnd").text = "false"
 
     principals = ET.SubElement(root, "Principals")
     principal = ET.SubElement(principals, "Principal", id="Author")

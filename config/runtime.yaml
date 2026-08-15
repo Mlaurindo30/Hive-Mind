@@ -183,6 +183,29 @@ services:
     healthcheck: null
     category: user-session
 
+  - name: sinapse-consolidate
+    description: Continuous cerebro orchestration (bridge→promote→materialize→lobe fillers)
+    enabled: true
+    required: false
+    profiles: [local-min, local-full]
+    ownership: legacy
+    command: ["python", "scripts/knowledge/consolidate_loop.py"]
+    working_directory: .
+    env_file: .env
+    env:
+      HIVE_CONSOLIDATE_INTERVAL_SECONDS: "60"
+      HIVE_CONSOLIDATE_MEDIUM_SECONDS: "300"
+      HIVE_CONSOLIDATE_SLOW_SECONDS: "3600"
+    dependencies: [sinapse-claude-mem, sinapse-sqlite-vec]
+    startup_order: 65
+    restart_policy: always
+    restart_delay_seconds: 15
+    restart_max_delay_seconds: 120
+    restart_limit: 10
+    readiness: null
+    healthcheck: null
+    category: background-service
+
 # ─── Serviços externos ───────────────────
 external_services:
   - name: ollama
@@ -254,7 +277,7 @@ external_services:
 # ─── Jobs periódicos ───
 jobs:
   - name: dream-cycle
-    description: Consolidates observations into durable neurons
+    description: Consolidates observations into durable neurons (semantic enrichment)
     command: ["python", "scripts/dream/dream_cycle.py"]
     # The bridge feeds the dream: ordering is a contract, not a clock gap.
     depends_on:
@@ -263,7 +286,7 @@ jobs:
       require_success_since_last_run: true
     schedule:
       type: cron
-      expression: "0 3 * * *"
+      expression: "0 */4 * * *"
       timezone: "America/Sao_Paulo"
       misfire_policy: run_once
       max_instances: 1

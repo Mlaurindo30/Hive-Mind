@@ -164,6 +164,18 @@ class OpenAICompatibleAdapter(BaseModelAdapter):
                 "json_schema": {"name": "response", "schema": schema, "strict": True},
             },
         }
+        # Modelos de raciocínio (qwen3.5:397b, gpt-oss-120b) em ollama-cloud/nvidia:
+        # o endpoint IGNORA json_schema strict e devolve markdown, e o CoT polui o
+        # content. Usa json_object (schema no prompt) + reasoning_effort none p/
+        # devolver JSON limpo e determinístico.
+        if (profile.legacy_provider or "") in ("ollama-cloud", "nvidia"):
+            payload["response_format"] = {"type": "json_object"}
+            payload["messages"] = [
+                {**m, "content": f"{m.get('content', '')}\n\nOUTPUT MUST MATCH THIS JSON SCHEMA EXACTLY:\n{json.dumps(schema)}"}
+                if m.get("role") == "system" else m
+                for m in messages
+            ]
+            payload["reasoning_effort"] = "none"
         data, err = self._post(profile, "/chat/completions", payload, timeout_s or 60)
         if err:
             return ModelResponse(ok=False, content=None, model_id=profile.id, provider=self.provider,

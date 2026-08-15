@@ -36,6 +36,7 @@ from core.database import get_connection, ensure_migrations, get_recent_topics
 from core.schemas.dream_models import DistillerOutput, ValidatorOutput, RouterOutput
 from core.schemas.vision_models import VisionAnalysis
 from core.schemas.synthesis_models import SynthesisOutput, SynthesisTask
+from core.vault import canonical_slug, vault_project_dir
 
 # ---------------------------------------------------------------------------
 # Carregamento de Contratos e Prompts (YAML)
@@ -48,7 +49,7 @@ PROMPTS_DIR = SCHEMAS_DIR / "prompts"
 # llm_client). O gap real era a síntese sem teto → aqui ela ganha cap + deadline.
 MAX_CYCLE_SECONDS = int(os.environ.get("HIVE_MAX_CYCLE_SECONDS", "600"))
 MAX_AMBIGUITIES = int(os.environ.get("HIVE_MAX_AMBIGUITIES", "50"))
-MAX_OBS_PER_CYCLE = int(os.environ.get("HIVE_MAX_OBS_PER_CYCLE", "30"))
+MAX_OBS_PER_CYCLE = int(os.environ.get("HIVE_MAX_OBS_PER_CYCLE", "500"))
 # Distiller+Validator de cada projeto são independentes e I/O-bound (HTTP ao LLM),
 # então rodamos os projetos em paralelo. 1 desabilita (volta ao modo série).
 DISTILL_WORKERS = int(os.environ.get("HIVE_DREAM_DISTILL_WORKERS", "4"))
@@ -248,6 +249,19 @@ def call_llm_structured(prompt: str, system_prompt: str, response_model: Any,
     return _call_llm_structured(prompt, system_prompt, response_model, image_path=image_path,
                                 provider=provider or LLM_PROVIDER, model=model or LLM_MODEL)
 
+
+def call_llm_role(role: str, prompt: str, system_prompt: str, response_model: Any) -> Any:
+    """F1.2 (2026-08-13): chama o LLM usando o papel canônico `role` (ex.: "validator").
+
+    FIX (2026-08-13): usa `call_llm_with_fallback` (gateway com fallback), NÃO
+    `_call_llm_structured` com provider explícito. O provider explícito (gemini-cli)
+    falha quando o gemini-cli não está instalado — e sem fallback o Dream Cycle
+    inteiro (Distiller/Validator/Router) morre silenciosamente. O gateway roteia
+    para o ollama/granite4.1:8b local quando o primário falha.
+    """
+    from core.llm_client import call_llm_with_fallback
+    return call_llm_with_fallback(role, prompt, system_prompt, response_model)
+
 def _activate_dreamer_fallback(reason: str) -> bool:
     """Alterna o cérebro ativo do Dreamer para o fallback. True se alternou."""
     global LLM_PROVIDER, LLM_MODEL
@@ -286,7 +300,9 @@ def agent_distill_and_validate(logs_context: str) -> tuple:
 
         try:
             # 1. Distiller Agent
-            distiller_output: DistillerOutput = call_llm_structured(prompt, distiller_prompt, DistillerOutput)
+            # F1.2: extração de fatos usa o papel "distiller" (instruct local,
+            # granite4.1:8b via .env), NÃO as globais do dreamer (reasoning).
+            distiller_output: DistillerOutput = call_llm_role("distiller", prompt, distiller_prompt, DistillerOutput)
 
             if not distiller_output.facts:
                 return None, "empty" # Sem fatos relevantes
@@ -298,10 +314,13 @@ def agent_distill_and_validate(logs_context: str) -> tuple:
                 fact.id = f"fact-{content_hash}"
                 
             # 2. Validator Agent (Verifica Alucinação e Aterramento)
+            # F1.2 (2026-08-13): o Validator usa o papel "validator" (reasoning via
+            # API quando configurado), NÃO as globais do dreamer. É a única barreira
+            # anti-alucinação — merece modelo de raciocínio, não o instruct barato.
             print(f"  [Validator] Inspecionando {len(distiller_output.facts)} fatos contra os logs originais...")
             val_prompt = f"LOGS ORIGINAIS:\n{logs_context}\n\nFATOS EXTRAÍDOS PARA VALIDAÇÃO:\n{distiller_output.model_dump_json(indent=2)}"
             
-            val_output: ValidatorOutput = call_llm_structured(val_prompt, validator_prompt, ValidatorOutput)
+            val_output: ValidatorOutput = call_llm_role("validator", val_prompt, validator_prompt, ValidatorOutput)
             
             if val_output.global_status == "pass":
                 print(f"  [Validator] Aprovado! Fatos aterrados com sucesso.")
@@ -371,7 +390,8 @@ def agent_route(facts: List[Any]) -> Optional[RouterOutput]:
     while attempt < max_attempts:
         attempt += 1
         try:
-            return call_llm_structured(prompt, router_prompt, RouterOutput)
+            # Router também usa o papel "router" (instruct local) — mesmo motivo do Distiller.
+            return call_llm_role("router", prompt, router_prompt, RouterOutput)
         except pydantic.ValidationError as e:
             print(f"  [Error] ValidationError em RouterOutput: {e.errors()}")
             time.sleep(2)
@@ -748,13 +768,19 @@ def _route_and_persist_project(
         if not fact:
             continue
 
-        safe_topic = re.sub(r'[^a-z0-9_]', '', r.topic.lower().replace(" ", "_")) or "general"
+        # FASE 0 (2026-08-12): tópico e diretório de projeto via camada canônica.
+        # canonical_slug normaliza o tópico de forma idempotente (elimina
+        # code_inspection vs codeinspection); vault_project_dir resolve o diretório
+        # de projeto (remove prefixo git/root/local/unclassified e mantém nome+hash),
+        # eliminando o aninhamento triplo.
+        safe_topic = canonical_slug(r.topic) or "general"
+        project_dir = vault_project_dir(proj)
         # F6 PREVENTION: nome semântico = slug do label + 8 chars do hash para unicidade.
         # Garante legibilidade no grafo Obsidian sem sacrificar determinismo.
-        _label_slug = re.sub(r'[^a-z0-9]+', '-', fact.label.lower())[:40].strip('-')
+        _label_slug = canonical_slug(fact.label)[:40]
         _hash_short = fact.id.replace("fact-", "")[:8] if fact.id.startswith("fact-") else fact.id[:8]
         nid = f"neuronio-{_label_slug}-{_hash_short}" if _label_slug else f"neuronio-{_hash_short}"
-        note_file = cp.TEMPORAL / proj / safe_topic / f"{nid}.md"
+        note_file = cp.TEMPORAL / project_dir / safe_topic / f"{nid}.md"
         note_file.parent.mkdir(parents=True, exist_ok=True)
         aliases_val = json.dumps([fact.alias] if fact.alias else [])
 
@@ -782,7 +808,7 @@ source: hive-dreamer
 > {fact.source_quotes[0] if fact.source_quotes else 'N/A'}
 
 ## Sinapses
-- projeto:: [[{proj}]]
+- projeto:: [[{project_dir}]]
 - tópico:: [[{safe_topic}]]
 - lobo:: [[cortex-temporal]]
 - córtex:: [[cortex]]
@@ -808,7 +834,7 @@ source: hive-dreamer
         with open(note_file, mode) as f:
             f.write(content)
 
-        print(f"  [+] Neurônio {r.action}: {proj}/{safe_topic}/{nid}.md")
+        print(f"  [+] Neurônio {r.action}: {project_dir}/{safe_topic}/{nid}.md")
         persisted += 1
         pushed.append((nid, fact.content))
         if first_nid is None:
@@ -906,7 +932,15 @@ def _run_dream_cycle_inner() -> Dict[str, int]:
         """Marca observações como consolidadas/quarentena. Restringe a `ids` se passado."""
         target_ids = ids if ids is not None else obs_ids
         for oid in target_ids:
-            conn.execute("UPDATE observations SET archived = ? WHERE id = ?", (status, oid))
+            # P0-C (2026-08-12): registra qual pipeline consumiu a observation.
+            consumed = "dream_cycle" if status == 1 else None
+            if consumed:
+                conn.execute(
+                    "UPDATE observations SET archived = ?, consumed_by = ? WHERE id = ?",
+                    (status, consumed, oid),
+                )
+            else:
+                conn.execute("UPDATE observations SET archived = ? WHERE id = ?", (status, oid))
         conn.commit()
 
     # --- SEGREGAÇÃO POR PROJETO (ADR-007) ---
