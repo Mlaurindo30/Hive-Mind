@@ -212,8 +212,11 @@ ADAPTERS = {
         "watch": [str(HOME / ".swarmclaw/data")],
         "sources": [str(HOME / ".swarmclaw/data/swarmclaw.db")],
     },
-    # gemini-cli NÃO está aqui: o claude-mem já o captura NATIVAMENTE (conexão
-    # direta, envio imediato) — capturá-lo aqui de novo só duplicaria.
+    # antigravity-cli NÃO está aqui: o claude-mem já o captura NATIVAMENTE via
+    # hooks (adapter antigravity-cli em src/cli/adapters, desde v13.10.0 quando a
+    # Google deprecou o Gemini CLI). Capturá-lo aqui de novo só duplicaria.
+    # Nota (2026-08-12): o claude-mem REMOVEU o gemini-cli nativo — não existe
+    # mais captura nativa de gemini; quem migrar do Gemini usa o Antigravity CLI.
 
     # Screenpipe: daemon Rust que captura tela+áudio continuamente (OCR + Whisper).
     # owner=timer: tailer periódico consulta REST /search a cada ciclo.

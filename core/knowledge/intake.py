@@ -27,6 +27,11 @@ CANONICAL_TYPES = {
     "document_chunk",
     "code_symbol",
     "visual_observation",
+    # Tipos de segurança adotados do claude-mem v13.15.0 (2026-08-12), que a
+    # camada de captura já emite mas o intake descartava por não conhecer:
+    "security_alert",   # issue de segurança que precisa de atenção antes de continuar
+    "security_note",    # observação relevante a segurança, mas não urgente
+    "sensitive",        # informação não-privada que não deve vazar para contexto errado
 }
 
 VALID_CONFIDENCE = {"verified", "hypothesis"}
@@ -57,6 +62,44 @@ HIGH_RISK_MARKERS = (
     "truncate table",
     "chmod 777",
 )
+
+# ─── Anti-loop de feedback (Lya Core5, adotado 2026-08-12) ─────────────────
+# Conteúdo que já veio de uma busca/leitura na memória não deve ser regravado
+# como memória nova: regravar o que a busca devolveu cria um ciclo em que a
+# própria saída do cérebro vira neurônio ("the background process ID is 90772").
+# Estes marcadores identificam observações cuja origem é uma operação de
+# LEITURA (query/recall/search), não um fato novo produzido pelo agente.
+MEMORY_READ_MARKERS = (
+    "sinapse_query",
+    "search_memories",
+    "sinapse_temporal_search",
+    "sinapse_temporal_get_observations",
+    "sinapse_rag_query",
+    "sinapse_temporal_graph_search",
+    "sinapse_temporal_timeline",
+    "memory recall",
+    "memory search",
+    "memoria consulta",
+    "busca na memoria",
+    "busca na memória",
+)
+
+
+def _is_memory_read_echo(*, source_type: str, metadata: dict[str, Any], title: str) -> bool:
+    """Detecta conteúdo que é eco de uma leitura de memória (não deve promover).
+
+    Heurística conservadora: só bloqueia quando a origem declara explicitamente
+    que veio de uma operação de leitura. A observação raw é preservada (fica
+    `archived=0` ou segue para quarentena por outra via), apenas não vira
+    candidato de conhecimento novo.
+    """
+    haystack = f"{source_type} {title}".lower()
+    if any(marker in haystack for marker in MEMORY_READ_MARKERS):
+        return True
+    origin = metadata.get("origin") if isinstance(metadata, dict) else None
+    if origin in {"memory_read", "retrieval", "recall", "search"}:
+        return True
+    return False
 
 
 def classify_governance(
@@ -96,6 +139,16 @@ def classify_governance(
 
 class StructuralIntakeError(ValueError):
     """Input sem estrutura minima para virar candidato de conhecimento."""
+
+
+class MemoryReadEcho(ValueError):
+    """Eco de uma leitura de memória — não promovível, mas não é erro estrutural.
+
+    Diferente de `StructuralIntakeError` (que leva à quarentena), um eco de
+    leitura é uma observação legítima cujo conteúdo já veio de uma busca na
+    memória: a observação raw é preservada/consumida normalmente, apenas não
+    gera neurônio novo (anti-loop de feedback, Lya Core5).
+    """
 
 
 @dataclass(frozen=True)
@@ -285,9 +338,23 @@ def normalize_observation(row: Any) -> list[KnowledgeCandidate]:
         metadata = {}
     payload = _payload_from_observation(row, metadata)
     title = str(_row_value(row, "title", "") or payload.get("title") or "").strip()
-    content = str(_row_value(row, "content", "") or payload.get("text") or payload.get("narrative") or "").strip()
+    # FIX (2026-08-14): o `content` da linha pode ser o JSON CRU do claude-mem
+    # ({"concepts":..., "content":..., "facts":...}). Nesse caso o texto limpo da
+    # observação está em payload["content"] (ou narrative), não em row["content"].
+    # Prioriza o texto interno do payload quando ele existe.
+    _inner_content = payload.get("content") if isinstance(payload, dict) else None
+    content = str(
+        _inner_content
+        or payload.get("text")
+        or payload.get("narrative")
+        or _row_value(row, "content", "")
+        or ""
+    ).strip()
     obs_type = str(_row_value(row, "type", "") or payload.get("type") or "event").strip().lower()
     source_type = str(payload.get("source_kind") or metadata.get("source_kind") or obs_type or "observation")
+    # Anti-loop de feedback: eco de leitura de memória não vira conhecimento novo.
+    if _is_memory_read_echo(source_type=source_type, metadata=metadata, title=title):
+        raise MemoryReadEcho("eco de leitura de memória — não promovível")
     project = str(_row_value(row, "project", "") or payload.get("project") or metadata.get("project") or "default")
     workspace_id = str(_row_value(row, "workspace_id", "") or metadata.get("workspace_id") or "default")
     created_at = str(_row_value(row, "created_at", "") or datetime.now(timezone.utc).isoformat())
@@ -304,6 +371,13 @@ def normalize_observation(row: Any) -> list[KnowledgeCandidate]:
         common_meta["governance"] = governance
 
     candidates: list[KnowledgeCandidate] = []
+
+    # Tipos de segurança (claude-mem v13.15.0) têm precedência sobre o campo
+    # 'facts': se o observer marcou a observação como sensitive/security_alert/
+    # security_note, o tipo de segurança é semanticamente mais importante do que
+    # o tipo genérico 'fact' e não deve ser descartado silenciosamente.
+    SECURITY_TYPES = {"security_alert", "security_note", "sensitive"}
+    facts_knowledge_type = obs_type if obs_type in SECURITY_TYPES else "fact"
 
     def add_many(field: str, knowledge_type: str, fallback_title: str) -> None:
         for item in _as_list(payload.get(field) or metadata.get(field)):
@@ -323,7 +397,7 @@ def normalize_observation(row: Any) -> list[KnowledgeCandidate]:
                 created_at=created_at,
             ))
 
-    add_many("facts", "fact", title)
+    add_many("facts", facts_knowledge_type, title)
     add_many("decisions", "decision", title)
     add_many("decision", "decision", title)
     add_many("learned", "learning", title)
@@ -366,7 +440,43 @@ def normalize_observation(row: Any) -> list[KnowledgeCandidate]:
         "session_summary": "project_status",
         "summary": "project_status",
         "change": "operational_fact",
+        # Tipos de observação do claude-mem (v13.15.0) → canônicos. Os 3 de
+        # segurança mapeiam 1:1; o restante (bugfix/feature/refactor/discovery/
+        # decision do observer) já cai nos outros ramos deste fluxo, mas o mapeio
+        # explícito evita descarte silencioso caso cheguem como type bruto.
+        "security_alert": "security_alert",
+        "security_note": "security_note",
+        "sensitive": "sensitive",
+        "bugfix": "operational_fact",
+        "feature": "operational_fact",
+        "refactor": "operational_fact",
     }
+
+    # FIX (2026-08-14): observação com `type` SEMÂNTICO (decision/learning/
+    # preference) traz o conteúdo principal em `content`/`narrative`, e os
+    # `facts` são satélites. O bloco `if not candidates` abaixo só promovia o
+    # `content` como o tipo direto quando NÃO havia facts — então uma decisão
+    # com facts era inteiramente promovida como `fact`, e o decision_promoter
+    # (que só lê neurônios type=decision) nunca a materializava no frontal.
+    # Agora o `content` de tipos semânticos vira candidato do próprio tipo,
+    # mesmo na presença de facts (sem duplicar: só se ainda não há candidato
+    # desse tipo).
+    _SEMANTIC_TYPES = {"decision", "learning", "preference"}
+    if obs_type in _SEMANTIC_TYPES and content and \
+            not any(c.knowledge_type == obs_type for c in candidates):
+        candidates.append(_candidate(
+            source_type=source_type,
+            source_id=source_id,
+            knowledge_type=obs_type,
+            title=title or _title_for(obs_type, content, obs_type),
+            content=content,
+            project=project,
+            workspace_id=workspace_id,
+            evidence=evidence,
+            metadata={**common_meta, "field": "content"},
+            created_at=created_at,
+        ))
+
     if not candidates and obs_type in direct_type_map and content:
         candidates.append(_candidate(
             source_type=source_type,

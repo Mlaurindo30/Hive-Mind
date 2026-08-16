@@ -293,14 +293,45 @@ def main():
     db_data = query_week_data(start_date, end_date)
     projects = collect_projects()
 
+    # F2.2c (2026-08-13): contexto com SUBSTÂNCIA, não listas de hash/JSON.
+    # O bug anterior enviava "projects_active" = lista de arquivos (hash) e
+    # "atoms" com metadata bruta, e o LLM descrevia o próprio JSON. Agora:
+    #  - sessions_summaries: o corpo real dos session logs (request/learned),
+    #    que é onde está o conhecimento da semana.
+    #  - atoms: só label (título humano) + type, não metadata crua.
+    #  - projects: nome humano (via core.vault) + status.
+    session_summaries = []
+    for s in sessions[:400]:  # limite defensivo de tokens
+        try:
+            text = Path(s["path"]).read_text(encoding="utf-8")
+            # extrai title + aprendido + concluído (as seções com substância)
+            m_title = re.search(r"^#\s*(.+)$", text, re.MULTILINE)
+            title = m_title.group(1).strip() if m_title else Path(s["path"]).stem
+            learned = re.search(r"^## Aprendido\s*\n(.+?)(?=\n##|\Z)", text, re.MULTILINE | re.DOTALL)
+            done = re.search(r"^## Concluído\s*\n(.+?)(?=\n##|\Z)", text, re.MULTILINE | re.DOTALL)
+            session_summaries.append({
+                "title": title,
+                "learned": (learned.group(1).strip()[:500] if learned else ""),
+                "completed": (done.group(1).strip()[:500] if done else ""),
+            })
+        except Exception:
+            continue
+
+    from core.vault import project_display_name
+    projects_human = [
+        {"name": project_display_name(p["name"]), "status": p["status"]}
+        for p in projects
+    ]
+
     context = {
         "week": f"{year}-W{week:02d}",
         "daily_logs_count": len([l for l in daily_logs if l["content"]]),
-        "daily_logs_summaries": [l["content"][:1000] for l in daily_logs if l["content"]],
-        "atoms": db_data["atoms"],
-        "decisions": db_data["decisions"],
+        "daily_logs_summaries": [l["content"][:1500] for l in daily_logs if l["content"]],
         "sessions_count": len(sessions),
-        "projects_active": projects
+        "session_summaries": session_summaries,
+        "atoms": [{"label": a["label"], "type": a["type"]} for a in db_data["atoms"][:100]],
+        "decisions": [{"label": d["label"]} for d in db_data["decisions"][:50]],
+        "projects_active": projects_human,
     }
 
     if args.dry_run:

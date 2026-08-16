@@ -85,6 +85,7 @@ backups/
 
 # ── Embedded repos ─────────────────────────────────────────────────
 claude-mem/
+integrations/claude-mem/
 integrations/graphify/
 integrations/neural-memory/
 integrations/rtk/

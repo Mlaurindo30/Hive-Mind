@@ -67,6 +67,10 @@ count: {len(items)}
 
 <!-- auto:gerado por work_tracker.py — itens vêm dos 'Próximos Passos' das sessões -->
 {rows}
+
+## Sinapses
+- lobo:: [[cortex-frontal]]
+- córtex:: [[cortex]]
 """
 
 

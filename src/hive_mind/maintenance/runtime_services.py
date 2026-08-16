@@ -2,8 +2,9 @@
 """Install idempotent user services for the Hive-Mind local runtime.
 
 Most services run from this checkout and its .venv.  The claude-mem temporal
-runtime is intentionally global and multi-project, with data under
-~/.claude-mem, so all services that read/write claude-mem must point there.
+runtime is project-local, with data under {ROOT}/claude-mem/data (gitignored).
+The claude-mem worker still CAPTURES every agent/project on the machine — the
+DATA_DIR only controls where the SQLite file lives, not what is captured.
 """
 
 from __future__ import annotations
@@ -23,13 +24,13 @@ USER_UNITS = Path.home() / ".config" / "systemd" / "user"
 
 def unit_definitions() -> dict[str, str]:
     path = str(ROOT)
-    claude_mem_data = str(Path.home() / ".claude-mem")
-    claude_mem_db = str(Path.home() / ".claude-mem" / "claude-mem.db")
-    claude_mem_models = str(Path.home() / ".claude-mem" / "models")
+    claude_mem_data = str(ROOT / "claude-mem" / "data")
+    claude_mem_db = str(ROOT / "claude-mem" / "data" / "claude-mem.db")
+    claude_mem_models = str(ROOT / "claude-mem" / "data" / "models")
     common_unit = "StartLimitIntervalSec=300\nStartLimitBurst=5"
     return {
         "sinapse-claude-mem.service": f"""[Unit]
-Description=Sinapse Agent - claude-mem Worker (global multi-project data)
+Description=Sinapse Agent - claude-mem Worker (multi-project capture, project-local data)
 After=network.target
 {common_unit}
 
@@ -768,11 +769,11 @@ def systemctl(*args: str, check: bool = True) -> subprocess.CompletedProcess:
 
 
 def _configure_claude_mem_settings() -> None:
-    """Seed required defaults into ~/.claude-mem/settings.json.
+    """Seed required defaults into {DATA_DIR}/settings.json.
 
     Idempotent: only writes keys that are missing or empty.
     """
-    settings_path = Path.home() / ".claude-mem" / "settings.json"
+    settings_path = ROOT / "claude-mem" / "data" / "settings.json"
     if not settings_path.exists():
         return
     try:
@@ -991,9 +992,9 @@ def service_specs() -> list[dict]:
     path = str(ROOT)
     is_windows = os.name == "nt"
     path_sep = ";" if is_windows else ":"
-    claude_mem_data = str(Path.home() / ".claude-mem")
-    claude_mem_db = str(Path.home() / ".claude-mem" / "claude-mem.db")
-    claude_mem_models = str(Path.home() / ".claude-mem" / "models")
+    claude_mem_data = str(ROOT / "claude-mem" / "data")
+    claude_mem_db = str(ROOT / "claude-mem" / "data" / "claude-mem.db")
+    claude_mem_models = str(ROOT / "claude-mem" / "data" / "models")
     venv_bin = str(ROOT / ".venv" / ("Scripts" if is_windows else "bin"))
     py = str(Path(venv_bin) / ("python.exe" if is_windows else "python"))
     tools_bin = str(ROOT / ".tools" / "bin")

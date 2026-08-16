@@ -100,6 +100,12 @@ TOOLS = [
                 "evidence": {
                     "type": "string",
                     "description": "Concrete artifact validating the learning (command run, test, file path). Marks the entry confidence=verified."
+                },
+                "learning_kind": {
+                    "type": "string",
+                    "enum": ["learning", "anti-pattern"],
+                    "description": "CURE SCAR classification: 'learning' (default, positive pattern) or 'anti-pattern' (a recipe that FAILED and must be avoided — 'do not try this again').",
+                    "default": "learning"
                 }
             },
             "required": ["title", "content"]
@@ -286,8 +292,8 @@ TOOLS = [
                 },
                 "dry_run": {
                     "type": "boolean",
-                    "description": "Classify and count without writing candidates/promotions",
-                    "default": False
+                    "description": "Classify and count without writing candidates/promotions. Defaults to TRUE (2026-08-12): the Dream Cycle is the canonical consumer of observations; direct promotion consumes them before the LLM pipeline runs. Pass dry_run=false explicitly to write.",
+                    "default": True
                 },
                 "import_claude_mem": {
                     "type": "boolean",
@@ -400,7 +406,8 @@ HANDLERS = {
     },
     "sinapse_save_learning": lambda args: {
         "saved": sm._save_learning(
-            args.get("title", ""), args.get("content", ""), evidence=args.get("evidence")
+            args.get("title", ""), args.get("content", ""), evidence=args.get("evidence"),
+            learning_kind=args.get("learning_kind")
         ) is not None
     },
     "sinapse_health": lambda args: sm.health_check(),
@@ -770,7 +777,12 @@ def _promote_knowledge(args: dict) -> dict:
     limit = args.get("limit")
     if limit is not None:
         limit = int(limit)
-    dry_run = bool(args.get("dry_run", False))
+    # P0-E (2026-08-12): dry-run por padrão. A promoção direta (K3 standalone)
+    # marca observations como archived=1 e consome-as antes do Dream Cycle
+    # processá-las com o pipeline LLM completo — o fluxo canônico (§7) é o
+    # Dream Cycle ser o consumidor. Só promove de verdade com dry_run=False
+    # explícito.
+    dry_run = bool(args.get("dry_run", True))
     bridge_stats = None
     if bool(args.get("import_claude_mem", False)):
         from core.knowledge.claude_mem_bridge import bridge

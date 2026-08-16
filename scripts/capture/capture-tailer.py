@@ -34,14 +34,60 @@ from capture_adapters import ADAPTERS, adapters_by_owner  # noqa: E402
 
 def _acquire_lock():
     """Garante instância única do timer (evita corrida no state-file quando o timer
-    dispara enquanto uma execução anterior ainda roda)."""
-    import fcntl as _fcntl
+    dispara enquanto uma execução anterior ainda roda).
+
+    Cross-platform (2026-08-13): antes usava ``fcntl.flock`` cru, que NÃO existe
+    no Windows (o script quebrava no ``import fcntl``). Agora usa o mesmo padrão
+    do daemon (src/hive_mind/daemon/lock.py):
+      - Windows: named mutex via ctypes (CreateMutexW).
+      - Linux/macOS: flock(LOCK_EX | LOCK_NB) no tailer.lock.
+    """
     lock_path = core.DATA_DIR / "tailer.lock"
+
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.windll.kernel32
+        kernel32.CreateMutexW.argtypes = [
+            wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR,
+        ]
+        kernel32.CreateMutexW.restype = wintypes.HANDLE
+        kernel32.ReleaseMutex.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        _ERROR_ALREADY_EXISTS = 183  # winerror.ERROR_ALREADY_EXISTS
+
+        handle = kernel32.CreateMutexW(None, True, "Local\\Hive-Mind-capture-tailer")
+        last_error = kernel32.GetLastError()
+        if not handle:
+            raise RuntimeError(
+                f"não foi possível criar o mutex do tailer (erro {last_error})"
+            )
+        if last_error == _ERROR_ALREADY_EXISTS:
+            kernel32.CloseHandle(handle)
+            print("⊘ outra instância do tailer já roda — saindo.")
+            sys.exit(0)
+        # Retorna um handle-guard para manter o mutex vivo enquanto roda.
+        class _MutexGuard:
+            def __init__(self, h):
+                self._h = h
+
+            def close(self):
+                if self._h:
+                    kernel32.ReleaseMutex(self._h)
+                    kernel32.CloseHandle(self._h)
+                    self._h = None
+
+        return _MutexGuard(handle)
+
+    # Linux/macOS: flock (fcntl só é importado neste ramo).
+    import fcntl as _fcntl
+
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        fh = open(lock_path, "r+")
+        fh = open(lock_path, "r+", encoding="utf-8")
     except FileNotFoundError:
-        fh = open(lock_path, "w")
+        fh = open(lock_path, "w", encoding="utf-8")
     try:
         _fcntl.flock(fh, _fcntl.LOCK_EX | _fcntl.LOCK_NB)
     except BlockingIOError:
@@ -55,7 +101,7 @@ def _acquire_lock():
                 os.kill(stale_pid, 0)
             except OSError:
                 fh.close()
-                fh = open(lock_path, "w")
+                fh = open(lock_path, "w", encoding="utf-8")
                 _fcntl.flock(fh, _fcntl.LOCK_EX | _fcntl.LOCK_NB)
                 print(f"  🔓 lock órfão do PID {stale_pid} liberado")
             else:

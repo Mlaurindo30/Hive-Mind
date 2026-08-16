@@ -217,6 +217,11 @@ def test_generic_windows_python_stays_project_local_when_venv_is_missing(
 
 
 def test_managed_services_receive_the_portable_claude_mem_database_default(tmp_path, monkeypatch):
+    """FIX (2026-08-13): o _spawn não deve forçar CLAUDE_MEM_DB para o caminho
+    global antigo (~/.claude-mem). O DATA_DIR foi isolado no projeto
+    (D:\\Hive-Mind\\claude-mem\\data) e o env é resolvido por os.environ + spec.env.
+    Se CLAUDE_MEM_DB não está no ambiente, o serviço herda o que o launcher define
+    (CLAUDE_MEM_DATA_DIR), não um default global divergente."""
     captured = {}
 
     class DummyProcess:
@@ -244,9 +249,9 @@ def test_managed_services_receive_the_portable_claude_mem_database_default(tmp_p
     supervisor = ManagedSupervisor(manifest, state_dir=tmp_path / "state")
     try:
         supervisor.start_all()
-        assert captured["env"]["CLAUDE_MEM_DB"] == str(
-            Path.home() / ".claude-mem" / "claude-mem.db"
-        )
+        # Não deve impor o caminho global antigo: sem CLAUDE_MEM_DB no ambiente,
+        # o env do serviço não contém a chave (resolução fica para o launcher).
+        assert "CLAUDE_MEM_DB" not in captured["env"] or captured["env"]["CLAUDE_MEM_DB"] is None
     finally:
         supervisor.stop_all()
 

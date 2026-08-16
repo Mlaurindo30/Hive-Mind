@@ -273,12 +273,21 @@ def save_learning(
     api_server_mode: bool = False,
     cloud_request_fn: Optional[Callable] = None,
     evidence: Optional[str] = None,
+    learning_kind: Optional[str] = None,
 ) -> Optional[str]:
     """
     Salva um aprendizado em cerebelo/padroes/Patterns.md com deduplicação.
 
     Com `evidence` (comando, teste, arquivo) a entrada nasce
     confidence=verified; sem, hypothesis — aguardando validação.
+
+    `learning_kind` (CURE SCAR, 2026-08-12): classifica a natureza do
+    aprendizado. Valores suportados:
+
+      - ``None``/``"learning"`` (default) — aprendizado comum.
+      - ``"anti-pattern"`` — receita que FALHOU e deve ser evitada no futuro
+        ("não tente isto de novo"). O frontmatter ganha `kind: anti-pattern`
+        para o RetrievalRouter distinguir conselho positivo de anti-receita.
     """
     if cloud_enabled and not api_server_mode and cloud_request_fn is not None:
         if log_fn:
@@ -307,10 +316,11 @@ def save_learning(
 
     next_review = (datetime.now() + timedelta(days=REVIEW_TTL_DAYS)).strftime("%Y-%m-%d")
     confidence = "verified" if evidence else "hypothesis"
+    kind = "anti-pattern" if learning_kind == "anti-pattern" else "learning"
     governance_line = f"> confidence: {confidence} · next_review: {next_review}"
     if evidence:
         governance_line += f" · evidence: {evidence}"
-    entry = f"\n\n---\n\n## {title} ({today})\n\n{governance_line}\n\n{content}\n"
+    entry = f"\n\n---\n\n## {title} ({today})\n\n> kind: {kind}\n\n{governance_line}\n\n{content}\n"
 
     try:
         existing = ""
@@ -390,6 +400,11 @@ def update_current_state(
     try:
         with open(memory_file, "r", encoding="utf-8") as f:
             existing = f.read()
+    except UnicodeDecodeError:
+        # P1-H (2026-08-12): arquivos do vault legados podem ter bytes inválidos
+        # (byte 0x8d de consoles antigos). Reusa o leitor tolerante do módulo,
+        # que preserva o byte via surrogateescape em vez de crashar o session_end.
+        existing = read_vault_text(memory_file)
     except FileNotFoundError:
         pass
 

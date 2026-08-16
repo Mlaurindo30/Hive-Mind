@@ -585,6 +585,13 @@ def ensure_migrations(conn):
     add_column_if_missing(conn, "observations", "why TEXT DEFAULT NULL")
     add_column_if_missing(conn, "observations", "intent_source TEXT DEFAULT NULL")
 
+    # P0-C (2026-08-12): distingue qual pipeline consumiu a observation —
+    # 'dream_cycle' (fluxo canônico, LLM Distiller→Validator→Router) ou
+    # 'k3_promotion' (promoção direta do sinapse_promote_knowledge). NULL =
+    # ainda não consumida. Permite auditoria e reversão do erro de promover
+    # direto antes do Dream Cycle rodar.
+    add_column_if_missing(conn, "observations", "consumed_by TEXT DEFAULT NULL")
+
     conn.execute("""
         CREATE TABLE IF NOT EXISTS goals (
             id TEXT PRIMARY KEY,

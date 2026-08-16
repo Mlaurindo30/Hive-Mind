@@ -98,9 +98,10 @@ class TestDreamCycleProjectSegregation:
             "dream_cycle.py ainda usa DEFAULT_PROJECT no path do neurônio. "
             "Deve iterar por bucket de projeto."
         )
-        # Pelo contrário, deve aparecer o pattern correto:
-        assert "cp.TEMPORAL / proj / safe_topic /" in source, (
-            "dream_cycle.py deveria escrever em cp.TEMPORAL / {proj_bucket} / safe_topic / ..."
+        # Pelo contrário, deve aparecer o pattern correto (FASE 0: o diretório
+        # de projeto é resolvido pela camada canônica, não pelo project_id cru):
+        assert "cp.TEMPORAL / project_dir / safe_topic /" in source, (
+            "dream_cycle.py deveria escrever em cp.TEMPORAL / {project_dir} / safe_topic / ..."
         )
 
     def test_dream_cycle_marks_observations_per_project_bucket(self):

@@ -199,6 +199,56 @@ def search(query_vector: list[float], k: int = 10) -> list[dict]:
         return []
 
 
+def all_pairs_below_threshold(k: int = 8, max_distance: float = 0.5) -> list[dict]:
+    """F3-otimização (2026-08-13): pares de neurônios próximos em UMA passada.
+
+    Usa os vetores JÁ indexados (`get_items()`, sem re-embedding) e `knn_query`
+    em batch: para cada item, os k vizinhos mais próximos. Retorna os pares
+    (a, b, distance) com distância <= max_distance, deduplicados por (a<b).
+
+    ATENÇÃO: o índice usa `space="cosine"` (load_or_create), logo a distância
+    retornada pelo hnswlib é COSINE DISTANCE = 1 - cos(a,b), no intervalo [0, 2]
+    (0 = idêntico, 2 = oposto). `max_distance` é portanto cosine distance:
+    para querer cos ≥ 0.82 ⇒ max_distance ≤ 1 - 0.82 = 0.18.
+
+    Complexidade O(n·k·log n) — substitui o O(n²) + 90k chamadas de embedding
+    do conflict_detector antigo.
+    """
+    if _hnswlib is None or _INDEX is None:
+        return []
+
+    try:
+        count = _INDEX.get_current_count()
+        if count == 0:
+            return []
+        vectors = _INDEX.get_items(list(range(count)))  # todos os vetores
+        actual_k = min(k + 1, count)
+        labels, distances = _INDEX.knn_query(vectors, k=actual_k)
+        pairs: list[dict] = []
+        seen: set[tuple[str, str]] = set()
+        for i, (label_row, dist_row) in enumerate(zip(labels, distances)):
+            a_id = _label_to_id.get(int(label_row[0]))
+            if a_id is None:
+                continue
+            for label, dist in zip(label_row[1:], dist_row[1:]):
+                b_id = _label_to_id.get(int(label))
+                if b_id is None or b_id == a_id:
+                    continue
+                # hnswlib com space="cosine" devolve COSINE DISTANCE (1 - cos),
+                # intervalo [0, 2]. Comparação direta com max_distance (cosine).
+                if float(dist) > max_distance:
+                    continue
+                key = tuple(sorted((a_id, b_id)))
+                if key in seen:
+                    continue
+                seen.add(key)
+                pairs.append({"a": a_id, "b": b_id, "distance": float(dist)})
+        return pairs
+    except Exception as exc:
+        logger.warning("HNSW: all_pairs_below_threshold failed: %s", exc)
+        return []
+
+
 def rebuild_from_db(conn, embed_fn, *, commit: bool = True) -> int:
     """Rebuild full index from all neurons using embed_fn(text) -> list[float]. Returns count indexed."""
     global _INDEX, _id_to_label, _label_to_id, _next_label

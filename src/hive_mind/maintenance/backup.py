@@ -158,7 +158,15 @@ def sha256_file(path: Path) -> str:
 
 
 def sqlite_is_intact(path: Path) -> tuple[bool, str]:
-    """Run integrity_check and foreign_key_check on a backup artifact."""
+    """Run integrity_check and foreign_key_check on a backup artifact.
+
+    integrity_check failure (page corruption) is a hard FAIL. foreign_key_check
+    violations are a WARNING, not a failure: the claude-mem database (an external
+    system Hive-Mind federates but does not own) runs with `foreign_keys=OFF`
+    and accumulates orphaned rows whose parent `sdk_sessions` was deleted. Those
+    orphans are recoverable and do not make the backup useless; failing the whole
+    backup over them blocked every claude-mem snapshot (P1-H, 2026-08-12).
+    """
     try:
         conn = sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True, timeout=10)
     except sqlite3.Error as exc:
@@ -169,7 +177,7 @@ def sqlite_is_intact(path: Path) -> tuple[bool, str]:
             return False, f"integrity_check: {integrity[0] if integrity else 'no result'}"
         violations = conn.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
-            return False, f"foreign_key_check: {len(violations)} violation(s)"
+            return True, f"ok (foreign_key_check: {len(violations)} orphan(s), non-fatal)"
         return True, "ok"
     except sqlite3.DatabaseError as exc:
         return False, f"not a valid database: {exc}"

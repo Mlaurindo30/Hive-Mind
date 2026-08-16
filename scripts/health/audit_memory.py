@@ -38,7 +38,13 @@ def parse_markdown(path: Path):
     except UnicodeDecodeError:
         # Entradas históricas do vault no Windows podem ter sido gravadas em
         # CP1252. Essa decodificação é reversível e preserva o hash do conteúdo.
-        text = raw.decode("cp1252")
+        try:
+            text = raw.decode("cp1252")
+        except UnicodeDecodeError:
+            # P1-H (2026-08-12): arquivos nem UTF-8 nem cp1252 (ex.: byte 0x8d
+            # de consoles antigos). surrogateescape preserva o byte inválido sem
+            # crashar a auditoria — o audit não é reescrita, só leitura.
+            text = raw.decode("utf-8", errors="surrogateescape")
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     
     frontmatter = {}

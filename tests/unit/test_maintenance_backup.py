@@ -260,3 +260,35 @@ class TestStatus:
         assert entry["backups"] == 1
         assert entry["source_present"] is True
         assert data["coverage"]["cerebro-markdown"] == Coverage.NOT_SUPPORTED
+
+
+class TestSqliteIsIntact:
+    def test_foreign_key_violations_are_non_fatal(self, tmp_path):
+        # P1-H (2026-08-12): claude-mem roda com foreign_keys=OFF e acumula
+        # órfãos. O backup deve aceitar (warning), não falhar o snapshot.
+        path = tmp_path / "orphaned.db"
+        conn = sqlite3.connect(path)
+        conn.execute("CREATE TABLE parent (id INTEGER PRIMARY KEY)")
+        conn.execute(
+            "CREATE TABLE child (id INTEGER PRIMARY KEY, "
+            "parent_id INTEGER REFERENCES parent(id))"
+        )
+        conn.execute("INSERT INTO child (id, parent_id) VALUES (1, 999)")
+        conn.commit()
+        conn.close()
+
+        intact, reason = sqlite_is_intact(path)
+        assert intact, reason
+        assert "non-fatal" in reason
+
+    def test_integrity_corruption_still_fails(self, tmp_path):
+        path = _db(tmp_path / "live" / "corrupt.db", rows=5)
+        # corrompe uma página: integrity_check deve continuar sendo FAIL.
+        raw = bytearray(path.read_bytes())
+        # sobrescreve o cabeçalho SQLite (primeiros 16 bytes são o magic string)
+        raw[0:16] = b"\x00" * 16
+        path.write_bytes(bytes(raw))
+        intact, reason = sqlite_is_intact(path)
+        # Cabeçalho corrompido: integrity_check falha, e NÃO é um warning de FK.
+        assert not intact
+        assert "foreign_key_check" not in reason

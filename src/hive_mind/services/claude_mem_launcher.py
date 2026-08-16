@@ -12,9 +12,35 @@ import ctypes
 from pathlib import Path
 
 
+def _claude_mem_data_dir(root: Path | None = None) -> Path:
+    """Diretório de dados do claude-mem: {ROOT}/claude-mem/data (projeto, gitignored)."""
+    root = root or Path(__file__).resolve().parents[3]
+    return root / "claude-mem" / "data"
+
+
+def _vendored_worker(root: Path | None = None) -> Path | None:
+    """Worker vendored no repositório (integrations/claude-mem), se existir.
+
+    O claude-mem foi internalizado (2026-08-12, clone pinado v13.15.0 em
+    integrations/claude-mem) para eliminar o não-determinismo de depender do
+    cache de plugins global. Este caminho tem precedência sobre o cache: com o
+    clone presente, o Hive-Mind roda SEMPRE a versão pinada do repositório, não
+    a versão mais recente que por acaso esteja no cache de plugins do usuário.
+    """
+    root = root or Path(__file__).resolve().parents[3]
+    vendored = root / "integrations" / "claude-mem" / "plugin" / "scripts" / "worker-wrapper.cjs"
+    return vendored if vendored.is_file() else None
+
+
 def worker_candidates(home: Path | None = None) -> list[Path]:
-    """Return installed worker entrypoints, newest plugin version first."""
+    """Return installed worker entrypoints, vendored copy first, then cache.
+
+    Ordem: (1) clone vendored em integrations/claude-mem (determinístico);
+    (2) cache de plugins global, da versão mais recente para a mais antiga.
+    O cache permanece como fallback para ambientes sem o clone local.
+    """
     home = home or Path.home()
+    vendored = _vendored_worker()
     roots = (
         home / ".claude" / "plugins" / "cache" / "thedotmack" / "claude-mem",
         home / ".codex" / "plugins" / "cache" / "claude-mem-local" / "claude-mem",
@@ -26,7 +52,10 @@ def worker_candidates(home: Path | None = None) -> list[Path]:
         for path in root.glob("*/scripts/worker-wrapper.cjs")
         if path.is_file()
     ]
-    return sorted(candidates, key=lambda path: path.parent.parent.name, reverse=True)
+    candidates = sorted(candidates, key=lambda path: path.parent.parent.name, reverse=True)
+    if vendored is not None:
+        candidates.insert(0, vendored)
+    return candidates
 
 
 def resolve_bun() -> str | None:
@@ -172,14 +201,24 @@ def _apply_local_fallback() -> bool:
 
 def _run_worker_with_fallback() -> int:
     """Keep the global worker attached and change to the local fallback on 401/403."""
-    log_path = Path.home() / ".claude-mem" / "logs" / f"claude-mem-{time.strftime('%Y-%m-%d')}.log"
+    log_path = _claude_mem_data_dir() / "logs" / f"claude-mem-{time.strftime('%Y-%m-%d')}.log"
     offset = log_path.stat().st_size if log_path.exists() else 0
     flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
     fallback_applied = False
 
+    # P1 (2026-08-12): o claude-mem foi internalizado. NÃO herdamos a telemetria
+    # PostHog do upstream (cmem.ai) — desligamos por construção, no spawn, para
+    # que o worker vendored nunca envie dados a um serviço externo.
+    worker_env = dict(os.environ)
+    worker_env.setdefault("CLAUDE_MEM_TELEMETRY", "0")
+    worker_env.setdefault("DO_NOT_TRACK", "1")
+    # Dados project-local: o worker deve gravar em {ROOT}/claude-mem/data, não
+    # em ~/.claude-mem. Sobrescreve qualquer valor herdado do ambiente global.
+    worker_env["CLAUDE_MEM_DATA_DIR"] = str(_claude_mem_data_dir())
+
     while True:
         stop_legacy_daemon()
-        process = subprocess.Popen(command(), creationflags=flags)
+        process = subprocess.Popen(command(), creationflags=flags, env=worker_env)
         while process.poll() is None:
             auth_failure, offset = _new_auth_failure(log_path, offset)
             if auth_failure and not fallback_applied and _apply_local_fallback():

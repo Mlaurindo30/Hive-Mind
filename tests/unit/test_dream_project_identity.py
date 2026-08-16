@@ -206,12 +206,21 @@ class TestCanonicalFrontmatter:
         self._fields(dream, None)
 
     def test_note_path_uses_project_id_not_label(self, dream):
-        """cortex/temporal/<project_id>/<topic>/ — one dir per project."""
+        """cortex/temporal/<project_dir>/<topic>/ — one dir per project.
+
+        FASE 0 (2026-08-12): o diretório é resolvido por vault_project_dir(proj)
+        (nome canônico sem prefixo de source-type), não pelo project_id cru nem
+        pelo label. A intenção do teste original se mantém: o path deriva do
+        project_id canônico, não do rótulo humano.
+        """
         source = (ROOT / "scripts" / "dream" / "dream_cycle.py").read_text(
             encoding="utf-8"
         )
-        assert "note_file = cp.TEMPORAL / proj / safe_topic" in source, (
-            "note path must be derived from the canonical project_id argument"
+        assert "note_file = cp.TEMPORAL / project_dir / safe_topic" in source, (
+            "note path must derive from the canonical project dir (vault_project_dir)"
+        )
+        assert "project_dir = vault_project_dir(proj)" in source, (
+            "project dir must come from the canonical vault layer, not the raw project_id"
         )
 
     def test_legacy_identity_is_marked_in_frontmatter(self, dream):

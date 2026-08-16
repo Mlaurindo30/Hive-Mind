@@ -138,27 +138,29 @@ def test_manifest_covers_every_systemd_timer():
 
 
 def test_dream_cycle_keeps_the_canonical_linux_schedule():
-    """The Linux reference runs the bridge at 02:45 and the dream at 03:00.
+    """The dream cycle runs every 4h (2026-08-12).
 
-    The Windows Task Scheduler ran the dream at 02:00, losing that ordering.
-    The manifest must keep the proven schedule.
+    The Linux reference ran the bridge at 02:45 and the dream at 03:00 (1x/day).
+    That cadence could not keep up with continuous capture, so the dream was
+    moved to every 4 hours (0 */4 * * *), and the bridge ordering is now a
+    `depends_on` contract plus the continuous consolidate-loop (60s), not a
+    wall-clock gap.
     """
     dream = _manifest_jobs()["dream-cycle"]
-    assert dream["schedule"]["expression"] == "0 3 * * *"
+    assert dream["schedule"]["expression"] == "0 */4 * * *"
 
 
 def test_bridge_runs_before_the_dream_cycle():
-    """The bridge feeds the dream; ordering is behaviour, not cosmetics."""
+    """The bridge feeds the dream; ordering is a dependency contract, not a clock gap."""
     jobs = _manifest_jobs()
     bridge = next(
         (j for n, j in jobs.items() if "bridge" in n), None
     )
     assert bridge is not None, "claude-mem bridge job missing from the manifest"
 
-    def minutes(expr: str) -> int:
-        minute, hour = expr.split()[0], expr.split()[1]
-        return int(hour) * 60 + int(minute)
-
-    assert minutes(bridge["schedule"]["expression"]) < minutes(
-        jobs["dream-cycle"]["schedule"]["expression"]
-    ), "the bridge must run before the dream cycle"
+    # A ordenação é declarada por depends_on (contrato de dependência), não por
+    # horário de cron — o dream-cycle depende do claude-mem-bridge no manifest.
+    dream = jobs["dream-cycle"]
+    assert "claude-mem-bridge" in (dream.get("depends_on") or []), (
+        "the dream must declare depends_on: claude-mem-bridge"
+    )

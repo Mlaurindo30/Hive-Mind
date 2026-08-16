@@ -100,3 +100,15 @@ class RouterOutput(BaseModel):
         if not self.routed_facts:
             raise ValueError("routed_facts deve conter ao menos 1 item")
         return self
+
+
+class DecisionRationaleOutput(BaseModel):
+    """F2.1 (2026-08-13): campos gerados pelo decision_promoter v2 via LLM.
+
+    Cada campo é opcional e curto (2-3 linhas). Campo vazio sinaliza ausência de
+    evidência — o chamador cai no fallback determinístico.
+    """
+    contexto: str = ""
+    rationale: str = ""
+    alternativas: str = ""
+    consequencias: str = ""

@@ -94,20 +94,27 @@ class TestShippedManifestDeclaresTheOrdering:
         )
 
     def test_the_declared_dependency_also_holds_on_the_clock(self):
-        """Belt and braces: the declaration must not contradict the schedule."""
+        """Belt and braces: the declaration must not contradict the schedule.
+
+        Com o dream-cycle a cada 4h (`0 */4 * * *`) e o bridge alimentado pelo
+        consolidate-loop contínuo (60s), a ordenação é garantida pelo
+        `depends_on` — não por um gap de relógio fixo. Quando AMBOS os crons têm
+        hora fixa, ainda validamos que o bridge precede o dream.
+        """
         manifest = load_manifest(MANIFEST)
         jobs = {j.name: j for j in manifest.jobs}
         dream = jobs["dream-cycle"]
+        d_min, d_hour = dream.schedule.expression.split()[0], dream.schedule.expression.split()[1]
+        # Dream em */4 não tem hora fixa comparável — a ordenação nesse caso é
+        # garantida exclusivamente pelo depends_on (já validado no teste acima).
+        if d_hour.startswith("*/"):
+            return
         for dep in dream.depends_on:
             expr = jobs[dep].schedule.expression
             if not expr:
                 continue
             minute, hour = expr.split()[0], expr.split()[1]
             dep_minutes = int(hour) * 60 + int(minute)
-            d_min, d_hour = (
-                dream.schedule.expression.split()[0],
-                dream.schedule.expression.split()[1],
-            )
             assert dep_minutes < int(d_hour) * 60 + int(d_min)
 
 

@@ -47,8 +47,14 @@ ROLES = [
     ("dreamer",   "Dreamer (pipeline principal — BASE de herança)"),
     ("graphify",  "Graphify (grafo de conhecimento)"),
     ("vision",    "Vision (estágio visual)"),
+    ("ocr",       "OCR (extração de texto de imagem)"),
     ("synthesis", "Síntese P2P (dialética)"),
     ("claude_mem", "Claude Mem (Memória & Discovery)"),
+    # Dream Cycle (F1.2, 2026-08-13): sub-papéis do pipeline de consolidação.
+    # O Validator deve usar reasoning (API); Distiller/Router usam instruct local.
+    ("distiller", "Distiller (extração de fatos — instruct)"),
+    ("validator", "Validator (verificação anti-alucinação — reasoning)"),
+    ("router",    "Router (roteamento de tópicos)"),
     # Fase 2 (memória inteligente)
     ("weekly_synthesizer", "Weekly Synthesizer (resumo semanal)"),
     ("monthly_synthesizer", "Monthly Synthesizer (resumo mensal)"),
@@ -61,6 +67,9 @@ ROLES = [
     ("conflict_detector",  "Conflict Detector (contradições)"),
     ("session_summarizer", "Session Summarizer (sessões)"),
     ("daily_writer",       "Daily Writer (diário)"),
+    ("decision_promoter",  "Decision Promoter (decisões do frontal)"),
+    ("project_synthesizer","Project Synthesizer (status por projeto)"),
+    ("drift_detector",     "Drift Detector (memória fria/arquivamento)"),
 ]
 
 # Papéis de extração SEMPRE locais (Ollama): grafo temporal (Graphiti) e RAG
@@ -73,10 +82,15 @@ LOCAL_EXTRACTION_ROLES = [
 ]
 
 # Modelos Ollama locais sugeridos para extração (ordem = preferência).
+# F1.3 (2026-08-13): refletir os melhores modelos locais de 2026. granite4.1:8b
+# é o LLM de extração/RAG recomendado (512K ctx, Apache-2.0, IFEval 87.06,
+# HumanEval 87.2 — supera o qwen2.5:7b antigo). Mantém qwen2.5:3b como default
+# de compatibilidade com os 1024d e graphiti/lightrag já configurados.
 LOCAL_MODEL_PRESETS = [
-    ("qwen2.5:3b", "padrão — multilíngue PT/EN, ~1.9GB, rápido, cabe na GPU c/ embedder 1024d"),
-    ("qwen2.5:7b", "alta qualidade — ~4.7GB, exige folga de VRAM (recomendado p/ Graphiti)"),
-    ("granite3-dense:2b", "legado — leve mas alucina entidades; evite"),
+    ("granite4.1:8b", "recomendado — LLM de extração/RAG (5GB, 512K ctx, Apache-2.0, RAG nativo)"),
+    ("granite4.1:3b", "edge — 2.1GB, para máquinas sem folga de VRAM"),
+    ("qwen2.5:3b", "padrão atual — multilíngue PT/EN, ~1.9GB, cabe na GPU c/ embedder 1024d"),
+    ("qwen3-embedding:0.6b", "embedding — #1 MTEB sub-1GB (equivalente ao arctic-embed2 em retrieval)"),
 ]
 
 def clear(): os.system('clear' if os.name == 'posix' else 'cls')

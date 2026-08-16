@@ -133,8 +133,12 @@ class ManagedSupervisor:
         if sys.platform == "win32":
             creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW
         cwd = self._resolve_working_directory(spec)
+        # FIX (2026-08-13): não sobrescrever CLAUDE_MEM_DB com o caminho global
+        # antigo (~/.claude-mem). O DATA_DIR foi isolado no projeto
+        # (D:\Hive-Mind\claude-mem\data), e o launcher do claude-mem já resolve
+        # CLAUDE_MEM_DATA_DIR corretamente. Herdar os.environ + spec.env sem
+        # forçar um default global que diverge do layout canonical.
         environment = {
-            "CLAUDE_MEM_DB": str(Path.home() / ".claude-mem" / "claude-mem.db"),
             **os.environ,
             **spec.env,
         }

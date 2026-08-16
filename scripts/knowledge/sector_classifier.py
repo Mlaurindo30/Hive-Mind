@@ -149,22 +149,115 @@ def process_file(filepath: Path):
     except Exception as e:
         logger.error(f"Erro ao processar {filepath.name}: {e}")
 
-def run_classifier():
+def run_classifier(*, limit: Optional[int] = None, batch_size: int = 25):
+    """F3-otimização (2026-08-13): classifica em LOTES (batch_size por chamada LLM).
+
+    Antes: 1 chamada LLM por neurônio (89k chamadas). Agora: batch_size neurônios
+    por chamada (89k / 25 ≈ 3.5k chamadas), com `limit` para backfill incremental
+    e `--limit` para rodar em fatias sem estourar custo/tempo.
+
+    Só classifica neurônios SEM setores (ou com [general]) — os já classificados
+    são pulados (idempotência). O `limit` limita o número de neurônios NOVOS por
+    execução; sem limit, processa todos (perigoso — use --limit em produção).
+    """
     load_env()  # carrega env só na execução (não no import)
-    logger.info(f"Iniciando Sector Classifier em {TEMPORAL}")
+    logger.info(f"Iniciando Sector Classifier em {TEMPORAL} (batch_size={batch_size}, limit={limit})")
 
     if not TEMPORAL.exists():
         logger.error(f"Diretório TEMPORAL não encontrado: {TEMPORAL}")
         return
 
-    count = 0
-    # Procura recursivamente por arquivos neuronio-*.md ou fact-*.md
+    # Coleta neurônios pendentes (sem setores específicos) — SEM chamar LLM ainda.
+    pending: list[Path] = []
     for filepath in TEMPORAL.rglob("*.md"):
-        if filepath.name.startswith(("neuronio-", "fact-")):
-            process_file(filepath)
-            count += 1
-    
-    logger.info(f"Fim do processamento. {count} arquivos analisados.")
+        if not filepath.name.startswith(("neuronio-", "fact-")):
+            continue
+        try:
+            content = filepath.read_text(encoding="utf-8")
+            data, _, _ = get_frontmatter_block(content)
+            sectors = data.get("sectors", [])
+            if sectors and sectors != ["general"]:
+                continue
+            pending.append(filepath)
+        except Exception:
+            continue
+        if limit is not None and len(pending) >= limit:
+            break
+
+    if not pending:
+        logger.info("Nenhum neurônio pendente de classificação.")
+        return
+
+    logger.info(f"{len(pending)} neurônios pendentes; processando em lotes de {batch_size}.")
+
+    for batch_start in range(0, len(pending), batch_size):
+        batch = pending[batch_start:batch_start + batch_size]
+        # Monta um único prompt com todos os neurônios do lote.
+        items = []
+        for fp in batch:
+            try:
+                content = fp.read_text(encoding="utf-8")
+                _, _, body = get_frontmatter_block(content)
+                title, neuron_content = extract_neuron_info(body)
+                items.append((fp, title, neuron_content[:300]))
+            except Exception:
+                continue
+
+        if not items:
+            continue
+
+        numbered = "\n\n".join(
+            f"[{i}] TÍTULO: {title}\nCONTEÚDO: {nc}"
+            for i, (_, title, nc) in enumerate(items)
+        )
+        prompt = (
+            f"Classifique os seguintes {len(items)} neurônios. Para CADA [i], "
+            f"retorne uma entrada com id=i e os setores (1-3).\n\n{numbered}"
+        )
+        try:
+            from core.schemas.sector_models import SectorBatchOutput
+            output = call_llm_with_fallback(
+                role="sector_classifier",
+                prompt=prompt,
+                system_prompt=SYSTEM_PROMPT + (
+                    "\n\nMODO LOTE: a entrada tem N itens numerados [0..N-1]. "
+                    "Retorne um array `results` com {id, sectors} para cada item."
+                ),
+                response_model=SectorBatchOutput,
+            )
+            by_id = {r.id: list(r.sectors) for r in output.results}
+            for i, (fp, _, _) in enumerate(items):
+                new_sectors = by_id.get(i)
+                if not new_sectors:
+                    continue
+                _write_sectors(fp, new_sectors)
+        except Exception as e:
+            logger.error(f"Erro no lote {batch_start}: {e}")
+
+    logger.info("Fim do processamento.")
+
+
+def _write_sectors(filepath: Path, new_sectors: List[str]) -> None:
+    """Atualiza o frontmatter `sectors` do arquivo (idempotente)."""
+    try:
+        content = filepath.read_text(encoding="utf-8")
+        data, fm_block, body = get_frontmatter_block(content)
+        current = data.get("sectors", [])
+        if set(new_sectors) == set(current):
+            return
+        data["sectors"] = new_sectors
+        new_fm = "---\n" + yaml.dump(data, allow_unicode=True, sort_keys=False) + "---\n"
+        filepath.write_text(new_fm + body, encoding="utf-8")
+        logger.info(f"  [v] {filepath.name}: {', '.join(new_sectors)}")
+    except Exception as e:
+        logger.error(f"Erro ao gravar {filepath.name}: {e}")
 
 if __name__ == "__main__":
-    run_classifier()
+    import argparse
+    ap = argparse.ArgumentParser(description="Classifica neurônios em setores canônicos (lote).")
+    ap.add_argument("--limit", type=int, default=None,
+                    help="limita o nº de neurônios NOVOS por execução (sem limit = todos)")
+    ap.add_argument("--batch-size", type=int, default=25,
+                    help="neurônios por chamada LLM (default 25)")
+    args = ap.parse_args()
+    run_classifier(limit=args.limit, batch_size=args.batch_size)

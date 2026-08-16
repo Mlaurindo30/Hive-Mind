@@ -70,12 +70,17 @@ roles:
       structured_output: true
     prefer:
       cost_mode: local
+      reasoning: true
   router:
     require:
       structured_output: true
+    prefer:
+      reasoning: false
   distiller:
     require:
       structured_output: true
+    prefer:
+      reasoning: false
 
 defaults:
   timeout_s: 60

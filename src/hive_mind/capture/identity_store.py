@@ -410,6 +410,18 @@ class IdentityStore:
                          preferred_label, DeliveryState.PENDING.value, now,
                          None, content_session_id)
                     )
+            elif row["project_id"] == project_id and not _is_unclassified(project_id):
+                stored_identity = json.loads(row["identity_json"])
+                if _identity_score(identity) > _identity_score(stored_identity):
+                    connection.execute(
+                        "UPDATE capture_identity_decisions SET provider=?, surface=?,"
+                        " identity_json=?, identity_hash=?, raw_project_label=?,"
+                        " delivery_state=?, updated_at=?, last_error=?"
+                        " WHERE content_session_id=?",
+                        (provider, surface, canonical_json(identity), digest,
+                         raw_project_label, DeliveryState.PENDING.value, now,
+                         None, content_session_id)
+                    )
             elif row["identity_hash"] != digest or row["project_id"] != project_id:
                 connection.execute(
                     "UPDATE capture_identity_decisions SET delivery_state=?,"

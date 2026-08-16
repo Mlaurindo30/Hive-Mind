@@ -34,8 +34,14 @@ _bridge_retry_lock = threading.Lock()
 _bridge_retry_sessions: set[tuple[str, str]] = set()
 
 
+# O DB do claude-mem vive em {ROOT}/claude-mem/data (projeto, gitignored), não
+# em ~/.claude-mem. O fallback usa o ROOT do projeto quando CLAUDE_MEM_DB não é
+# definido pelo ambiente (o supervisor/launcher o define explicitamente).
 CLAUDE_MEM_DB = Path(
-    os.environ.get("CLAUDE_MEM_DB", str(Path.home() / ".claude-mem" / "claude-mem.db"))
+    os.environ.get(
+        "CLAUDE_MEM_DB",
+        str(Path(__file__).resolve().parents[3] / "claude-mem" / "data" / "claude-mem.db"),
+    )
 )
 
 

@@ -18,6 +18,7 @@ from core.database import add_column_if_missing
 from core.knowledge.intake import (
     CANONICAL_TYPES,
     KnowledgeCandidate,
+    MemoryReadEcho,
     StructuralIntakeError,
     normalize_markdown_file,
     normalize_observation,
@@ -232,7 +233,47 @@ def _promote_to_neuron(conn, candidate: KnowledgeCandidate) -> str:
         """,
         (job_id, neuron_id, candidate.workspace_id),
     )
+
+    # P0 (2026-08-12): materializa o .md no vault IMEDIATAMENTE na promoção.
+    # Antes, só o Dream Cycle escrevia .md — e como o K3 consome as observações
+    # antes dele, neurônios promovidos ficavam órfãos de vault (existiam no
+    # SQLite mas não na fonte primária). Agora a materialização é parte do fluxo
+    # de promoção: todo neurônio materializável já nasce com seu .md.
+    _materialize_promoted_neuron(conn, neuron_id)
     return neuron_id
+
+
+def _materialize_promoted_neuron(conn, neuron_id: str) -> None:
+    """Escreve o .md no vault para um neurônio recém-promovido, se materializável.
+
+    Best-effort: uma falha de escrita do vault não derruba a promoção (o neurônio
+    já está no DB e no vector_jobs). O materializador em lote
+    (`core/knowledge/materialize.py`) cobre qualquer resíduo.
+    """
+    try:
+        row = conn.execute(
+            "SELECT id, label, type, content, hash, metadata, workspace_id, topic "
+            "FROM neurons WHERE id = ?",
+            (neuron_id,),
+        ).fetchone()
+        if not row:
+            return
+        from core.knowledge.materialize import materialize_neuron
+
+        source_rel = materialize_neuron(conn, dict(row))
+        if source_rel:
+            topic = dict(row).get("topic") or "general"
+            # materialize_neuron já deriva o tópico internamente; re-deriva aqui
+            # para atualizar a coluna `topic` de forma consistente.
+            from core.knowledge.materialize import _derive_topic
+            topic = _derive_topic(dict(row).get("metadata"))
+            conn.execute(
+                "UPDATE neurons SET source_file = ?, topic = ? WHERE id = ?",
+                (source_rel, topic, neuron_id),
+            )
+    except Exception:
+        # Não propaga: a materialização em lote cobre o resíduo depois.
+        pass
 
 
 def _promote_next_step(conn, candidate: KnowledgeCandidate) -> str:
@@ -355,6 +396,10 @@ def promote_pending_observations(conn, *, limit: int | None = None, apply: bool 
     a pendência, drenada por `promote_held_candidates`).
     """
     ensure_knowledge_schema(conn)
+    # P0-C (2026-08-12): coluna consumed_by na tabela observations. Idempotente
+    # e independente do migration global (schema de testes e DBs legados podem
+    # não tê-la). Segue o mesmo padrão de add_column_if_missing já usado acima.
+    add_column_if_missing(conn, "observations", "consumed_by TEXT DEFAULT NULL")
     rows = _pending_rows(conn, limit=limit)
     report = {
         "observations": len(rows),
@@ -397,7 +442,18 @@ def promote_pending_observations(conn, *, limit: int | None = None, apply: bool 
                     "UPDATE observations SET neuron_id = ? WHERE id = ? AND neuron_id IS NULL",
                     (first_neuron_id, obs_id),
                 )
-            conn.execute("UPDATE observations SET archived = 1 WHERE id = ?", (obs_id,))
+            conn.execute(
+                "UPDATE observations SET archived = 1, consumed_by = 'k3_promotion' WHERE id = ?",
+                (obs_id,),
+            )
+        except MemoryReadEcho:
+            # Anti-loop de feedback: eco de leitura de memória não vira neurônio.
+            # A observação raw é consumida (archived=1) mas sem candidato.
+            conn.execute(
+                "UPDATE observations SET archived = 1, consumed_by = 'k3_promotion' WHERE id = ?",
+                (obs_id,),
+            )
+            report["skipped"] += 1
         except StructuralIntakeError as exc:
             quarantine_observation(conn, obs_id, str(exc))
             report["quarantined"] += 1

@@ -22,7 +22,7 @@ from urllib.request import Request, urlopen
 
 from pydantic import BaseModel, Field
 
-from core.database import embed_text, get_connection
+from core.database import embed_text, get_connection, query_hybrid
 from core.vector_backend import SQLiteVecBackend, get_vector_backend
 
 
@@ -276,14 +276,14 @@ class RetrievalRouter:
             "self_state": {"summary", "project_status", "health"},
             "sector": {"sector", "lore"},
         }
-        hits = self._query_vector_collection("memory_vectors", query, top_k=top_k * 3)
-        rows = self._hydrate_neurons([str(hit["id"]) for hit in hits])
+        # F4.3 (2026-08-13): busca HÍBRIDA (FTS5 + vetor + RRF), não KNN puro.
+        # query_hybrid já faz BM25 + cosine + reciprocal rank fusion e hidrata os
+        # neurons na ordem RRF. Antes o router usava só o vector backend (KNN),
+        # ignorando o FTS5 — busca textual exata nunca alcançava o ranking.
+        rows = query_hybrid(query, limit=top_k * 3)
         allowed = type_map.get(intent)
         context: list[dict[str, Any]] = []
-        for hit in hits:
-            row = rows.get(str(hit["id"]))
-            if not row:
-                continue
+        for row in rows:
             if allowed and str(row["type"] or "") not in allowed:
                 # Keep sector/self_state useful even when type is generic but path matches lobe.
                 source_file = str(row["source_file"] or "")
@@ -293,16 +293,16 @@ class RetrievalRouter:
                     continue
                 if intent not in {"sector", "self_state"}:
                     continue
-            context.append(_neuron_context(row, score=hit.get("score"), route=intent))
+            context.append(_neuron_context(row, score=None, route=intent))
             if len(context) >= top_k:
                 break
         return {
-            "backend": "memory_vectors",
+            "backend": "memory_vectors+hybrid",
             "answer_context": context,
             "citations": [_citation_from_context(item) for item in context],
             "missing_context": [],
             "path": [],
-            "details": {"collection": "memory_vectors"},
+            "details": {"collection": "memory_vectors", "hybrid": True},
         }
 
     def _route_vector(self, collection: str, query: str, *, top_k: int) -> dict[str, Any]:
@@ -701,8 +701,30 @@ def _governance_flags(item: dict[str, Any]) -> tuple[bool, bool]:
     return stale, hypothesis
 
 
+def _item_access_count(item: dict[str, Any]) -> Any:
+    """Lê o contador de acessos do item (metadata.access_count ou governance.access_count)."""
+    metadata = item.get("metadata")
+    if isinstance(metadata, dict):
+        governance = metadata.get("governance")
+        if isinstance(governance, dict) and governance.get("access_count") is not None:
+            return governance["access_count"]
+        if metadata.get("access_count") is not None:
+            return metadata["access_count"]
+    return item.get("access_count", 0)
+
+
 def _apply_governance_penalty(context: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Rebaixa (nunca exclui) itens vencidos ou hipótese.
+
+    Typed decay (2026-08-12, OmniRoute TV6): a penalidade de staleness só é
+    aplicada a tipos efêmeros (`operational_fact`, `project_status`,
+    `visual_observation`, `next_step`, `summary`, `observation`). Tipos
+    duráveis (`fact`, `decision`, `learning`, `preference`, `rationale`,
+    `code_symbol`, `document_chunk`) são imunes por tipo, e qualquer item com
+    `access_count >= HIVE_STALENESS_ACCESS_IMMUNITY` é imune por acesso.
+
+    `hypothesis` continua sendo penalizado independentemente do tipo — é uma
+    marca de confiança (sem evidência), não de idade.
 
     Score numérico é multiplicado pelo fator e o item é anotado; a ordem
     relativa dos itens neutros é preservada (partição estável: neutros
@@ -715,6 +737,16 @@ def _apply_governance_penalty(context: list[dict[str, Any]]) -> list[dict[str, A
     penalized: list[dict[str, Any]] = []
     for item in context:
         stale, hypothesis = _governance_flags(item)
+        # Typed decay: stale só penaliza tipos efêmeros sem imunidade por acesso.
+        if stale:
+            from core.knowledge.typed_decay import should_apply_staleness
+
+            knowledge_type = str(item.get("type") or "")
+            if not should_apply_staleness(
+                knowledge_type=knowledge_type,
+                access_count=_item_access_count(item),
+            ):
+                stale = False
         if not stale and not hypothesis:
             fresh.append(item)
             continue
@@ -758,16 +790,76 @@ def _metadata_context(collection: str, hit: dict[str, Any]) -> dict[str, Any] | 
     }
 
 
+# F4.1 (2026-08-13): chunking header-based de neurônios longos no retrieval.
+# O conteúdo é split por seção `##` (heading), mantendo o span original
+# (offset_start/offset_end) para citação exata. Neurônios curtos não são
+# chunkados (retornam o conteúdo inteiro).
+CHUNK_CHAR_THRESHOLD = 1500
+
+
+def _chunk_neuron_content(content: str) -> tuple[str, int, int, str] | None:
+    """Divide conteúdo longo na PRIMEIRA seção `##` (self-contained).
+
+    Retorna (heading, offset_start, offset_end, chunk_text) da primeira seção
+    que não seja "Sinapses"/"Evidência"/"Related" (essas são metadados, não
+    conteúdo substantivo). Se não houver seção válida, retorna None (usa o
+    conteúdo inteiro).
+    """
+    import re
+
+    sections = list(re.finditer(r"^##+\s+(.+)$", content, re.MULTILINE))
+    if not sections:
+        return None
+
+    skip_headings = {"sinapses", "evidência", "evidencia", "related", "see also"}
+    # Encontra a primeira seção substantiva (não-metadado).
+    for i, m in enumerate(sections):
+        heading = m.group(1).strip()
+        if heading.lower() in skip_headings:
+            continue
+        start = m.end()  # início do conteúdo após o heading
+        end = sections[i + 1].start() if i + 1 < len(sections) else len(content)
+        chunk = content[start:end].strip()
+        if not chunk:
+            continue
+        return heading, start, end, chunk
+    return None
+
+
 def _neuron_context(row: Any, *, score: float | None, route: str) -> dict[str, Any]:
+    """F4.2 (2026-08-13): contexto com CHUNKING header-based + span de citação.
+
+    Para neurônios longos (> CHUNK_CHAR_THRESHOLD), extrai o trecho mais
+    relevante (por seção `##`) e expõe `heading`/`offset_start`/`offset_end`/
+    `parent_id` — os campos que `_citation_from_context` já lê mas que antes
+    chegavam sempre None. A citação passa a apontar para o span exato, não o
+    arquivo inteiro.
+    """
+    content = row["content"] or ""
+    heading = None
+    offset_start = 0
+    offset_end = len(content)
+    parent_id = row["id"]
+
+    if len(content) > CHUNK_CHAR_THRESHOLD:
+        chunk = _chunk_neuron_content(content)
+        if chunk is not None:
+            heading, offset_start, offset_end, content = chunk
+
     return {
         "id": row["id"],
         "type": row["type"],
         "title": row["label"],
-        "content": row["content"] or "",
+        "content": content,
         "source_uri": _citation_source_uri(row["source_file"] or f"hive_mind.db:neurons/{row['id']}"),
         "score": score,
         "route": route,
         "metadata": _loads(row["metadata"]),
+        "heading": heading,
+        "offset_start": offset_start,
+        "offset_end": offset_end,
+        "parent_id": parent_id,
+        "parent_type": "neuron",
     }
 
 

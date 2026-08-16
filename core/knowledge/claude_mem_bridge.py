@@ -24,7 +24,15 @@ from hive_mind.projects.identity import ProjectIdentity, ProjectIdentityError
 
 logger = logging.getLogger("claude_mem_bridge")
 
-CLAUDE_MEM_DB = Path(os.environ.get("CLAUDE_MEM_DB", str(Path.home() / ".claude-mem" / "claude-mem.db")))
+# O DB do claude-mem vive em {ROOT}/claude-mem/data (projeto, gitignored), não em
+# ~/.claude-mem. O fallback resolve o ROOT do projeto; o supervisor/launcher
+# define CLAUDE_MEM_DB explicitamente em produção.
+CLAUDE_MEM_DB = Path(
+    os.environ.get(
+        "CLAUDE_MEM_DB",
+        str(Path(__file__).resolve().parents[2] / "claude-mem" / "data" / "claude-mem.db"),
+    )
+)
 DEFAULT_LIMIT = 1000
 BRIDGE_SOURCE = "claude-mem-bridge"
 SOURCE_TABLES = ("observations", "discoveries", "session_summaries")

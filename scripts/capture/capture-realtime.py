@@ -72,7 +72,8 @@ class RealtimeCapture:
         window_s: float = WINDOW_S,
         live_max_age_s: float = LIVE_MAX_AGE_S,
         clock=time.time,
-        resolver: ProjectIdentityResolver | None = None,
+        resolver: "ProjectIdentityResolver | None" = None,
+        handle_throttle_s: float = 1.0,
     ) -> None:
         self._registry = registry
         self._store = store
@@ -83,14 +84,20 @@ class RealtimeCapture:
         self._provider_locks = {
             provider: threading.Lock() for provider in self._registry
         }
+        self._last_handled: dict[str, float] = {}
+        self._handle_throttle_s = max(0.0, float(handle_throttle_s))
 
-    def handle_change(self, change: SourceChange) -> int:
+    def handle_change(self, change: "SourceChange") -> int:
         """Re-parse changed sources and deliver new content to Claude-Mem."""
         adapter = self._registry.get(change.provider)
         if not adapter:
             return 0
         with self._provider_locks[change.provider]:
             now = self._clock()
+            last_handled = self._last_handled.get(change.provider, 0.0)
+            if now - last_handled < self._handle_throttle_s:
+                return 0
+            self._last_handled[change.provider] = now
             core.SESSION_CUTOFF_MS = int((now - self._window_s) * 1000)
             if change.path.is_file() and self._matches_source(change.provider, change.path):
                 targets = [change.path]

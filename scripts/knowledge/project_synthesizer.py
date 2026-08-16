@@ -21,16 +21,22 @@ _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent.parent))
 
 from core.paths import PROJECTS_ROOT, TEMPORAL  # noqa: E402
+from core.vault import project_display_name, canonical_slug  # noqa: E402
 from scripts.knowledge.drift_detector import scan_neuronios, DECISION_TYPES  # noqa: E402
 
 AUTO_START = "<!-- auto:start -->"
 AUTO_END = "<!-- auto:end -->"
 
+# F2.3 (2026-08-13): limita a lista de tópicos no bloco auto. O bug anterior
+# listava TODOS os tópicos (centenas) criando "topic-junk" — wikilinks de slug
+# sem valor navegacional. Mantemos só os N mais frequentes (relevância real).
+MAX_TOPICS = 30
+
 
 def project_stats(temporal_root: Path = TEMPORAL, *, now=None) -> dict:
-    """{projeto: {neurons, decisions, facts, topics:[...], latest}}."""
+    """{projeto: {neurons, decisions, facts, topics:{topico:count}, latest}}."""
     acc: dict = defaultdict(lambda: {"neurons": 0, "decisions": 0, "facts": 0,
-                                     "topics": set(), "latest": None})
+                                     "topics": defaultdict(int), "latest": None})
     for n in scan_neuronios(temporal_root, now=now):
         s = acc[n["project"]]
         s["neurons"] += 1
@@ -38,15 +44,20 @@ def project_stats(temporal_root: Path = TEMPORAL, *, now=None) -> dict:
             s["decisions"] += 1
         elif n["type"] == "fact":
             s["facts"] += 1
-        s["topics"].add(n["topic"])
+        t = canonical_slug(n["topic"] or "general")
+        s["topics"][t] += 1
         lu = n["data"].get("last_updated")
         if lu and (s["latest"] is None or str(lu) > str(s["latest"])):
             s["latest"] = str(lu)
-    return {p: {**v, "topics": sorted(v["topics"])} for p, v in acc.items()}
+    return {
+        p: {**v, "topics": dict(sorted(v["topics"].items(), key=lambda kv: -kv[1])[:MAX_TOPICS])}
+        for p, v in acc.items()
+    }
 
 
 def _auto_block(project: str, st: dict) -> str:
-    topics = "\n".join(f"- [[_{t}|{t}]]" for t in st["topics"]) or "- _(nenhum)_"
+    # F2.3: wikilink correto (sem underscore fantasma), top N por frequência.
+    topics = "\n".join(f"- [[{t}]] _({c})_" for t, c in st["topics"].items()) or "- _(nenhum)_"
     return f"""{AUTO_START}
 > Atualizado automaticamente por project_synthesizer.py · não editar dentro do bloco.
 
@@ -58,7 +69,7 @@ def _auto_block(project: str, st: dict) -> str:
 | Tópicos | {len(st['topics'])} |
 | Último update | {st['latest'] or 'n/a'} |
 
-## Tópicos
+## Tópicos principais
 {topics}
 {AUTO_END}"""
 
@@ -66,16 +77,23 @@ def _auto_block(project: str, st: dict) -> str:
 def render(project: str, st: dict, existing: Optional[str] = None) -> str:
     """Render idempotente: substitui só o bloco auto, preservando edição manual."""
     block = _auto_block(project, st)
+    display = project_display_name(project)
     if existing and AUTO_START in existing:
         return re.sub(re.escape(AUTO_START) + r".*?" + re.escape(AUTO_END),
                       block, existing, flags=re.DOTALL)
     return f"""---
 type: project-status
-project: {project}
+project: {display}
+project_id: {project}
 ---
-# 🧠 {project}
+# 🧠 {display}
 
 {block}
+
+## Sinapses
+- projeto:: [[{display}]]
+- lobo:: [[cortex-frontal]]
+- córtex:: [[cortex]]
 
 ## Notas (manuais — preservadas)
 """
@@ -85,12 +103,16 @@ def write_all(*, temporal_root: Path = TEMPORAL, projects_root: Path = PROJECTS_
               apply: bool = False, now=None) -> dict:
     stats = project_stats(temporal_root, now=now)
     for proj, st in sorted(stats.items()):
-        dest = projects_root / f"{proj}.md"
+        # F2.3: nome de ARQUIVO usa o nome humano (project_display_name), não o
+        # hash/workspace_id cru. Mantém o project_id real no frontmatter.
+        display = project_display_name(proj)
+        fname = canonical_slug(display) or proj
+        dest = projects_root / f"{fname}.md"
         existing = dest.read_text(encoding="utf-8") if dest.exists() else None
         if apply:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(render(proj, st, existing), encoding="utf-8")
-        print(f"  {'[apply]' if apply else '[dry]'} {proj}: {st['neurons']} neurônios, {st['decisions']} decisões → {dest}")
+        print(f"  {'[apply]' if apply else '[dry]'} {proj}: {st['neurons']} neurônios, {st['decisions']} decisões → {dest.name}")
     out = {"projects": len(stats), "applied": apply}
     print(f"project_synthesizer: {out}")
     return out

@@ -196,6 +196,11 @@ class PollingReconciler:
     the baseline without emitting callbacks (startup catch-up is the daemon's
     job); afterwards both changed and newly discovered files emit one
     ``SourceChange`` each.
+
+    A per-provider backoff prevents CPU spin when a source (e.g. an active
+    SQLite DB) is rewritten faster than the base interval: if a full scan
+    delivers no new content, the interval grows by 1.5× up to a cap; any
+    successful delivery resets it to the base.
     """
 
     def __init__(
@@ -203,10 +208,16 @@ class PollingReconciler:
         registry: Registry,
         callback: Callable[[SourceChange], None],
         interval: float = 5.0,
+        *,
+        backoff_factor: float = 1.5,
+        backoff_cap_s: float = 30.0,
     ) -> None:
         self._registry = {provider: list(patterns) for provider, patterns in registry.items()}
         self._callback = callback
-        self.interval = max(0.0, float(interval))
+        self._base_interval = max(0.0, float(interval))
+        self._current_interval = self._base_interval
+        self._backoff_factor = max(1.0, float(backoff_factor))
+        self._backoff_cap_s = max(self._base_interval, float(backoff_cap_s))
         self._seen: dict[str, tuple[int, ...]] = {}
         self._primed = False
         self._lock = threading.Lock()
@@ -238,10 +249,16 @@ class PollingReconciler:
                         if not priming:
                             changes.append(SourceChange(provider, Path(match), time.time()))
                             emitted += 1
-            # Forget deleted files so a future recreation is reported again.
             for key in [k for k in self._seen if k not in alive]:
                 del self._seen[key]
             self._primed = True
+            if emitted == 0 and not priming:
+                self._current_interval = min(
+                    self._current_interval * self._backoff_factor,
+                    self._backoff_cap_s,
+                )
+            else:
+                self._current_interval = self._base_interval
         for change in changes:
             self._callback(change)
         return emitted
@@ -253,7 +270,7 @@ class PollingReconciler:
         self._stop_event.clear()
 
         def _loop() -> None:
-            while not self._stop_event.wait(max(0.1, self.interval)):
+            while not self._stop_event.wait(max(0.1, self._current_interval)):
                 try:
                     self.scan_once()
                 except Exception:

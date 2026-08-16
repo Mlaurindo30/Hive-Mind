@@ -81,7 +81,10 @@ def test_bridge_preserva_project(hm_path, cm_path):
 
 def test_default_claude_mem_db_aponta_para_global(monkeypatch):
     monkeypatch.delenv("CLAUDE_MEM_DB", raising=False)
-    assert br.CLAUDE_MEM_DB == br.Path.home() / ".claude-mem" / "claude-mem.db"
+    # O DB do claude-mem vive no projeto (DATA_DIR isolado, 2026-08-12), não em
+    # ~/.claude-mem. O fallback resolve {ROOT}/claude-mem/data/claude-mem.db.
+    expected = br.Path(__file__).resolve().parents[2] / "claude-mem" / "data" / "claude-mem.db"
+    assert br.CLAUDE_MEM_DB == expected
 
 
 def test_bridge_idempotente(hm_path, cm_path):

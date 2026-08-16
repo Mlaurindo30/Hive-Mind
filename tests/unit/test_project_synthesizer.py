@@ -31,7 +31,8 @@ def test_stats_agrega_por_projeto(vault):
     assert st["ComfyUI"]["neurons"] == 2
     assert st["ComfyUI"]["decisions"] == 1 and st["ComfyUI"]["facts"] == 1
     assert st["ComfyUI"]["latest"] == "2026-06-12 10:00"
-    assert st["Thoth"]["topics"] == ["auth"]
+    # F2.3: topics agora é dict {tópico: contagem} (para filtrar top N).
+    assert st["Thoth"]["topics"] == {"auth": 1}
 
 
 def test_dry_run_nao_escreve(vault, tmp_path):
