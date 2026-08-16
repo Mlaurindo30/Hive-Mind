@@ -1,8 +1,42 @@
 # Changelog
 
-## Unreleased — planned v3.10.1
+## v3.10.1 — Windows nativo + correções de modelo, integridade e orquestração
 
-- Windows installation reliability and operational gate corrections are pending validation; this is not a published release.
+Release date: 2026-08-15
+
+The Windows-native runtime matures and the gaps found in the greenfield
+readiness audit are closed: the Dream Cycle model pipeline, knowledge data
+integrity and containerized installation are now reliable.
+
+### Added
+
+- `Dockerfile` + `docker-compose.yml` (unified backend orchestration:
+  FalkorDB, Milvus, RAGFlow stack + app).
+- `docker/entrypoint.sh` materializes the vault (`templates/vault` → `cerebro`)
+  on the first run of the volume, idempotently.
+- `.dockerignore` (lean build context; stops shipping secrets/state).
+- `scripts/maintenance/vector-backfill.py`, `data-backfill.py` and
+  `drain-candidates.py` (idempotent, governance-aware backlog drains).
+
+### Changed
+
+- Dream Cycle: Distiller/Router route via role config (`granite4.1:8b`
+  instruct local); Validator keeps reasoning (`qwen3.5:397b`).
+- Model Registry: `reasoning=True` by role (dreamer/validator/synthesis).
+- DreamCycle scheduled every 4h (`PT4H`), matching `runtime.yaml`.
+- Backup task targets the native `hive-mind.exe` (P2-R1 cutover).
+
+### Fixed
+
+- Reasoning models (qwen3.5:397b, gpt-oss-120b) ignore `json_schema` strict
+  and leak chain-of-thought into content; now use `reasoning_effort=none` +
+  `json_object` + retry on `structured_output_not_json`/`schema_invalid`.
+- `index_neuron_ids`: missing `embedding_text` import (`NameError`) blocked the
+  sqlite-vec reindex path — the root cause of the 32% unvectorized neurons.
+- Project identity: referenced projects no longer activate the primary id.
+- 21 unit-test failures fixed (llm_fallback gateway mocks, daemon_lock mutex
+  isolation, architecture boundaries, temporal evidence quoting, backup
+  migration contract, dashboard-head sync).
 
 ## v3.10.0 — Model Gateway + Unified Provider Routing
 
