@@ -4,6 +4,7 @@
   **Universal, persistent, local-first memory layer for swarms of AI agents.**
 
   [![Status](https://img.shields.io/badge/status-Knowledge%20Architecture%20(Born--Large)-blue)]()
+  [![Version](https://img.shields.io/badge/version-v3.10.1-blue)]()
   [![Python](https://img.shields.io/badge/python-3.12-green)]()
   [![License](https://img.shields.io/badge/license-Apache%202.0-lightgrey)]()
   [![Tests](https://img.shields.io/badge/tests-run_all%20%2B%20real%20suites-brightgreen)]()
@@ -43,18 +44,28 @@ One-liner without Node (Linux / WSL / macOS):
 curl -fsSL https://cdn.jsdelivr.net/gh/Mlaurindo30/Hive-Mind@main/install.sh | bash
 ```
 
+### Via Docker (greenfield)
+
+```bash
+docker compose up -d                  # core: FalkorDB + app (vault materialized on first run)
+docker compose --profile full up -d   # + Milvus + RAGFlow (production)
+```
+
+The image materializes the Obsidian vault (`templates/vault/` → `cerebro/`) on the first run of the
+volume — see [`docs/english/installation.md`](docs/english/installation.md).
+
 | Platform | Status | Service backend | Vault enforcement (opt-in) |
 |---|---|---|---|
 | Linux / WSL2 | ✅ stable (clean-machine tested) | systemd `--user` | ✅ tested (`setup-vault-enforcement.sh`) |
 | macOS | 🧪 experimental | launchd (`install_services.py launchd`) | 🚧 beta (same script, Darwin branch) |
-| Windows native | 🚧 beta — `npx hive-sinapse-mind init` runs natively (uv sync, vault, `.env`, MCP configs, supervisor); host agents connect directly | `hive-mind services` supervisor | 🚧 beta (`vault_enforcement.py`, icacls) |
+| Windows native | 🚧 beta — `npx hive-sinapse-mind init` runs natively (uv sync, vault, `.env`, MCP configs, supervisor); host agents connect directly | `hive-mind service` (managed supervisor) | 🚧 beta (`vault_enforcement.py`, icacls) |
 
 > Windows: native mode is the default so host agents (Claude Code, Cursor,
 > Copilot) reach the memory directly — a WSL2-only install lives in another
 > filesystem/network namespace their MCP configs cannot see. WSL2 remains the
 > fallback when `git`/`uv` are missing on the host.
 
-After install: `hive-mind mcp register --agent <claude|codex|gemini|cursor|...>`,
+After install: `hive-mind agents register --agent <claude|codex|gemini|cursor|...> --apply`,
 restart your agent and confirm with *"use the sinapse_health tool"*.
 
 ### Via AI agent prompt
@@ -121,8 +132,8 @@ native call is `hive-mind agents register --only <your-agent> --apply`.
 After registering, restart yourself and confirm with: "use the sinapse_health tool"
 ```
 
-> 📦 **Manual install, Windows (WSL2), prerequisites and the 12-step breakdown:** see
-> [`docs/installation.md`](docs/installation.md).
+> 📦 **Manual install, Windows (WSL2), prerequisites and the breakdown:** see
+> [`docs/english/installation.md`](docs/english/installation.md).
 
 ---
 
@@ -171,7 +182,7 @@ maps to a function and a concrete place in the code/vault:
 
 External tools are **organs** of the brain, not parallel databases: Graphify (occipital), claude-mem
 (temporal), NeuralMemory (association), filesystem scan (parietal). RTK lives in the Brainstem as a
-cross-cutting execution layer. Full anatomy: [`docs/01-architecture.md` §2](docs/01-architecture.md).
+cross-cutting execution layer. Full anatomy: [`docs/english/architecture.md`](docs/english/architecture.md).
 
 ---
 
@@ -202,6 +213,7 @@ cross-cutting execution layer. Full anatomy: [`docs/01-architecture.md` §2](doc
 | `sinapse_plan_goal` | Decompose a goal into steps and persist to UMC (HM-11) |
 | `sinapse_temporal_graph_search` | Direct Graphiti/FalkorDB query (compatibility) |
 | `sinapse_rag_query` | LightRAG multi-hop query |
+| `sinapse_promote_knowledge` | Normalize pending observations into typed knowledge (K3 intake) |
 | `search_memories` | HNSW/text search over consolidated neurons |
 
 Project-managed MCP templates live in `config/mcp/`; generated per-agent runtime
@@ -253,7 +265,7 @@ Capture (hooks/MCP/CLI/browser/docs/code/screenshots)
   `retrieval_path`, `citations`, `confidence` and `missing_context`. LlamaIndex plugs in as an
   optional reranker adapter, never as the routing decision-maker.
 - Neither Milvus, RAGFlow nor LlamaIndex ever replace the brain: the vault (`cerebro/`) and the
-  UMC stay the source of truth (`docs/11` §16).
+  UMC stay the source of truth ([`docs/english/architecture.md`](docs/english/architecture.md)).
 - **Knowledge governance**: every candidate is classified on two axes — `confidence`
   (verified/hypothesis, from concrete evidence artifacts) and `risk` (low/high, secrets and
   destructive operations). Promotion is proportional to risk; promoted notes carry
@@ -261,7 +273,7 @@ Capture (hooks/MCP/CLI/browser/docs/code/screenshots)
   OS-level vault write enforcement: `./install.sh --with-vault-enforcement` (dedicated service
   user owns `cerebro/`; agents write only to `cerebro/90-intake/`).
 
-Full design and phase-by-phase status: [`docs/01-architecture.md` §22–§31](docs/01-architecture.md#22-arquitetura-de-conhecimento-born-large).
+Full design: [`docs/english/data-pipeline.md`](docs/english/data-pipeline.md).
 
 ### Memory dimensions
 
@@ -287,10 +299,17 @@ into structured, validated, human-readable knowledge — facts, semantic links a
   <br><sub><i>Raw observations → distillation → validation → consolidated facts written back to the vault</i></sub>
 </div>
 
+- **Model Gateway (canonical execution layer):** every LLM call routes through the gateway by role
+  and capability (`MODEL_GATEWAY_MODE=auto|on|off`, with `HIVE_FORCE_LEGACY_LLM=true` as an
+  emergency bypass). The Dream Cycle uses three sub-roles — **Distiller** and **Router** (instruct
+  local, `granite4.1:8b`) and **Validator** (reasoning, `qwen3.5:397b`); `reasoning=True` is
+  assigned per role, not per model name.
 - **Provider-agnostic, per role:** each role (`dreamer`, `graphify`, `vision`, `synthesis`) picks
   provider+model via `HIVE_{ROLE}_PROVIDER/MODEL` in `.env`, inheriting from the Dreamer with opt-in
   fallback. Supports Google/Gemini, OpenAI, Anthropic, DeepSeek, OpenRouter, NVIDIA, HuggingFace,
   Qwen, LM Studio and Ollama.
+- **Scheduled every 4h:** the Dream Cycle runs on `0 */4 * * *` (Windows Task Scheduler `PT4H`,
+  POSIX systemd timer).
 - **Fail-safe:** a failing pipeline sends data to quarantine (`archived=2`), never discards it.
 - **Multimodal:** screenshots and PDFs/DOCX enter the same pipeline as logs.
 
@@ -299,8 +318,8 @@ into structured, validated, human-readable knowledge — facts, semantic links a
 python3 scripts/dream/dream_cycle.py  # trigger consolidation
 ```
 
-Deep dives: [`docs/01-architecture.md`](docs/01-architecture.md) ·
-[`docs/02-ai-models.md`](docs/02-ai-models.md).
+Deep dives: [`docs/english/architecture.md`](docs/english/architecture.md) ·
+[`docs/english/ai-models.md`](docs/english/ai-models.md).
 
 ---
 
@@ -383,7 +402,7 @@ python3 scripts/services/sinapse-api.py    # port 37702
 - `audit_memory.py --fix` — reconciles temporal neurons ↔ SQLite, validates `search_vec`, and keeps generated MOCs out of the neuron index
 - Dialectic Synthesis in the Dream Cycle resolves conflicts via LLM
 
-Full setup: [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md).
+Full setup: [`docs/english/operations.md`](docs/english/operations.md).
 
 ---
 
@@ -435,17 +454,24 @@ model/runtime validation lives in integration/E2E suites and `tests/run_real_kno
 
 ## 📚 Documentation
 
+Documentation is maintained in two languages:
+
+| Language | Folder |
+|----------|--------|
+| Português (Brasil) | [`docs/brazilian/`](docs/brazilian/README.md) |
+| English | [`docs/english/`](docs/english/README.md) |
+
+Core references (English):
+
 | Document | Contents |
 |----------|----------|
-| [`docs/installation.md`](docs/installation.md) | Install reference (prerequisites, WSL2, 12 steps, components) |
-| [`docs/01-architecture.md`](docs/01-architecture.md) | Canonical architecture reference + brain anatomy + ADRs |
-| [`docs/02-ai-models.md`](docs/02-ai-models.md) | LLMs, embeddings, providers, fallback |
-| [`docs/03-data-pipeline.md`](docs/03-data-pipeline.md) | Full data pipeline |
-| [`docs/04-infrastructure.md`](docs/04-infrastructure.md) | Infrastructure, ports, services, security |
-| [`docs/05-blueprints.md`](docs/05-blueprints.md) | ASCII diagrams of every flow |
-| [`docs/07-p2p-sync-setup.md`](docs/07-p2p-sync-setup.md) | P2P synchronization setup |
-| [`docs/01-architecture.md` §22–§31](docs/01-architecture.md#22-arquitetura-de-conhecimento-born-large) | Knowledge promotion architecture and implementation status (K0–K10) |
-| [`docs/reports/POST_AUDIT_FIX_LOG.md`](docs/reports/POST_AUDIT_FIX_LOG.md) | Latest real-suite / post-audit evidence log |
+| [`docs/english/README.md`](docs/english/README.md) | Index + reading guide |
+| [`docs/english/architecture.md`](docs/english/architecture.md) | Brain anatomy, UMC, layers, boundaries |
+| [`docs/english/data-pipeline.md`](docs/english/data-pipeline.md) | Capture → promotion → persistence → index (who fills what) |
+| [`docs/english/ai-models.md`](docs/english/ai-models.md) | LLMs, embeddings, roles, Model Gateway |
+| [`docs/english/runtime.md`](docs/english/runtime.md) | Daemon, supervisor, scheduler, services |
+| [`docs/english/installation.md`](docs/english/installation.md) | Windows, Linux, Docker install |
+| [`docs/english/operations.md`](docs/english/operations.md) | health/doctor, backup, recover, P2P |
 | [`AGENTS.md`](AGENTS.md) | Guide for AI agents |
 
 ---
