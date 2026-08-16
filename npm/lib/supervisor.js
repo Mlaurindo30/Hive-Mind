@@ -3,6 +3,8 @@
 // daemon process; the daemon owns service lifecycle, restart, health and state.
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const https = require('https');
 const { spawn, spawnSync } = require('child_process');
 const { homeDir } = require('./platform');
 
@@ -139,7 +141,14 @@ function runnableServices(manifest, profile) {
   return topologicalServices(selectServices(manifest, profile));
 }
 
-function readState() {
+function readState(stateFile) {
+  if (stateFile) {
+    try {
+      return JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+    } catch {
+      return null;
+    }
+  }
   const p = paths();
   for (const candidate of [p.managedState, p.shadowState]) {
     if (!fs.existsSync(candidate)) continue;
@@ -191,14 +200,19 @@ async function waitForRequiredHealthy(manifest, profile, options = {}) {
   let missing = required;
 
   do {
-    const state = readState();
-    const services = Array.isArray(state?.services)
-      ? state.services
-      : Object.entries(state?.services || {}).map(([name, payload]) => ({ name, ...payload }));
+    const state = readState(options.stateFile) || {};
+    const raw = state.services !== undefined ? state.services : state;
+    const services = Array.isArray(raw)
+      ? raw
+      : Object.entries(raw).map(([name, payload]) => ({ name, ...payload }));
     const byName = new Map(services.map((svc) => [svc.name, svc]));
     missing = required.filter((name) => {
       const current = byName.get(name) || {};
-      return current.readiness !== 'ready' && current.state !== 'running';
+      return (
+        current.readiness !== 'ready' &&
+        current.state !== 'running' &&
+        current.state !== 'healthy'
+      );
     });
     if (!missing.length) return;
     await new Promise((resolve) => setTimeout(resolve, pollMs));
@@ -287,6 +301,58 @@ function status() {
   return health === 0 && ping.status === 0 ? 0 : 1;
 }
 
+function waitForReadiness(service, options = {}) {
+  const readiness = (service && service.readiness) || {};
+  if (readiness.type !== 'http') {
+    return Promise.reject(new Error(`unsupported readiness type: ${readiness.type}`));
+  }
+  const expected = readiness.expected_status || [200];
+  const timeoutMs = (readiness.timeout_seconds || 5) * 1000;
+  const client = String(readiness.url).startsWith('https') ? https : http;
+  return new Promise((resolve, reject) => {
+    const req = client.get(readiness.url, { timeout: timeoutMs }, (res) => {
+      res.resume();
+      if (expected.includes(res.statusCode)) resolve(true);
+      else reject(new Error(`readiness returned ${res.statusCode}`));
+    });
+    req.on('timeout', () => req.destroy(new Error('readiness timeout')));
+    req.on('error', reject);
+  });
+}
+
+function shouldAdoptExistingService(service, healthy) {
+  if (!healthy) return false;
+  if (service && service.external) return false;
+  if (service && service.healthcheck && service.healthcheck.type === 'none') return false;
+  return true;
+}
+
+function reportedServiceState(serviceState, pidAlive) {
+  return (serviceState && serviceState.state) || 'starting';
+}
+
+function healthStateTransition(current, healthy) {
+  const cur = current || {};
+  const extra = {};
+  if (cur.pid !== undefined) extra.pid = cur.pid;
+  if (cur.restart_count !== undefined) extra.restart_count = cur.restart_count;
+  if (healthy) return { state: 'healthy', extra };
+  extra.last_error = 'healthcheck failed';
+  return { state: 'degraded', extra };
+}
+
+function restartDelayMs(service, restartCount) {
+  const base = (service && service.restart_delay_seconds) || 1;
+  const max = (service && service.restart_max_delay_seconds) || base;
+  return Math.min(base * Math.pow(2, restartCount), max) * 1000;
+}
+
+function canRestart(service, restartCount) {
+  const limit = service && service.restart_limit;
+  if (limit === undefined || limit === null) return true;
+  return restartCount < limit;
+}
+
 module.exports = {
   start,
   stop,
@@ -299,4 +365,10 @@ module.exports = {
   requiredServiceErrors,
   requiredServiceHealth,
   waitForRequiredHealthy,
+  waitForReadiness,
+  shouldAdoptExistingService,
+  reportedServiceState,
+  healthStateTransition,
+  restartDelayMs,
+  canRestart,
 };
