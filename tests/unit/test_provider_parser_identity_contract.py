@@ -16,7 +16,7 @@ if str(CAPTURE) not in sys.path:
 
 PROVIDERS = (
     "antigravity", "codex", "copilot", "hermes", "kilo", "kimi",
-    "mimo", "qwen", "roo", "screenpipe", "swarmclaw",
+    "mimo", "qwen", "roo", "screenpipe", "swarmclaw", "zcode",
 )
 
 
@@ -344,6 +344,36 @@ def test_qwen_preserves_explicit_desktop_source_and_surface(tmp_path: Path) -> N
     assert session["source"] == "qwen-code-desktop"
     assert session["surface"] == "desktop"
     assert session["official_workspace"] == "D:/Hive-Mind"
+    assert "project" not in session
+
+
+def test_zcode_extracts_cwd_from_system_block_without_project(tmp_path: Path) -> None:
+    rollout = tmp_path / "model-io-sess_abc.jsonl"
+    system_text = (
+        "You are ZCode, an interactive coding agent\n"
+        "# Environment\nPrimary working directory: D:\\Hive-Mind\n"
+    )
+    records = [
+        {
+            "type": "model_io", "sessionId": "sess_abc", "requestId": "req-1",
+            "request": {"body": {"system": [{"type": "text", "text": system_text}]},
+                        "messages": [{"role": "user", "content": [
+                            {"type": "text", "text": "<system-reminder>x</system-reminder>prompt real"}]}]},
+            "response": {"text": "resposta", "toolCalls": [
+                {"id": "call_1", "name": "Bash", "input": {"command": "ls"}}]},
+        },
+    ]
+    rollout.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
+
+    session = _load("zcode").parse(rollout)[0]
+
+    assert session["sid"] == "sess_abc"
+    assert session["prompts"] == ["prompt real"]
+    assert session["turns"][0]["tool_name"] == "Bash"
+    assert session["last"] == "resposta"
+    assert session["cwd"] == "D:\\Hive-Mind"
+    assert session["source"] == "zcode"
+    assert session["surface"] == "cli"
     assert "project" not in session
 
 

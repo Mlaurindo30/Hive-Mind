@@ -31,6 +31,7 @@ from parsers import (
     openclaw as _openclaw,
     roo as _roo,
     swarmclaw as _swarmclaw,
+    zcode as _zcode,
 )
 
 
@@ -211,6 +212,14 @@ ADAPTERS = {
         "owner": "realtime", "mode": "reparse", "parser": _swarmclaw.parse,
         "watch": [str(HOME / ".swarmclaw/data")],
         "sources": [str(HOME / ".swarmclaw/data/swarmclaw.db")],
+    },
+    # ZCode CLI: cada sessão é um JSONL append-only em ~/.zcode/cli/rollout
+    # (model-io-sess_*.jsonl, incl. subagentes). O parser deduplica prompts que
+    # reaparecem a cada chamada e extrai o cwd do bloco system.
+    "zcode": {
+        "owner": "realtime", "mode": "tail", "parser": _zcode.parse,
+        "watch": [str(HOME / ".zcode/cli/rollout")],
+        "sources": [str(HOME / ".zcode/cli/rollout/model-io-sess_*.jsonl")],
     },
     # antigravity-cli NÃO está aqui: o claude-mem já o captura NATIVAMENTE via
     # hooks (adapter antigravity-cli em src/cli/adapters, desde v13.10.0 quando a
