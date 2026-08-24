@@ -31,6 +31,9 @@ import requests
 from core.auth import get_credentials, refresh_oauth_token, get_role_config
 
 
+_legacy_vision_bridge_warned = False
+
+
 class LLMValidationError(Exception):
     """Saída da LLM não passou na validação Pydantic (qualidade, não disponibilidade)."""
 
@@ -537,6 +540,19 @@ def call_llm_with_fallback(role: str, prompt: str, system_prompt: str, response_
                 "  [ModelGateway] HIVE_FORCE_LEGACY_LLM overrides MODEL_GATEWAY_MODE=on",
                 file=sys.stderr,
             )
+        return _legacy_call_llm_with_fallback(
+            role, prompt, system_prompt, response_model, image_path, max_retries,
+        )
+
+    if image_path is not None:
+        global _legacy_vision_bridge_warned
+        if not _legacy_vision_bridge_warned:
+            print(
+                "  [ModelGateway] legacy_vision_bridge_used=true; "
+                "image_path routed through legacy llm_client",
+                file=sys.stderr,
+            )
+            _legacy_vision_bridge_warned = True
         return _legacy_call_llm_with_fallback(
             role, prompt, system_prompt, response_model, image_path, max_retries,
         )

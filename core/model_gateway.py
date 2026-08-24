@@ -375,10 +375,33 @@ class ModelGateway:
             raise ModelGatewayError("either role or model_id must be given")
         return self.registry.select(role, require=require, prefer=prefer)
 
-    def _fallback_targets(self, profile: ModelProfile) -> list[ModelProfile]:
+    def _fallback_targets(
+        self, profile: ModelProfile, role: Optional[str] = None,
+    ) -> list[ModelProfile]:
         targets: list[ModelProfile] = []
         seen = {profile.id}
-        for fb_id in profile.fallback_chain:
+
+        if profile.fallback_chain:
+            candidate_ids = profile.fallback_chain
+        elif role is not None:
+            role_candidates = [
+                candidate
+                for candidate in self.registry.find_role_candidates(role)
+                if candidate.role == role
+            ]
+            selected_index = next(
+                (idx for idx, candidate in enumerate(role_candidates) if candidate.id == profile.id),
+                -1,
+            )
+            candidate_ids = (
+                [candidate.id for candidate in role_candidates[selected_index + 1:]]
+                if selected_index >= 0
+                else []
+            )
+        else:
+            candidate_ids = []
+
+        for fb_id in candidate_ids:
             if fb_id in seen:
                 break  # cycle guard (Edge Case 18)
             seen.add(fb_id)
@@ -443,19 +466,29 @@ class ModelGateway:
 
         request_id = str(uuid.uuid4())
         chain_ids: list[str] = [profile.id]
+        processed_ids: list[str] = []
         fallback_used = False
         last_response = None
 
-        # The selected profile is the contract boundary. A role can have
-        # several registered models, but they must not become implicit
-        # fallbacks for one another: it would make a deliberately failed
-        # primary/fallback pair succeed through an unrelated role (for
-        # example GRAPHIFY or VISION). Only the selected profile's explicit
-        # fallback_chain is executable.
         candidates = [profile]
+        skipped_prefix: list[ModelProfile] = []
+        if role is not None and require:
+            role_candidates = [
+                candidate
+                for candidate in self.registry.find_role_candidates(role)
+                if candidate.role == role
+            ]
+            selected_index = next(
+                (idx for idx, candidate in enumerate(role_candidates) if candidate.id == profile.id),
+                0,
+            )
+            skipped_prefix = role_candidates[:selected_index]
+
         if self.registry.defaults.fallback_enabled:
-            candidates += self._fallback_targets(profile)
-        for idx, candidate in enumerate(candidates):
+            candidates += self._fallback_targets(profile, role)
+        candidates = skipped_prefix + candidates
+        for candidate in candidates:
+            processed_ids.append(candidate.id)
             # EC-3 — never dispatch an adapter for a profile the registry
             # explicitly marked unsupported.
             if candidate.unsupported_reason:
@@ -516,10 +549,9 @@ class ModelGateway:
                 if response.ok or response.error not in retryable or attempt >= max_retries:
                     break
 
-            if idx > 0:
+            if skipped_prefix or candidate.id != profile.id:
                 fallback_used = True
-                if candidate.id not in chain_ids:
-                    chain_ids.append(candidate.id)
+                chain_ids = list(processed_ids)
 
             model_telemetry.record_call(
                 request_id=request_id,

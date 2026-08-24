@@ -151,6 +151,8 @@ def test_skip_event_is_emitted_when_falling_back(capsys):
         )
     assert resp.ok is True
     assert "structured-fallback" in resp.model_id
+    assert resp.fallback_used is True
+    assert resp.fallback_chain == ["plain-primary", "structured-fallback"]
 
     events = _read_skipped_events(capsys)
     assert len(events) == 1, events

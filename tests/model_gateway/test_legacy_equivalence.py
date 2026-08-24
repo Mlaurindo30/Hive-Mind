@@ -147,6 +147,7 @@ def test_image_path_uses_legacy_bridge(monkeypatch, capsys, tmp_path):
     """When image_path is passed, the legacy path is used even with
     the gateway active (R8 §1)."""
     monkeypatch.setenv("MODEL_GATEWAY_MODE", "on")
+    monkeypatch.setattr(llm_client, "_legacy_vision_bridge_warned", False)
     # image file must exist for the legacy call to not crash on open()
     img = tmp_path / "pixel.png"
     img.write_bytes(b"\x89PNG\r\n\x1a\n")  # minimal PNG header
@@ -171,6 +172,12 @@ def test_image_path_uses_legacy_bridge(monkeypatch, capsys, tmp_path):
 
     out = capsys.readouterr().err
     assert "legacy_vision_bridge_used=true" in out
+
+    with patch.object(llm_client, "_legacy_call_llm_with_fallback", side_effect=fake_legacy):
+        llm_client.call_llm_with_fallback(
+            "dreamer", "p", "s", _Ok, image_path=str(img),
+        )
+    assert "legacy_vision_bridge_used=true" not in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------

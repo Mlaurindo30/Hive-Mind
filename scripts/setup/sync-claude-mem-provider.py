@@ -18,6 +18,11 @@ Este script faz o mapeamento e escreve em settings.json, preservando as demais
 chaves, e reinicia o worker. É chamado pelo setup-brain (ao escolher o papel
 claude_mem) e pelo install.sh (instalação limpa).
 
+Data dir: desde 2026-08-22 o canônico é o do projeto (ROOT/claude-mem/data —
+onde o supervisor lança o worker vendorizado), com fallback para ~/.claude-mem
+em instalações sem esse diretório. A env CLAUDE_MEM_DATA_DIR sempre vence.
+O seed global continua sendo gravado por compatibilidade.
+
 Uso:
     python scripts/sync-claude-mem-provider.py            # aplica e reinicia worker
     python scripts/sync-claude-mem-provider.py --no-restart
@@ -34,12 +39,26 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
-from core.auth import PROVIDERS_CONFIG, load_env  # noqa: E402
+from core.auth import PROVIDERS_CONFIG, get_role_config, load_env  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 GLOBAL_CMEM_DATA_DIR = Path.home() / ".claude-mem"
 GLOBAL_CMEM_SETTINGS = GLOBAL_CMEM_DATA_DIR / "settings.json"
-CMEM_SETTINGS = Path(os.environ.get("CLAUDE_MEM_DATA_DIR", str(GLOBAL_CMEM_DATA_DIR))) / "settings.json"
+# Data dir canônico do worker gerenciado pelo Hive-Mind (vendor integrations/claude-mem):
+# o supervisor lança o worker com CLAUDE_MEM_DATA_DIR apontando para cá. Desde a
+# decisão de 2026-08-22, este arquivo do projeto é a verdade; o global (~/.claude-mem)
+# permanece apenas como seed de compatibilidade para instalações sem o dir do projeto.
+PROJECT_CMEM_DATA_DIR = ROOT / "claude-mem" / "data"
+
+
+def resolve_data_dir() -> Path:
+    """Ordem de resolução: env CLAUDE_MEM_DATA_DIR > dir do projeto > global."""
+    override = os.environ.get("CLAUDE_MEM_DATA_DIR", "").strip()
+    if override:
+        return Path(override)
+    if PROJECT_CMEM_DATA_DIR.is_dir():
+        return PROJECT_CMEM_DATA_DIR
+    return GLOBAL_CMEM_DATA_DIR
 
 # provider do Hive (core/auth) → slot nativo do claude-mem
 GEMINI_PROVIDERS = {"google", "gemini"}
@@ -86,8 +105,8 @@ def _key_for(provider: str, env: dict) -> str:
 
 
 def runtime_updates() -> dict[str, str]:
-    """Campos oficiais do runtime temporal global do claude-mem."""
-    data_dir = GLOBAL_CMEM_DATA_DIR
+    """Campos oficiais do runtime temporal do claude-mem (data dir resolvido)."""
+    data_dir = resolve_data_dir()
     return {
         "CLAUDE_MEM_DATA_DIR": str(data_dir),
         "CLAUDE_MEM_WORKER_HOST": "127.0.0.1",
@@ -99,7 +118,7 @@ def runtime_updates() -> dict[str, str]:
 
 
 def local_runtime_updates() -> dict[str, str]:
-    """Compatibilidade: o runtime oficial agora é global."""
+    """Compatibilidade: resolução dinâmica (projeto > global)."""
     return runtime_updates()
 
 
@@ -107,6 +126,58 @@ def local_runtime_updates() -> dict[str, str]:
 # Gravar um valor fora dela faz QUALQUER save retornar 400 e quebra o Uif inteiro.
 GEMINI_ALLOWED = {"gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-3-flash-preview"}
 GEMINI_DEFAULT = "gemini-2.5-flash"
+
+
+def build_provider_chain(env: dict) -> list[dict]:
+    """Materializa primary/fallback/fallback2 em entradas consumíveis pelo worker."""
+    merged_env = dict(env)
+    env_file = ROOT / ".env"
+    if env_file.exists():
+        for raw in env_file.read_text(encoding="utf-8").splitlines():
+            if not raw or raw.lstrip().startswith("#") or "=" not in raw:
+                continue
+            key, value = raw.split("=", 1)
+            merged_env[key.strip()] = value.strip().strip('"').strip("'")
+    config = {
+        "provider": merged_env.get("HIVE_CLAUDE_MEM_PROVIDER") or merged_env.get("HIVE_DREAMER_PROVIDER"),
+        "model": merged_env.get("HIVE_CLAUDE_MEM_MODEL") or merged_env.get("HIVE_DREAMER_MODEL"),
+        "fallback_provider": merged_env.get("HIVE_CLAUDE_MEM_FALLBACK_PROVIDER"),
+        "fallback_model": merged_env.get("HIVE_CLAUDE_MEM_FALLBACK_MODEL"),
+        "fallback2_provider": merged_env.get("HIVE_CLAUDE_MEM_FALLBACK2_PROVIDER"),
+        "fallback2_model": merged_env.get("HIVE_CLAUDE_MEM_FALLBACK2_MODEL"),
+    }
+    if not config["fallback_provider"] and not config["provider"]:
+        config = get_role_config("claude_mem")
+    levels = [
+        (config.get("provider"), config.get("model")),
+        (config.get("fallback_provider"), config.get("fallback_model")),
+        (config.get("fallback2_provider"), config.get("fallback2_model")),
+    ]
+    chain: list[dict] = []
+    for provider, model in levels:
+        provider = (provider or "").strip().lower()
+        model = (model or "").strip()
+        cfg = PROVIDERS_CONFIG.get(provider, {})
+        if not provider or not model or not _usable_by_claude_mem(provider, cfg):
+            continue
+        key = _key_for(provider, merged_env)
+        if provider in GEMINI_PROVIDERS:
+            entry = {"slot": "gemini", "provider": provider, "model": model, "apiKey": key}
+        elif provider in CLAUDE_PROVIDERS:
+            entry = {
+                "slot": "claude", "provider": provider, "model": model,
+                "apiKey": "" if key == "local" else key,
+                "authMethod": "api-key" if key and key != "local" else "subscription",
+            }
+        else:
+            entry = {
+                "slot": "openrouter", "provider": provider, "model": model,
+                "baseUrl": cfg.get("base_url", ""), "apiKey": key,
+            }
+        if not any(existing["slot"] == entry["slot"] and existing["model"] == model
+                   and existing.get("baseUrl") == entry.get("baseUrl") for existing in chain):
+            chain.append(entry)
+    return chain
 
 
 def build_updates(provider: str, model: str, env: dict) -> dict:
@@ -223,13 +294,14 @@ def apply(updates: dict) -> None:
         # worker pode estar fora (ex.: durante o install) — o seed em settings.json
         # abaixo garante a config no próximo start.
             print(f"  ! API /api/settings indisponível ({exc}); aplicando só o seed em settings.json")
-    # Mantém o settings.json (seed de startup) coerente com a escolha, para um
-    # restart nunca reintroduzir um provider diferente.
+    # Mantém o seed do data dir resolvido (projeto > global) coerente com a
+    # escolha, para um restart nunca reintroduzir um provider diferente.
     try:
-        CMEM_SETTINGS.parent.mkdir(parents=True, exist_ok=True)
-        cfg = json.loads(CMEM_SETTINGS.read_text()) if CMEM_SETTINGS.exists() else {}
+        settings_path = resolve_data_dir() / "settings.json"
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        cfg = json.loads(settings_path.read_text()) if settings_path.exists() else {}
         cfg.update(updates)
-        CMEM_SETTINGS.write_text(json.dumps(cfg, indent=2) + "\n")
+        settings_path.write_text(json.dumps(cfg, indent=2) + "\n")
     except Exception:
         pass  # a API (viewer_settings) é a fonte de verdade; arquivo é só seed
     # Atualiza o seed global (~/.claude-mem) para restarts do worker systemd.
@@ -310,7 +382,12 @@ def main() -> int:
             return 1
 
     updates = build_updates(provider, model, env)
-    safe = {k: ("***" if "KEY" in k or "TOKEN" in k else v) for k, v in updates.items()}
+    chain = build_provider_chain(env)
+    if chain:
+        updates["CLAUDE_MEM_PROVIDER_CHAIN"] = json.dumps(
+            chain, ensure_ascii=False, separators=(",", ":")
+        )
+    safe = {k: ("***" if "KEY" in k or "TOKEN" in k or k == "CLAUDE_MEM_PROVIDER_CHAIN" else v) for k, v in updates.items()}
     print(f"claude-mem <- {provider}/{model}")
     print(json.dumps(safe, indent=2))
 

@@ -95,6 +95,8 @@ def test_unsupported_not_executed_at_runtime(capsys):
         )
     assert resp.ok is True
     assert resp.model_id.endswith("ollama-fb")
+    assert resp.fallback_used is True
+    assert resp.fallback_chain == ["future-llm", "ollama-fb"]
 
     out = capsys.readouterr().err
     assert "provider_unsupported_skipped" in out

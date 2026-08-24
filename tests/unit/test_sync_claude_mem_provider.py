@@ -16,18 +16,44 @@ def _load():
     return mod
 
 
-def test_runtime_updates_usam_claude_mem_global():
+def test_runtime_updates_preferem_o_data_dir_do_projeto(tmp_path, monkeypatch):
     mod = _load()
-    updates = mod.runtime_updates()
-    data_dir = Path.home() / ".claude-mem"
+    projeto = tmp_path / "claude-mem" / "data"
+    projeto.mkdir(parents=True)
+    monkeypatch.setattr(mod, "PROJECT_CMEM_DATA_DIR", projeto)
 
-    assert updates["CLAUDE_MEM_DATA_DIR"] == str(data_dir)
-    assert updates["FASTEMBED_CACHE_PATH"] == str(data_dir / "models")
+    updates = mod.runtime_updates()
+
+    assert updates["CLAUDE_MEM_DATA_DIR"] == str(projeto)
+    assert updates["FASTEMBED_CACHE_PATH"] == str(projeto / "models")
     assert updates["CLAUDE_MEM_CHROMA_ENABLED"] == "false"
     assert updates["CLAUDE_MEM_TRANSCRIPTS_CONFIG_PATH"] == str(
-        data_dir / "transcript-watch.json"
+        projeto / "transcript-watch.json"
     )
-    assert str(mod.ROOT / "claude-mem" / "data") not in "\n".join(updates.values())
+
+
+def test_runtime_updates_fazem_fallback_para_o_global_sem_data_dir_do_projeto(
+    tmp_path, monkeypatch
+):
+    mod = _load()
+    monkeypatch.setattr(mod, "PROJECT_CMEM_DATA_DIR", tmp_path / "ausente")
+
+    updates = mod.runtime_updates()
+
+    data_dir = Path.home() / ".claude-mem"
+    assert updates["CLAUDE_MEM_DATA_DIR"] == str(data_dir)
+    assert updates["FASTEMBED_CACHE_PATH"] == str(data_dir / "models")
+
+
+def test_env_claude_mem_data_dir_vence_a_resolucao(tmp_path, monkeypatch):
+    mod = _load()
+    projeto = tmp_path / "proj"
+    projeto.mkdir()
+    outro = tmp_path / "outro"
+    monkeypatch.setattr(mod, "PROJECT_CMEM_DATA_DIR", projeto)
+    monkeypatch.setenv("CLAUDE_MEM_DATA_DIR", str(outro))
+
+    assert mod.resolve_data_dir() == outro
 
 
 def test_recent_auth_error_recognizes_current_403(tmp_path, monkeypatch):

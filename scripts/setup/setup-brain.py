@@ -798,8 +798,8 @@ def manage_provider(p_name: str, role: str, level: int = 0):
     show_model_selection(p_name, role, level)
 
 
-def sync_claude_mem_provider(expected_provider: str, expected_model: str) -> bool:
-    """Aplica o papel claude_mem no worker real e confirma a config viva."""
+def _run_claude_mem_sync_script() -> bool:
+    """Executa scripts/setup/sync-claude-mem-provider.py. True se exit 0."""
     import subprocess
 
     cmd = (sys.executable, str(PROJECT_ROOT / "scripts" / "setup" / "sync-claude-mem-provider.py"))
@@ -811,6 +811,38 @@ def sync_claude_mem_provider(expected_provider: str, expected_model: str) -> boo
     if proc.returncode != 0:
         print(f"{RED}✗ sync claude-mem falhou com exit {proc.returncode}.{NC}")
         return False
+    return True
+
+
+def _chain_level_matches(settings: dict, level: int, expected_provider: str,
+                         expected_model: str) -> tuple[bool, str]:
+    """Confere se o nível `level` (0=primário, 1=fallback, 2=fallback2) está
+    aplicado na CLAUDE_MEM_PROVIDER_CHAIN viva. Função pura (sem rede)."""
+    raw = settings.get("CLAUDE_MEM_PROVIDER_CHAIN") or ""
+    try:
+        chain = json.loads(raw) if raw else []
+    except (TypeError, ValueError):
+        return False, f"CLAUDE_MEM_PROVIDER_CHAIN inválida: {str(raw)[:60]!r}"
+    if not isinstance(chain, list) or len(chain) <= level:
+        return False, f"cadeia viva tem {len(chain)} nível(is); nível {level} ausente"
+    entry = chain[level] or {}
+    provider_ok = str(entry.get("provider", "")).lower() == expected_provider.lower()
+    model_ok = entry.get("model") == expected_model
+    if provider_ok and model_ok:
+        return True, f"nível {level} = {expected_provider}/{expected_model}"
+    return False, (f"nível {level} vivo = {entry.get('provider')}/{entry.get('model')}; "
+                   f"esperado {expected_provider}/{expected_model}")
+
+
+def sync_claude_mem_provider(expected_provider: str, expected_model: str, level: int = 0) -> bool:
+    """Aplica o papel claude_mem no worker real e confirma a config viva.
+
+    Nível 0 verifica PROVIDER/MODEL; níveis 1-2 (fallback/fallback2) verificam
+    a entrada correspondente na CLAUDE_MEM_PROVIDER_CHAIN viva — editar um
+    fallback DEVE refletir no worker imediatamente, sem re-salvar o primário.
+    """
+    if not _run_claude_mem_sync_script():
+        return False
 
     try:
         resp = requests.get("http://127.0.0.1:37700/api/settings", timeout=5)
@@ -820,35 +852,39 @@ def sync_claude_mem_provider(expected_provider: str, expected_model: str) -> boo
         print(f"{YELLOW}⚠ não consegui confirmar /api/settings após sync: {exc}{NC}")
         return False
 
-    provider = expected_provider.lower()
-    if provider in ("anthropic", "claude"):
-        ok = (
-            settings.get("CLAUDE_MEM_PROVIDER") == "claude"
-            and settings.get("CLAUDE_MEM_MODEL") == expected_model
-        )
-    elif provider in ("google", "gemini"):
-        ok = (
-            settings.get("CLAUDE_MEM_PROVIDER") == "gemini"
-            and settings.get("CLAUDE_MEM_GEMINI_MODEL") == expected_model
-        )
+    if level == 0:
+        provider = expected_provider.lower()
+        if provider in ("anthropic", "claude"):
+            ok = (
+                settings.get("CLAUDE_MEM_PROVIDER") == "claude"
+                and settings.get("CLAUDE_MEM_MODEL") == expected_model
+            )
+        elif provider in ("google", "gemini"):
+            ok = (
+                settings.get("CLAUDE_MEM_PROVIDER") == "gemini"
+                and settings.get("CLAUDE_MEM_GEMINI_MODEL") == expected_model
+            )
+        else:
+            ok = (
+                settings.get("CLAUDE_MEM_PROVIDER") == "openrouter"
+                and settings.get("CLAUDE_MEM_OPENROUTER_MODEL") == expected_model
+            )
+        detail = json.dumps({
+            "CLAUDE_MEM_PROVIDER": settings.get("CLAUDE_MEM_PROVIDER"),
+            "CLAUDE_MEM_MODEL": settings.get("CLAUDE_MEM_MODEL"),
+            "CLAUDE_MEM_GEMINI_MODEL": settings.get("CLAUDE_MEM_GEMINI_MODEL"),
+            "CLAUDE_MEM_OPENROUTER_MODEL": settings.get("CLAUDE_MEM_OPENROUTER_MODEL"),
+        }, indent=2)
+        label = f"{expected_provider}/{expected_model} (primário)"
     else:
-        ok = (
-            settings.get("CLAUDE_MEM_PROVIDER") == "openrouter"
-            and settings.get("CLAUDE_MEM_OPENROUTER_MODEL") == expected_model
-        )
+        ok, detail = _chain_level_matches(settings, level, expected_provider, expected_model)
+        label = f"{expected_provider}/{expected_model} (nível {level})"
 
     if ok:
-        print(f"{GREEN}✓ claude-mem confirmado no worker: {expected_provider}/{expected_model}{NC}")
+        print(f"{GREEN}✓ claude-mem confirmado no worker: {label}{NC}")
         return True
-
-    live = {
-        "CLAUDE_MEM_PROVIDER": settings.get("CLAUDE_MEM_PROVIDER"),
-        "CLAUDE_MEM_MODEL": settings.get("CLAUDE_MEM_MODEL"),
-        "CLAUDE_MEM_GEMINI_MODEL": settings.get("CLAUDE_MEM_GEMINI_MODEL"),
-        "CLAUDE_MEM_OPENROUTER_MODEL": settings.get("CLAUDE_MEM_OPENROUTER_MODEL"),
-    }
-    print(f"{RED}✗ claude-mem não aplicou o modelo esperado.{NC}")
-    print(json.dumps(live, indent=2))
+    print(f"{RED}✗ claude-mem não aplicou: {label}.{NC}")
+    print(detail)
     return False
 
 
@@ -935,8 +971,9 @@ def show_model_selection(p_name: str, role: str, level: int = 0):
 
     # Papel claude_mem: aplica a escolha direto no claude-mem (settings.json) e
     # reinicia o worker, para o claude-mem passar a gerar com o modelo escolhido.
-    if role == "claude_mem" and level == 0:
-        sync_claude_mem_provider(selected["provider"], selected["id"])
+    # Qualquer nível (primário/fallback/fallback2) sincroniza na hora.
+    if role == "claude_mem":
+        sync_claude_mem_provider(selected["provider"], selected["id"], level=level)
 
     if level < 2:
         prox = "FALLBACK" if level == 0 else "2º FALLBACK (rede final, ex.: OmniRoute)"
